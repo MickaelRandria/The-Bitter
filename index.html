@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>The Bitter</title>
+    
+    <!-- Fonts: Inter (Strictly Sans-Serif) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Config for Warm Minimalist Style -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              cream: '#FDFCF8',
+              sand: '#F2EFE9',
+              charcoal: '#1A1A1A',
+              forest: '#3E5238',
+              burnt: '#D97706',
+              
+              // Maintain legacy mappings for other components if needed
+              background: '#FDFCF8', // Map to cream
+              surface: '#F2EFE9',    // Map to sand
+              primary: '#1A1A1A',    // Map to charcoal
+              secondary: '#57534E',  // Warm grey
+              
+              // TrendZone Accent Colors (Kept for compatibility/accents)
+              'tz-orange': '#FF5722',
+              'tz-green': '#10B981',
+              'tz-yellow': '#FACC15',
+              'tz-blue': '#38BDF8',
+              'tz-purple': '#A855F7',
+            },
+            fontFamily: {
+              sans: ['"Inter"', 'sans-serif'],
+            },
+            borderRadius: {
+              'xl': '1rem',
+              '2xl': '1.5rem',
+              '3xl': '2rem',
+            },
+            boxShadow: {
+              'soft': '0 10px 40px -10px rgba(62, 82, 56, 0.08)',
+              'soft-hover': '0 20px 40px -10px rgba(62, 82, 56, 0.15)',
+              'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+            }
+          }
+        }
+      }
+    </script>
+    
+    <style>
+      body {
+        background-color: #FDFCF8;
+        color: #1A1A1A;
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      /* Hide scrollbar for horizontal scrolling areas */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
