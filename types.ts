@@ -18,10 +18,12 @@ export interface Movie {
   genre: string;
   ratings: RatingCriteria;
   review: string;
-  dateAdded: number;
+  dateAdded: number; // System timestamp
+  dateWatched?: number; // User defined timestamp for analytics
   theme: ThemeColor;
   posterUrl?: string; // Optional image URL
   status: MovieStatus;
+  tmdbRating?: number; // Added: Average rating from the community
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;

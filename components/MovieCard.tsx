@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Movie, ThemeColor } from '../types';
-import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2 } from 'lucide-react';
+import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface MovieCardProps {
   movie: Movie;
   index: number;
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
+  searchQuery?: string;
 }
 
 const themeStyles: Record<ThemeColor, string> = {
@@ -18,52 +19,63 @@ const themeStyles: Record<ThemeColor, string> = {
   black: 'bg-charcoal text-white',
 };
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit }) => {
+const NOISE_BG = {
+  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.07'/%3E%3C/svg%3E")`
+};
+
+const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, searchQuery }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  // Reset delete confirmation when card is collapsed
   useEffect(() => {
-    if (!isExpanded) {
-      setDeleteConfirm(false);
-    }
+    if (!isExpanded) setDeleteConfirm(false);
   }, [isExpanded]);
 
-  const globalRating = (
-    (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4
-  ).toFixed(1);
+  const globalRatingRaw = (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
+  const globalRating = globalRatingRaw.toFixed(1);
 
   const hasPoster = !!movie.posterUrl;
   const isWatchlist = movie.status === 'watchlist';
 
-  // Staggered Masonry Height
   const heightClass = isExpanded 
-    ? 'h-auto min-h-[24rem]' 
-    : (index % 3 === 0 ? 'h-72' : 'h-60');
+    ? 'h-auto min-h-[26rem]' 
+    : (index % 3 === 0 ? 'h-80' : 'h-64');
+
+  const highlightText = (text: string, query?: string) => {
+    if (!query || !query.trim()) return text;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <span key={i} className="bg-yellow-300 text-charcoal px-0.5 rounded-[2px] shadow-sm">{part}</span>
+          ) : part
+        )}
+      </span>
+    );
+  };
 
   const RatingBar = ({ label, value }: { label: string, value: number }) => (
-    <div className="group relative flex items-center gap-2 mb-1.5" title={`${label}: ${value}/10`}>
-      {/* Tooltip on Hover */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 backdrop-blur text-white text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 shadow-xl">
-        {value} / 10
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/90"></div>
-      </div>
-
-      <span className={`text-[10px] font-bold uppercase w-10 opacity-70 ${hasPoster ? 'text-white' : ''}`}>{label}</span>
-      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${hasPoster ? 'bg-white/20' : 'bg-black/10'}`}>
+    <div className="group relative flex items-center gap-3 mb-2" title={`${label}: ${value}/10`}>
+      <span className={`text-[10px] font-bold uppercase w-10 opacity-60 tracking-wider ${hasPoster ? 'text-white' : 'text-current'}`}>
+        {label}
+      </span>
+      <div className={`flex-1 h-1 rounded-full overflow-hidden ${hasPoster ? 'bg-white/20' : 'bg-black/10'}`}>
         <div 
-          className="h-full bg-current opacity-90 rounded-full" 
+          className="h-full bg-current opacity-90 rounded-full transition-all duration-500 ease-out" 
           style={{ width: `${value * 10}%` }}
         />
       </div>
-      <span className={`text-[10px] font-bold w-4 text-right ${hasPoster ? 'text-white' : ''}`}>{value}</span>
+      <span className={`text-[10px] font-bold w-4 text-right opacity-90 ${hasPoster ? 'text-white' : 'text-current'}`}>
+        {value}
+      </span>
     </div>
   );
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Critical: Stop bubbling to card expand/collapse
-    
+    e.stopPropagation();
     if (deleteConfirm) {
       onDelete(movie.id);
     } else {
@@ -72,21 +84,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit })
     }
   };
 
-  const handleEditClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onEdit(movie);
-  };
+  const cardClasses = `
+    relative rounded-[2rem] p-7 flex flex-col transition-all duration-500 w-full overflow-hidden cursor-pointer group/card
+    ${isExpanded ? 'shadow-2xl scale-[1.02] z-10' : 'shadow-soft hover:shadow-soft-hover hover:scale-[1.01] hover:-translate-y-1'}
+    ${heightClass}
+  `;
 
-  // Special Card Style for Watchlist
+  // --- WATCHLIST CARD ---
   if (isWatchlist) {
       return (
         <div 
           onClick={() => setIsExpanded(!isExpanded)}
           className={`
-            relative rounded-3xl p-6 flex flex-col transition-all duration-300 w-full overflow-hidden cursor-pointer group/card
-            ${hasPoster ? 'text-white shadow-soft' : 'bg-white text-charcoal border-2 border-dashed border-stone-200'}
-            ${heightClass}
+            ${cardClasses}
+            ${hasPoster ? 'text-white' : 'bg-surface/50 border-2 border-dashed border-stone-200 text-charcoal'}
           `}
           style={hasPoster ? {
             backgroundImage: `url(${movie.posterUrl})`,
@@ -94,70 +105,75 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit })
             backgroundPosition: 'center'
           } : {}}
         >
-            {/* Overlay for poster watchlist items */}
             {hasPoster && (
-                <div className={`absolute inset-0 bg-black/50 grayscale transition-opacity duration-300 ${isExpanded ? 'opacity-80' : 'opacity-60'}`} />
+                <div className={`absolute inset-0 bg-charcoal/40 grayscale transition-all duration-500 ${isExpanded ? 'bg-charcoal/80 grayscale-0' : ''}`} />
             )}
-
-            {/* Badge */}
-            <div className="relative z-10 flex justify-between items-start mb-2">
-                <span className={`inline-block text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full ${hasPoster ? 'bg-white/20 backdrop-blur-md' : 'bg-stone-100 text-stone-500'}`}>
-                    {movie.genre}
+            
+            <div className="relative z-10 flex justify-between items-start mb-4">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest ${hasPoster ? 'bg-white/20 backdrop-blur-md text-white' : 'bg-white text-stone-500 shadow-sm'}`}>
+                   <Ticket size={12} />
+                   {highlightText(movie.genre, searchQuery)}
                 </span>
-                <div className={`px-2 py-1 rounded-full flex items-center gap-1 ${hasPoster ? 'bg-white/20' : 'bg-stone-100 text-stone-500'}`}>
-                    <Play size={10} fill="currentColor" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide">File</span>
+                
+                <div className="flex items-center gap-2">
+                   {movie.tmdbRating && movie.tmdbRating > 0 && (
+                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${hasPoster ? 'bg-white/10 text-white' : 'bg-black/5 text-stone-400'}`}>
+                         <Globe size={10} />
+                         {movie.tmdbRating}
+                      </div>
+                   )}
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasPoster ? 'bg-white/20 text-white' : 'bg-white text-stone-400 shadow-sm'}`}>
+                      {isExpanded ? <ChevronUp size={16} /> : <Play size={14} fill="currentColor" />}
+                   </div>
                 </div>
             </div>
 
-            {/* Content */}
-            <div className={`relative z-10 transition-all duration-300 ${isExpanded ? 'mb-2' : 'mt-auto'}`}>
-                <h3 className="text-2xl font-bold leading-tight tracking-tight mb-1 break-words">
-                {movie.title}
+            <div className={`relative z-10 transition-all duration-500 flex flex-col ${isExpanded ? 'mb-4' : 'mt-auto'}`}>
+                <h3 className="text-2xl font-black leading-tight tracking-tight mb-2 break-words">
+                  {highlightText(movie.title, searchQuery)}
                 </h3>
-                <p className={`text-xs font-bold uppercase tracking-wider ${hasPoster ? 'text-zinc-300' : 'text-stone-400'}`}>
-                    {movie.director}
+                <p className={`text-xs font-bold uppercase tracking-widest ${hasPoster ? 'text-zinc-300' : 'text-stone-400'}`}>
+                    {highlightText(movie.director, searchQuery)} <span className="opacity-50 mx-1">/</span> {movie.year}
                 </p>
             </div>
 
-            {/* Expanded for Watchlist (Actions) */}
             {isExpanded && (
-                <div className="relative z-10 mt-auto pt-6 animate-[fadeIn_0.3s_ease-out]">
+                <div className="relative z-10 mt-auto pt-6 border-t border-current/10 animate-[fadeIn_0.4s_ease-out]">
                      <button 
                         onClick={(e) => { e.stopPropagation(); onEdit(movie); }}
-                        className="w-full flex items-center justify-center gap-2 bg-forest text-white py-3 rounded-xl font-bold text-sm shadow-lg mb-3 hover:scale-105 transition-transform"
+                        className="w-full flex items-center justify-center gap-2 bg-forest text-white py-3.5 rounded-xl font-bold text-sm shadow-lg mb-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
                      >
-                        <CheckCircle2 size={16} />
+                        <CheckCircle2 size={18} />
                         Marquer comme vu
                      </button>
                      
-                     <div className="flex justify-between items-center px-1">
-                        <button onClick={handleEditClick} className="text-xs font-bold opacity-60 hover:opacity-100">Modifier</button>
-                        <button onClick={handleDeleteClick} className="text-xs font-bold text-red-500 opacity-80 hover:opacity-100">
-                             {deleteConfirm ? 'Sûr ?' : 'Retirer'}
+                     <div className="flex justify-between items-center px-2">
+                        <button onClick={(e) => { e.stopPropagation(); onEdit(movie); }} className="text-xs font-bold opacity-60 hover:opacity-100 transition-opacity">Modifier</button>
+                        <button onClick={handleDeleteClick} className="text-xs font-bold text-red-500 opacity-80 hover:opacity-100 transition-opacity">
+                             {deleteConfirm ? 'Confirmer ?' : 'Retirer'}
                         </button>
                      </div>
                 </div>
             )}
             
-            {/* Visual indicator for unexpanded card */}
-            {!isExpanded && (
-                <div className={`absolute bottom-6 right-6 opacity-30 ${hasPoster ? 'text-white' : 'text-stone-400'}`}>
-                    <Play size={24} />
-                </div>
-            )}
+            {!hasPoster && <div className="absolute inset-0 opacity-40 pointer-events-none" style={NOISE_BG} />}
         </div>
       );
   }
 
-  // --- STANDARD WATCHED CARD ---
+  const isDarkTheme = hasPoster || movie.theme === 'black' || movie.theme === 'blue' || movie.theme === 'purple' || movie.theme === 'green' || movie.theme === 'orange';
+  const textColor = isDarkTheme ? 'text-white' : 'text-charcoal';
+  const secondaryTextColor = isDarkTheme ? 'text-white/70' : 'text-charcoal/60';
+
+  const diff = movie.tmdbRating ? (globalRatingRaw - movie.tmdbRating).toFixed(1) : "0";
+  const diffNum = Number(diff);
+
   return (
     <div 
       onClick={() => setIsExpanded(!isExpanded)}
       className={`
-        relative rounded-3xl p-6 flex flex-col shadow-soft hover:shadow-soft-hover hover:scale-[1.02] transition-all duration-300 w-full overflow-hidden cursor-pointer group/card
+        ${cardClasses}
         ${hasPoster ? 'text-white' : themeStyles[movie.theme]}
-        ${heightClass}
       `}
       style={hasPoster ? {
         backgroundImage: `url(${movie.posterUrl})`,
@@ -165,55 +181,73 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit })
         backgroundPosition: 'center'
       } : {}}
     >
-      {/* Dark Overlay for Image Cards */}
-      {hasPoster && (
-        <div className={`absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent transition-opacity duration-300 pointer-events-none ${isExpanded ? 'opacity-95' : 'opacity-80'}`} />
+      {!hasPoster && <div className="absolute inset-0 mix-blend-overlay pointer-events-none" style={NOISE_BG} />}
+      
+      {!hasPoster && (
+        <>
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none mix-blend-overlay" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-32 h-32 bg-black/5 rounded-full blur-2xl pointer-events-none" />
+        </>
       )}
 
-      {/* Header */}
-      <div className="relative z-10 flex justify-between items-start mb-2">
-        <span className={`inline-block text-[10px] uppercase font-bold tracking-widest opacity-80 border border-current px-2 py-0.5 rounded-full ${hasPoster ? 'bg-black/30 backdrop-blur-md border-white/20' : ''}`}>
-            {movie.genre}
+      {hasPoster && (
+        <div className={`absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/40 to-transparent transition-opacity duration-500 pointer-events-none ${isExpanded ? 'opacity-95' : 'opacity-80'}`} />
+      )}
+
+      <div className="relative z-10 flex justify-between items-start mb-4">
+        <span className={`inline-block text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full border border-current/20 ${hasPoster ? 'bg-black/30 backdrop-blur-md text-white' : ''}`}>
+            {highlightText(movie.genre, searchQuery)}
         </span>
-        <div className={`backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 ${hasPoster ? 'bg-black/40 text-white' : 'bg-white/20'}`}>
-          <Star size={12} fill="currentColor" className="opacity-90" />
-          <span className="text-xs font-bold">{globalRating}</span>
+        <div className="flex flex-col items-end gap-1.5">
+           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full ${hasPoster ? 'bg-black/40 backdrop-blur-md text-white' : 'bg-black/5'}`}>
+             <Star size={12} fill="currentColor" className={isDarkTheme ? 'text-yellow-400' : 'text-charcoal'} />
+             <span className="text-xs font-bold">{globalRating}</span>
+           </div>
+           {movie.tmdbRating && movie.tmdbRating > 0 && !isExpanded && (
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-tighter uppercase ${hasPoster ? 'bg-white/10 text-white/60' : 'bg-black/5 text-stone-400'}`}>
+                 <Globe size={10} className="opacity-70" />
+                 TMDB {movie.tmdbRating}
+              </div>
+           )}
         </div>
       </div>
 
-      {/* Title */}
-      <div className={`relative z-10 transition-all duration-300 ${isExpanded ? 'mb-2' : 'mt-auto'}`}>
-        <h3 className="text-2xl font-bold leading-tight tracking-tight mb-1 break-words drop-shadow-md">
-          {movie.title}
+      <div className={`relative z-10 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isExpanded ? 'mb-4' : 'mt-auto'}`}>
+        <h3 className="text-2xl font-black leading-none tracking-tight mb-2 drop-shadow-sm">
+          {highlightText(movie.title, searchQuery)}
         </h3>
-        {!isExpanded && (
-          <p className={`text-xs font-medium ${hasPoster ? 'text-zinc-300' : 'opacity-80'}`}>
-            {movie.director} • {movie.year}
-          </p>
-        )}
+        
+        <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${secondaryTextColor} transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-80'}`}>
+             <span>{movie.year}</span>
+             <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
+             <span className="truncate max-w-[120px]">{highlightText(movie.director, searchQuery)}</span>
+        </div>
       </div>
 
-      {/* Expanded Details */}
       {isExpanded && (
         <div 
-          className="relative z-10 mt-2 animate-[fadeIn_0.3s_ease-out] cursor-default" 
+          className="relative z-10 mt-2 pt-6 border-t border-current/10 animate-[fadeIn_0.5s_ease-out] cursor-default" 
           onClick={(e) => e.stopPropagation()}
         >
-          
-          <div className={`mb-5 pb-5 border-b ${hasPoster ? 'border-white/20' : 'border-current/10'}`}>
-             <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <span className="block text-[10px] font-bold uppercase opacity-60 mb-1">Réalisateur</span>
-                   <span className="block text-lg font-extrabold leading-snug tracking-tight">{movie.director}</span>
+          {/* Detailed Ratings Comparison */}
+          <div className={`rounded-2xl p-5 mb-6 ${hasPoster ? 'bg-white/5' : 'bg-black/5'}`}>
+             <div className="flex items-center justify-between mb-4 pb-4 border-b border-current/10">
+                <div className="flex flex-col">
+                   <span className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Écart de goût</span>
+                   <div className="flex items-center gap-2">
+                      {diffNum > 0 ? <TrendingUp size={16} className="text-forest" /> : diffNum < 0 ? <TrendingDown size={16} className="text-burnt" /> : <Minus size={16} className="text-stone-400" />}
+                      <span className="text-lg font-black">{diffNum > 0 ? '+' : ''}{diff}</span>
+                      <span className="text-[10px] font-bold opacity-40">vs TMDB</span>
+                   </div>
                 </div>
-                <div>
-                   <span className="block text-[10px] font-bold uppercase opacity-60 mb-1">Sortie</span>
-                   <span className="block text-lg font-extrabold leading-snug tracking-tight">{movie.year}</span>
+                <div className="flex flex-col items-end">
+                   <span className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Moyenne Public</span>
+                   <div className="flex items-center gap-2">
+                      <Globe size={14} className="opacity-60" />
+                      <span className="text-lg font-black">{movie.tmdbRating || '--'}</span>
+                   </div>
                 </div>
              </div>
-          </div>
-
-          <div className={`rounded-2xl p-4 mb-4 backdrop-blur-sm ${hasPoster ? 'bg-black/40' : 'bg-white/10'}`}>
              <RatingBar label="Hist" value={movie.ratings.story} />
              <RatingBar label="Visu" value={movie.ratings.visuals} />
              <RatingBar label="Jeu" value={movie.ratings.acting} />
@@ -221,45 +255,42 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit })
           </div>
           
           {movie.review && (
-            <div className="relative mb-6">
-              <span className="absolute -top-2 -left-1 text-4xl opacity-20 font-serif">“</span>
-              <p className="text-sm font-medium opacity-90 leading-relaxed pl-3 italic relative z-10">
-                {movie.review}
+            <div className="mb-6 pl-4 border-l-2 border-current/20">
+              <p className={`text-sm font-medium leading-relaxed italic ${secondaryTextColor}`}>
+                "{movie.review}"
               </p>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex justify-end items-center gap-2 mt-4">
-               <button 
-                type="button"
-                onClick={handleEditClick}
-                className={`cursor-pointer relative z-20 flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${hasPoster ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-black/5 hover:bg-black/10'}`}
-              >
-                <Pencil size={14} />
-                Éditer
-              </button>
+          <div className="flex justify-between items-center mt-auto">
+             <div className="flex gap-1">
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); onEdit(movie); }}
+                    className={`p-2.5 rounded-xl transition-colors ${hasPoster ? 'hover:bg-white/20 text-white' : 'hover:bg-black/10 text-current'}`}
+                    title="Éditer"
+                 >
+                    <Pencil size={18} />
+                 </button>
+             </div>
 
-              <button 
-                type="button"
+             <button 
                 onClick={handleDeleteClick}
                 className={`
-                  cursor-pointer relative z-20 flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200
+                  flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300
                   ${deleteConfirm 
-                    ? 'bg-red-600 text-white shadow-md scale-105' 
-                    : (hasPoster ? 'bg-white/10 text-red-300 hover:bg-red-500/80 hover:text-white' : 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white')
+                    ? 'bg-red-500 text-white shadow-lg scale-105' 
+                    : (hasPoster ? 'bg-white/10 hover:bg-red-500 hover:text-white text-white/80' : 'bg-black/5 hover:bg-red-500 hover:text-white text-current')
                   }
                 `}
               >
                 {deleteConfirm ? (
                    <>
                      <AlertCircle size={14} />
-                     Sûr ?
+                     <span>Confirmer</span>
                    </>
                 ) : (
                    <>
-                     <Trash2 size={14} />
-                     Suppr.
+                     <Trash2 size={16} />
                    </>
                 )}
               </button>
@@ -267,27 +298,21 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit })
         </div>
       )}
 
-      {/* Indicator - hidden when expanded because we stop propagation on the details container */}
-      <div 
-        className={`relative z-10 mt-auto pt-4 flex justify-center opacity-50 transition-opacity ${isExpanded ? 'hidden' : ''}`}
-      >
-        <ChevronDown size={20} />
-      </div>
-
-      {/* Collapse Trigger (Footer area to click to close) */}
       {isExpanded && (
-        <div 
+        <button 
             onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}
-            className="relative z-10 mt-auto pt-6 flex justify-center opacity-50 hover:opacity-100 cursor-pointer"
+            className={`absolute top-4 right-4 z-20 p-2 rounded-full transition-colors ${hasPoster ? 'hover:bg-white/20 text-white' : 'hover:bg-black/10 text-current'}`}
         >
              <ChevronUp size={20} />
+        </button>
+      )}
+
+      {!isExpanded && (
+        <div className={`absolute bottom-6 right-6 opacity-40 transition-transform duration-300 group-hover/card:translate-y-1 ${hasPoster ? 'text-white' : 'text-current'}`}>
+            <ChevronDown size={24} />
         </div>
       )}
 
-      {/* Background Decor */}
-      {!hasPoster && (
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-      )}
     </div>
   );
 };
