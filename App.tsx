@@ -28,7 +28,6 @@ const App: React.FC = () => {
 
   const STORAGE_KEY = 'the_bitter_data_clean_v1';
 
-  // --- Initial Load ---
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -44,20 +43,17 @@ const App: React.FC = () => {
     const hasVisited = localStorage.getItem('the_bitter_visited');
     if (hasVisited) {
        setShowWelcome(false);
-       // Si déjà visité mais pas de tuto, on checke plus tard
        const hasSeenMain = localStorage.getItem('the_bitter_tutorial_seen');
        if (!hasSeenMain) setActiveTutorial('Collection');
     }
   }, []);
 
-  // --- Auto-Save ---
   useEffect(() => {
     if (movies !== INITIAL_MOVIES) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
   }, [movies]);
 
-  // --- Contextual Tutorial Triggers ---
   useEffect(() => {
     if (viewMode === 'Analytics' && !localStorage.getItem('the_bitter_analytics_tutorial_seen')) {
       setActiveTutorial('Analytics');
@@ -77,7 +73,6 @@ const App: React.FC = () => {
     if (type === 'Analytics') localStorage.setItem('the_bitter_analytics_tutorial_seen', 'true');
   };
 
-  // --- Movie Handlers ---
   const handleSaveMovie = (data: MovieFormData) => {
     if (editingMovie) {
       setMovies(prev => prev.map(m => m.id === editingMovie.id ? { ...m, ...data } : m));
@@ -98,7 +93,6 @@ const App: React.FC = () => {
     setMovies(prev => prev.filter(m => m.id !== id));
   };
 
-  // --- Filtering ---
   const filteredAndSortedMovies = useMemo(() => {
     let result = [...movies];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
@@ -130,21 +124,20 @@ const App: React.FC = () => {
 
   const watchedMovies = useMemo(() => movies.filter(m => m.status !== 'watchlist'), [movies]);
 
-  // --- Tutorial Steps Definitions ---
   const collectionSteps: TutorialStep[] = [
     {
       title: "Prêt pour le voyage ?",
-      desc: "The Bitter est votre carnet de bord cinéma. Voici comment en tirer le meilleur parti.",
+      desc: "The Bitter est votre carnet de bord cinéma personnel. Voici comment dompter votre collection.",
       icon: <Sparkles size={28} />
     },
     {
-      title: "Recherche Intelligente",
-      desc: "Utilisez la barre de recherche connectée à TMDB pour ajouter un film. Le titre, le réalisateur et le résumé seront remplis automatiquement !",
-      icon: <Search size={28} />
+      title: "La Recherche Magique",
+      desc: "Ne perdez plus de temps : utilisez la barre de recherche TMDB. Elle remplit automatiquement l'affiche, le réalisateur et le résumé du film pour vous !",
+      icon: <Search size={28} className="text-forest" />
     },
     {
-      title: "Gestion de Collection",
-      desc: "Basculez entre votre 'Historique' (films vus) et votre 'File d'attente' (vos futures envies).",
+      title: "Deux Listes, Un Destin",
+      desc: "Organisez vos films entre votre 'Historique' (vus) et votre 'File d'attente' (à voir prochainement).",
       icon: <LayoutGrid size={28} />
     }
   ];
@@ -172,6 +165,11 @@ const App: React.FC = () => {
     }
   ];
 
+  const getDynamicPlaceholder = () => {
+    if (feedTab === 'history') return "Filtrer l'historique (titre, genre...)";
+    return "Chercher dans ma file d'attente...";
+  };
+
   if (showWelcome) return <WelcomePage onEnter={handleEnterApp} />;
 
   return (
@@ -186,36 +184,34 @@ const App: React.FC = () => {
 
       {/* --- Header --- */}
       <header className="pt-6 px-6 sticky top-0 z-20 bg-cream/95 backdrop-blur-md pb-4 transition-colors duration-300">
-        <div className="flex items-center justify-between mb-4 h-10">
-            {isSearchOpen ? (
-              <div className="flex-1 flex items-center gap-2 animate-[fadeIn_0.2s_ease-out]">
-                  <Search size={18} className="text-stone-400" />
-                  <input 
-                    autoFocus
-                    type="text" 
-                    placeholder="Rechercher dans ma collection..." 
-                    className="flex-1 bg-transparent text-lg font-bold text-charcoal outline-none placeholder:text-stone-300"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                  <button 
-                    onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
-                    className="p-2 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200"
-                  >
-                    <X size={16} />
-                  </button>
-              </div>
-            ) : (
-              <>
-                  <div className="text-2xl font-extrabold tracking-tighter text-charcoal">The Bitter</div>
-                  <div className="flex items-center gap-3">
-                     <button onClick={() => setIsSearchOpen(true)} className="p-2 hover:bg-sand rounded-full transition-colors text-charcoal">
-                       <Search size={22} strokeWidth={2.5} />
-                     </button>
-                     <div className="w-9 h-9 rounded-full bg-forest text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-md">JB</div>
-                  </div>
-              </>
-            )}
+        <div className="flex items-center justify-between mb-4 h-10 overflow-hidden">
+            <div className={`flex-1 flex items-center gap-3 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSearchOpen ? 'w-full' : 'w-0 opacity-0 pointer-events-none'}`}>
+                <Search size={18} className="text-stone-400 shrink-0" />
+                <input 
+                  autoFocus={isSearchOpen}
+                  type="text" 
+                  placeholder={getDynamicPlaceholder()}
+                  className="flex-1 bg-transparent text-lg font-bold text-charcoal outline-none placeholder:text-stone-300 placeholder:font-medium"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <button 
+                  onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
+                  className="p-2 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 shrink-0"
+                >
+                  <X size={16} />
+                </button>
+            </div>
+
+            <div className={`flex items-center justify-between flex-1 transition-all duration-500 ${isSearchOpen ? 'w-0 opacity-0 pointer-events-none scale-90' : 'w-full opacity-100'}`}>
+                <div className="text-2xl font-black tracking-tighter text-charcoal">The Bitter</div>
+                <div className="flex items-center gap-3">
+                   <button onClick={() => setIsSearchOpen(true)} className="p-2.5 bg-white border border-stone-100 shadow-sm hover:bg-sand rounded-2xl transition-all text-charcoal hover:scale-105 active:scale-95">
+                     <Search size={20} strokeWidth={2.5} />
+                   </button>
+                   <div className="w-9 h-9 rounded-2xl bg-forest text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-md">JB</div>
+                </div>
+            </div>
         </div>
 
         {!isSearchOpen && (
@@ -255,7 +251,7 @@ const App: React.FC = () => {
                 <div className="mb-6 space-y-4">
                   <div className="flex justify-between items-center">
                      <h2 className="text-xs font-bold uppercase tracking-widest text-stone-400">
-                       {searchQuery ? 'Résultats' : (feedTab === 'history' ? 'Votre Bibliothèque' : 'À voir')}
+                       {searchQuery ? 'Résultats de recherche' : (feedTab === 'history' ? 'Votre Bibliothèque' : 'Votre File d\'attente')}
                      </h2>
                      <div className="flex items-center gap-2">
                         <SlidersHorizontal size={14} className="text-stone-400" />
@@ -287,8 +283,8 @@ const App: React.FC = () => {
                       <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-stone-100 text-stone-300">
                           {feedTab === 'queue' ? <Clock size={32} /> : <CheckCircle2 size={32} />}
                       </div>
-                      <p className="text-stone-300 font-bold text-lg mb-2">{feedTab === 'queue' ? 'Liste vide.' : 'Aucun film enregistré.'}</p>
-                      <p className="text-stone-400 text-sm">Appuyez sur + pour ajouter.</p>
+                      <p className="text-stone-300 font-bold text-lg mb-2">{feedTab === 'queue' ? 'File d\'attente vide.' : 'Aucun film trouvé.'}</p>
+                      <p className="text-stone-400 text-sm">Ajustez vos filtres ou ajoutez un nouveau film.</p>
                     </div>
                 )}
             </>

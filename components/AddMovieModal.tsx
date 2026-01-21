@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Eye, Clock, Search, Loader2, Film, DownloadCloud, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Check, Eye, Clock, Search, Loader2, Film, DownloadCloud, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
 import { GENRES, THEME_COLORS } from '../constants';
 import { MovieFormData, ThemeColor, Movie, MovieStatus } from '../types';
 
@@ -153,7 +153,6 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
-        // Fix: Use the destructured 'dateAdded' directly instead of trying to access it from 'rest'
         const { id, dateAdded, ...rest } = initialData;
         setFormData({
             ...rest,
@@ -272,15 +271,23 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
 
         <div className="overflow-y-auto p-6 space-y-6 flex-1 no-scrollbar">
           {!initialData && (
-              <div className="relative z-20">
-                  <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          {isSearching ? <Loader2 size={18} className="animate-spin text-forest" /> : <Search size={18} className="text-stone-400" />}
+              <div className="relative z-30 group/search">
+                  <div className="mb-2 flex items-center justify-between">
+                     <div className="flex items-center gap-1.5">
+                        <Wand2 size={12} className="text-forest animate-pulse" />
+                        <span className="text-[10px] font-black uppercase text-forest tracking-wider">Recherche Magique</span>
+                     </div>
+                     <span className="text-[9px] font-black bg-forest/10 text-forest px-2 py-0.5 rounded-full">RECOMMANDÉ</span>
+                  </div>
+                  
+                  <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          {isSearching ? <Loader2 size={20} className="animate-spin text-forest" /> : <Search size={20} className="text-stone-400 group-focus-within/search:text-forest transition-colors" />}
                       </div>
                       <input 
                           type="text"
-                          placeholder="Rechercher avec TMDB..."
-                          className="w-full bg-stone-50 border border-transparent focus:border-forest/20 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all shadow-sm"
+                          placeholder="Tapez le titre d'un film..."
+                          className="w-full bg-sand/40 border-2 border-transparent focus:border-forest/20 focus:bg-white rounded-[1.25rem] py-4 pl-12 pr-4 text-sm font-bold outline-none transition-all shadow-lg shadow-forest/5 placeholder:text-stone-400 group-focus-within/search:shadow-forest/10"
                           value={tmdbQuery}
                           onChange={(e) => {
                               setTmdbQuery(e.target.value);
@@ -288,18 +295,31 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
                           }}
                       />
                   </div>
+
+                  <p className="mt-2 text-[10px] font-medium text-stone-400 pl-1 italic">
+                     Tout sera rempli automatiquement (affiche, réal, résumé...)
+                  </p>
+
                   {showResults && tmdbResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-stone-100 overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-stone-100 overflow-hidden animate-[fadeIn_0.2s_ease-out] z-40">
+                          <div className="bg-stone-50 px-4 py-2 text-[10px] font-black text-stone-400 uppercase tracking-widest border-b border-stone-100">Suggestions TMDB</div>
                           {tmdbResults.map((movie) => (
-                              <button key={movie.id} onClick={() => fetchMovieDetails(movie.id)} className="w-full text-left p-3 hover:bg-stone-50 flex items-center gap-3 border-b border-stone-50 last:border-0 transition-colors">
+                              <button key={movie.id} onClick={() => fetchMovieDetails(movie.id)} className="w-full text-left p-3.5 hover:bg-forest/5 flex items-center gap-4 border-b border-stone-50 last:border-0 transition-colors group/item">
                                   {movie.poster_path ? (
-                                      <img src={`${TMDB_IMAGE_URL}${movie.poster_path}`} alt="" className="w-10 h-14 object-cover rounded-md shadow-sm" />
+                                      <img src={`${TMDB_IMAGE_URL}${movie.poster_path}`} alt="" className="w-10 h-14 object-cover rounded-xl shadow-sm group-hover/item:scale-105 transition-transform" />
                                   ) : (
-                                      <div className="w-10 h-14 bg-zinc-200 rounded-md flex items-center justify-center"><Film size={16} className="text-stone-400" /></div>
+                                      <div className="w-10 h-14 bg-zinc-200 rounded-xl flex items-center justify-center"><Film size={16} className="text-stone-400" /></div>
                                   )}
                                   <div>
-                                      <div className="font-bold text-sm text-charcoal">{movie.title}</div>
-                                      <div className="text-xs text-stone-400">{movie.release_date ? movie.release_date.split('-')[0] : 'Inconnu'}</div>
+                                      <div className="font-bold text-sm text-charcoal group-hover/item:text-forest transition-colors">{movie.title}</div>
+                                      <div className="text-xs text-stone-400 flex items-center gap-2">
+                                          {movie.release_date ? movie.release_date.split('-')[0] : 'Inconnu'}
+                                          {movie.vote_average > 0 && (
+                                              <span className="flex items-center gap-1 bg-stone-100 px-1.5 py-0.5 rounded text-[10px] font-black">
+                                                  ★ {movie.vote_average.toFixed(1)}
+                                              </span>
+                                          )}
+                                      </div>
                                   </div>
                               </button>
                           ))}
@@ -308,10 +328,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
               </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-2 mb-2">
+               <div className="h-[1px] flex-1 bg-stone-100"></div>
+               <span className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Ou saisie manuelle</span>
+               <div className="h-[1px] flex-1 bg-stone-100"></div>
+            </div>
+
             <div>
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Titre</label>
-              <input type="text" className="w-full bg-zinc-50 rounded-xl p-4 text-primary font-bold text-lg outline-none ring-2 ring-transparent focus:ring-primary transition-all placeholder:text-zinc-300" placeholder="Titre du film" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Titre du film</label>
+              <input type="text" className="w-full bg-zinc-50 rounded-xl p-4 text-primary font-bold text-lg outline-none ring-2 ring-transparent focus:ring-primary/10 transition-all placeholder:text-zinc-300" placeholder="Ex: Inception" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
             </div>
 
             {mode === 'watched' && (
@@ -337,7 +363,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
                   <input type="url" className="w-full bg-zinc-50 rounded-xl p-3 font-medium outline-none focus:bg-white focus:ring-2 focus:ring-zinc-200 transition-all text-sm" placeholder="https://..." value={formData.posterUrl || ''} onChange={e => setFormData({...formData, posterUrl: e.target.value})} />
                </div>
                <div className="bg-sand p-3 rounded-xl flex flex-col justify-center h-[52px]">
-                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider block mb-0.5">Note TMDB</label>
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider block mb-0.5">Note Public</label>
                   <div className="text-lg font-black text-charcoal">{formData.tmdbRating || 0}<span className="text-xs opacity-40 ml-0.5">/10</span></div>
                </div>
             </div>
@@ -386,15 +412,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
           ) : (
              <div className="bg-sand/50 p-6 rounded-2xl text-center animate-[fadeIn_0.3s_ease-out]">
                  <Clock size={32} className="mx-auto text-stone-400 mb-2" />
-                 <p className="text-sm font-bold text-charcoal">Ajouté à la liste</p>
-                 <p className="text-xs text-stone-500 mt-1">Vous pourrez noter ce film une fois vu.</p>
+                 <p className="text-sm font-bold text-charcoal">Ajouté à la file d'attente</p>
+                 <p className="text-xs text-stone-500 mt-1">Tout est pré-rempli, vous n'avez plus qu'à le voir !</p>
              </div>
           )}
         </div>
 
-        <div className="p-4 border-t border-zinc-100">
+        <div className="p-4 border-t border-zinc-100 bg-white rounded-b-3xl">
           <button onClick={handleSubmit} className={`w-full text-white font-bold text-lg py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all hover:bg-black ${mode === 'watched' ? 'bg-charcoal' : 'bg-forest'}`}>
-            {initialData ? 'Mettre à jour' : (mode === 'watched' ? 'Enregistrer' : 'Ajouter à la liste')}
+            {initialData ? 'Mettre à jour' : (mode === 'watched' ? 'Enregistrer dans l\'historique' : 'Ajouter à la file d\'attente')}
           </button>
         </div>
       </div>
