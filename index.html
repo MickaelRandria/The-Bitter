@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>The Bitter</title>
     
-    <!-- Fonts: Inter (Strictly Sans-Serif) -->
+    <!-- Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,7 +13,6 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Tailwind Config for Warm Minimalist Style -->
     <script>
       tailwind.config = {
         theme: {
@@ -24,14 +23,10 @@
               charcoal: '#1A1A1A',
               forest: '#3E5238',
               burnt: '#D97706',
-              
-              // Maintain legacy mappings for other components if needed
-              background: '#FDFCF8', // Map to cream
-              surface: '#F2EFE9',    // Map to sand
-              primary: '#1A1A1A',    // Map to charcoal
-              secondary: '#57534E',  // Warm grey
-              
-              // TrendZone Accent Colors (Kept for compatibility/accents)
+              background: '#FDFCF8',
+              surface: '#F2EFE9',
+              primary: '#1A1A1A',
+              secondary: '#57534E',
               'tz-orange': '#FF5722',
               'tz-green': '#10B981',
               'tz-yellow': '#FACC15',
@@ -45,11 +40,28 @@
               'xl': '1rem',
               '2xl': '1.5rem',
               '3xl': '2rem',
+              '4xl': '2.5rem',
             },
             boxShadow: {
-              'soft': '0 10px 40px -10px rgba(62, 82, 56, 0.08)',
-              'soft-hover': '0 20px 40px -10px rgba(62, 82, 56, 0.15)',
-              'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+              'soft': '0 10px 40px -10px rgba(62, 82, 56, 0.05)',
+              'soft-hover': '0 20px 40px -10px rgba(62, 82, 56, 0.1)',
+              'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+            },
+            animation: {
+              'blob': 'blob 25s infinite',
+              'shimmer': 'shimmer 2s infinite linear',
+            },
+            keyframes: {
+              blob: {
+                '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                '100%': { transform: 'translate(0px, 0px) scale(1)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              }
             }
           }
         }
@@ -62,14 +74,40 @@
         color: #1A1A1A;
         font-family: 'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
       }
-      /* Hide scrollbar for horizontal scrolling areas */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
+      
+      /* Grain Texture Overlay */
+      .grain-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 50;
       }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
+
+      /* Slow Ambient Blobs */
+      .ambient-blob {
+        position: fixed;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        filter: blur(100px);
+        z-index: -1;
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      @keyframes scaleIn {
+        from { transform: scale(0.9); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
       }
     </style>
   <script type="importmap">
@@ -84,6 +122,10 @@
 </script>
 </head>
 <body>
+    <div class="grain-overlay"></div>
+    <div class="ambient-blob bg-sand top-[-10%] right-[-10%] animate-blob"></div>
+    <div class="ambient-blob bg-cream bottom-[-10%] left-[-10%] animate-blob" style="animation-delay: -5s;"></div>
+    
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

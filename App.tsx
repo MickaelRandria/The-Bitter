@@ -1,22 +1,68 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity } from 'lucide-react';
-import { INITIAL_MOVIES, GENRES } from './constants';
-import { Movie, MovieFormData, MovieStatus } from './types';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass } from 'lucide-react';
+import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
+import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import AnalyticsView from './components/AnalyticsView';
 import MovieCard from './components/MovieCard';
 import AddMovieModal from './components/AddMovieModal';
 import WelcomePage from './components/WelcomePage';
+import DiscoverView from './components/DiscoverView';
 import TutorialOverlay, { TutorialStep } from './components/TutorialOverlay';
+import FilmographyModal from './components/FilmographyModal';
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
-type ViewMode = 'Feed' | 'Analytics';
+type ViewMode = 'Feed' | 'Analytics' | 'Discover';
 type FeedTab = 'history' | 'queue';
+
+const TUTORIALS: Record<string, TutorialStep[]> = {
+  'Feed': [
+    {
+      title: "Votre Collection",
+      desc: "Bienvenue dans votre espace personnel. Ici, retrouvez tous vos films vus (Historique) et ceux que vous prévoyez de voir (File d'attente).",
+      icon: <LayoutGrid size={32} strokeWidth={1.5} />
+    },
+    {
+      title: "Recherche Magique",
+      desc: "Appuyez sur 'Nouveau Film' en bas. Tapez simplement un titre, et l'IA remplira tout pour vous : affiche, réalisateur, acteurs et synopsis !",
+      icon: <Wand2 size={32} strokeWidth={1.5} />
+    },
+    {
+      title: "Tri & Filtres",
+      desc: "Utilisez les filtres en haut pour trier par genre, note ou date de visionnage afin de retrouver vos pépites instantanément.",
+      icon: <SlidersHorizontal size={32} strokeWidth={1.5} />
+    }
+  ],
+  'Discover': [
+    {
+      title: "À l'affiche",
+      desc: "Explorez les sorties cinéma en France pour les 6 prochains mois. Ne ratez plus aucune pépite en salle.",
+      icon: <Clapperboard size={32} strokeWidth={1.5} />
+    },
+    {
+      title: "Planification",
+      desc: "Un film vous intéresse ? Cliquez sur sa carte pour l'ajouter directement à votre liste 'À voir'.",
+      icon: <CalendarDays size={32} strokeWidth={1.5} />
+    }
+  ],
+  'Analytics': [
+    {
+      title: "Analyses",
+      desc: "Visualisez vos habitudes cinéphiles. Découvrez vos genres préférés, vos acteurs fétiches et votre profil spectateur.",
+      icon: <PieChart size={32} strokeWidth={1.5} />
+    },
+    {
+      title: "Budget & Stats",
+      desc: "Suivez votre rentabilité (Abo vs Tickets) et votre rythme de visionnage jour par jour.",
+      icon: <BarChart3 size={32} strokeWidth={1.5} />
+    }
+  ]
+};
 
 const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTutorial, setActiveTutorial] = useState<'Collection' | 'Analytics' | null>(null);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   
-  const [movies, setMovies] = useState<Movie[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,76 +71,189 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
+  const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
+  const [activeTutorial, setActiveTutorial] = useState<TutorialStep[] | null>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [triggerMovieTitle, setTriggerMovieTitle] = useState<string | null>(null);
+  const [maxDuration, setMaxDuration] = useState<number | null>(null);
 
-  const STORAGE_KEY = 'the_bitter_data_clean_v1';
+  // State pour la filmographie
+  const [filmographyPerson, setFilmographyPerson] = useState<{ id: number; name: string } | null>(null);
+
+  const STORAGE_KEY = 'the_bitter_profiles_v2';
+  const LAST_PROFILE_KEY = 'the_bitter_last_profile';
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        setMovies(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setProfiles(parsed);
       } catch (e) {
-        setMovies(INITIAL_MOVIES);
+        setProfiles([]);
       }
-    } else {
-      setMovies(INITIAL_MOVIES);
-    }
-    
-    const hasVisited = localStorage.getItem('the_bitter_visited');
-    if (hasVisited) {
-       setShowWelcome(false);
-       const hasSeenMain = localStorage.getItem('the_bitter_tutorial_seen');
-       if (!hasSeenMain) setActiveTutorial('Collection');
     }
   }, []);
 
   useEffect(() => {
-    if (movies !== INITIAL_MOVIES) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+    if (profiles.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
     }
-  }, [movies]);
+  }, [profiles]);
+
+  const activeProfile = useMemo(() => 
+    profiles.find(p => p.id === activeProfileId) || null
+  , [profiles, activeProfileId]);
+
+  // SMART RECOMMENDATIONS LOGIC
+  useEffect(() => {
+    if (!activeProfile || activeProfile.movies.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+
+    // 1. Trouver le film déclencheur : le plus récemment ajouté avec une bonne note
+    const sortedMovies = [...activeProfile.movies].sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+    
+    const trigger = sortedMovies.find(m => {
+      const avg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+      return (m.ratings.story >= 4 || avg >= 4) && m.tmdbId; // Doit avoir un tmdbId
+    });
+
+    if (trigger && trigger.tmdbId) {
+       setTriggerMovieTitle(trigger.title);
+       
+       const fetchRecommendations = async () => {
+         try {
+           const res = await fetch(`${TMDB_BASE_URL}/movie/${trigger.tmdbId}/recommendations?api_key=${TMDB_API_KEY}&language=fr-FR&page=1`);
+           const data = await res.json();
+           
+           if (data.results) {
+             // 2. Filtrage : Ne pas montrer ce qu'on a déjà
+             const existingTmdbIds = new Set(activeProfile.movies.map(m => m.tmdbId).filter(Boolean));
+             const existingTitles = new Set(activeProfile.movies.map(m => m.title.toLowerCase()));
+
+             const filtered = data.results.filter((rec: any) => {
+                // On garde seulement s'il a une image, et n'est pas dans la liste (par ID ou Titre)
+                return rec.poster_path && 
+                       !existingTmdbIds.has(rec.id) && 
+                       !existingTitles.has(rec.title.toLowerCase());
+             });
+
+             setRecommendations(filtered.slice(0, 10)); // Top 10
+           }
+         } catch (e) {
+           console.error("Erreur reco", e);
+         }
+       };
+
+       fetchRecommendations();
+    } else {
+      setRecommendations([]);
+    }
+  }, [activeProfile]);
 
   useEffect(() => {
-    if (viewMode === 'Analytics' && !localStorage.getItem('the_bitter_analytics_tutorial_seen')) {
-      setActiveTutorial('Analytics');
+    if (activeProfile && !showWelcome) {
+      const seen = activeProfile.seenTutorials || [];
+      if (TUTORIALS[viewMode] && !seen.includes(viewMode)) {
+        const timer = setTimeout(() => {
+          setActiveTutorial(TUTORIALS[viewMode]);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [viewMode]);
+  }, [viewMode, activeProfileId, showWelcome]);
 
-  const handleEnterApp = () => {
-      setShowWelcome(false);
-      localStorage.setItem('the_bitter_visited', 'true');
-      const hasSeenMain = localStorage.getItem('the_bitter_tutorial_seen');
-      if (!hasSeenMain) setActiveTutorial('Collection');
+  const handleCompleteTutorial = () => {
+    if (!activeProfileId || !viewMode) return;
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== activeProfileId) return p;
+      const currentSeen = p.seenTutorials || [];
+      if (currentSeen.includes(viewMode)) return p;
+      return { ...p, seenTutorials: [...currentSeen, viewMode] };
+    }));
+    setActiveTutorial(null);
   };
 
-  const completeTutorial = (type: 'Collection' | 'Analytics') => {
+  const handleCreateProfile = (firstName: string, lastName: string, favoriteMovie: string, gender: 'h' | 'f', age: number) => {
+    const newProfile: UserProfile = {
+      id: crypto.randomUUID(),
+      firstName,
+      lastName,
+      favoriteMovie,
+      gender,
+      age,
+      movies: [],
+      createdAt: Date.now(),
+      seenTutorials: []
+    };
+    setProfiles(prev => [...prev, newProfile]);
+    setActiveProfileId(newProfile.id);
+    localStorage.setItem(LAST_PROFILE_KEY, newProfile.id);
+    setShowWelcome(false);
+    setViewMode('Feed');
+  };
+
+  const handleSelectProfile = (id: string) => {
+    setActiveProfileId(id);
+    localStorage.setItem(LAST_PROFILE_KEY, id);
+    setShowWelcome(false);
+    setViewMode('Feed');
+  };
+
+  const handleLogout = () => {
+    setShowWelcome(true);
+    setActiveProfileId(null);
+    setIsSearchOpen(false);
+    setSearchQuery('');
     setActiveTutorial(null);
-    if (type === 'Collection') localStorage.setItem('the_bitter_tutorial_seen', 'true');
-    if (type === 'Analytics') localStorage.setItem('the_bitter_analytics_tutorial_seen', 'true');
+    setRecommendations([]);
   };
 
   const handleSaveMovie = (data: MovieFormData) => {
-    if (editingMovie) {
-      setMovies(prev => prev.map(m => m.id === editingMovie.id ? { ...m, ...data } : m));
-      setEditingMovie(null);
-    } else {
-      const newMovie: Movie = { ...data, id: crypto.randomUUID(), dateAdded: Date.now() };
-      setMovies(prev => [newMovie, ...prev]);
-    }
+    if (!activeProfileId) return;
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== activeProfileId) return p;
+      let updatedMovies = [...p.movies];
+      if (editingMovie) {
+        updatedMovies = updatedMovies.map(m => m.id === editingMovie.id ? { ...m, ...data } : m);
+      } else {
+        const newMovie: Movie = { ...data, id: crypto.randomUUID(), dateAdded: Date.now() };
+        updatedMovies = [newMovie, ...updatedMovies];
+      }
+      return { ...p, movies: updatedMovies };
+    }));
+    setEditingMovie(null);
+    setTmdbIdToLoad(null);
     setIsModalOpen(false);
   };
 
   const handleEditMovie = (movie: Movie) => {
     setEditingMovie(movie);
+    setTmdbIdToLoad(null);
     setIsModalOpen(true);
   };
 
+  const handleSelectDiscoverMovie = (tmdbId: number) => {
+    setEditingMovie(null);
+    setTmdbIdToLoad(tmdbId);
+    setIsModalOpen(true);
+    // Fermer le modal de filmographie si ouvert
+    setFilmographyPerson(null);
+  };
+
   const handleDeleteMovie = (id: string) => {
-    setMovies(prev => prev.filter(m => m.id !== id));
+    if (!activeProfileId) return;
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== activeProfileId) return p;
+      return { ...p, movies: p.movies.filter(m => m.id !== id) };
+    }));
   };
 
   const filteredAndSortedMovies = useMemo(() => {
-    let result = [...movies];
+    if (!activeProfile) return [];
+    let result = [...activeProfile.movies];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
     result = result.filter(m => (m.status || 'watched') === targetStatus);
 
@@ -106,6 +265,14 @@ const App: React.FC = () => {
         (m.actors && m.actors.toLowerCase().includes(q)) ||
         m.genre.toLowerCase().includes(q)
       );
+    }
+
+    // Time Engine Logic
+    if (feedTab === 'queue' && maxDuration) {
+      result = result.filter(m => {
+        // On inclut le film s'il a une durée définie et <= max, OU s'il n'a pas de durée (ne pas cacher les données manquantes)
+        return !m.runtime || m.runtime <= maxDuration;
+      });
     }
 
     if (activeGenre !== 'All') result = result.filter(m => m.genre === activeGenre);
@@ -120,190 +287,254 @@ const App: React.FC = () => {
       }
     });
     return result;
-  }, [movies, activeGenre, sortBy, searchQuery, feedTab]);
+  }, [activeProfile, activeGenre, sortBy, searchQuery, feedTab, maxDuration]);
 
-  const watchedMovies = useMemo(() => movies.filter(m => m.status !== 'watchlist'), [movies]);
-
-  const collectionSteps: TutorialStep[] = [
-    {
-      title: "Prêt pour le voyage ?",
-      desc: "The Bitter est votre carnet de bord cinéma personnel. Voici comment dompter votre collection.",
-      icon: <Sparkles size={28} />
-    },
-    {
-      title: "La Recherche Magique",
-      desc: "Ne perdez plus de temps : utilisez la barre de recherche TMDB. Elle remplit automatiquement l'affiche, le réalisateur et le résumé du film pour vous !",
-      icon: <Search size={28} className="text-forest" />
-    },
-    {
-      title: "Deux Listes, Un Destin",
-      desc: "Organisez vos films entre votre 'Historique' (vus) et votre 'File d'attente' (à voir prochainement).",
-      icon: <LayoutGrid size={28} />
-    }
-  ];
-
-  const analyticsSteps: TutorialStep[] = [
-    {
-      title: "Votre ADN Ciné",
-      desc: "Bienvenue dans vos analyses. Ici, vos données racontent votre histoire de spectateur.",
-      icon: <PieChart size={28} />
-    },
-    {
-      title: "Radar de Goût",
-      desc: "Le Radar Moyen synthétise vos préférences : êtes-vous plutôt porté sur le visuel, le jeu d'acteur ou le scénario ?",
-      icon: <Radar size={28} />
-    },
-    {
-      title: "Rentabilité Abo",
-      desc: "La carte 'Abo Ciné' calcule vos économies réelles basées sur votre rythme de visionnage actuel.",
-      icon: <PiggyBank size={28} />
-    },
-    {
-      title: "Activité Hebdo",
-      desc: "Visualisez vos jours de prédilection pour le cinéma. Idéal pour repérer vos routines.",
-      icon: <Activity size={28} />
-    }
-  ];
+  const watchedMovies = useMemo(() => activeProfile?.movies.filter(m => m.status !== 'watchlist') || [], [activeProfile]);
 
   const getDynamicPlaceholder = () => {
-    if (feedTab === 'history') return "Filtrer l'historique (titre, genre...)";
-    return "Chercher dans ma file d'attente...";
+    if (viewMode === 'Discover') return "Recherche non dispo ici...";
+    if (feedTab === 'history') return "Titre, réalisateur...";
+    return "Chercher dans ma file...";
   };
 
-  if (showWelcome) return <WelcomePage onEnter={handleEnterApp} />;
+  const formatRuntime = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h${m > 0 ? ` ${m}m` : ''}`;
+  };
+
+  if (showWelcome) return (
+    <WelcomePage 
+      existingProfiles={profiles} 
+      onSelectProfile={handleSelectProfile} 
+      onCreateProfile={handleCreateProfile} 
+    />
+  );
 
   return (
-    <div className="min-h-screen pb-24 bg-cream text-charcoal font-sans transition-colors duration-300 animate-[fadeIn_0.5s_ease-out] relative">
-      
-      {activeTutorial === 'Collection' && (
-        <TutorialOverlay steps={collectionSteps} onComplete={() => completeTutorial('Collection')} />
-      )}
-      {activeTutorial === 'Analytics' && (
-        <TutorialOverlay steps={analyticsSteps} onComplete={() => completeTutorial('Analytics')} />
-      )}
-
-      {/* --- Header --- */}
-      <header className="pt-6 px-6 sticky top-0 z-20 bg-cream/95 backdrop-blur-md pb-4 transition-colors duration-300">
-        <div className="flex items-center justify-between mb-4 h-10 overflow-hidden">
-            <div className={`flex-1 flex items-center gap-3 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSearchOpen ? 'w-full' : 'w-0 opacity-0 pointer-events-none'}`}>
-                <Search size={18} className="text-stone-400 shrink-0" />
-                <input 
-                  autoFocus={isSearchOpen}
-                  type="text" 
-                  placeholder={getDynamicPlaceholder()}
-                  className="flex-1 bg-transparent text-lg font-bold text-charcoal outline-none placeholder:text-stone-300 placeholder:font-medium"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-                <button 
-                  onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
-                  className="p-2 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 shrink-0"
-                >
-                  <X size={16} />
-                </button>
+    <div className="min-h-screen pb-24 text-charcoal font-sans transition-colors duration-300 relative">
+      {/* HEADER STICKY & RESPONSIVE */}
+      <header className="pt-4 sm:pt-8 px-4 sm:px-6 sticky top-0 z-40 bg-cream/90 backdrop-blur-2xl pb-4 border-b border-sand/40">
+        <div className="flex items-center gap-3 sm:gap-6 h-12 mb-4">
+          
+          {/* IDENTITÉ (À GAUCHE) */}
+          <div className="flex items-center gap-2.5 shrink-0 group cursor-default">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 bg-forest text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-forest/15 group-hover:rotate-6 transition-transform">
+               <Heart size={20} fill="currentColor" />
             </div>
+            <h1 className={`text-xl sm:text-2xl font-black tracking-tighter whitespace-nowrap hidden sm:block ${isSearchOpen ? 'lg:block hidden' : 'block'}`}>
+              The Bitter
+            </h1>
+          </div>
 
-            <div className={`flex items-center justify-between flex-1 transition-all duration-500 ${isSearchOpen ? 'w-0 opacity-0 pointer-events-none scale-90' : 'w-full opacity-100'}`}>
-                <div className="text-2xl font-black tracking-tighter text-charcoal">The Bitter</div>
-                <div className="flex items-center gap-3">
-                   <button onClick={() => setIsSearchOpen(true)} className="p-2.5 bg-white border border-stone-100 shadow-sm hover:bg-sand rounded-2xl transition-all text-charcoal hover:scale-105 active:scale-95">
-                     <Search size={20} strokeWidth={2.5} />
-                   </button>
-                   <div className="w-9 h-9 rounded-2xl bg-forest text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-md">JB</div>
+          {/* BARRE DE RECHERCHE (AU CENTRE / FLEXIBLE) */}
+          <div className={`flex-1 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSearchOpen ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0 sm:opacity-100 pointer-events-none sm:pointer-events-auto'}`}>
+            {isSearchOpen ? (
+                <div className="flex items-center gap-3 w-full max-w-lg bg-white border border-sand px-4 py-2.5 rounded-2xl shadow-inner focus-within:ring-2 focus-within:ring-forest/10 transition-all animate-[slideIn_0.2s_ease-out]">
+                  <Search size={16} strokeWidth={2.5} className="text-stone-300 shrink-0" />
+                  <input 
+                    autoFocus
+                    type="text" 
+                    placeholder={getDynamicPlaceholder()}
+                    className="flex-1 bg-transparent text-sm font-bold text-charcoal outline-none placeholder:text-stone-300 tracking-tight"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    disabled={viewMode === 'Discover'}
+                  />
+                  <button 
+                    onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
+                    className="p-1.5 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 shrink-0 active:scale-90 transition-transform"
+                  >
+                    <X size={12} strokeWidth={3} />
+                  </button>
                 </div>
-            </div>
+            ) : (
+                <div className="hidden sm:flex flex-1" /> // Spacer for layout balance on desktop
+            )}
+          </div>
+
+          {/* NAVIGATION & PROFIL (À DROITE) */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+            {viewMode !== 'Discover' && !isSearchOpen && (
+              <button 
+                onClick={() => setIsSearchOpen(true)} 
+                className="p-3 bg-white border border-sand shadow-soft rounded-2xl transition-all active:scale-90 hover:bg-sand"
+                aria-label="Ouvrir la recherche"
+              >
+                <Search size={20} strokeWidth={2.5} />
+              </button>
+            )}
+            
+            <button 
+              onClick={handleLogout} 
+              className="group relative w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white border border-sand text-charcoal flex items-center justify-center font-black text-xs tracking-wider shadow-soft hover:bg-charcoal hover:text-white active:scale-90 transition-all overflow-hidden"
+              title="Mon Profil"
+            >
+              {activeProfile ? (
+                  <span className="relative z-10">{activeProfile.firstName[0]}{activeProfile.lastName[0]}</span>
+              ) : (
+                  <User size={20} />
+              )}
+              <div className="absolute inset-0 bg-charcoal opacity-0 group-hover:opacity-10 transition-opacity" />
+            </button>
+          </div>
         </div>
 
-        {!isSearchOpen && (
-            <div className="flex p-1.5 bg-white border border-stone-100 rounded-2xl shadow-sm relative">
-                <button 
-                  onClick={() => setViewMode('Feed')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${viewMode === 'Feed' ? 'bg-charcoal text-white shadow-md' : 'text-stone-400 hover:bg-stone-50'}`}
-                >
-                    <LayoutGrid size={14} strokeWidth={2.5} /> Collection
-                </button>
-                <button 
-                  onClick={() => setViewMode('Analytics')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${viewMode === 'Analytics' ? 'bg-charcoal text-white shadow-md' : 'text-stone-400 hover:bg-stone-50'}`}
-                >
-                    <PieChart size={14} strokeWidth={2.5} /> Analyses
-                </button>
-            </div>
-        )}
+        {/* ONGLETS DE VUE (SECONDE LIGNE DU HEADER) */}
+        <div className="flex p-1 bg-white/50 border border-sand rounded-2xl shadow-sm relative overflow-hidden max-w-2xl mx-auto sm:mx-0">
+          <button 
+            onClick={() => setViewMode('Feed')} 
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Feed' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
+          >
+            Collection
+          </button>
+          <button 
+            onClick={() => setViewMode('Discover')} 
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Discover' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
+          >
+            <Clapperboard size={12} /> À l'affiche
+          </button>
+          <button 
+            onClick={() => setViewMode('Analytics')} 
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Analytics' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
+          >
+            Analyses
+          </button>
+        </div>
       </header>
 
-      {/* --- Main Content --- */}
-      <main className="px-6 pt-2">
+      <main className="px-6 pt-4">
         {viewMode === 'Analytics' ? (
-            <AnalyticsView movies={watchedMovies} />
+          <AnalyticsView movies={watchedMovies} />
+        ) : viewMode === 'Discover' ? (
+          <DiscoverView onSelectMovie={handleSelectDiscoverMovie} />
         ) : (
-            <>
-                <div className="flex items-center gap-6 mb-6 border-b border-stone-200/60 pb-1">
-                    <button onClick={() => setFeedTab('history')} className={`pb-2 text-sm font-bold tracking-wide transition-all ${feedTab === 'history' ? 'text-charcoal border-b-2 border-charcoal' : 'text-stone-400 hover:text-stone-500'}`}>
-                       Historique
-                    </button>
-                    <button onClick={() => setFeedTab('queue')} className={`pb-2 text-sm font-bold tracking-wide transition-all flex items-center gap-2 ${feedTab === 'queue' ? 'text-charcoal border-b-2 border-charcoal' : 'text-stone-400 hover:text-stone-500'}`}>
-                       File d'attente
-                       {movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
-                    </button>
-                </div>
-
-                <div className="mb-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                     <h2 className="text-xs font-bold uppercase tracking-widest text-stone-400">
-                       {searchQuery ? 'Résultats de recherche' : (feedTab === 'history' ? 'Votre Bibliothèque' : 'Votre File d\'attente')}
-                     </h2>
-                     <div className="flex items-center gap-2">
-                        <SlidersHorizontal size={14} className="text-stone-400" />
-                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-xs font-bold text-charcoal outline-none cursor-pointer">
-                          <option value="Date">Récents</option>
-                          <option value="Rating">Mieux notés</option>
-                          <option value="Year">Année</option>
-                          <option value="Title">A-Z</option>
-                        </select>
-                     </div>
-                  </div>
-
-                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6">
-                    <button onClick={() => setActiveGenre('All')} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs font-bold transition-all ${activeGenre === 'All' ? 'bg-charcoal text-white shadow-lg shadow-charcoal/20' : 'bg-white border border-stone-100 text-stone-500 hover:bg-stone-50'}`}>Tout</button>
-                    {GENRES.map(genre => (
-                      <button key={genre} onClick={() => setActiveGenre(genre)} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs font-bold transition-all ${activeGenre === genre ? 'bg-charcoal text-white shadow-lg shadow-charcoal/20' : 'bg-white border border-stone-100 text-stone-500 hover:bg-stone-50'}`}>{genre}</button>
+          <>
+            {/* RECOMMENDATIONS SECTION */}
+            {recommendations.length > 0 && !searchQuery && feedTab === 'history' && (
+              <div className="mb-10 animate-[fadeIn_0.5s_ease-out]">
+                 <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={12} className="text-tz-yellow animate-pulse" fill="currentColor" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                      Parce que tu as aimé <span className="text-charcoal">{triggerMovieTitle}</span>
+                    </p>
+                 </div>
+                 
+                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
+                    {recommendations.map(movie => (
+                       <button 
+                          key={movie.id} 
+                          onClick={() => handleSelectDiscoverMovie(movie.id)}
+                          className="flex-shrink-0 w-28 group relative"
+                       >
+                          <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 mb-2 shadow-sm group-hover:shadow-lg transition-all relative">
+                             <img 
+                                src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
+                                alt={movie.title} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                             />
+                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Plus size={20} className="text-white drop-shadow-lg" strokeWidth={3} />
+                             </div>
+                             <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md text-white px-1.5 py-0.5 rounded-lg flex items-center gap-1">
+                                <span className="text-[8px] font-bold">{movie.vote_average?.toFixed(1) || '--'}</span>
+                             </div>
+                          </div>
+                          <h4 className="font-black text-[10px] text-charcoal leading-tight line-clamp-2 text-left group-hover:text-forest transition-colors uppercase tracking-tight">
+                             {movie.title}
+                          </h4>
+                       </button>
                     ))}
-                  </div>
-                </div>
+                 </div>
+              </div>
+            )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pb-10">
-                   {filteredAndSortedMovies.map((movie, index) => (
-                     <MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={handleEditMovie} searchQuery={searchQuery} />
-                   ))}
-                </div>
-                
-                {filteredAndSortedMovies.length === 0 && (
-                    <div className="py-24 text-center">
-                      <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-stone-100 text-stone-300">
-                          {feedTab === 'queue' ? <Clock size={32} /> : <CheckCircle2 size={32} />}
-                      </div>
-                      <p className="text-stone-300 font-bold text-lg mb-2">{feedTab === 'queue' ? 'File d\'attente vide.' : 'Aucun film trouvé.'}</p>
-                      <p className="text-stone-400 text-sm">Ajustez vos filtres ou ajoutez un nouveau film.</p>
+            <div className="flex items-center gap-8 mb-6 border-b border-sand/50 pb-1">
+              <button onClick={() => setFeedTab('history')} className={`pb-3 text-sm font-bold tracking-wide transition-all relative ${feedTab === 'history' ? 'text-charcoal' : 'text-stone-300'}`}>Historique {feedTab === 'history' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-charcoal rounded-full animate-[fadeIn_0.3s_ease-out]"></div>}</button>
+              <button onClick={() => setFeedTab('queue')} className={`pb-3 text-sm font-bold tracking-wide transition-all relative flex items-center gap-2 ${feedTab === 'queue' ? 'text-charcoal' : 'text-stone-300'}`}>File d'attente {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-2 h-2 bg-forest rounded-full"></span>} {feedTab === 'queue' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-charcoal rounded-full animate-[fadeIn_0.3s_ease-out]"></div>}</button>
+            </div>
+            
+            {/* TIME ENGINE UI - Only in Queue Mode */}
+            {feedTab === 'queue' && (
+              <div className="bg-white border border-sand p-6 rounded-3xl mb-8 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                 <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                       <Hourglass size={16} className="text-forest" />
+                       <span className="text-[11px] font-black uppercase tracking-widest text-charcoal">J'ai combien de temps ?</span>
                     </div>
-                )}
-            </>
+                    <span className="text-sm font-bold text-forest bg-forest/10 px-3 py-1 rounded-full">
+                       {maxDuration ? `Max: ${formatRuntime(maxDuration)}` : '∞ Illimité'}
+                    </span>
+                 </div>
+                 
+                 <input 
+                    type="range" 
+                    min="60" 
+                    max="180" 
+                    step="15"
+                    value={maxDuration || 180} 
+                    onChange={(e) => setMaxDuration(Number(e.target.value))}
+                    className="w-full h-2 bg-sand rounded-lg appearance-none cursor-pointer accent-forest mb-6"
+                 />
+                 
+                 <div className="flex gap-2">
+                    <button onClick={() => setMaxDuration(90)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 90 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 1h30'}</button>
+                    <button onClick={() => setMaxDuration(120)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 120 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 2h'}</button>
+                    <button onClick={() => setMaxDuration(null)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === null ? 'bg-sand text-charcoal border border-transparent' : 'bg-white border border-sand text-stone-400'}`}>Illimité</button>
+                 </div>
+              </div>
+            )}
+
+            <div className="mb-8 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{searchQuery ? 'RÉSULTATS' : (feedTab === 'history' ? 'MA BIBLIOTHÈQUE' : 'PROCHAINEMENT')}</h2>
+                <div className="flex items-center gap-2.5 group cursor-pointer">
+                  <SlidersHorizontal size={14} strokeWidth={2.5} className="text-stone-300 group-hover:text-charcoal transition-colors" />
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
+                    <option value="Date">RÉCENTS</option>
+                    <option value="Rating">NOTES</option>
+                    <option value="Year">ANNÉE</option>
+                    <option value="Title">A-Z</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6">
+                <button onClick={() => setActiveGenre('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === 'All' ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>Tout</button>
+                {GENRES.map(genre => <button key={genre} onClick={() => setActiveGenre(genre)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === genre ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>{genre}</button>)}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-20">
+              {filteredAndSortedMovies.map((movie, index) => <MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={handleEditMovie} onOpenFilmography={(id, name) => setFilmographyPerson({id, name})} searchQuery={searchQuery} />)}
+            </div>
+            {filteredAndSortedMovies.length === 0 && <div className="py-24 text-center animate-[fadeIn_0.6s_ease-out]"><div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-4xl bg-sand/30 text-stone-200 border border-sand/50">{feedTab === 'queue' ? <Clock size={40} strokeWidth={1.5} /> : <CheckCircle2 size={40} strokeWidth={1.5} />}</div><p className="text-stone-300 font-bold text-xl mb-2">Pas encore d'écho ici.</p><p className="text-stone-400 text-sm font-medium">L'aventure commence avec un nouveau titre.</p></div>}
+          </>
         )}
       </main>
 
       {viewMode === 'Feed' && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
-            <button
-              onClick={() => { setEditingMovie(null); setIsModalOpen(true); }}
-              className="group flex items-center gap-3 bg-forest text-white pl-6 pr-8 py-4 rounded-full shadow-xl shadow-forest/30 hover:scale-105 active:scale-95 transition-all duration-300 hover:shadow-2xl hover:shadow-forest/40"
-            >
-              <div className="bg-white/20 p-1 rounded-full"><Plus size={20} strokeWidth={3} /></div>
-              <span className="font-extrabold tracking-wide text-sm">Ajouter</span>
-            </button>
-          </div>
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-30">
+          <button onClick={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} className="group flex items-center gap-4 bg-charcoal text-white pl-7 pr-9 py-5 rounded-4xl shadow-2xl hover:scale-105 active:scale-95 transition-all duration-500 hover:bg-forest"><div className="bg-white/10 p-1.5 rounded-full group-hover:rotate-90 transition-transform duration-500"><Plus size={22} strokeWidth={3} /></div><span className="font-black tracking-[0.1em] text-xs uppercase">Nouveau film</span></button>
+        </div>
       )}
 
-      <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); }} onSave={handleSaveMovie} initialData={editingMovie} />
+      <AddMovieModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} 
+        onSave={handleSaveMovie} 
+        initialData={editingMovie} 
+        tmdbIdToLoad={tmdbIdToLoad} 
+        onOpenFilmography={(id, name) => setFilmographyPerson({id, name})}
+      />
+      
+      <FilmographyModal 
+        isOpen={!!filmographyPerson} 
+        personId={filmographyPerson?.id || 0} 
+        personName={filmographyPerson?.name || ''} 
+        onClose={() => setFilmographyPerson(null)}
+        onSelectMovie={handleSelectDiscoverMovie}
+      />
+
+      {activeTutorial && <TutorialOverlay steps={activeTutorial} onComplete={handleCompleteTutorial} />}
     </div>
   );
 };

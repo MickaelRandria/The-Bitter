@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Movie } from '../types';
-import { CreditCard, Calendar, Activity, TrendingUp, Sparkles, User, Tag, PiggyBank, Radar, LineChart } from 'lucide-react';
+import { CreditCard, Calendar, Activity, TrendingUp, Sparkles, User, Tag, PiggyBank, Radar, LineChart, Repeat, Fingerprint, Clapperboard, Users, Film } from 'lucide-react';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -70,7 +70,7 @@ const RadarChart = ({ data }: { data: { label: string; value: number; color: str
                 const y = center + labelRadius * Math.sin(angle);
                 return (
                     <g key={i} className="animate-[fadeIn_0.8s_ease-out]">
-                        <text x={x} y={y - 8} textAnchor="middle" dominantBaseline="middle" className="text-[10px] font-bold uppercase fill-stone-400 tracking-wider">
+                        <text x={x} y={y - 8} textAnchor="middle" dominantBaseline="middle" className="text-[10px] font-bold uppercase fill-stone-500 tracking-wider">
                             {d.label}
                         </text>
                         <text x={x} y={y + 6} textAnchor="middle" dominantBaseline="middle" className="text-sm font-black fill-charcoal">
@@ -91,20 +91,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
   const stats = useMemo(() => {
     const totalWatched = movies.length;
     
+    // Ratings
     const ratingSums = movies.reduce((acc, m) => ({
-        story: acc.story + m.ratings.story,
-        visuals: acc.visuals + m.ratings.visuals,
-        acting: acc.acting + m.ratings.acting,
-        sound: acc.sound + m.ratings.sound,
+        story: acc.story + Number(m.ratings.story),
+        visuals: acc.visuals + Number(m.ratings.visuals),
+        acting: acc.acting + Number(m.ratings.acting),
+        sound: acc.sound + Number(m.ratings.sound),
     }), { story: 0, visuals: 0, acting: 0, sound: 0 });
 
     const ratingAvg = {
-        story: totalWatched ? (ratingSums.story / totalWatched).toFixed(1) : "0",
-        visuals: totalWatched ? (ratingSums.visuals / totalWatched).toFixed(1) : "0",
-        acting: totalWatched ? (ratingSums.acting / totalWatched).toFixed(1) : "0",
-        sound: totalWatched ? (ratingSums.sound / totalWatched).toFixed(1) : "0",
+        story: totalWatched ? Number((ratingSums.story / totalWatched).toFixed(1)) : 0,
+        visuals: totalWatched ? Number((ratingSums.visuals / totalWatched).toFixed(1)) : 0,
+        acting: totalWatched ? Number((ratingSums.acting / totalWatched).toFixed(1)) : 0,
+        sound: totalWatched ? Number((ratingSums.sound / totalWatched).toFixed(1)) : 0,
     };
 
+    // Savings
     const now = new Date();
     const currentMonthMovies = movies.filter(m => {
         const dateToUse = m.dateWatched || m.dateAdded || Date.now();
@@ -112,11 +114,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
     const monthlyCount = currentMonthMovies.length;
-    
     const rawSavings = (monthlyCount * TICKET_PRICE) - SUBSCRIPTION_COST;
     const monthlySavings = rawSavings > 0 ? `+${rawSavings.toFixed(2)}` : rawSavings.toFixed(2);
-    const isProfitable = rawSavings > 0;
-
+    
+    // Activity
     const days = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
     const dayCounts = [0, 0, 0, 0, 0, 0, 0];
     movies.forEach(m => {
@@ -129,30 +130,67 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
     });
     const maxDayCount = Math.max(...dayCounts, 1);
 
-    const actorCounts: Record<string, { count: number, totalRating: number }> = {};
-    movies.forEach(m => {
-        if (!m.actors) return;
-        const list = m.actors.split(',').map(s => s.trim());
-        const avgRating = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-        list.forEach(actor => {
-            if (!actor) return;
-            if (!actorCounts[actor]) actorCounts[actor] = { count: 0, totalRating: 0 };
-            actorCounts[actor].count++;
-            actorCounts[actor].totalRating += avgRating;
-        });
-    });
+    // Rewatch Stats
+    const rewatchCount = movies.filter(m => m.rewatch).length;
+    const rewatchRate = totalWatched ? Math.round((rewatchCount / totalWatched) * 100) : 0;
 
-    const sortedActors = Object.entries(actorCounts)
-        .map(([name, data]) => ({ name, count: data.count, avg: (data.totalRating / data.count).toFixed(1) }))
-        .sort((a, b) => b.count - a.count).slice(0, 3);
+    // Tags Analysis
+    const allTags = movies.flatMap(m => m.tags || []);
+    const tagCounts = allTags.reduce((acc, tag) => {
+        acc[tag] = (acc[tag] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    
+    const sortedTags = Object.entries(tagCounts)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 4)
+        .map(([tag, count]) => ({
+            tag,
+            count,
+            percent: Math.round(((count as number) / Math.max(totalWatched, 1)) * 100)
+        }));
 
-    const genreCounts: Record<string, number> = {};
-    movies.forEach(m => { genreCounts[m.genre] = (genreCounts[m.genre] || 0) + 1; });
-    const sortedGenres = Object.entries(genreCounts)
-        .sort(([, a], [, b]) => b - a)
-        .map(([name, count]) => ({ name, count, percent: Math.round((count / totalWatched) * 100) }));
+    // Top Réalisateurs
+    const directorCounts = movies.reduce((acc, m) => {
+        if (m.director) acc[m.director] = (acc[m.director] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    const topDirectors = Object.entries(directorCounts)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 3);
 
-    return { totalWatched, ratingAvg, monthlyCount, monthlySavings, isProfitable, dayCounts, days, maxDayCount, sortedActors, sortedGenres };
+    // Top Acteurs
+    const actorCounts = movies.reduce((acc, m) => {
+        if (m.actors) {
+            m.actors.split(',').forEach(actor => {
+                const name = actor.trim();
+                if (name) acc[name] = (acc[name] || 0) + 1;
+            });
+        }
+        return acc;
+    }, {} as Record<string, number>);
+    const topActors = Object.entries(actorCounts)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 3);
+
+    // Top Genres
+    const genreCounts = movies.reduce((acc, m) => {
+        if (m.genre) acc[m.genre] = (acc[m.genre] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    const topGenres = Object.entries(genreCounts)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 4)
+        .map(([genre, count]) => ({
+            genre,
+            count,
+            percent: Math.round(((count as number) / Math.max(totalWatched, 1)) * 100)
+        }));
+
+    return { 
+        totalWatched, ratingAvg, monthlyCount, monthlySavings, dayCounts, days, 
+        maxDayCount, rewatchRate, sortedTags, topDirectors, topActors, topGenres 
+    };
   }, [movies]);
 
   if (movies.length === 0) {
@@ -166,21 +204,20 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
   }
 
   const radarData = [
-    { label: 'Histoire', value: Number(stats.ratingAvg.story), color: '#1A1A1A' },
-    { label: 'Visuel', value: Number(stats.ratingAvg.visuals), color: '#3E5238' },
-    { label: 'Jeu', value: Number(stats.ratingAvg.acting), color: '#D97706' },
-    { label: 'Son', value: Number(stats.ratingAvg.sound), color: '#57534E' }
+    { label: 'Histoire', value: stats.ratingAvg.story, color: '#1A1A1A' },
+    { label: 'Visuel', value: stats.ratingAvg.visuals, color: '#3E5238' },
+    { label: 'Jeu', value: stats.ratingAvg.acting, color: '#D97706' },
+    { label: 'Son', value: stats.ratingAvg.sound, color: '#57534E' }
   ];
 
   return (
-    <div className="space-y-6 pb-24 animate-[fadeIn_0.4s_ease-out]">
+    <div className="space-y-6 pb-32 animate-[fadeIn_0.4s_ease-out]">
       <div className="mt-2 mb-4">
          <h2 className="text-3xl font-black text-charcoal tracking-tight">Analyses</h2>
-         <p className="text-xs font-bold text-stone-300 uppercase tracking-[0.15em]">VOS DONNÉES DÉCODÉES</p>
+         <p className="text-xs font-bold text-stone-500 uppercase tracking-[0.15em]">VOS DONNÉES DÉCODÉES</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {/* ABO CINÉ - Large Card */}
           <div className="md:col-span-2 lg:col-span-2 bg-forest text-white p-7 rounded-[2.5rem] shadow-xl shadow-forest/10 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
               <div className="relative z-10 flex justify-between items-start">
                   <div className="flex items-center gap-2 bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-full">
@@ -189,98 +226,158 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
                   </div>
                   <PiggyBank size={24} className="text-white/20" />
               </div>
-              
               <div className="relative z-10 mt-6">
                   <div className="flex items-baseline gap-1">
                     <span className="text-7xl font-black tracking-tighter">{stats.monthlySavings}</span>
                     <span className="text-2xl font-bold text-white/40">€</span>
                   </div>
-                  <div className="mt-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white/50 mb-1">Économies du mois</p>
-                      <p className="text-sm font-bold text-white/80 leading-tight">
-                          {stats.monthlyCount} films vus vs 11€ abo.
-                      </p>
-                      <p className="text-[10px] text-white/40 font-bold mt-1">(Calculé sur 8€/place)</p>
+                  <div className="mt-3 text-sm font-bold text-white/80 leading-tight">
+                      {stats.monthlyCount} films vus vs 11€ abo.
                   </div>
               </div>
-              <div className="absolute bottom-[-10%] right-[-5%] w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
-              <div className="absolute top-1/2 right-0 w-32 h-32 bg-[#2D3E28] rounded-full translate-x-12 -translate-y-8"></div>
           </div>
 
-          {/* FILMS VUS - Small Card */}
           <div className="bg-sand p-7 rounded-[2.5rem] flex flex-col justify-between min-h-[220px]">
               <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center text-charcoal shadow-sm">
                  <TrendingUp size={20} strokeWidth={2.5} />
               </div>
               <div className="mt-auto">
                  <span className="text-6xl font-black text-charcoal tracking-tighter block leading-none">{stats.totalWatched}</span>
-                 <span className="text-[10px] font-black uppercase text-stone-400 tracking-[0.1em] mt-2 block">Films Vus</span>
+                 <span className="text-[10px] font-black uppercase text-stone-500 tracking-[0.1em] mt-2 block">Films Vus</span>
               </div>
           </div>
 
-          {/* ACTIVITÉ - Medium Card */}
-          <div className="md:col-span-1 lg:col-span-2 bg-white border border-stone-100 p-7 rounded-[2.5rem] flex flex-col min-h-[220px]">
+          <div className="bg-white border border-stone-100 p-7 rounded-[2.5rem] flex flex-col justify-between min-h-[220px] relative overflow-hidden">
+              <div className="w-10 h-10 bg-stone-50 rounded-2xl flex items-center justify-center text-forest shadow-sm relative z-10">
+                 <Repeat size={20} strokeWidth={2.5} />
+              </div>
+              <div className="mt-auto relative z-10">
+                 <div className="flex items-start gap-1">
+                    <span className="text-6xl font-black text-charcoal tracking-tighter block leading-none">{stats.rewatchRate}</span>
+                    <span className="text-lg font-black text-stone-300 mt-1">%</span>
+                 </div>
+                 <span className="text-[10px] font-black uppercase text-stone-500 tracking-[0.1em] mt-2 block">Replay Value</span>
+              </div>
+          </div>
+          
+           <div className="md:col-span-4 lg:col-span-1 bg-white border border-stone-100 p-7 rounded-[2.5rem] flex flex-col min-h-[220px]">
               <div className="flex items-center gap-2 mb-6">
-                 <Calendar size={18} className="text-stone-300" strokeWidth={2.5} />
-                 <span className="text-[10px] font-black uppercase text-stone-300 tracking-[0.1em]">Activité</span>
+                 <Calendar size={18} className="text-stone-400" strokeWidth={2.5} />
+                 <span className="text-[10px] font-black uppercase text-stone-500 tracking-[0.1em]">Activité</span>
               </div>
               <div className="flex justify-between items-end flex-1 gap-1 pb-1">
                  {stats.dayCounts.map((count, i) => (
-                     <div key={i} className="flex flex-col items-center gap-3 flex-1 h-full">
-                        <div className="flex-1 w-full flex items-end justify-center relative">
-                            <div 
-                              className="w-1.5 bg-charcoal rounded-full transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
-                              style={{ 
-                                  height: `${count > 0 ? (count / stats.maxDayCount) * 100 : 8}%`,
-                                  opacity: count > 0 ? 1 : 0.05
-                              }}
-                            ></div>
-                        </div>
-                        <span className="text-[9px] font-bold text-stone-400">{stats.days[i]}</span>
+                     <div key={i} className="flex-1 w-full flex items-end justify-center relative h-full">
+                        <div className="w-1.5 bg-charcoal rounded-full" style={{ height: `${count > 0 ? (count / stats.maxDayCount) * 100 : 8}%`, opacity: count > 0 ? 1 : 0.05 }}></div>
                      </div>
                  ))}
               </div>
           </div>
       </div>
 
-      {/* --- Radar & DNA --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 relative overflow-hidden">
               <div className="flex items-center gap-3 mb-4 relative z-10">
                   <div className="bg-sand p-2.5 rounded-2xl text-charcoal"><Radar size={22} strokeWidth={2.5} /></div>
                   <div>
                       <h3 className="text-lg font-black text-charcoal leading-none">Radar Moyen</h3>
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.1em]">PROFIL SPECTATEUR</span>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">PROFIL SPECTATEUR</span>
                   </div>
               </div>
               <RadarChart data={radarData} />
           </div>
 
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 relative overflow-hidden">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 relative overflow-hidden flex flex-col">
               <div className="flex items-center gap-3 mb-8 relative z-10">
-                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Activity size={22} strokeWidth={2.5} /></div>
+                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Fingerprint size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-charcoal leading-none">Détails des Notes</h3>
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.1em]">RÉPARTITION LINÉAIRE</span>
+                      <h3 className="text-lg font-black text-charcoal leading-none">ADN Cinéma</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">VOS CRITÈRES CLÉS</span>
+                  </div>
+              </div>
+              {stats.sortedTags.length > 0 ? (
+                  <div className="space-y-6 flex-1">
+                      {stats.sortedTags.map((item, index) => (
+                          <div key={item.tag}>
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest mb-2.5">
+                                  <span className="text-charcoal">{item.tag}</span>
+                                  <span className="text-stone-500">{item.count} films</span>
+                              </div>
+                              <div className="h-2 w-full bg-stone-50 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${index === 0 ? 'bg-forest' : index === 1 ? 'bg-charcoal' : 'bg-stone-400'}`} style={{ width: `${item.percent}%` }} />
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40"><Tag size={40} className="mb-3 text-stone-300" /><p className="text-xs font-black uppercase text-stone-300 tracking-widest">Aucun tag</p></div>
+              )}
+          </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
+              <div className="flex items-center gap-3 mb-8">
+                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Users size={22} strokeWidth={2.5} /></div>
+                  <div>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Casting fétiche</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">ACTEURS RÉCURRENTS</span>
                   </div>
               </div>
               <div className="space-y-6">
-                  {[
-                      { label: 'Histoire', key: 'story', val: stats.ratingAvg.story, color: 'bg-charcoal' },
-                      { label: 'Visuel', key: 'visuals', val: stats.ratingAvg.visuals, color: 'bg-forest' },
-                      { label: 'Jeu', key: 'acting', val: stats.ratingAvg.acting, color: 'bg-burnt' },
-                      { label: 'Son', key: 'sound', val: stats.ratingAvg.sound, color: 'bg-stone-400' }
-                  ].map((item) => (
-                      <div key={item.key}>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2.5">
-                              <span className="text-stone-400">{item.label}</span>
-                              <span className="text-charcoal">{item.val}</span>
+                  {stats.topActors.length > 0 ? stats.topActors.map(([actor, count], i) => (
+                      <div key={actor} className="flex items-center justify-between group">
+                          <div className="flex items-center gap-4">
+                              <span className="text-2xl font-black text-stone-200 group-hover:text-forest transition-colors leading-none">0{i+1}</span>
+                              <p className="font-black text-charcoal text-sm truncate max-w-[140px] tracking-tight">{actor}</p>
                           </div>
-                          <div className="h-1.5 w-full bg-stone-50 rounded-full overflow-hidden">
-                              <div className={`h-full ${item.color} rounded-full transition-all duration-1000 ease-out`} style={{ width: `${(Number(item.val) / 10) * 100}%` }} />
+                          <span className="bg-stone-100 px-3 py-1.5 rounded-xl text-[10px] font-black text-stone-600 uppercase tracking-widest">{count} FILMS</span>
+                      </div>
+                  )) : <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center py-10">Données insuffisantes</p>}
+              </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
+              <div className="flex items-center gap-3 mb-8">
+                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Clapperboard size={22} strokeWidth={2.5} /></div>
+                  <div>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Visionnaires</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">RÉALISATEURS PRÉFÉRÉS</span>
+                  </div>
+              </div>
+              <div className="space-y-6">
+                  {stats.topDirectors.length > 0 ? stats.topDirectors.map(([director, count], i) => (
+                      <div key={director} className="flex items-center justify-between group">
+                          <div className="flex items-center gap-4">
+                              <span className="text-2xl font-black text-stone-200 group-hover:text-tz-orange transition-colors leading-none">0{i+1}</span>
+                              <p className="font-black text-charcoal text-sm truncate max-w-[140px] tracking-tight">{director}</p>
+                          </div>
+                          <span className="bg-stone-100 px-3 py-1.5 rounded-xl text-[10px] font-black text-stone-600 uppercase tracking-widest">{count} FILMS</span>
+                      </div>
+                  )) : <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center py-10">Données insuffisantes</p>}
+              </div>
+          </div>
+
+          <div className="bg-charcoal text-white p-8 rounded-[2.5rem] shadow-xl">
+              <div className="flex items-center gap-3 mb-8">
+                  <div className="bg-white/10 p-2.5 rounded-2xl text-white"><Film size={22} strokeWidth={2.5} /></div>
+                  <div>
+                      <h3 className="text-lg font-black text-white leading-none">Panorama</h3>
+                      <span className="text-[10px] font-bold text-white/60 uppercase tracking-[0.1em]">GENRES DOMINANTS</span>
+                  </div>
+              </div>
+              <div className="space-y-5">
+                  {stats.topGenres.length > 0 ? stats.topGenres.map((item, i) => (
+                      <div key={item.genre}>
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2 opacity-80">
+                              <span>{item.genre}</span>
+                              <span className="text-white/60">{item.count}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-1000 ${i === 0 ? 'bg-tz-yellow' : 'bg-white/40'}`} style={{ width: `${item.percent}%` }} />
                           </div>
                       </div>
-                  ))}
+                  )) : <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest text-center py-10">Aucun genre noté</p>}
               </div>
           </div>
       </div>

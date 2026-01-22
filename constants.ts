@@ -8,3 +8,7 @@ export const GENRES = [
 ];
 
 export const THEME_COLORS: ThemeColor[] = ['orange', 'green', 'yellow', 'blue', 'purple', 'black'];
+
+export const TMDB_API_KEY = 'c0b50025397f8839b2c49a4bcf377527';
+export const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+export const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w780';
