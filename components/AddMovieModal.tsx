@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Check, Eye, Clock, Search, Loader2, Film, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Sparkles, Wand2, Plus, Repeat, User, LayoutGrid, Calendar, Flame } from 'lucide-react';
+import { X, Check, Eye, Clock, Search, Loader2, Film, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Sparkles, Wand2, Plus, Repeat, User, LayoutGrid, Calendar, Flame, AlertCircle } from 'lucide-react';
 import { GENRES, THEME_COLORS, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { MovieFormData, Movie, MovieStatus, ActorInfo } from '../types';
 
@@ -25,6 +25,7 @@ const INITIAL_FORM_STATE: MovieFormData = {
   actors: '',
   actorIds: [],
   year: new Date().getFullYear(),
+  releaseDate: undefined,
   runtime: 0,
   genre: GENRES[0],
   ratings: { story: 5, visuals: 5, acting: 5, sound: 5 },
@@ -38,7 +39,15 @@ const INITIAL_FORM_STATE: MovieFormData = {
   tags: []
 };
 
-const MiniCalendarPicker: React.FC<{ value: number, onChange: (date: number) => void }> = ({ value, onChange }) => {
+interface MiniCalendarPickerProps {
+  value: number;
+  onChange: (date: number) => void;
+  minDate?: number;
+  maxDate?: number;
+  label?: string;
+}
+
+const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({ value, onChange, minDate, maxDate, label = "Date de visionnage" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date(value));
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,7 +102,7 @@ const MiniCalendarPicker: React.FC<{ value: number, onChange: (date: number) => 
             <CalendarIcon size={20} strokeWidth={2.5} />
           </div>
           <div className="text-left">
-            <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Date de visionnage</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mb-0.5">{label}</p>
             <p className="font-bold text-lg text-charcoal leading-none">
               {selectedDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
@@ -126,6 +135,10 @@ const MiniCalendarPicker: React.FC<{ value: number, onChange: (date: number) => 
               <div key={`empty-${i}`} />
             ))}
             {days.map(day => {
+              const currentDayTime = new Date(currentYear, currentMonth, day).getTime();
+              // Check bounds
+              const isDisabled = (minDate && currentDayTime < minDate) || (maxDate && currentDayTime > maxDate);
+
               const isSelected = selectedDate.getDate() === day && selectedDate.getMonth() === currentMonth && selectedDate.getFullYear() === currentYear;
               const isToday = new Date().getDate() === day && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
               
@@ -133,10 +146,13 @@ const MiniCalendarPicker: React.FC<{ value: number, onChange: (date: number) => 
                 <button
                   key={day}
                   type="button"
-                  onClick={(e) => handleSelectDay(day, e)}
+                  disabled={isDisabled}
+                  onClick={(e) => !isDisabled && handleSelectDay(day, e)}
                   className={`
                     h-9 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center
-                    ${isSelected ? 'bg-forest text-white shadow-lg shadow-forest/20 scale-110 z-10' : 'hover:bg-stone-100 text-charcoal'}
+                    ${isDisabled ? 'opacity-20 cursor-not-allowed pointer-events-none text-stone-300' : (
+                        isSelected ? 'bg-forest text-white shadow-lg shadow-forest/20 scale-110 z-10' : 'hover:bg-stone-100 text-charcoal'
+                    )}
                     ${isToday && !isSelected ? 'border border-forest/30' : ''}
                   `}
                 >
@@ -164,6 +180,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
   const [personFilmography, setPersonFilmography] = useState<any[]>([]);
   const [filmographySort, setFilmographySort] = useState<FilmographySort>('popularity');
+  const [dateError, setDateError] = useState<string | null>(null);
   
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -189,6 +206,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
         setPersonResults([]);
         setSelectedPerson(null);
         setPersonFilmography([]);
+        setDateError(null);
         
         if (tmdbIdToLoad) {
            fetchMovieDetails(tmdbIdToLoad);
@@ -200,6 +218,29 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     setFormData(prev => ({ ...prev, status: mode }));
   }, [mode]);
+
+  // Validation Date vs Release
+  useEffect(() => {
+    if (formData.releaseDate && formData.dateWatched) {
+       const release = new Date(formData.releaseDate).getTime();
+       // On compare juste les jours, donc on reset les heures
+       const releaseDay = new Date(release).setHours(0,0,0,0);
+       const watchedDay = new Date(formData.dateWatched).setHours(0,0,0,0);
+
+       if (watchedDay < releaseDay) {
+           setDateError("Impossible : Le film n'était pas encore sorti à cette date.");
+       } else {
+           setDateError(null);
+       }
+    } else {
+        setDateError(null);
+    }
+  }, [formData.dateWatched, formData.releaseDate]);
+
+  const isFutureDate = useMemo(() => {
+     if (!formData.dateWatched) return false;
+     return formData.dateWatched > Date.now();
+  }, [formData.dateWatched]);
 
   useEffect(() => {
     const handleSearch = async () => {
@@ -283,7 +324,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
           const actors = actorItems.map((p: any) => p.name).join(', ') || '';
           const actorIds: ActorInfo[] = actorItems.map((p: any) => ({ id: p.id, name: p.name }));
 
-          const year = data.release_date ? parseInt(data.release_date.split('-')[0]) : new Date().getFullYear();
+          const releaseDate = data.release_date || ''; // Stocker la date complète
+          const year = releaseDate ? parseInt(releaseDate.split('-')[0]) : new Date().getFullYear();
           const posterUrl = data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : '';
           const tmdbRating = data.vote_average ? Number(data.vote_average.toFixed(1)) : 0;
           const runtime = data.runtime || 0;
@@ -303,6 +345,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
               actors,
               actorIds,
               year,
+              releaseDate, // New Field
               runtime,
               genre,
               posterUrl,
@@ -335,8 +378,20 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (dateError) return;
     if (!formData.title) return;
-    onSave({ ...formData, status: mode });
+    
+    // Si on ajoute en watchlist, on ne sauvegarde pas les notes ni les critiques
+    const finalData = { ...formData, status: mode };
+    if (mode === 'watchlist') {
+        finalData.ratings = { story: 0, visuals: 0, acting: 0, sound: 0 };
+        finalData.review = '';
+        finalData.tags = [];
+        finalData.rewatch = false;
+        // removed resetting dateWatched to 0, allowing user planned date
+    }
+
+    onSave(finalData);
   };
 
   const ratingLabels: Record<string, string> = {
@@ -515,11 +570,21 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
               <input type="text" className="w-full bg-stone-50 hover:bg-stone-100 focus:bg-white border-2 border-transparent rounded-2xl p-5 text-charcoal font-black text-lg outline-none focus:ring-2 focus:ring-stone-100 transition-all placeholder:text-stone-200/50" placeholder="Ex: Inception" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
             </div>
 
-            {mode === 'watched' && (
-                <div className="animate-[fadeIn_0.4s_ease-out]">
-                  <MiniCalendarPicker value={formData.dateWatched || Date.now()} onChange={(date) => setFormData(prev => ({ ...prev, dateWatched: date }))} />
-                </div>
-            )}
+            <div className="animate-[fadeIn_0.4s_ease-out]">
+              <MiniCalendarPicker 
+                  value={formData.dateWatched || Date.now()} 
+                  onChange={(date) => setFormData(prev => ({ ...prev, dateWatched: date }))} 
+                  minDate={mode === 'watchlist' ? new Date().setHours(0,0,0,0) : undefined}
+                  maxDate={mode === 'watched' ? new Date().setHours(23,59,59,999) : undefined}
+                  label={mode === 'watchlist' ? "Date prévue" : "Date de visionnage"}
+              />
+              {mode === 'watched' && dateError && (
+                  <div className="flex items-center gap-2 mt-2 text-red-500 animate-[shake_0.4s_ease-in-out]">
+                      <AlertCircle size={14} strokeWidth={2.5} />
+                      <span className="text-[10px] font-bold">{dateError}</span>
+                  </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
                <div>
@@ -647,9 +712,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
         </div>
 
         <div className="p-6 border-t border-zinc-100 bg-white rounded-b-3xl">
-          <button onClick={handleSubmit} className={`w-full text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-2xl shadow-xl active:scale-[0.97] transition-all hover:brightness-110 flex items-center justify-center gap-3 ${mode === 'watched' ? 'bg-charcoal shadow-charcoal/20' : 'bg-forest shadow-forest/20'}`}>
+          <button 
+            onClick={handleSubmit} 
+            disabled={!!dateError}
+            className={`w-full text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-2xl shadow-xl active:scale-[0.97] transition-all hover:brightness-110 flex items-center justify-center gap-3 ${!!dateError ? 'bg-stone-300 shadow-none cursor-not-allowed' : (mode === 'watched' ? 'bg-charcoal shadow-charcoal/20' : 'bg-forest shadow-forest/20')}`}
+          >
             {initialData ? <Check size={18} strokeWidth={3} /> : <Plus size={18} strokeWidth={3} />}
-            {initialData ? 'Mettre à jour' : (mode === 'watched' ? 'Ajouter à l\'historique' : 'Mettre en file d\'attente')}
+            {initialData ? 'Mettre à jour' : (mode === 'watched' ? (isFutureDate ? 'Planifier la séance' : 'Ajouter à l\'historique') : 'Mettre en file d\'attente')}
           </button>
         </div>
       </div>

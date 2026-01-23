@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
 import { Movie } from '../types';
-import { CreditCard, Calendar, Activity, TrendingUp, Sparkles, User, Tag, PiggyBank, Radar, LineChart, Repeat, Fingerprint, Clapperboard, Users, Film } from 'lucide-react';
+import { CreditCard, Calendar, Activity, TrendingUp, Sparkles, User, Tag, PiggyBank, Radar, LineChart, Repeat, Fingerprint, Clapperboard, Users, Film, BarChart3, Ruler, History, Quote } from 'lucide-react';
 
 interface AnalyticsViewProps {
   movies: Movie[];
+  userName?: string;
+  onNavigateToCalendar?: () => void;
 }
 
 // Internal Radar Chart Component
@@ -84,9 +86,83 @@ const RadarChart = ({ data }: { data: { label: string; value: number; color: str
   );
 };
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userName, onNavigateToCalendar }) => {
   const SUBSCRIPTION_COST = 11.00;
   const TICKET_PRICE = 8.00;
+
+  // --- SMART EDITORIAL LOGIC ---
+  const editorialMessage = useMemo(() => {
+    const now = Date.now();
+    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+    
+    const recentMovies = movies.filter(m => (m.dateWatched || m.dateAdded) > thirtyDaysAgo);
+    const count = recentMovies.length;
+    
+    // Default safe values
+    let title = "En rythme de croisière";
+    let message = `Un mois solide avec ${count} films au compteur. Continue sur cette lancée.`;
+    let moodIcon = "✌️";
+
+    if (count === 0) {
+        title = "Silence radio";
+        message = "Les écrans sont éteints depuis un moment. Pas le temps ou pas d'inspiration ? Ta Watchlist t'attend.";
+        moodIcon = "🕸️";
+        return { title, message, moodIcon };
+    }
+
+    // Calculs stats récents
+    let sumRating = 0;
+    let oldMoviesCount = 0;
+    const genres: Record<string, number> = {};
+
+    recentMovies.forEach(m => {
+        sumRating += (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+        if (m.year < 2000) oldMoviesCount++;
+        genres[m.genre] = (genres[m.genre] || 0) + 1;
+    });
+
+    const avgRating = sumRating / count;
+    const topGenre = Object.keys(genres).sort((a, b) => genres[b] - genres[a])[0] || 'Cinéma';
+    
+    // Find best rated recent movie
+    const topMovie = [...recentMovies].sort((a, b) => {
+         const avgA = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
+         const avgB = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
+         return avgB - avgA;
+    })[0];
+    const topMovieName = topMovie ? topMovie.title : "aucun";
+
+    // --- DECISION TREE ---
+
+    // 1. Le Difficile
+    if (avgRating < 5 && count > 2) { // Note sur 10 dans le code mais affiché /5 pour l'user souvent? Non ici c'est /10 dans le state mais slider 1-10.
+        // Attends, le slider est 1-10. Donc "avgRating < 2.5" du prompt correspond à < 5/10.
+        title = "Dur public...";
+        message = `Ce mois-ci, le cinéma ne t'a pas épargné. Avec une moyenne de ${(avgRating/2).toFixed(1)}/5, tu as enchaîné les déceptions. Espérons que le prochain film relève le niveau.`;
+        moodIcon = "🤨";
+    }
+    // 2. Le Binge-Watcher
+    else if (count > 8) {
+        title = "Machine de guerre";
+        message = `Tu as englouti ${count} films récemment. C'est plus de cinéma que de sommeil. Ton genre du moment semble être ${topGenre}.`;
+        moodIcon = "🍿";
+    }
+    // 3. Le Nostalgique
+    else if (oldMoviesCount > count / 2) {
+        title = "C'était mieux avant ?";
+        message = "Grosse vibe rétro ce mois-ci. Tu as passé plus de temps dans le passé que dans le présent. Une valeur sûre.";
+        moodIcon = "📼";
+    }
+    // 4. Par Défaut (Équilibré)
+    else {
+        title = "En rythme de croisière";
+        message = `Un mois solide avec ${count} films au compteur. Ton coup de cœur récent reste ${topMovieName}.`;
+        moodIcon = "✌️";
+    }
+
+    return { title, message, moodIcon };
+  }, [movies]);
+
 
   const stats = useMemo(() => {
     const totalWatched = movies.length;
@@ -187,9 +263,47 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
             percent: Math.round(((count as number) / Math.max(totalWatched, 1)) * 100)
         }));
 
+    // --- DEEP DIVE : EXIGENCE & CHRONOLOGIE ---
+
+    // 1. Exigence Logic
+    const criteriaArray = [
+        { label: 'Histoire', value: ratingAvg.story, color: 'bg-charcoal' },
+        { label: 'Visuel', value: ratingAvg.visuals, color: 'bg-forest' },
+        { label: 'Jeu', value: ratingAvg.acting, color: 'bg-tz-orange' },
+        { label: 'Son', value: ratingAvg.sound, color: 'bg-stone-500' }
+    ].sort((a, b) => a.value - b.value); // Sort ascending (Lowest first)
+
+    const severeCriteria = criteriaArray[0];
+    const indulgentCriteria = criteriaArray[3];
+
+    // 2. Chronologie Logic
+    const decadeStats: Record<number, { sum: number; count: number }> = {};
+    movies.forEach(m => {
+        if (m.year) {
+            const decade = Math.floor(m.year / 10) * 10;
+            if (!decadeStats[decade]) decadeStats[decade] = { sum: 0, count: 0 };
+            const avg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+            decadeStats[decade].sum += avg;
+            decadeStats[decade].count += 1;
+        }
+    });
+
+    const decadesData = Object.entries(decadeStats)
+        .map(([decade, data]) => ({
+            label: `${decade}s`,
+            avg: data.count > 0 ? data.sum / data.count : 0,
+            count: data.count
+        }))
+        .sort((a, b) => Number(a.label.slice(0,4)) - Number(b.label.slice(0,4)));
+
+    // Find best decade by average (min 1 movie)
+    const bestDecade = decadesData.length > 0 ? decadesData.reduce((prev, current) => (prev.avg > current.avg) ? prev : current) : null;
+    const maxDecadeAvg = decadesData.length > 0 ? Math.max(...decadesData.map(d => d.avg)) : 0;
+
     return { 
         totalWatched, ratingAvg, monthlyCount, monthlySavings, dayCounts, days, 
-        maxDayCount, rewatchRate, sortedTags, topDirectors, topActors, topGenres 
+        maxDayCount, rewatchRate, sortedTags, topDirectors, topActors, topGenres,
+        criteriaArray, severeCriteria, indulgentCriteria, decadesData, bestDecade, maxDecadeAvg
     };
   }, [movies]);
 
@@ -212,9 +326,34 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
 
   return (
     <div className="space-y-6 pb-32 animate-[fadeIn_0.4s_ease-out]">
-      <div className="mt-2 mb-4">
+      
+      {/* SMART EDITORIAL COMPONENT */}
+      <div className="bg-gradient-to-br from-sand/30 to-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 relative overflow-hidden group hover:shadow-md transition-all duration-500">
+         <div className="absolute top-0 right-0 p-8 opacity-10 font-black text-9xl select-none group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700 pointer-events-none grayscale">
+            {editorialMessage.moodIcon}
+         </div>
+         
+         <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-2xl">
+                  {editorialMessage.moodIcon}
+               </div>
+               <span className="bg-charcoal/5 text-charcoal px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  Édito du mois
+               </span>
+            </div>
+
+            <h2 className="text-2xl font-black text-charcoal mb-2">Salut {userName},</h2>
+            <h3 className="text-xl font-bold text-forest mb-4 italic font-serif">"{editorialMessage.title}"</h3>
+            <p className="text-charcoal/80 text-lg font-medium leading-relaxed max-w-xl">
+               {editorialMessage.message}
+            </p>
+         </div>
+      </div>
+
+      <div className="mt-8 mb-4">
          <h2 className="text-3xl font-black text-charcoal tracking-tight">Analyses</h2>
-         <p className="text-xs font-bold text-stone-500 uppercase tracking-[0.15em]">VOS DONNÉES DÉCODÉES</p>
+         <p className="text-xs font-bold text-stone-500 uppercase tracking-[0.15em]">DONNÉES SPECTATEUR</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -260,15 +399,23 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
               </div>
           </div>
           
-           <div className="md:col-span-4 lg:col-span-1 bg-white border border-stone-100 p-7 rounded-[2.5rem] flex flex-col min-h-[220px]">
-              <div className="flex items-center gap-2 mb-6">
-                 <Calendar size={18} className="text-stone-400" strokeWidth={2.5} />
-                 <span className="text-[10px] font-black uppercase text-stone-500 tracking-[0.1em]">Activité</span>
+           <div 
+             onClick={onNavigateToCalendar} 
+             className="md:col-span-4 lg:col-span-1 bg-white border border-stone-100 p-7 rounded-[2.5rem] flex flex-col min-h-[220px] cursor-pointer hover:shadow-md hover:border-forest/20 transition-all group"
+           >
+              <div className="flex items-center justify-between mb-6">
+                 <div className="flex items-center gap-2">
+                    <Calendar size={18} className="text-stone-400 group-hover:text-forest transition-colors" strokeWidth={2.5} />
+                    <span className="text-[10px] font-black uppercase text-stone-500 tracking-[0.1em] group-hover:text-charcoal transition-colors">Activité</span>
+                 </div>
+                 <div className="text-[10px] font-black text-stone-300 uppercase tracking-widest group-hover:text-forest opacity-0 group-hover:opacity-100 transition-all">
+                    Voir Calendrier
+                 </div>
               </div>
               <div className="flex justify-between items-end flex-1 gap-1 pb-1">
                  {stats.dayCounts.map((count, i) => (
                      <div key={i} className="flex-1 w-full flex items-end justify-center relative h-full">
-                        <div className="w-1.5 bg-charcoal rounded-full" style={{ height: `${count > 0 ? (count / stats.maxDayCount) * 100 : 8}%`, opacity: count > 0 ? 1 : 0.05 }}></div>
+                        <div className="w-1.5 bg-charcoal rounded-full group-hover:bg-forest transition-colors" style={{ height: `${count > 0 ? (count / stats.maxDayCount) * 100 : 8}%`, opacity: count > 0 ? 1 : 0.05 }}></div>
                      </div>
                  ))}
               </div>
@@ -280,8 +427,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
               <div className="flex items-center gap-3 mb-4 relative z-10">
                   <div className="bg-sand p-2.5 rounded-2xl text-charcoal"><Radar size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-charcoal leading-none">Radar Moyen</h3>
-                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">PROFIL SPECTATEUR</span>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Répartition des Notes</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">MOYENNES PAR CRITÈRE</span>
                   </div>
               </div>
               <RadarChart data={radarData} />
@@ -289,10 +436,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 relative overflow-hidden flex flex-col">
               <div className="flex items-center gap-3 mb-8 relative z-10">
-                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Fingerprint size={22} strokeWidth={2.5} /></div>
+                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Tag size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-charcoal leading-none">ADN Cinéma</h3>
-                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">VOS CRITÈRES CLÉS</span>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Tags Fréquents</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">MOTS-CLÉS RÉCURRENTS</span>
                   </div>
               </div>
               {stats.sortedTags.length > 0 ? (
@@ -320,8 +467,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
               <div className="flex items-center gap-3 mb-8">
                   <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Users size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-charcoal leading-none">Casting fétiche</h3>
-                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">ACTEURS RÉCURRENTS</span>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Acteurs les plus vus</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">TOP CASTING</span>
                   </div>
               </div>
               <div className="space-y-6">
@@ -341,8 +488,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
               <div className="flex items-center gap-3 mb-8">
                   <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Clapperboard size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-charcoal leading-none">Visionnaires</h3>
-                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">RÉALISATEURS PRÉFÉRÉS</span>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Réalisateurs les plus vus</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">TOP RÉALISATION</span>
                   </div>
               </div>
               <div className="space-y-6">
@@ -362,8 +509,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
               <div className="flex items-center gap-3 mb-8">
                   <div className="bg-white/10 p-2.5 rounded-2xl text-white"><Film size={22} strokeWidth={2.5} /></div>
                   <div>
-                      <h3 className="text-lg font-black text-white leading-none">Panorama</h3>
-                      <span className="text-[10px] font-bold text-white/60 uppercase tracking-[0.1em]">GENRES DOMINANTS</span>
+                      <h3 className="text-lg font-black text-white leading-none">Distribution des Genres</h3>
+                      <span className="text-[10px] font-bold text-white/60 uppercase tracking-[0.1em]">GENRES LES PLUS VUS</span>
                   </div>
               </div>
               <div className="space-y-5">
@@ -380,6 +527,90 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies }) => {
                   )) : <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest text-center py-10">Aucun genre noté</p>}
               </div>
           </div>
+      </div>
+
+      {/* --- NEW SECTION: DEEP DIVE --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* CARTE NIVEAU D'EXIGENCE */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><Ruler size={22} strokeWidth={2.5} /></div>
+                    <div>
+                        <h3 className="text-lg font-black text-charcoal leading-none">Niveau d'Exigence</h3>
+                        <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">MOYENNE PAR CRITÈRE</span>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    {stats.criteriaArray.map((criteria) => (
+                        <div key={criteria.label} className="group">
+                             <div className="flex justify-between items-end mb-2">
+                                 <span className="text-[11px] font-black uppercase text-stone-400 tracking-widest">{criteria.label}</span>
+                                 <span className="text-sm font-black text-charcoal">{criteria.value}<span className="text-[10px] text-stone-300 ml-1">/10</span></span>
+                             </div>
+                             <div className="h-3 w-full bg-stone-50 rounded-full overflow-hidden">
+                                 <div className={`h-full rounded-full ${criteria.color} opacity-80 group-hover:opacity-100 transition-all duration-500`} style={{ width: `${criteria.value * 10}%` }} />
+                             </div>
+                        </div>
+                    ))}
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-stone-100 flex justify-between gap-4 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                 <div>
+                    <span className="block text-[9px] text-stone-300 mb-1">LE PLUS SÉVÈRE</span>
+                    <span className="text-charcoal bg-stone-100 px-2 py-1 rounded-md">{stats.severeCriteria.label} ({stats.severeCriteria.value})</span>
+                 </div>
+                 <div className="text-right">
+                    <span className="block text-[9px] text-stone-300 mb-1">LE PLUS INDULGENT</span>
+                    <span className="text-charcoal bg-stone-100 px-2 py-1 rounded-md">{stats.indulgentCriteria.label} ({stats.indulgentCriteria.value})</span>
+                 </div>
+              </div>
+          </div>
+
+          {/* CARTE CHRONOLOGIE */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 flex flex-col">
+              <div className="flex items-center gap-3 mb-8">
+                  <div className="bg-stone-50 p-2.5 rounded-2xl text-charcoal"><History size={22} strokeWidth={2.5} /></div>
+                  <div>
+                      <h3 className="text-lg font-black text-charcoal leading-none">Analyse Temporelle</h3>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.1em]">MOYENNES PAR DÉCENNIE</span>
+                  </div>
+              </div>
+
+              <div className="flex-1 flex items-end justify-between gap-2 px-2 pb-2 h-48">
+                  {stats.decadesData.length > 0 ? stats.decadesData.map((d) => {
+                      const isBest = d.label === stats.bestDecade?.label;
+                      // Height relative to max average (max is 10)
+                      const heightPercent = (d.avg / 10) * 100;
+                      
+                      return (
+                          <div key={d.label} className="flex-1 flex flex-col justify-end items-center group h-full">
+                              <div className="relative w-full flex justify-center items-end h-full">
+                                  <div 
+                                    className={`w-full max-w-[24px] rounded-t-lg transition-all duration-500 ${isBest ? 'bg-forest' : 'bg-stone-200 group-hover:bg-stone-300'}`} 
+                                    style={{ height: `${heightPercent}%` }}
+                                  >
+                                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-charcoal text-white text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap z-10 transition-opacity">
+                                        {d.avg.toFixed(1)}
+                                    </div>
+                                  </div>
+                              </div>
+                              <span className={`mt-3 text-[10px] font-black uppercase tracking-wider rotate-[-45deg] origin-top-left translate-y-2 translate-x-1 ${isBest ? 'text-forest' : 'text-stone-300'}`}>
+                                  {d.label}
+                              </span>
+                          </div>
+                      );
+                  }) : (
+                      <div className="w-full h-full flex items-center justify-center text-stone-300 font-bold text-xs uppercase tracking-widest">
+                          Aucune donnée temporelle
+                      </div>
+                  )}
+              </div>
+          </div>
+
       </div>
     </div>
   );

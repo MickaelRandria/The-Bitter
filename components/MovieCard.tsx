@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Movie, ThemeColor } from '../types';
-import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film } from 'lucide-react';
+import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film, Calendar, Clock } from 'lucide-react';
 
 interface MovieCardProps {
   movie: Movie;
@@ -35,6 +35,22 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
   const isWatchlist = movie.status === 'watchlist';
 
   const baseHeight = index % 3 === 0 ? 'h-80' : 'h-64';
+
+  const getContextualDate = () => {
+     if (!movie.dateWatched) return null;
+     const date = new Date(movie.dateWatched);
+     const now = Date.now();
+     const isFuture = movie.dateWatched > now;
+     
+     const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+
+     return (
+        <div className={`flex items-center gap-1.5 uppercase tracking-widest text-[9px] font-black ${hasPoster ? 'text-white/80' : 'text-current opacity-60'}`}>
+            {isFuture ? <Calendar size={10} /> : <CheckCircle2 size={10} />}
+            <span>{isFuture ? `Séance le ${dateStr}` : `Vu le ${dateStr}`}</span>
+        </div>
+     );
+  };
 
   const highlightText = (text: string, query?: string) => {
     if (!query || !query.trim()) return text;
@@ -126,14 +142,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
         <h3 className="text-2xl font-black leading-tight tracking-tighter mb-2 group-hover/card:tracking-normal transition-all duration-500">
           {highlightText(movie.title, searchQuery)}
         </h3>
-        <div className={`flex items-center gap-3 uppercase tracking-widest transition-all duration-500 ${
+        
+        {/* Contextual Date or Director */}
+        <div className={`flex items-center gap-3 transition-all duration-500 ${
             isExpanded 
-            ? 'text-xs font-black border-b border-current/10 pb-4 opacity-90 w-full leading-relaxed' 
-            : 'text-[10px] font-black opacity-60'
+            ? 'border-b border-current/10 pb-4 w-full' 
+            : ''
         }`}>
-             <span>{movie.year}</span>
-             <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
-             <span className="truncate max-w-[140px]">{highlightText(movie.director, searchQuery)}</span>
+            {/* Si étendu ou pas de date précise, on affiche l'année et réal, sinon la date contextuelle si non étendu */}
+             {(!isExpanded && movie.status !== 'watchlist') ? (
+                 getContextualDate()
+             ) : (
+                 <div className={`flex items-center gap-3 uppercase tracking-widest ${isExpanded ? 'text-xs font-black opacity-90' : 'text-[10px] font-black opacity-60'}`}>
+                    <span>{movie.year}</span>
+                    <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
+                    <span className="truncate max-w-[140px]">{highlightText(movie.director, searchQuery)}</span>
+                 </div>
+             )}
         </div>
       </div>
 
@@ -165,6 +190,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
                <RatingBar label="Visu" value={movie.ratings.visuals} />
                <RatingBar label="Jeu" value={movie.ratings.acting} />
                <RatingBar label="Son" value={movie.ratings.sound} />
+               
+               {/* Date displayed clearly in expanded view */}
+               <div className="mt-4 pt-4 border-t border-current/10 flex justify-end">
+                   {getContextualDate()}
+               </div>
             </div>
           )}
 

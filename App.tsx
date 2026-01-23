@@ -7,11 +7,14 @@ import MovieCard from './components/MovieCard';
 import AddMovieModal from './components/AddMovieModal';
 import WelcomePage from './components/WelcomePage';
 import DiscoverView from './components/DiscoverView';
+import CalendarView from './components/CalendarView';
 import TutorialOverlay, { TutorialStep } from './components/TutorialOverlay';
 import FilmographyModal from './components/FilmographyModal';
+import ChangelogModal from './components/ChangelogModal';
+import { RELEASE_HISTORY } from './constants/changelog';
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
-type ViewMode = 'Feed' | 'Analytics' | 'Discover';
+type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar';
 type FeedTab = 'history' | 'queue';
 
 const TUTORIALS: Record<string, TutorialStep[]> = {
@@ -55,6 +58,13 @@ const TUTORIALS: Record<string, TutorialStep[]> = {
       desc: "Suivez votre rentabilité (Abo vs Tickets) et votre rythme de visionnage jour par jour.",
       icon: <BarChart3 size={32} strokeWidth={1.5} />
     }
+  ],
+  'Calendar': [
+    {
+      title: "Calendrier",
+      desc: "Visualisez votre mois en un coup d'œil. Chaque affiche représente le jour où vous avez vu un film.",
+      icon: <CalendarDays size={32} strokeWidth={1.5} />
+    }
   ]
 };
 
@@ -66,6 +76,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [activeGenre, setActiveGenre] = useState<string>('All');
   const [sortBy, setSortBy] = useState<SortOption>('Date');
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,8 +88,9 @@ const App: React.FC = () => {
   const [triggerMovieTitle, setTriggerMovieTitle] = useState<string | null>(null);
   const [maxDuration, setMaxDuration] = useState<number | null>(null);
 
-  // State pour la filmographie
   const [filmographyPerson, setFilmographyPerson] = useState<{ id: number; name: string } | null>(null);
+
+  const currentVersion = RELEASE_HISTORY[0]?.version || 'v0.1';
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_KEY = 'the_bitter_last_profile';
@@ -105,19 +117,17 @@ const App: React.FC = () => {
     profiles.find(p => p.id === activeProfileId) || null
   , [profiles, activeProfileId]);
 
-  // SMART RECOMMENDATIONS LOGIC
   useEffect(() => {
     if (!activeProfile || activeProfile.movies.length === 0) {
       setRecommendations([]);
       return;
     }
 
-    // 1. Trouver le film déclencheur : le plus récemment ajouté avec une bonne note
     const sortedMovies = [...activeProfile.movies].sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
     
     const trigger = sortedMovies.find(m => {
       const avg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-      return (m.ratings.story >= 4 || avg >= 4) && m.tmdbId; // Doit avoir un tmdbId
+      return (m.ratings.story >= 4 || avg >= 4) && m.tmdbId;
     });
 
     if (trigger && trigger.tmdbId) {
@@ -129,18 +139,16 @@ const App: React.FC = () => {
            const data = await res.json();
            
            if (data.results) {
-             // 2. Filtrage : Ne pas montrer ce qu'on a déjà
              const existingTmdbIds = new Set(activeProfile.movies.map(m => m.tmdbId).filter(Boolean));
              const existingTitles = new Set(activeProfile.movies.map(m => m.title.toLowerCase()));
 
              const filtered = data.results.filter((rec: any) => {
-                // On garde seulement s'il a une image, et n'est pas dans la liste (par ID ou Titre)
                 return rec.poster_path && 
                        !existingTmdbIds.has(rec.id) && 
                        !existingTitles.has(rec.title.toLowerCase());
              });
 
-             setRecommendations(filtered.slice(0, 10)); // Top 10
+             setRecommendations(filtered.slice(0, 10));
            }
          } catch (e) {
            console.error("Erreur reco", e);
@@ -239,7 +247,6 @@ const App: React.FC = () => {
     setEditingMovie(null);
     setTmdbIdToLoad(tmdbId);
     setIsModalOpen(true);
-    // Fermer le modal de filmographie si ouvert
     setFilmographyPerson(null);
   };
 
@@ -267,10 +274,8 @@ const App: React.FC = () => {
       );
     }
 
-    // Time Engine Logic
     if (feedTab === 'queue' && maxDuration) {
       result = result.filter(m => {
-        // On inclut le film s'il a une durée définie et <= max, OU s'il n'a pas de durée (ne pas cacher les données manquantes)
         return !m.runtime || m.runtime <= maxDuration;
       });
     }
@@ -312,22 +317,27 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen pb-24 text-charcoal font-sans transition-colors duration-300 relative">
-      {/* HEADER STICKY & RESPONSIVE */}
+    <div className="min-h-screen pb-32 text-charcoal font-sans transition-colors duration-300 relative">
       <header className="pt-4 sm:pt-8 px-4 sm:px-6 sticky top-0 z-40 bg-cream/90 backdrop-blur-2xl pb-4 border-b border-sand/40">
-        <div className="flex items-center gap-3 sm:gap-6 h-12 mb-4">
+        <div className="flex items-center gap-3 sm:gap-6 h-12 mb-0.5">
           
-          {/* IDENTITÉ (À GAUCHE) */}
           <div className="flex items-center gap-2.5 shrink-0 group cursor-default">
             <div className="w-9 h-9 sm:w-11 sm:h-11 bg-forest text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-forest/15 group-hover:rotate-6 transition-transform">
                <Heart size={20} fill="currentColor" />
             </div>
-            <h1 className={`text-xl sm:text-2xl font-black tracking-tighter whitespace-nowrap hidden sm:block ${isSearchOpen ? 'lg:block hidden' : 'block'}`}>
-              The Bitter
-            </h1>
+            <div className="flex flex-col items-start leading-none">
+              <h1 className={`text-xl sm:text-2xl font-black tracking-tighter whitespace-nowrap hidden sm:block ${isSearchOpen ? 'lg:block hidden' : 'block'}`}>
+                The Bitter
+              </h1>
+              <button 
+                onClick={() => setIsChangelogOpen(true)}
+                className="mt-0.5 px-1.5 py-0.5 bg-sand/40 border border-sand rounded-lg text-[9px] font-black text-stone-400 tracking-widest hover:bg-forest/5 hover:text-forest transition-all"
+              >
+                {currentVersion}
+              </button>
+            </div>
           </div>
 
-          {/* BARRE DE RECHERCHE (AU CENTRE / FLEXIBLE) */}
           <div className={`flex-1 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSearchOpen ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0 sm:opacity-100 pointer-events-none sm:pointer-events-auto'}`}>
             {isSearchOpen ? (
                 <div className="flex items-center gap-3 w-full max-w-lg bg-white border border-sand px-4 py-2.5 rounded-2xl shadow-inner focus-within:ring-2 focus-within:ring-forest/10 transition-all animate-[slideIn_0.2s_ease-out]">
@@ -349,11 +359,10 @@ const App: React.FC = () => {
                   </button>
                 </div>
             ) : (
-                <div className="hidden sm:flex flex-1" /> // Spacer for layout balance on desktop
+                <div className="hidden sm:flex flex-1" />
             )}
           </div>
 
-          {/* NAVIGATION & PROFIL (À DROITE) */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
             {viewMode !== 'Discover' && !isSearchOpen && (
               <button 
@@ -379,38 +388,21 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* ONGLETS DE VUE (SECONDE LIGNE DU HEADER) */}
-        <div className="flex p-1 bg-white/50 border border-sand rounded-2xl shadow-sm relative overflow-hidden max-w-2xl mx-auto sm:mx-0">
-          <button 
-            onClick={() => setViewMode('Feed')} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Feed' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
-          >
-            Collection
-          </button>
-          <button 
-            onClick={() => setViewMode('Discover')} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Discover' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
-          >
-            <Clapperboard size={12} /> À l'affiche
-          </button>
-          <button 
-            onClick={() => setViewMode('Analytics')} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'Analytics' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-charcoal'}`}
-          >
-            Analyses
-          </button>
-        </div>
       </header>
 
-      <main className="px-6 pt-4">
+      <main className="px-6 pt-4 pb-32">
         {viewMode === 'Analytics' ? (
-          <AnalyticsView movies={watchedMovies} />
+          <AnalyticsView 
+            movies={watchedMovies} 
+            userName={activeProfile?.firstName} 
+            onNavigateToCalendar={() => setViewMode('Calendar')}
+          />
         ) : viewMode === 'Discover' ? (
-          <DiscoverView onSelectMovie={handleSelectDiscoverMovie} />
+          <DiscoverView onSelectMovie={handleSelectDiscoverMovie} userProfile={activeProfile} />
+        ) : viewMode === 'Calendar' ? (
+          <CalendarView movies={activeProfile?.movies || []} />
         ) : (
           <>
-            {/* RECOMMENDATIONS SECTION */}
             {recommendations.length > 0 && !searchQuery && feedTab === 'history' && (
               <div className="mb-10 animate-[fadeIn_0.5s_ease-out]">
                  <div className="flex items-center gap-2 mb-3">
@@ -449,12 +441,22 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center gap-8 mb-6 border-b border-sand/50 pb-1">
-              <button onClick={() => setFeedTab('history')} className={`pb-3 text-sm font-bold tracking-wide transition-all relative ${feedTab === 'history' ? 'text-charcoal' : 'text-stone-300'}`}>Historique {feedTab === 'history' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-charcoal rounded-full animate-[fadeIn_0.3s_ease-out]"></div>}</button>
-              <button onClick={() => setFeedTab('queue')} className={`pb-3 text-sm font-bold tracking-wide transition-all relative flex items-center gap-2 ${feedTab === 'queue' ? 'text-charcoal' : 'text-stone-300'}`}>File d'attente {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-2 h-2 bg-forest rounded-full"></span>} {feedTab === 'queue' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-charcoal rounded-full animate-[fadeIn_0.3s_ease-out]"></div>}</button>
+            <div className="bg-stone-100 p-1.5 rounded-full flex mx-auto max-w-sm mb-8 relative">
+               <button 
+                  onClick={() => setFeedTab('history')} 
+                  className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${feedTab === 'history' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
+               >
+                  Historique
+               </button>
+               <button 
+                  onClick={() => setFeedTab('queue')} 
+                  className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
+               >
+                  File d'attente
+                  {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>}
+               </button>
             </div>
             
-            {/* TIME ENGINE UI - Only in Queue Mode */}
             {feedTab === 'queue' && (
               <div className="bg-white border border-sand p-6 rounded-3xl mb-8 shadow-sm animate-[fadeIn_0.3s_ease-out]">
                  <div className="flex items-center justify-between mb-4">
@@ -506,16 +508,53 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-20">
               {filteredAndSortedMovies.map((movie, index) => <MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={handleEditMovie} onOpenFilmography={(id, name) => setFilmographyPerson({id, name})} searchQuery={searchQuery} />)}
             </div>
-            {filteredAndSortedMovies.length === 0 && <div className="py-24 text-center animate-[fadeIn_0.6s_ease-out]"><div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-4xl bg-sand/30 text-stone-200 border border-sand/50">{feedTab === 'queue' ? <Clock size={40} strokeWidth={1.5} /> : <CheckCircle2 size={40} strokeWidth={1.5} />}</div><p className="text-stone-300 font-bold text-xl mb-2">Pas encore d'écho ici.</p><p className="text-stone-400 text-sm font-medium">L'aventure commence avec un nouveau titre.</p></div>}
           </>
         )}
       </main>
 
-      {viewMode === 'Feed' && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-30">
-          <button onClick={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} className="group flex items-center gap-4 bg-charcoal text-white pl-7 pr-9 py-5 rounded-4xl shadow-2xl hover:scale-105 active:scale-95 transition-all duration-500 hover:bg-forest"><div className="bg-white/10 p-1.5 rounded-full group-hover:rotate-90 transition-transform duration-500"><Plus size={22} strokeWidth={3} /></div><span className="font-black tracking-[0.1em] text-xs uppercase">Nouveau film</span></button>
-        </div>
-      )}
+      <nav className="fixed bottom-6 left-4 right-4 z-50 max-w-sm mx-auto">
+         <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3 flex justify-between items-center relative">
+            <button 
+              onClick={() => setViewMode('Feed')} 
+              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Feed' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
+              aria-label="Collection"
+            >
+              <LayoutGrid size={22} strokeWidth={viewMode === 'Feed' ? 2.5 : 2} />
+            </button>
+
+            <button 
+              onClick={() => setViewMode('Discover')} 
+              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Discover' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
+              aria-label="À l'affiche"
+            >
+              <Clapperboard size={22} strokeWidth={viewMode === 'Discover' ? 2.5 : 2} />
+            </button>
+
+            <button 
+              onClick={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} 
+              className="bg-forest text-white p-4 rounded-full shadow-xl shadow-forest/20 active:scale-90 hover:scale-105 transition-all mx-2"
+              aria-label="Nouveau Film"
+            >
+               <Plus size={24} strokeWidth={3} />
+            </button>
+
+            <button 
+              onClick={() => setViewMode('Analytics')} 
+              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Analytics' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
+              aria-label="Analyses"
+            >
+              <PieChart size={22} strokeWidth={viewMode === 'Analytics' ? 2.5 : 2} />
+            </button>
+
+            <button 
+              onClick={() => setViewMode('Calendar')} 
+              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Calendar' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
+              aria-label="Calendrier"
+            >
+              <CalendarDays size={22} strokeWidth={viewMode === 'Calendar' ? 2.5 : 2} />
+            </button>
+         </div>
+      </nav>
 
       <AddMovieModal 
         isOpen={isModalOpen} 
@@ -532,6 +571,11 @@ const App: React.FC = () => {
         personName={filmographyPerson?.name || ''} 
         onClose={() => setFilmographyPerson(null)}
         onSelectMovie={handleSelectDiscoverMovie}
+      />
+
+      <ChangelogModal 
+        isOpen={isChangelogOpen} 
+        onClose={() => setIsChangelogOpen(false)} 
       />
 
       {activeTutorial && <TutorialOverlay steps={activeTutorial} onComplete={handleCompleteTutorial} />}

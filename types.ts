@@ -23,7 +23,8 @@ export interface Movie {
   actors: string;
   actorIds?: ActorInfo[];
   year: number;
-  runtime?: number; // Nouveau : Durée en minutes
+  releaseDate?: string; // Format YYYY-MM-DD
+  runtime?: number;
   genre: string;
   ratings: RatingCriteria;
   review: string;
