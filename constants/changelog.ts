@@ -22,6 +22,16 @@ export const PENDING_CHANGES: ChangeEntry[] = [];
  */
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.4',
+    date: '23 Janvier 2026',
+    title: "L'Ère Native (PWA)",
+    changes: [
+      { type: 'feature', text: 'Transformation officielle en Progressive Web App (PWA). The Bitter s\'installe désormais sur votre écran d\'accueil sans passer par les stores.' },
+      { type: 'style', text: 'Expérience "Standalone" : suppression de la barre d\'URL du navigateur et gestion immersive de la barre d\'état.' },
+      { type: 'fix', text: 'Optimisation du Manifest : icônes adaptatives et définition de la couleur de thème "Cream" pour l\'intégration OS.' }
+    ]
+  },
+  {
     version: 'v0.3',
     date: '23 Janvier 2026',
     title: "L'Expérience Visuelle",
