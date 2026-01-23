@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import AnalyticsView from './components/AnalyticsView';
@@ -11,7 +11,11 @@ import CalendarView from './components/CalendarView';
 import TutorialOverlay, { TutorialStep } from './components/TutorialOverlay';
 import FilmographyModal from './components/FilmographyModal';
 import ChangelogModal from './components/ChangelogModal';
+import OnboardingModal from './components/OnboardingModal';
+import RecommendationsModal from './components/RecommendationsModal';
 import { RELEASE_HISTORY } from './constants/changelog';
+import { haptics } from './utils/haptics';
+import { updateAppBadge } from './utils/badges';
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar';
@@ -74,6 +78,7 @@ const App: React.FC = () => {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
+  // Fix: Corrected malformed useState generic type parameter for feedTab on line 78
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
@@ -89,6 +94,10 @@ const App: React.FC = () => {
   const [maxDuration, setMaxDuration] = useState<number | null>(null);
 
   const [filmographyPerson, setFilmographyPerson] = useState<{ id: number; name: string } | null>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
+
+  // Recommendations Modal State
+  const [recSourceMovie, setRecSourceMovie] = useState<Movie | null>(null);
 
   const currentVersion = RELEASE_HISTORY[0]?.version || 'v0.1';
 
@@ -116,6 +125,48 @@ const App: React.FC = () => {
   const activeProfile = useMemo(() => 
     profiles.find(p => p.id === activeProfileId) || null
   , [profiles, activeProfileId]);
+
+  // LOGIQUE CALIBRATION
+  useEffect(() => {
+    if (activeProfile && !showWelcome) {
+      // Si le profil n'est pas calibré (pas de severityIndex), on lance l'onboarding
+      if (activeProfile.severityIndex === undefined) {
+        setShowCalibration(true);
+      } else {
+        // Ne force pas false ici pour permettre le déclenchement manuel
+      }
+    }
+  }, [activeProfile, showWelcome]);
+
+  const handleCompleteCalibration = (data: { name: string; severityIndex: number; patienceLevel: number; favoriteGenres: string[]; role: string }) => {
+    if (!activeProfileId) return;
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== activeProfileId) return p;
+      return {
+        ...p,
+        firstName: data.name, // Mise à jour du nom si modifié
+        severityIndex: data.severityIndex,
+        patienceLevel: data.patienceLevel,
+        favoriteGenres: data.favoriteGenres,
+        isOnboarded: true,
+        role: data.role
+      };
+    }));
+    setShowCalibration(false);
+    haptics.success();
+  };
+
+  const isEmptyLibrary = useMemo(() => !activeProfile || activeProfile.movies.length === 0, [activeProfile]);
+
+  // Gestion du Badge d'application (Watchlist count)
+  useEffect(() => {
+    if (activeProfile) {
+      const watchlistCount = activeProfile.movies.filter(m => m.status === 'watchlist').length;
+      updateAppBadge(watchlistCount);
+    } else {
+      updateAppBadge(0);
+    }
+  }, [activeProfile?.movies]);
 
   useEffect(() => {
     if (!activeProfile || activeProfile.movies.length === 0) {
@@ -162,7 +213,7 @@ const App: React.FC = () => {
   }, [activeProfile]);
 
   useEffect(() => {
-    if (activeProfile && !showWelcome) {
+    if (activeProfile && !showWelcome && !showCalibration) {
       const seen = activeProfile.seenTutorials || [];
       if (TUTORIALS[viewMode] && !seen.includes(viewMode)) {
         const timer = setTimeout(() => {
@@ -171,7 +222,7 @@ const App: React.FC = () => {
         return () => clearTimeout(timer);
       }
     }
-  }, [viewMode, activeProfileId, showWelcome]);
+  }, [viewMode, activeProfileId, showWelcome, showCalibration]);
 
   const handleCompleteTutorial = () => {
     if (!activeProfileId || !viewMode) return;
@@ -308,6 +359,12 @@ const App: React.FC = () => {
     return `${h}h${m > 0 ? ` ${m}m` : ''}`;
   };
 
+  // Set of existing TMDB IDs to prevent duplicates in recommendations
+  const existingTmdbIds = useMemo(() => {
+      if (!activeProfile) return new Set<number>();
+      return new Set(activeProfile.movies.map(m => m.tmdbId).filter((id): id is number => !!id));
+  }, [activeProfile]);
+
   if (showWelcome) return (
     <WelcomePage 
       existingProfiles={profiles} 
@@ -317,7 +374,7 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen pb-32 text-charcoal font-sans transition-colors duration-300 relative">
+    <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans transition-colors duration-300 relative">
       <header className="pt-4 sm:pt-8 px-4 sm:px-6 sticky top-0 z-40 bg-cream/90 backdrop-blur-2xl pb-4 border-b border-sand/40">
         <div className="flex items-center gap-3 sm:gap-6 h-12 mb-0.5">
           
@@ -329,9 +386,27 @@ const App: React.FC = () => {
               <h1 className={`text-xl sm:text-2xl font-black tracking-tighter whitespace-nowrap hidden sm:block ${isSearchOpen ? 'lg:block hidden' : 'block'}`}>
                 The Bitter
               </h1>
+              {activeProfile && (
+                <div className={`sm:hidden flex-col items-start leading-none mt-1 ${isSearchOpen ? 'hidden' : 'flex'}`}>
+                   <span className="font-black text-sm text-charcoal">{activeProfile.firstName}</span>
+                   <div className="flex items-center gap-1.5 mt-0.5">
+                       {activeProfile.role && (
+                           <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest border border-stone-200 px-1.5 py-0.5 rounded-md bg-stone-50">
+                               {activeProfile.role}
+                           </span>
+                       )}
+                       <button 
+                        onClick={() => { haptics.soft(); setIsChangelogOpen(true); }}
+                        className="text-[8px] font-black text-stone-300 px-1.5 py-0.5 bg-stone-50 rounded-md border border-stone-100 hover:bg-stone-100 transition-colors"
+                       >
+                        {currentVersion}
+                       </button>
+                   </div>
+                </div>
+              )}
               <button 
-                onClick={() => setIsChangelogOpen(true)}
-                className="mt-0.5 px-1.5 py-0.5 bg-sand/40 border border-sand rounded-lg text-[9px] font-black text-stone-400 tracking-widest hover:bg-forest/5 hover:text-forest transition-all"
+                onClick={() => { haptics.soft(); setIsChangelogOpen(true); }}
+                className="mt-0.5 px-1.5 py-0.5 bg-sand/40 border border-sand rounded-lg text-[9px] font-black text-stone-400 tracking-widest hover:bg-forest/5 hover:text-forest transition-all hidden sm:block"
               >
                 {currentVersion}
               </button>
@@ -352,21 +427,34 @@ const App: React.FC = () => {
                     disabled={viewMode === 'Discover'}
                   />
                   <button 
-                    onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
+                    onClick={() => { haptics.soft(); setIsSearchOpen(false); setSearchQuery(''); }}
                     className="p-1.5 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 shrink-0 active:scale-90 transition-transform"
                   >
                     <X size={12} strokeWidth={3} />
                   </button>
                 </div>
             ) : (
-                <div className="hidden sm:flex flex-1" />
+                <div className="hidden sm:flex flex-1 justify-center">
+                    {activeProfile && !isSearchOpen && (
+                        <div className="flex flex-col items-center leading-none">
+                             <span className="text-sm font-bold text-stone-400 uppercase tracking-widest bg-white/50 px-4 py-1.5 rounded-full mb-1">
+                                 {activeProfile.firstName}
+                             </span>
+                             {activeProfile.role && (
+                                <span className="text-[9px] font-black text-forest uppercase tracking-[0.2em]">
+                                    {activeProfile.role}
+                                </span>
+                             )}
+                        </div>
+                    )}
+                </div>
             )}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
             {viewMode !== 'Discover' && !isSearchOpen && (
               <button 
-                onClick={() => setIsSearchOpen(true)} 
+                onClick={() => { haptics.soft(); setIsSearchOpen(true); }} 
                 className="p-3 bg-white border border-sand shadow-soft rounded-2xl transition-all active:scale-90 hover:bg-sand"
                 aria-label="Ouvrir la recherche"
               >
@@ -390,12 +478,14 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="px-6 pt-4 pb-32">
+      <main className="flex-1 px-6 pt-4 pb-32">
         {viewMode === 'Analytics' ? (
           <AnalyticsView 
             movies={watchedMovies} 
+            userProfile={activeProfile}
             userName={activeProfile?.firstName} 
-            onNavigateToCalendar={() => setViewMode('Calendar')}
+            onNavigateToCalendar={() => { haptics.soft(); setViewMode('Calendar'); }}
+            onRecalibrate={() => setShowCalibration(true)}
           />
         ) : viewMode === 'Discover' ? (
           <DiscoverView onSelectMovie={handleSelectDiscoverMovie} userProfile={activeProfile} />
@@ -403,111 +493,141 @@ const App: React.FC = () => {
           <CalendarView movies={activeProfile?.movies || []} />
         ) : (
           <>
-            {recommendations.length > 0 && !searchQuery && feedTab === 'history' && (
-              <div className="mb-10 animate-[fadeIn_0.5s_ease-out]">
-                 <div className="flex items-center gap-2 mb-3">
-                    <Sparkles size={12} className="text-tz-yellow animate-pulse" fill="currentColor" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                      Parce que tu as aimé <span className="text-charcoal">{triggerMovieTitle}</span>
-                    </p>
-                 </div>
-                 
-                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
-                    {recommendations.map(movie => (
-                       <button 
-                          key={movie.id} 
-                          onClick={() => handleSelectDiscoverMovie(movie.id)}
-                          className="flex-shrink-0 w-28 group relative"
-                       >
-                          <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 mb-2 shadow-sm group-hover:shadow-lg transition-all relative">
-                             <img 
-                                src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
-                                alt={movie.title} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                             />
-                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Plus size={20} className="text-white drop-shadow-lg" strokeWidth={3} />
-                             </div>
-                             <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md text-white px-1.5 py-0.5 rounded-lg flex items-center gap-1">
-                                <span className="text-[8px] font-bold">{movie.vote_average?.toFixed(1) || '--'}</span>
-                             </div>
-                          </div>
-                          <h4 className="font-black text-[10px] text-charcoal leading-tight line-clamp-2 text-left group-hover:text-forest transition-colors uppercase tracking-tight">
-                             {movie.title}
-                          </h4>
-                       </button>
-                    ))}
-                 </div>
-              </div>
-            )}
-
-            <div className="bg-stone-100 p-1.5 rounded-full flex mx-auto max-w-sm mb-8 relative">
-               <button 
-                  onClick={() => setFeedTab('history')} 
-                  className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${feedTab === 'history' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
-               >
-                  Historique
-               </button>
-               <button 
-                  onClick={() => setFeedTab('queue')} 
-                  className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
-               >
-                  File d'attente
-                  {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>}
-               </button>
-            </div>
-            
-            {feedTab === 'queue' && (
-              <div className="bg-white border border-sand p-6 rounded-3xl mb-8 shadow-sm animate-[fadeIn_0.3s_ease-out]">
-                 <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                       <Hourglass size={16} className="text-forest" />
-                       <span className="text-[11px] font-black uppercase tracking-widest text-charcoal">J'ai combien de temps ?</span>
+            {isEmptyLibrary ? (
+               <div className="flex flex-col items-center justify-center flex-1 h-full min-h-[50vh] text-center p-8 animate-[fadeIn_0.5s_ease-out]">
+                    <div className="w-24 h-24 bg-stone-50 rounded-[2rem] flex items-center justify-center text-stone-300 mb-6 shadow-sm rotate-6">
+                        <Film size={40} strokeWidth={1.5} />
                     </div>
-                    <span className="text-sm font-bold text-forest bg-forest/10 px-3 py-1 rounded-full">
-                       {maxDuration ? `Max: ${formatRuntime(maxDuration)}` : '∞ Illimité'}
-                    </span>
-                 </div>
-                 
-                 <input 
-                    type="range" 
-                    min="60" 
-                    max="180" 
-                    step="15"
-                    value={maxDuration || 180} 
-                    onChange={(e) => setMaxDuration(Number(e.target.value))}
-                    className="w-full h-2 bg-sand rounded-lg appearance-none cursor-pointer accent-forest mb-6"
-                 />
-                 
-                 <div className="flex gap-2">
-                    <button onClick={() => setMaxDuration(90)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 90 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 1h30'}</button>
-                    <button onClick={() => setMaxDuration(120)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 120 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 2h'}</button>
-                    <button onClick={() => setMaxDuration(null)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === null ? 'bg-sand text-charcoal border border-transparent' : 'bg-white border border-sand text-stone-400'}`}>Illimité</button>
-                 </div>
-              </div>
-            )}
+                    <h2 className="text-2xl font-black text-charcoal mb-3 tracking-tight">Le début d'une collection</h2>
+                    <p className="text-stone-400 font-medium leading-relaxed max-w-xs mb-12">
+                        Votre vidéothèque est vide. Ajoutez votre premier film pour donner vie à votre espace.
+                    </p>
+                    
+                    <div className="flex flex-col items-center gap-3 text-forest animate-bounce opacity-80">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">C'est par ici</span>
+                        <ArrowDown size={24} strokeWidth={2.5} />
+                    </div>
+               </div>
+            ) : (
+               <>
+                {recommendations.length > 0 && !searchQuery && feedTab === 'history' && (
+                  <div className="mb-10 animate-[fadeIn_0.5s_ease-out]">
+                     <div className="flex items-center gap-2 mb-3">
+                        <Sparkles size={12} className="text-tz-yellow animate-pulse" fill="currentColor" />
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                          Parce que tu as aimé <span className="text-charcoal">{triggerMovieTitle}</span>
+                        </p>
+                     </div>
+                     
+                     <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
+                        {recommendations.map(movie => (
+                           <button 
+                              key={movie.id} 
+                              onClick={() => { haptics.medium(); handleSelectDiscoverMovie(movie.id); }}
+                              className="flex-shrink-0 w-28 group relative"
+                           >
+                              <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 mb-2 shadow-sm group-hover:shadow-lg transition-all relative">
+                                 <img 
+                                    src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
+                                    alt={movie.title} 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                 />
+                                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Plus size={20} className="text-white drop-shadow-lg" strokeWidth={3} />
+                                 </div>
+                                 <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md text-white px-1.5 py-0.5 rounded-lg flex items-center gap-1">
+                                    <span className="text-[8px] font-bold">{movie.vote_average?.toFixed(1) || '--'}</span>
+                                 </div>
+                              </div>
+                              <h4 className="font-black text-[10px] text-charcoal leading-tight line-clamp-2 text-left group-hover:text-forest transition-colors uppercase tracking-tight">
+                                 {movie.title}
+                              </h4>
+                           </button>
+                        ))}
+                     </div>
+                  </div>
+                )}
 
-            <div className="mb-8 space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{searchQuery ? 'RÉSULTATS' : (feedTab === 'history' ? 'MA BIBLIOTHÈQUE' : 'PROCHAINEMENT')}</h2>
-                <div className="flex items-center gap-2.5 group cursor-pointer">
-                  <SlidersHorizontal size={14} strokeWidth={2.5} className="text-stone-300 group-hover:text-charcoal transition-colors" />
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
-                    <option value="Date">RÉCENTS</option>
-                    <option value="Rating">NOTES</option>
-                    <option value="Year">ANNÉE</option>
-                    <option value="Title">A-Z</option>
-                  </select>
+                <div className="bg-stone-100 p-1.5 rounded-full flex mx-auto max-w-sm mb-8 relative">
+                   <button 
+                      onClick={() => { haptics.soft(); setFeedTab('history'); }} 
+                      className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${feedTab === 'history' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
+                   >
+                      Historique
+                   </button>
+                   <button 
+                      onClick={() => { haptics.soft(); setFeedTab('queue'); }} 
+                      className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
+                   >
+                      File d'attente
+                      {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>}
+                   </button>
                 </div>
-              </div>
-              <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6">
-                <button onClick={() => setActiveGenre('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === 'All' ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>Tout</button>
-                {GENRES.map(genre => <button key={genre} onClick={() => setActiveGenre(genre)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === genre ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>{genre}</button>)}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-20">
-              {filteredAndSortedMovies.map((movie, index) => <MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={handleEditMovie} onOpenFilmography={(id, name) => setFilmographyPerson({id, name})} searchQuery={searchQuery} />)}
-            </div>
+                
+                {feedTab === 'queue' && (
+                  <div className="bg-white border border-sand p-6 rounded-3xl mb-8 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                     <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                           <Hourglass size={16} className="text-forest" />
+                           <span className="text-[11px] font-black uppercase tracking-widest text-charcoal">J'ai combien de temps ?</span>
+                        </div>
+                        <span className="text-sm font-bold text-forest bg-forest/10 px-3 py-1 rounded-full">
+                           {maxDuration ? `Max: ${formatRuntime(maxDuration)}` : '∞ Illimité'}
+                        </span>
+                     </div>
+                     
+                     <input 
+                        type="range" 
+                        min="60" 
+                        max="180" 
+                        step="15"
+                        value={maxDuration || 180} 
+                        onChange={(e) => { haptics.soft(); setMaxDuration(Number(e.target.value)); }}
+                        className="w-full h-2 bg-sand rounded-lg appearance-none cursor-pointer accent-forest mb-6"
+                     />
+                     
+                     <div className="flex gap-2">
+                        <button onClick={() => { haptics.soft(); setMaxDuration(90); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 90 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 1h30'}</button>
+                        <button onClick={() => { haptics.soft(); setMaxDuration(120); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 120 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 2h'}</button>
+                        <button onClick={() => { haptics.soft(); setMaxDuration(null); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === null ? 'bg-sand text-charcoal border border-transparent' : 'bg-white border border-sand text-stone-400'}`}>Illimité</button>
+                     </div>
+                  </div>
+                )}
+
+                <div className="mb-8 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{searchQuery ? 'RÉSULTATS' : (feedTab === 'history' ? 'MA BIBLIOTHÈQUE' : 'PROCHAINEMENT')}</h2>
+                    <div className="flex items-center gap-2.5 group cursor-pointer">
+                      <SlidersHorizontal size={14} strokeWidth={2.5} className="text-stone-300 group-hover:text-charcoal transition-colors" />
+                      <select value={sortBy} onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
+                        <option value="Date">RÉCENTS</option>
+                        <option value="Rating">NOTES</option>
+                        <option value="Year">ANNÉE</option>
+                        <option value="Title">A-Z</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6">
+                    <button onClick={() => { haptics.soft(); setActiveGenre('All'); }} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === 'All' ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>Tout</button>
+                    {GENRES.map(genre => <button key={genre} onClick={() => { haptics.soft(); setActiveGenre(genre); }} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === genre ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>{genre}</button>)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-20">
+                  {filteredAndSortedMovies.map((movie, index) => (
+                      <MovieCard 
+                        key={movie.id} 
+                        movie={movie} 
+                        index={index} 
+                        onDelete={handleDeleteMovie} 
+                        onEdit={handleEditMovie} 
+                        onOpenFilmography={(id, name) => setFilmographyPerson({id, name})} 
+                        onShowRecommendations={(m) => setRecSourceMovie(m)}
+                        searchQuery={searchQuery} 
+                    />
+                   ))}
+                </div>
+               </>
+            )}
           </>
         )}
       </main>
@@ -515,7 +635,7 @@ const App: React.FC = () => {
       <nav className="fixed bottom-6 left-4 right-4 z-50 max-w-sm mx-auto">
          <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3 flex justify-between items-center relative">
             <button 
-              onClick={() => setViewMode('Feed')} 
+              onClick={() => { haptics.soft(); setViewMode('Feed'); }} 
               className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Feed' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
               aria-label="Collection"
             >
@@ -523,7 +643,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => setViewMode('Discover')} 
+              onClick={() => { haptics.soft(); setViewMode('Discover'); }} 
               className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Discover' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
               aria-label="À l'affiche"
             >
@@ -531,7 +651,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} 
+              onClick={() => { haptics.medium(); setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} 
               className="bg-forest text-white p-4 rounded-full shadow-xl shadow-forest/20 active:scale-90 hover:scale-105 transition-all mx-2"
               aria-label="Nouveau Film"
             >
@@ -539,7 +659,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => setViewMode('Analytics')} 
+              onClick={() => { haptics.soft(); setViewMode('Analytics'); }} 
               className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Analytics' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
               aria-label="Analyses"
             >
@@ -547,7 +667,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => setViewMode('Calendar')} 
+              onClick={() => { haptics.soft(); setViewMode('Calendar'); }} 
               className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Calendar' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
               aria-label="Calendrier"
             >
@@ -572,11 +692,26 @@ const App: React.FC = () => {
         onClose={() => setFilmographyPerson(null)}
         onSelectMovie={handleSelectDiscoverMovie}
       />
+      
+      <RecommendationsModal
+        sourceMovie={recSourceMovie}
+        isOpen={!!recSourceMovie}
+        onClose={() => setRecSourceMovie(null)}
+        onAddMovie={handleSaveMovie}
+        existingTmdbIds={existingTmdbIds}
+      />
 
       <ChangelogModal 
         isOpen={isChangelogOpen} 
         onClose={() => setIsChangelogOpen(false)} 
       />
+
+      {showCalibration && activeProfile && (
+        <OnboardingModal 
+           initialName={activeProfile.firstName}
+           onComplete={handleCompleteCalibration}
+        />
+      )}
 
       {activeTutorial && <TutorialOverlay steps={activeTutorial} onComplete={handleCompleteTutorial} />}
     </div>

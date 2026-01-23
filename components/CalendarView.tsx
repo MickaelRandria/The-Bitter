@@ -126,7 +126,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
   const startOffset = (firstDayOfMonth + 6) % 7;
 
   return (
-    <div className="animate-[fadeIn_0.4s_ease-out] min-h-screen bg-transparent -mx-6 -mt-4">
+    <div className="animate-[fadeIn_0.4s_ease-out] bg-transparent -mx-6 -mt-4">
        {/* CAPSULE HEADER */}
        <div className="px-6 py-6">
           <div className="bg-white rounded-full shadow-sm border border-stone-100 py-3 px-6 flex items-center justify-between mx-auto max-w-sm">

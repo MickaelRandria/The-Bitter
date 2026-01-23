@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Movie, ThemeColor } from '../types';
-import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film, Calendar, Clock } from 'lucide-react';
+import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film, Calendar, Clock, Sparkles } from 'lucide-react';
 
 interface MovieCardProps {
   movie: Movie;
   index: number;
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
-  onOpenFilmography?: (id: number, name: string) => void; // Nouveau
+  onOpenFilmography?: (id: number, name: string) => void;
+  onShowRecommendations?: (movie: Movie) => void; // Nouvelle Prop
   searchQuery?: string;
 }
 
@@ -20,7 +21,7 @@ const themeStyles: Record<ThemeColor, string> = {
   black: 'bg-charcoal text-white',
 };
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, onOpenFilmography, searchQuery }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, onOpenFilmography, onShowRecommendations, searchQuery }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
@@ -257,6 +258,17 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
                 {isWatchlist ? <CheckCircle2 size={14} strokeWidth={2.5} /> : <Pencil size={14} strokeWidth={2.5} />}
                 {isWatchlist ? 'Marquer Vu' : 'Éditer'}
              </button>
+             
+             {/* Recommendation Sparkle Button (New) */}
+             {movie.tmdbId && onShowRecommendations && (
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); onShowRecommendations(movie); }}
+                    className={`p-4 rounded-2xl transition-all active:scale-90 shadow-lg group/sparkle ${hasPoster ? 'bg-white/20 hover:bg-white text-white hover:text-charcoal backdrop-blur-md' : 'bg-tz-purple/10 text-tz-purple hover:bg-tz-purple hover:text-white'}`}
+                    title="Similaires"
+                 >
+                    <Sparkles size={20} strokeWidth={2.5} className="group-hover/sparkle:animate-spin" />
+                 </button>
+             )}
 
              <button 
                 onClick={handleDeleteClick}

@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#FAF9F6" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="The Bitter" />
-    <meta name="description" content="A warm, minimalist, mobile-first movie tracking application." />
-    
-    <!-- Icons -->
-    <link rel="icon" type="image/png" href="/pwa-512x512.png" />
-    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
-    
+    <meta name="theme-color" content="#1c1917" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bitter" />
+    <meta name="description" content="Suivi de films minimaliste et analytique." />
+
+    <!-- Icons links (handled by plugin injection usually, but safe to have for apple) -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" href="/favicon.ico" />
+
     <title>The Bitter</title>
     
     <!-- Fonts: Inter -->
@@ -87,8 +87,6 @@
         font-family: 'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
-        /* Prevent elastic scrolling on iOS for a more app-like feel */
-        overscroll-behavior-y: none;
       }
       
       /* Grain Texture Overlay */
@@ -137,7 +135,7 @@
   }
 }
 </script>
-
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div class="grain-overlay"></div>

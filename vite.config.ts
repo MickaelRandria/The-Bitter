@@ -7,18 +7,28 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['pwa-512x512.png'],
+      injectRegister: 'auto',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'The Bitter',
-        short_name: 'The Bitter',
-        description: 'Heritage Cinematographique. Suivi de films et analyses Bento.',
-        theme_color: '#FAF9F6',
-        background_color: '#FAF9F6',
+        short_name: 'Bitter',
+        description: 'A warm, minimalist, mobile-first movie tracking application.',
+        theme_color: '#1c1917',
+        background_color: '#f5f5f4',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
         start_url: '/',
         icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',

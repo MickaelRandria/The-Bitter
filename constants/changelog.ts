@@ -22,13 +22,35 @@ export const PENDING_CHANGES: ChangeEntry[] = [];
  */
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.4',
-    date: '23 Janvier 2026',
-    title: "L'Ère Native (PWA)",
+    version: 'v0.5',
+    date: '26 Janvier 2026',
+    title: 'L\'Update "Miroir"',
     changes: [
-      { type: 'feature', text: 'Transformation officielle en Progressive Web App (PWA). The Bitter s\'installe désormais sur votre écran d\'accueil sans passer par les stores.' },
-      { type: 'style', text: 'Expérience "Standalone" : suppression de la barre d\'URL du navigateur et gestion immersive de la barre d\'état.' },
-      { type: 'fix', text: 'Optimisation du Manifest : icônes adaptatives et définition de la couleur de thème "Cream" pour l\'intégration OS.' }
+      { type: 'feature', text: 'Calibration de l\'Analyste : Nouveau module d\'Onboarding définissant votre profil psychologique (Sévérité, Patience) et votre Archétype unique (ex: "Censeur Efficace").' },
+      { type: 'feature', text: 'Vue "Miroir" : Confrontation entre votre profil déclaré et la réalité de vos notes. Analyse des indices de Crédibilité, de Déception et de Distraction.' },
+      { type: 'feature', text: 'Saisie "Bitter Mode" : Refonte de la saisie avec distinction Note Technique / Expérience Ressentie. Ajout du "Smartphone Factor" et des "Symptômes Physiques".' },
+      { type: 'feature', text: 'Recommandations Contextuelles : Nouveau bouton "✨" sur les cartes pour générer des suggestions ciblées via l\'IA TMDB.' },
+      { type: 'style', text: 'Mobile Experience : Immersion tactile avec retours haptiques complets et Badge de notification natif pour la file d\'attente.' }
+    ]
+  },
+  {
+    version: 'v0.45',
+    date: '24 Janvier 2026',
+    title: 'Sensations & Finitions',
+    changes: [
+      { type: 'feature', text: 'Immersion tactile : ajout de retours haptiques (vibrations) lors des interactions clés.' },
+      { type: 'feature', text: 'Intégration native : Pastille de notification sur l\'icône (Badge) indiquant la taille de la file d\'attente.' },
+      { type: 'style', text: 'Accueil guidé : nouvelle interface élégante pour accompagner vos premiers pas dans l\'application.' },
+      { type: 'fix', text: 'Optimisation mobile : ajustement des zones de défilement et support parfait des écrans tactiles (fix 100dvh).' }
+    ]
+  },
+  {
+    version: 'v0.4',
+    date: '24 Janvier 2026',
+    title: 'Application Native',
+    changes: [
+      { type: 'feature', text: 'Support PWA : Installez The Bitter comme une application native sur votre écran d\'accueil.' },
+      { type: 'style', text: 'Suppression des barres de navigation du navigateur pour une immersion totale.' }
     ]
   },
   {
