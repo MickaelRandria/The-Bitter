@@ -16,6 +16,7 @@ import RecommendationsModal from './components/RecommendationsModal';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
 import { updateAppBadge } from './utils/badges';
+import { trackPageView } from './utils/analytics';
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar';
@@ -103,6 +104,15 @@ const App: React.FC = () => {
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_KEY = 'the_bitter_last_profile';
+
+  // --- ANALYTICS: TRACKING PAGE VIEWS ---
+  useEffect(() => {
+    // Dans ton architecture à plat sans routeur, 'viewMode' agit comme l'URL.
+    // On track chaque changement de mode comme une nouvelle page vue.
+    if (!showWelcome) {
+      trackPageView(viewMode);
+    }
+  }, [viewMode, showWelcome]);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
