@@ -143,27 +143,50 @@ const App: React.FC = () => {
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
-                ignoreElements: (element) => element.tagName === 'IFRAME' // Avoid issues
+                ignoreElements: (element) => element.tagName === 'IFRAME'
             });
 
             canvas.toBlob(async (blob) => {
                 if (!blob) { setIsSharing(false); return; }
-                const file = new File([blob], 'bitter-story.png', { type: 'image/png' });
+                
+                const fileName = 'the-bitter-story.png';
+                const file = new File([blob], fileName, { type: 'image/png' });
+                const isAndroid = /android/i.test(navigator.userAgent);
 
+                // tentative navigator.share (Priorité iOS)
                 if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({ files: [file] });
                         haptics.success();
                     } catch (e) {
-                        console.log('Share cancelled');
+                        console.log('Share cancelled or failed');
+                        // Sur iOS, on ne fait rien si annulé/échec selon les instructions
                     }
-                } else {
+                } 
+                // Fallback Android (Si navigator.share absent ou PWA sans support file share)
+                else if (isAndroid) {
+                    const blobUrl = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.download = 'bitter-story.png';
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    link.click();
+                    haptics.success();
+
+                    // Délai pour laisser le téléchargement s'initier avant redirection
+                    setTimeout(() => {
+                        window.location.href = 'instagram://story/camera';
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1500);
+                } 
+                // Fallback générique (PC ou autre)
+                else {
+                    const link = document.createElement('a');
+                    link.download = fileName;
                     link.href = canvas.toDataURL();
                     link.click();
                     haptics.success();
                 }
+
                 setIsSharing(false);
                 setSharingMovie(null);
             }, 'image/png');
@@ -173,7 +196,7 @@ const App: React.FC = () => {
             setSharingMovie(null);
             haptics.error();
         }
-      }, 500); // Délai pour charger l'image
+      }, 500);
   };
 
   const filteredAndSortedMovies = useMemo(() => {
