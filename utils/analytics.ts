@@ -1,5 +1,38 @@
+
 import ReactGA from 'react-ga4';
 import posthog from 'posthog-js';
+
+// --- INITIALISATION ---
+
+/**
+ * Initialise les outils d'analytics uniquement si l'utilisateur a donné son consentement.
+ * À appeler après le clic sur "Accepter" ou si le consentement est déjà stocké.
+ */
+export const initAnalytics = () => {
+  // 1. Google Analytics 4
+  const GA_ID = import.meta.env?.VITE_GA_MEASUREMENT_ID;
+  if (GA_ID && !ReactGA.isInitialized) {
+    ReactGA.initialize(GA_ID);
+  }
+
+  // 2. PostHog
+  const POSTHOG_KEY = import.meta.env?.VITE_POSTHOG_KEY;
+  const POSTHOG_HOST = import.meta.env?.VITE_POSTHOG_HOST;
+
+  if (POSTHOG_KEY) {
+    // Vérifie si PostHog n'est pas déjà chargé
+    // @ts-ignore
+    if (!window.posthog?.__loaded) {
+        posthog.init(POSTHOG_KEY, {
+            api_host: POSTHOG_HOST,
+            capture_pageview: false, // SPA : géré manuellement
+            persistence: 'localStorage' 
+        });
+    }
+  }
+};
+
+// --- TRACKING ---
 
 /**
  * Envoie un événement de tracking à GA4 et PostHog de manière sécurisée.
@@ -10,7 +43,7 @@ import posthog from 'posthog-js';
  */
 export const trackEvent = (category: string, action: string, label?: string, value?: number) => {
   try {
-    // GA4 Event
+    // GA4 Event - Seulement si initialisé
     if (ReactGA.isInitialized) {
       ReactGA.event({
         category,
@@ -20,15 +53,16 @@ export const trackEvent = (category: string, action: string, label?: string, val
       });
     }
 
-    // PostHog Event
-    posthog.capture(action, {
-      category,
-      label,
-      value
-    });
+    // PostHog Event - Seulement si opt-in
+    if (posthog.has_opted_in_capturing()) {
+        posthog.capture(action, {
+        category,
+        label,
+        value
+        });
+    }
   } catch (error) {
-    // On catch silencieusement pour ne jamais faire planter l'app à cause du tracking
-    console.warn('Analytics trackEvent error:', error);
+    // Silence
   }
 };
 
@@ -46,10 +80,12 @@ export const trackPageView = (pageName: string) => {
     }
 
     // PostHog Pageview
-    posthog.capture('$pageview', {
-      $current_url: window.location.origin + path
-    });
+    if (posthog.has_opted_in_capturing()) {
+        posthog.capture('$pageview', {
+        $current_url: window.location.origin + path
+        });
+    }
   } catch (error) {
-    console.warn('Analytics trackPageView error:', error);
+    // Silence
   }
 };

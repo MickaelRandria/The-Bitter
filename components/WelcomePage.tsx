@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Film, UserPlus, Users, Heart, Sparkles, User, ChevronRight, Check } from 'lucide-react';
+import { ArrowRight, Film, UserPlus, Users, Heart, Sparkles, User, ChevronRight, Check, Trash2, AlertTriangle, X } from 'lucide-react';
 import { UserProfile } from '../types';
+import { haptics } from '../utils/haptics';
 
 interface WelcomePageProps {
   existingProfiles: UserProfile[];
   onSelectProfile: (profileId: string) => void;
   onCreateProfile: (firstName: string, lastName: string, favoriteMovie: string, gender: 'h' | 'f', age: number) => void;
+  onDeleteProfile: (profileId: string) => void;
 }
 
-const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectProfile, onCreateProfile }) => {
+const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectProfile, onCreateProfile, onDeleteProfile }) => {
   // On commence TOUJOURS par 'landing'
   const [step, setStep] = useState<'landing' | 'select' | 'create'>('landing');
   
@@ -21,6 +23,10 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
   });
   
   const [lastProfileId, setLastProfileId] = useState<string | null>(null);
+  
+  // États pour la suppression
+  const [isManaging, setIsManaging] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const last = localStorage.getItem('the_bitter_last_profile');
@@ -37,6 +43,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
         formData.gender,
         formData.age
       );
+    }
+  };
+
+  const confirmDelete = () => {
+    if (profileToDelete) {
+      onDeleteProfile(profileToDelete);
+      setProfileToDelete(null);
+      // Si plus de profils, retour landing
+      if (existingProfiles.length <= 1) {
+        setStep('landing');
+        setIsManaging(false);
+      }
     }
   };
 
@@ -106,26 +124,38 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
         {/* STEP 2: SELECT PROFILE */}
         {step === 'select' && (
           <div className="w-full animate-[fadeIn_0.5s_ease-out]">
-            <div className="mb-12 text-center sm:text-left">
-                <h2 className="text-5xl font-black text-charcoal tracking-tighter leading-none mb-3">Re-Bienvenue.</h2>
-                <p className="text-stone-400 font-bold text-base">Choisissez votre carnet de bord.</p>
+            <div className="mb-10 flex justify-between items-end">
+                <div className="text-left">
+                    <h2 className="text-5xl font-black text-charcoal tracking-tighter leading-none mb-3">Re-Bienvenue.</h2>
+                    <p className="text-stone-400 font-bold text-base">Choisissez votre carnet de bord.</p>
+                </div>
+                {existingProfiles.length > 0 && (
+                    <button 
+                      onClick={() => { haptics.soft(); setIsManaging(!isManaging); }}
+                      className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${isManaging ? 'bg-charcoal text-white' : 'text-stone-300 hover:bg-stone-100 hover:text-stone-500'}`}
+                    >
+                        {isManaging ? 'Terminer' : 'Gérer'}
+                    </button>
+                )}
             </div>
 
-            <div className="grid gap-8 max-h-[60vh] overflow-y-auto no-scrollbar px-4 pt-10 pb-12 -mx-4">
+            <div className="grid gap-6 max-h-[60vh] overflow-y-auto no-scrollbar px-4 pt-4 pb-12 -mx-4">
               {sortedProfiles.map(p => {
                 const isLast = p.id === lastProfileId;
                 return (
                   <button 
                     key={p.id}
-                    onClick={() => onSelectProfile(p.id)}
+                    onClick={() => !isManaging && onSelectProfile(p.id)}
+                    disabled={isManaging}
                     className={`
-                      relative flex items-center gap-6 p-7 rounded-[2.5rem] transition-all active:scale-[0.98] text-left group
-                      ${isLast 
-                        ? 'bg-white border-2 border-forest/15 shadow-2xl shadow-forest/10' 
-                        : 'bg-white border border-sand hover:border-forest/30 shadow-lg shadow-black/[0.02] hover:shadow-xl'}
+                      relative flex items-center gap-6 p-6 rounded-[2.5rem] transition-all text-left group w-full
+                      ${isLast && !isManaging
+                        ? 'bg-white border-2 border-forest/15 shadow-2xl shadow-forest/10 active:scale-[0.98]' 
+                        : 'bg-white border border-sand shadow-lg shadow-black/[0.02]'}
+                      ${!isManaging ? 'hover:border-forest/30 hover:shadow-xl active:scale-[0.98]' : 'opacity-100 cursor-default'}
                     `}
                   >
-                    <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast ? 'bg-forest text-white' : 'bg-sand text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}>
+                    <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast && !isManaging ? 'bg-forest text-white' : 'bg-sand text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}>
                       {p.firstName[0]}{p.lastName[0]}
                     </div>
                     
@@ -133,15 +163,26 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
                       <p className="font-black text-xl text-charcoal tracking-tight group-hover:text-forest transition-colors truncate">{p.firstName} {p.lastName}</p>
                       <p className="text-[11px] font-black uppercase text-stone-400 tracking-[0.1em] mt-1">{p.movies.length} FILMS</p>
                     </div>
+
+                    {isManaging && (
+                        <div 
+                            onClick={(e) => { e.stopPropagation(); haptics.medium(); setProfileToDelete(p.id); }}
+                            className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100"
+                        >
+                            <Trash2 size={20} strokeWidth={2.5} />
+                        </div>
+                    )}
                   </button>
                 );
               })}
             </div>
             
-            <button onClick={() => setStep('landing')} className="mt-6 flex items-center gap-3 text-stone-300 font-black text-[11px] uppercase tracking-widest hover:text-charcoal transition-all group mx-auto">
-              <div className="p-2 bg-stone-50 rounded-full group-hover:bg-sand transition-colors"><ArrowRight size={14} className="rotate-180 group-hover:-translate-x-1 transition-transform" /></div>
-              Retour
-            </button>
+            {!isManaging && (
+                <button onClick={() => setStep('landing')} className="mt-6 flex items-center gap-3 text-stone-300 font-black text-[11px] uppercase tracking-widest hover:text-charcoal transition-all group mx-auto">
+                <div className="p-2 bg-stone-50 rounded-full group-hover:bg-sand transition-colors"><ArrowRight size={14} className="rotate-180 group-hover:-translate-x-1 transition-transform" /></div>
+                Retour
+                </button>
+            )}
           </div>
         )}
 
@@ -237,6 +278,36 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
       <div className="p-8 text-center relative z-10 mt-auto">
         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">The Bitter — Edition Heritage</p>
       </div>
+
+      {/* CONFIRMATION MODAL */}
+      {profileToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={() => setProfileToDelete(null)} />
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl relative z-10 w-full max-w-sm text-center animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+                  <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                      <AlertTriangle size={32} strokeWidth={2} />
+                  </div>
+                  <h3 className="text-2xl font-black text-charcoal mb-2">Êtes-vous sûr ?</h3>
+                  <p className="text-stone-400 font-medium text-sm leading-relaxed mb-8">
+                      Cette action supprimera définitivement le profil et tout son historique. C'est irréversible.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                      <button 
+                          onClick={confirmDelete}
+                          className="w-full bg-red-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-red-600 transition-all active:scale-95"
+                      >
+                          Supprimer définitivement
+                      </button>
+                      <button 
+                          onClick={() => setProfileToDelete(null)}
+                          className="w-full bg-stone-100 text-stone-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-all"
+                      >
+                          Annuler
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

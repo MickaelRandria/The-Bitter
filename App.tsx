@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film } from 'lucide-react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import AnalyticsView from './components/AnalyticsView';
@@ -8,67 +9,36 @@ import AddMovieModal from './components/AddMovieModal';
 import WelcomePage from './components/WelcomePage';
 import DiscoverView from './components/DiscoverView';
 import CalendarView from './components/CalendarView';
+import MovieDeck from './components/MovieDeck';
 import TutorialOverlay, { TutorialStep } from './components/TutorialOverlay';
 import FilmographyModal from './components/FilmographyModal';
 import ChangelogModal from './components/ChangelogModal';
 import OnboardingModal from './components/OnboardingModal';
 import RecommendationsModal from './components/RecommendationsModal';
+import CookieBanner from './components/CookieBanner';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
 import { updateAppBadge } from './utils/badges';
-import { trackPageView } from './utils/analytics';
+import { trackPageView, initAnalytics } from './utils/analytics';
+import html2canvas from 'html2canvas';
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
-type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar';
+type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck';
 type FeedTab = 'history' | 'queue';
 
 const TUTORIALS: Record<string, TutorialStep[]> = {
   'Feed': [
     {
       title: "Votre Collection",
-      desc: "Bienvenue dans votre espace personnel. Ici, retrouvez tous vos films vus (Historique) et ceux que vous prévoyez de voir (File d'attente).",
+      desc: "Retrouvez vos films vus (Historique) et ceux à venir (File d'attente).",
       icon: <LayoutGrid size={32} strokeWidth={1.5} />
-    },
-    {
-      title: "Recherche Magique",
-      desc: "Appuyez sur 'Nouveau Film' en bas. Tapez simplement un titre, et l'IA remplira tout pour vous : affiche, réalisateur, acteurs et synopsis !",
-      icon: <Wand2 size={32} strokeWidth={1.5} />
-    },
-    {
-      title: "Tri & Filtres",
-      desc: "Utilisez les filtres en haut pour trier par genre, note ou date de visionnage afin de retrouver vos pépites instantanément.",
-      icon: <SlidersHorizontal size={32} strokeWidth={1.5} />
     }
   ],
-  'Discover': [
+  'Deck': [
     {
-      title: "À l'affiche",
-      desc: "Explorez les sorties cinéma en France pour les 6 prochains mois. Ne ratez plus aucune pépite en salle.",
-      icon: <Clapperboard size={32} strokeWidth={1.5} />
-    },
-    {
-      title: "Planification",
-      desc: "Un film vous intéresse ? Cliquez sur sa carte pour l'ajouter directement à votre liste 'À voir'.",
-      icon: <CalendarDays size={32} strokeWidth={1.5} />
-    }
-  ],
-  'Analytics': [
-    {
-      title: "Analyses",
-      desc: "Visualisez vos habitudes cinéphiles. Découvrez vos genres préférés, vos acteurs fétiches et votre profil spectateur.",
-      icon: <PieChart size={32} strokeWidth={1.5} />
-    },
-    {
-      title: "Budget & Stats",
-      desc: "Suivez votre rentabilité (Abo vs Tickets) et votre rythme de visionnage jour par jour.",
-      icon: <BarChart3 size={32} strokeWidth={1.5} />
-    }
-  ],
-  'Calendar': [
-    {
-      title: "Calendrier",
-      desc: "Visualisez votre mois en un coup d'œil. Chaque affiche représente le jour où vous avez vu un film.",
-      icon: <CalendarDays size={32} strokeWidth={1.5} />
+        title: "Judge or Skip",
+        desc: "Notez rapidement 5 films cultes de vos genres préférés pour calibrer votre profil.",
+        icon: <Target size={32} strokeWidth={1.5} />
     }
   ]
 };
@@ -79,72 +49,44 @@ const App: React.FC = () => {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
-  // Fix: Corrected malformed useState generic type parameter for feedTab on line 78
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
-  const [activeGenre, setActiveGenre] = useState<string>('All');
   const [sortBy, setSortBy] = useState<SortOption>('Date');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
   const [activeTutorial, setActiveTutorial] = useState<TutorialStep[] | null>(null);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [triggerMovieTitle, setTriggerMovieTitle] = useState<string | null>(null);
-  const [maxDuration, setMaxDuration] = useState<number | null>(null);
-
-  const [filmographyPerson, setFilmographyPerson] = useState<{ id: number; name: string } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
-
-  // Recommendations Modal State
   const [recSourceMovie, setRecSourceMovie] = useState<Movie | null>(null);
+  const [showCookieBanner, setShowCookieBanner] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
 
-  const currentVersion = RELEASE_HISTORY[0]?.version || 'v0.1';
+  // Pour le partage de story
+  const [sharingMovie, setSharingMovie] = useState<Movie | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  // Pour l'auto-advance du deck
+  const [deckSessionCount, setDeckSessionCount] = useState(0);
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
-  const LAST_PROFILE_KEY = 'the_bitter_last_profile';
-
-  // --- ANALYTICS: TRACKING PAGE VIEWS ---
-  useEffect(() => {
-    // Dans ton architecture à plat sans routeur, 'viewMode' agit comme l'URL.
-    // On track chaque changement de mode comme une nouvelle page vue.
-    if (!showWelcome) {
-      trackPageView(viewMode);
-    }
-  }, [viewMode, showWelcome]);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setProfiles(parsed);
-      } catch (e) {
-        setProfiles([]);
-      }
+      try { setProfiles(JSON.parse(saved)); } catch (e) { setProfiles([]); }
     }
   }, []);
 
   useEffect(() => {
-    if (profiles.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-    }
+    if (profiles.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
   }, [profiles]);
 
-  const activeProfile = useMemo(() => 
-    profiles.find(p => p.id === activeProfileId) || null
-  , [profiles, activeProfileId]);
+  const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
-  // LOGIQUE CALIBRATION
   useEffect(() => {
-    if (activeProfile && !showWelcome) {
-      // Si le profil n'est pas calibré (pas de severityIndex), on lance l'onboarding
-      if (activeProfile.severityIndex === undefined) {
-        setShowCalibration(true);
-      } else {
-        // Ne force pas false ici pour permettre le déclenchement manuel
-      }
+    if (activeProfile && !showWelcome && activeProfile.severityIndex === undefined) {
+      setShowCalibration(true);
     }
   }, [activeProfile, showWelcome]);
 
@@ -152,132 +94,12 @@ const App: React.FC = () => {
     if (!activeProfileId) return;
     setProfiles(prev => prev.map(p => {
       if (p.id !== activeProfileId) return p;
-      return {
-        ...p,
-        firstName: data.name, // Mise à jour du nom si modifié
-        severityIndex: data.severityIndex,
-        patienceLevel: data.patienceLevel,
-        favoriteGenres: data.favoriteGenres,
-        isOnboarded: true,
-        role: data.role
-      };
+      return { ...p, firstName: data.name, severityIndex: data.severityIndex, patienceLevel: data.patienceLevel, favoriteGenres: data.favoriteGenres, isOnboarded: true, role: data.role };
     }));
     setShowCalibration(false);
     haptics.success();
-  };
-
-  const isEmptyLibrary = useMemo(() => !activeProfile || activeProfile.movies.length === 0, [activeProfile]);
-
-  // Gestion du Badge d'application (Watchlist count)
-  useEffect(() => {
-    if (activeProfile) {
-      const watchlistCount = activeProfile.movies.filter(m => m.status === 'watchlist').length;
-      updateAppBadge(watchlistCount);
-    } else {
-      updateAppBadge(0);
-    }
-  }, [activeProfile?.movies]);
-
-  useEffect(() => {
-    if (!activeProfile || activeProfile.movies.length === 0) {
-      setRecommendations([]);
-      return;
-    }
-
-    const sortedMovies = [...activeProfile.movies].sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
-    
-    const trigger = sortedMovies.find(m => {
-      const avg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-      return (m.ratings.story >= 4 || avg >= 4) && m.tmdbId;
-    });
-
-    if (trigger && trigger.tmdbId) {
-       setTriggerMovieTitle(trigger.title);
-       
-       const fetchRecommendations = async () => {
-         try {
-           const res = await fetch(`${TMDB_BASE_URL}/movie/${trigger.tmdbId}/recommendations?api_key=${TMDB_API_KEY}&language=fr-FR&page=1`);
-           const data = await res.json();
-           
-           if (data.results) {
-             const existingTmdbIds = new Set(activeProfile.movies.map(m => m.tmdbId).filter(Boolean));
-             const existingTitles = new Set(activeProfile.movies.map(m => m.title.toLowerCase()));
-
-             const filtered = data.results.filter((rec: any) => {
-                return rec.poster_path && 
-                       !existingTmdbIds.has(rec.id) && 
-                       !existingTitles.has(rec.title.toLowerCase());
-             });
-
-             setRecommendations(filtered.slice(0, 10));
-           }
-         } catch (e) {
-           console.error("Erreur reco", e);
-         }
-       };
-
-       fetchRecommendations();
-    } else {
-      setRecommendations([]);
-    }
-  }, [activeProfile]);
-
-  useEffect(() => {
-    if (activeProfile && !showWelcome && !showCalibration) {
-      const seen = activeProfile.seenTutorials || [];
-      if (TUTORIALS[viewMode] && !seen.includes(viewMode)) {
-        const timer = setTimeout(() => {
-          setActiveTutorial(TUTORIALS[viewMode]);
-        }, 500);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [viewMode, activeProfileId, showWelcome, showCalibration]);
-
-  const handleCompleteTutorial = () => {
-    if (!activeProfileId || !viewMode) return;
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== activeProfileId) return p;
-      const currentSeen = p.seenTutorials || [];
-      if (currentSeen.includes(viewMode)) return p;
-      return { ...p, seenTutorials: [...currentSeen, viewMode] };
-    }));
-    setActiveTutorial(null);
-  };
-
-  const handleCreateProfile = (firstName: string, lastName: string, favoriteMovie: string, gender: 'h' | 'f', age: number) => {
-    const newProfile: UserProfile = {
-      id: crypto.randomUUID(),
-      firstName,
-      lastName,
-      favoriteMovie,
-      gender,
-      age,
-      movies: [],
-      createdAt: Date.now(),
-      seenTutorials: []
-    };
-    setProfiles(prev => [...prev, newProfile]);
-    setActiveProfileId(newProfile.id);
-    localStorage.setItem(LAST_PROFILE_KEY, newProfile.id);
-    setShowWelcome(false);
-    setViewMode('Feed');
-  };
-
-  const handleSelectProfile = (id: string) => {
-    setActiveProfileId(id);
-    localStorage.setItem(LAST_PROFILE_KEY, id);
-    setShowWelcome(false);
-    setViewMode('Feed');
-  };
-
-  const handleLogout = () => {
-    setShowWelcome(true);
-    setActiveProfileId(null);
-    setIsSearchOpen(false);
-    setSearchQuery('');
-    setActiveTutorial(null);
-    setRecommendations([]);
+    // Lance le deck automatiquement si la bibliothèque est vide
+    if (activeProfile && activeProfile.movies.length === 0) setViewMode('Deck');
   };
 
   const handleSaveMovie = (data: MovieFormData) => {
@@ -296,27 +118,62 @@ const App: React.FC = () => {
     setEditingMovie(null);
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
+    
+    // Auto-advance pour le MovieDeck
+    if (viewMode === 'Deck') setDeckSessionCount(prev => prev + 1);
   };
 
-  const handleEditMovie = (movie: Movie) => {
-    setEditingMovie(movie);
-    setTmdbIdToLoad(null);
-    setIsModalOpen(true);
-  };
+  const handleShareMovie = async (movie: Movie) => {
+      if (isSharing) return;
+      setSharingMovie(movie);
+      setIsSharing(true);
+      haptics.medium();
 
-  const handleSelectDiscoverMovie = (tmdbId: number) => {
-    setEditingMovie(null);
-    setTmdbIdToLoad(tmdbId);
-    setIsModalOpen(true);
-    setFilmographyPerson(null);
-  };
+      // Attendre le rendu du template caché
+      setTimeout(async () => {
+        if (!shareRef.current) {
+            setIsSharing(false);
+            return;
+        }
 
-  const handleDeleteMovie = (id: string) => {
-    if (!activeProfileId) return;
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== activeProfileId) return p;
-      return { ...p, movies: p.movies.filter(m => m.id !== id) };
-    }));
+        try {
+            const canvas = await html2canvas(shareRef.current, {
+                scale: 2,
+                backgroundColor: '#0c0c0c',
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                ignoreElements: (element) => element.tagName === 'IFRAME' // Avoid issues
+            });
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) { setIsSharing(false); return; }
+                const file = new File([blob], 'bitter-story.png', { type: 'image/png' });
+
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({ files: [file] });
+                        haptics.success();
+                    } catch (e) {
+                        console.log('Share cancelled');
+                    }
+                } else {
+                    const link = document.createElement('a');
+                    link.download = 'bitter-story.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                    haptics.success();
+                }
+                setIsSharing(false);
+                setSharingMovie(null);
+            }, 'image/png');
+        } catch (error) {
+            console.error(error);
+            setIsSharing(false);
+            setSharingMovie(null);
+            haptics.error();
+        }
+      }, 500); // Délai pour charger l'image
   };
 
   const filteredAndSortedMovies = useMemo(() => {
@@ -324,406 +181,252 @@ const App: React.FC = () => {
     let result = [...activeProfile.movies];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
     result = result.filter(m => (m.status || 'watched') === targetStatus);
-
+    
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(m => 
-        m.title.toLowerCase().includes(q) || 
-        m.director.toLowerCase().includes(q) || 
-        (m.actors && m.actors.toLowerCase().includes(q)) ||
-        m.genre.toLowerCase().includes(q)
-      );
+      result = result.filter(m => m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q));
     }
-
-    if (feedTab === 'queue' && maxDuration) {
-      result = result.filter(m => {
-        return !m.runtime || m.runtime <= maxDuration;
-      });
-    }
-
-    if (activeGenre !== 'All') result = result.filter(m => m.genre === activeGenre);
-
+    
     result.sort((a, b) => {
-      switch (sortBy) {
-        case 'Date': return (b.dateWatched || b.dateAdded) - (a.dateWatched || a.dateAdded);
-        case 'Year': return b.year - a.year;
-        case 'Title': return a.title.localeCompare(b.title);
-        case 'Rating': return ((b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4) - ((a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4);
-        default: return 0;
-      }
+      if (sortBy === 'Date') return (b.dateWatched || b.dateAdded) - (a.dateWatched || a.dateAdded);
+      if (sortBy === 'Year') return b.year - a.year;
+      if (sortBy === 'Title') return a.title.localeCompare(b.title);
+      if (sortBy === 'Rating') return ((b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4) - ((a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4);
+      return 0;
     });
     return result;
-  }, [activeProfile, activeGenre, sortBy, searchQuery, feedTab, maxDuration]);
-
-  const watchedMovies = useMemo(() => activeProfile?.movies.filter(m => m.status !== 'watchlist') || [], [activeProfile]);
-
-  const getDynamicPlaceholder = () => {
-    if (viewMode === 'Discover') return "Recherche non dispo ici...";
-    if (feedTab === 'history') return "Titre, réalisateur...";
-    return "Chercher dans ma file...";
-  };
-
-  const formatRuntime = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h}h${m > 0 ? ` ${m}m` : ''}`;
-  };
-
-  // Set of existing TMDB IDs to prevent duplicates in recommendations
-  const existingTmdbIds = useMemo(() => {
-      if (!activeProfile) return new Set<number>();
-      return new Set(activeProfile.movies.map(m => m.tmdbId).filter((id): id is number => !!id));
-  }, [activeProfile]);
+  }, [activeProfile, sortBy, searchQuery, feedTab]);
 
   if (showWelcome) return (
     <WelcomePage 
-      existingProfiles={profiles} 
-      onSelectProfile={handleSelectProfile} 
-      onCreateProfile={handleCreateProfile} 
+        existingProfiles={profiles} 
+        onSelectProfile={(id) => { setActiveProfileId(id); setShowWelcome(false); setViewMode('Feed'); }} 
+        onCreateProfile={(f, l, m, g, a) => {
+            const newP: UserProfile = { id: crypto.randomUUID(), firstName: f, lastName: l, favoriteMovie: m, gender: g, age: a, movies: [], createdAt: Date.now() };
+            setProfiles(p => [...p, newP]);
+            setActiveProfileId(newP.id);
+            setShowWelcome(false);
+        }} 
+        onDeleteProfile={id => setProfiles(p => p.filter(x => x.id !== id))} 
     />
   );
 
   return (
-    <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans transition-colors duration-300 relative">
-      <header className="pt-4 sm:pt-8 px-4 sm:px-6 sticky top-0 z-40 bg-cream/90 backdrop-blur-2xl pb-4 border-b border-sand/40">
-        <div className="flex items-center gap-3 sm:gap-6 h-12 mb-0.5">
-          
-          <div className="flex items-center gap-2.5 shrink-0 group cursor-default">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 bg-forest text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-forest/15 group-hover:rotate-6 transition-transform">
-               <Heart size={20} fill="currentColor" />
-            </div>
-            <div className="flex flex-col items-start leading-none">
-              <h1 className={`text-xl sm:text-2xl font-black tracking-tighter whitespace-nowrap hidden sm:block ${isSearchOpen ? 'lg:block hidden' : 'block'}`}>
-                The Bitter
-              </h1>
-              {activeProfile && (
-                <div className={`sm:hidden flex-col items-start leading-none mt-1 ${isSearchOpen ? 'hidden' : 'flex'}`}>
-                   <span className="font-black text-sm text-charcoal">{activeProfile.firstName}</span>
-                   <div className="flex items-center gap-1.5 mt-0.5">
-                       {activeProfile.role && (
-                           <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest border border-stone-200 px-1.5 py-0.5 rounded-md bg-stone-50">
-                               {activeProfile.role}
-                           </span>
-                       )}
-                       <button 
-                        onClick={() => { haptics.soft(); setIsChangelogOpen(true); }}
-                        className="text-[8px] font-black text-stone-300 px-1.5 py-0.5 bg-stone-50 rounded-md border border-stone-100 hover:bg-stone-100 transition-colors"
-                       >
-                        {currentVersion}
-                       </button>
-                   </div>
-                </div>
-              )}
-              <button 
-                onClick={() => { haptics.soft(); setIsChangelogOpen(true); }}
-                className="mt-0.5 px-1.5 py-0.5 bg-sand/40 border border-sand rounded-lg text-[9px] font-black text-stone-400 tracking-widest hover:bg-forest/5 hover:text-forest transition-all hidden sm:block"
-              >
-                {currentVersion}
-              </button>
-            </div>
-          </div>
-
-          <div className={`flex-1 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSearchOpen ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0 sm:opacity-100 pointer-events-none sm:pointer-events-auto'}`}>
-            {isSearchOpen ? (
-                <div className="flex items-center gap-3 w-full max-w-lg bg-white border border-sand px-4 py-2.5 rounded-2xl shadow-inner focus-within:ring-2 focus-within:ring-forest/10 transition-all animate-[slideIn_0.2s_ease-out]">
-                  <Search size={16} strokeWidth={2.5} className="text-stone-300 shrink-0" />
-                  <input 
-                    autoFocus
-                    type="text" 
-                    placeholder={getDynamicPlaceholder()}
-                    className="flex-1 bg-transparent text-sm font-bold text-charcoal outline-none placeholder:text-stone-300 tracking-tight"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    disabled={viewMode === 'Discover'}
-                  />
-                  <button 
-                    onClick={() => { haptics.soft(); setIsSearchOpen(false); setSearchQuery(''); }}
-                    className="p-1.5 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 shrink-0 active:scale-90 transition-transform"
-                  >
-                    <X size={12} strokeWidth={3} />
-                  </button>
-                </div>
-            ) : (
-                <div className="hidden sm:flex flex-1 justify-center">
-                    {activeProfile && !isSearchOpen && (
-                        <div className="flex flex-col items-center leading-none">
-                             <span className="text-sm font-bold text-stone-400 uppercase tracking-widest bg-white/50 px-4 py-1.5 rounded-full mb-1">
-                                 {activeProfile.firstName}
-                             </span>
-                             {activeProfile.role && (
-                                <span className="text-[9px] font-black text-forest uppercase tracking-[0.2em]">
-                                    {activeProfile.role}
-                                </span>
-                             )}
-                        </div>
-                    )}
-                </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-            {viewMode !== 'Discover' && !isSearchOpen && (
-              <button 
-                onClick={() => { haptics.soft(); setIsSearchOpen(true); }} 
-                className="p-3 bg-white border border-sand shadow-soft rounded-2xl transition-all active:scale-90 hover:bg-sand"
-                aria-label="Ouvrir la recherche"
-              >
-                <Search size={20} strokeWidth={2.5} />
-              </button>
-            )}
-            
-            <button 
-              onClick={handleLogout} 
-              className="group relative w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white border border-sand text-charcoal flex items-center justify-center font-black text-xs tracking-wider shadow-soft hover:bg-charcoal hover:text-white active:scale-90 transition-all overflow-hidden"
-              title="Mon Profil"
+    <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative">
+      <header className="pt-6 sm:pt-8 px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40">
+        <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full">
+          <div className="flex items-center gap-3">
+            <div 
+                onClick={() => { haptics.soft(); setShowChangelog(true); }}
+                className="w-10 h-10 bg-charcoal text-white rounded-2xl flex items-center justify-center shadow-lg rotate-3 cursor-pointer hover:rotate-0 transition-all active:scale-95"
             >
-              {activeProfile ? (
-                  <span className="relative z-10">{activeProfile.firstName[0]}{activeProfile.lastName[0]}</span>
-              ) : (
-                  <User size={20} />
-              )}
-              <div className="absolute inset-0 bg-charcoal opacity-0 group-hover:opacity-10 transition-opacity" />
-            </button>
+                <Film size={20} strokeWidth={2} />
+            </div>
+            <div>
+                <h1 className="text-xl font-black tracking-tighter leading-none text-charcoal">The Bitter</h1>
+                <button 
+                    onClick={() => { haptics.soft(); setShowChangelog(true); }}
+                    className="text-[9px] font-black uppercase tracking-widest text-stone-400 hover:text-forest transition-colors"
+                >
+                    {RELEASE_HISTORY[0].version} • Notes
+                </button>
+            </div>
           </div>
+          <button onClick={() => setShowWelcome(true)} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform">
+             <User size={20} />
+          </button>
         </div>
       </header>
 
-      <main className="flex-1 px-6 pt-4 pb-32">
+      <main className="flex-1 px-6 pt-6 pb-32">
         {viewMode === 'Analytics' ? (
-          <AnalyticsView 
-            movies={watchedMovies} 
-            userProfile={activeProfile}
-            userName={activeProfile?.firstName} 
-            onNavigateToCalendar={() => { haptics.soft(); setViewMode('Calendar'); }}
-            onRecalibrate={() => setShowCalibration(true)}
-          />
+          <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
         ) : viewMode === 'Discover' ? (
-          <DiscoverView onSelectMovie={handleSelectDiscoverMovie} userProfile={activeProfile} />
+          <DiscoverView onSelectMovie={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} userProfile={activeProfile} />
         ) : viewMode === 'Calendar' ? (
           <CalendarView movies={activeProfile?.movies || []} />
+        ) : viewMode === 'Deck' ? (
+          <MovieDeck 
+            onRate={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} 
+            onClose={() => setViewMode('Feed')} 
+            advanceTrigger={deckSessionCount} 
+            favoriteGenres={activeProfile?.favoriteGenres} 
+          />
         ) : (
-          <>
-            {isEmptyLibrary ? (
-               <div className="flex flex-col items-center justify-center flex-1 h-full min-h-[50vh] text-center p-8 animate-[fadeIn_0.5s_ease-out]">
-                    <div className="w-24 h-24 bg-stone-50 rounded-[2rem] flex items-center justify-center text-stone-300 mb-6 shadow-sm rotate-6">
-                        <Film size={40} strokeWidth={1.5} />
-                    </div>
-                    <h2 className="text-2xl font-black text-charcoal mb-3 tracking-tight">Le début d'une collection</h2>
-                    <p className="text-stone-400 font-medium leading-relaxed max-w-xs mb-12">
-                        Votre vidéothèque est vide. Ajoutez votre premier film pour donner vie à votre espace.
-                    </p>
-                    
-                    <div className="flex flex-col items-center gap-3 text-forest animate-bounce opacity-80">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">C'est par ici</span>
-                        <ArrowDown size={24} strokeWidth={2.5} />
-                    </div>
+          <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.5s_ease-out]">
+            {(!activeProfile || activeProfile.movies.length === 0) ? (
+               <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <div className="w-24 h-24 bg-stone-50 rounded-[2.5rem] flex items-center justify-center text-stone-300 mb-8 shadow-sm"><Film size={40} /></div>
+                    <h2 className="text-2xl font-black mb-3 tracking-tighter">Démarrez votre collection</h2>
+                    <p className="text-stone-400 font-medium mb-10 max-w-xs mx-auto text-sm leading-relaxed">Calibrez votre analyste interne avec le deck de bienvenue de 5 films.</p>
+                    <button onClick={() => setViewMode('Deck')} className="bg-lime-400 text-charcoal px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center gap-3 active:scale-95 transition-all">
+                        <Target size={18} strokeWidth={3} /> Lancer le Deck
+                    </button>
                </div>
             ) : (
-               <>
-                {recommendations.length > 0 && !searchQuery && feedTab === 'history' && (
-                  <div className="mb-10 animate-[fadeIn_0.5s_ease-out]">
-                     <div className="flex items-center gap-2 mb-3">
-                        <Sparkles size={12} className="text-tz-yellow animate-pulse" fill="currentColor" />
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                          Parce que tu as aimé <span className="text-charcoal">{triggerMovieTitle}</span>
-                        </p>
-                     </div>
-                     
-                     <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
-                        {recommendations.map(movie => (
-                           <button 
-                              key={movie.id} 
-                              onClick={() => { haptics.medium(); handleSelectDiscoverMovie(movie.id); }}
-                              className="flex-shrink-0 w-28 group relative"
-                           >
-                              <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 mb-2 shadow-sm group-hover:shadow-lg transition-all relative">
-                                 <img 
-                                    src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
-                                    alt={movie.title} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                                 />
-                                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Plus size={20} className="text-white drop-shadow-lg" strokeWidth={3} />
-                                 </div>
-                                 <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md text-white px-1.5 py-0.5 rounded-lg flex items-center gap-1">
-                                    <span className="text-[8px] font-bold">{movie.vote_average?.toFixed(1) || '--'}</span>
-                                 </div>
-                              </div>
-                              <h4 className="font-black text-[10px] text-charcoal leading-tight line-clamp-2 text-left group-hover:text-forest transition-colors uppercase tracking-tight">
-                                 {movie.title}
-                              </h4>
-                           </button>
-                        ))}
-                     </div>
-                  </div>
-                )}
-
-                <div className="bg-stone-100 p-1.5 rounded-full flex mx-auto max-w-sm mb-8 relative">
-                   <button 
-                      onClick={() => { haptics.soft(); setFeedTab('history'); }} 
-                      className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${feedTab === 'history' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
-                   >
-                      Historique
-                   </button>
-                   <button 
-                      onClick={() => { haptics.soft(); setFeedTab('queue'); }} 
-                      className={`flex-1 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400 hover:text-stone-500'}`}
-                   >
-                      File d'attente
-                      {activeProfile?.movies.filter(m => m.status === 'watchlist').length > 0 && <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>}
-                   </button>
-                </div>
-                
-                {feedTab === 'queue' && (
-                  <div className="bg-white border border-sand p-6 rounded-3xl mb-8 shadow-sm animate-[fadeIn_0.3s_ease-out]">
-                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                           <Hourglass size={16} className="text-forest" />
-                           <span className="text-[11px] font-black uppercase tracking-widest text-charcoal">J'ai combien de temps ?</span>
-                        </div>
-                        <span className="text-sm font-bold text-forest bg-forest/10 px-3 py-1 rounded-full">
-                           {maxDuration ? `Max: ${formatRuntime(maxDuration)}` : '∞ Illimité'}
-                        </span>
-                     </div>
-                     
-                     <input 
-                        type="range" 
-                        min="60" 
-                        max="180" 
-                        step="15"
-                        value={maxDuration || 180} 
-                        onChange={(e) => { haptics.soft(); setMaxDuration(Number(e.target.value)); }}
-                        className="w-full h-2 bg-sand rounded-lg appearance-none cursor-pointer accent-forest mb-6"
-                     />
-                     
-                     <div className="flex gap-2">
-                        <button onClick={() => { haptics.soft(); setMaxDuration(90); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 90 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 1h30'}</button>
-                        <button onClick={() => { haptics.soft(); setMaxDuration(120); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === 120 ? 'bg-charcoal text-white' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}>{'< 2h'}</button>
-                        <button onClick={() => { haptics.soft(); setMaxDuration(null); }} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${maxDuration === null ? 'bg-sand text-charcoal border border-transparent' : 'bg-white border border-sand text-stone-400'}`}>Illimité</button>
-                     </div>
-                  </div>
-                )}
-
-                <div className="mb-8 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{searchQuery ? 'RÉSULTATS' : (feedTab === 'history' ? 'MA BIBLIOTHÈQUE' : 'PROCHAINEMENT')}</h2>
-                    <div className="flex items-center gap-2.5 group cursor-pointer">
-                      <SlidersHorizontal size={14} strokeWidth={2.5} className="text-stone-300 group-hover:text-charcoal transition-colors" />
-                      <select value={sortBy} onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
-                        <option value="Date">RÉCENTS</option>
-                        <option value="Rating">NOTES</option>
-                        <option value="Year">ANNÉE</option>
-                        <option value="Title">A-Z</option>
-                      </select>
+               <div className="space-y-10">
+                  {/* Onglets Centrés FIX */}
+                  <div className="flex justify-center w-full">
+                    <div className="bg-stone-100 p-1.5 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50">
+                        <button onClick={() => { haptics.soft(); setFeedTab('history'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>Historique</button>
+                        <button onClick={() => { haptics.soft(); setFeedTab('queue'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>À voir</button>
                     </div>
                   </div>
-                  <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6">
-                    <button onClick={() => { haptics.soft(); setActiveGenre('All'); }} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === 'All' ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>Tout</button>
-                    {GENRES.map(genre => <button key={genre} onClick={() => { haptics.soft(); setActiveGenre(genre); }} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeGenre === genre ? 'bg-charcoal text-white shadow-lg' : 'bg-white border border-sand text-stone-400 hover:border-stone-200'}`}>{genre}</button>)}
+
+                  <div className="flex items-center justify-between border-b border-sand pb-4">
+                     <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">
+                        {feedTab === 'history' ? 'Ma Bibliothèque' : 'Watchlist'}
+                     </h2>
+                     <div className="flex items-center gap-2">
+                         <SlidersHorizontal size={12} className="text-stone-300" />
+                         <select value={sortBy} onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
+                            <option value="Date">Récents</option>
+                            <option value="Rating">Note</option>
+                            <option value="Year">Année</option>
+                            <option value="Title">A-Z</option>
+                         </select>
+                     </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-20">
-                  {filteredAndSortedMovies.map((movie, index) => (
-                      <MovieCard 
-                        key={movie.id} 
-                        movie={movie} 
-                        index={index} 
-                        onDelete={handleDeleteMovie} 
-                        onEdit={handleEditMovie} 
-                        onOpenFilmography={(id, name) => setFilmographyPerson({id, name})} 
-                        onShowRecommendations={(m) => setRecSourceMovie(m)}
-                        searchQuery={searchQuery} 
-                    />
-                   ))}
-                </div>
-               </>
+
+                  <div className="grid grid-cols-1 gap-8">
+                      {filteredAndSortedMovies.map((movie, index) => (
+                          <MovieCard 
+                            key={movie.id} 
+                            movie={movie} 
+                            index={index} 
+                            onDelete={id => setProfiles(prev => prev.map(p => p.id === activeProfileId ? {...p, movies: p.movies.filter(m => m.id !== id)} : p))} 
+                            onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }}
+                            onShowRecommendations={(m) => setRecSourceMovie(m)}
+                            onShare={handleShareMovie}
+                          />
+                      ))}
+                      {filteredAndSortedMovies.length === 0 && (
+                          <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                              <Search size={32} className="mb-4" />
+                              <p className="text-sm font-bold">Aucun film trouvé.</p>
+                          </div>
+                      )}
+                  </div>
+               </div>
             )}
-          </>
+          </div>
         )}
       </main>
 
-      <nav className="fixed bottom-6 left-4 right-4 z-50 max-w-sm mx-auto">
-         <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3 flex justify-between items-center relative">
-            <button 
-              onClick={() => { haptics.soft(); setViewMode('Feed'); }} 
-              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Feed' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
-              aria-label="Collection"
-            >
-              <LayoutGrid size={22} strokeWidth={viewMode === 'Feed' ? 2.5 : 2} />
-            </button>
-
-            <button 
-              onClick={() => { haptics.soft(); setViewMode('Discover'); }} 
-              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Discover' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
-              aria-label="À l'affiche"
-            >
-              <Clapperboard size={22} strokeWidth={viewMode === 'Discover' ? 2.5 : 2} />
-            </button>
-
-            <button 
-              onClick={() => { haptics.medium(); setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} 
-              className="bg-forest text-white p-4 rounded-full shadow-xl shadow-forest/20 active:scale-90 hover:scale-105 transition-all mx-2"
-              aria-label="Nouveau Film"
-            >
-               <Plus size={24} strokeWidth={3} />
-            </button>
-
-            <button 
-              onClick={() => { haptics.soft(); setViewMode('Analytics'); }} 
-              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Analytics' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
-              aria-label="Analyses"
-            >
-              <PieChart size={22} strokeWidth={viewMode === 'Analytics' ? 2.5 : 2} />
-            </button>
-
-            <button 
-              onClick={() => { haptics.soft(); setViewMode('Calendar'); }} 
-              className={`flex items-center justify-center transition-all duration-300 active:scale-90 ${viewMode === 'Calendar' ? 'text-charcoal bg-sand/50 p-3 rounded-full' : 'text-stone-300 p-3 hover:text-stone-500'}`}
-              aria-label="Calendrier"
-            >
-              <CalendarDays size={22} strokeWidth={viewMode === 'Calendar' ? 2.5 : 2} />
-            </button>
+      <nav className="fixed bottom-8 left-6 right-6 z-50 max-w-sm mx-auto">
+         <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center">
+            <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-all ${viewMode === 'Feed' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><LayoutGrid size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-all ${viewMode === 'Discover' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><Clapperboard size={22} /></button>
+            <button onClick={() => { haptics.medium(); setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform"><Plus size={24} strokeWidth={3} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={`p-3 rounded-full transition-all ${viewMode === 'Analytics' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><PieChart size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={`p-3 rounded-full transition-all ${viewMode === 'Calendar' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><CalendarDays size={22} /></button>
          </div>
       </nav>
 
-      <AddMovieModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} 
-        onSave={handleSaveMovie} 
-        initialData={editingMovie} 
-        tmdbIdToLoad={tmdbIdToLoad} 
-        onOpenFilmography={(id, name) => setFilmographyPerson({id, name})}
-      />
-      
-      <FilmographyModal 
-        isOpen={!!filmographyPerson} 
-        personId={filmographyPerson?.id || 0} 
-        personName={filmographyPerson?.name || ''} 
-        onClose={() => setFilmographyPerson(null)}
-        onSelectMovie={handleSelectDiscoverMovie}
-      />
+      {/* FEEDBACK OVERLAY PENDANT GENERATION */}
+      {isSharing && (
+          <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+             <div className="bg-white p-6 rounded-3xl flex items-center gap-4 shadow-2xl">
+                <Loader2 size={24} className="animate-spin text-charcoal" />
+                <span className="text-xs font-black uppercase tracking-widest text-charcoal">Design Swiss Modern...</span>
+             </div>
+          </div>
+      )}
+
+      {/* --- HIDDEN STORY TEMPLATE (SWISS MODERN / FULL BLEED) --- */}
+      <div style={{ position: 'fixed', top: 0, left: '-9999px', pointerEvents: 'none', zIndex: -50 }}>
+        {sharingMovie && (
+           <div 
+                ref={shareRef}
+                className="w-[1080px] h-[1920px] bg-black relative flex flex-col font-sans"
+            >
+                {/* Layer 1: Poster Full Screen */}
+                {sharingMovie.posterUrl ? (
+                    <img 
+                        src={sharingMovie.posterUrl.replace('w780', 'original')} 
+                        alt="" 
+                        className="absolute inset-0 w-full h-full object-cover" 
+                        crossOrigin="anonymous"
+                    />
+                ) : (
+                    <div className="absolute inset-0 bg-stone-900 flex items-center justify-center">
+                        <Clapperboard size={200} className="text-white/10" />
+                    </div>
+                )}
+
+                {/* Layer 2: Gradients for readability */}
+                <div className="absolute inset-x-0 top-0 h-[600px] bg-gradient-to-b from-black/90 via-black/40 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-[1000px] bg-gradient-to-t from-black via-black/90 to-transparent" />
+
+                {/* Layer 3: Content */}
+                <div className="relative z-10 flex flex-col h-full justify-between p-[80px]">
+                    {/* Header */}
+                    <div className="flex justify-between items-start pt-8">
+                        <div>
+                             <h2 className="text-white font-black text-3xl tracking-[0.4em] uppercase opacity-90 mb-2">The Bitter</h2>
+                             <div className="h-1 w-20 bg-[#a3e635] rounded-full" />
+                        </div>
+                        <span className="text-white/60 font-bold text-3xl uppercase tracking-widest">
+                            {sharingMovie.dateWatched ? new Date(sharingMovie.dateWatched).getFullYear() : sharingMovie.year}
+                        </span>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex flex-col items-start pb-12">
+                         {/* Title */}
+                         <h1 className="text-white text-8xl font-black leading-[1.1] mb-8 max-w-4xl line-clamp-3 tracking-tight drop-shadow-2xl">
+                            {sharingMovie.title}
+                         </h1>
+                         
+                         {/* Genre Tag - FIX: Using sharingMovie.genre string */}
+                         <div className="mb-12">
+                             <span className="text-[#a3e635] text-2xl font-black uppercase tracking-[0.3em] border border-[#a3e635] px-6 py-2 rounded-full">
+                                 {sharingMovie.genre || 'Cinéma'}
+                             </span>
+                         </div>
+
+                         {/* Huge Score */}
+                         <div className="flex flex-col">
+                            {sharingMovie.smartphoneFactor && sharingMovie.smartphoneFactor > 50 ? (
+                                <>
+                                    <span className="text-[#ef4444] text-[350px] font-black leading-[0.8] tracking-tighter -ml-4 drop-shadow-lg">
+                                        {sharingMovie.smartphoneFactor}<span className="text-[180px]">%</span>
+                                    </span>
+                                    <span className="text-white text-4xl font-bold uppercase tracking-[0.2em] mt-8 ml-2 opacity-90">
+                                        Distraction Fatale
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-[#a3e635] text-[350px] font-black leading-[0.8] tracking-tighter -ml-4 drop-shadow-lg">
+                                        {((sharingMovie.ratings.story + sharingMovie.ratings.visuals + sharingMovie.ratings.acting + sharingMovie.ratings.sound) / 4).toFixed(1)}
+                                    </span>
+                                    <span className="text-white text-4xl font-bold uppercase tracking-[0.2em] mt-8 ml-2 opacity-90">
+                                        Note Globale
+                                    </span>
+                                </>
+                            )}
+                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+
+      <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} />
       
       <RecommendationsModal
         sourceMovie={recSourceMovie}
         isOpen={!!recSourceMovie}
         onClose={() => setRecSourceMovie(null)}
         onAddMovie={handleSaveMovie}
-        existingTmdbIds={existingTmdbIds}
+        existingTmdbIds={new Set(activeProfile?.movies.map(m => m.tmdbId).filter(Boolean) as number[])}
       />
 
-      <ChangelogModal 
-        isOpen={isChangelogOpen} 
-        onClose={() => setIsChangelogOpen(false)} 
-      />
+      <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
 
-      {showCalibration && activeProfile && (
-        <OnboardingModal 
-           initialName={activeProfile.firstName}
-           onComplete={handleCompleteCalibration}
-        />
-      )}
-
-      {activeTutorial && <TutorialOverlay steps={activeTutorial} onComplete={handleCompleteTutorial} />}
+      {showCalibration && activeProfile && <OnboardingModal initialName={activeProfile.firstName} onComplete={handleCompleteCalibration} />}
+      {showCookieBanner && <CookieBanner onAccept={() => { initAnalytics(); setShowCookieBanner(false); }} onDecline={() => setShowCookieBanner(false)} />}
     </div>
   );
 };

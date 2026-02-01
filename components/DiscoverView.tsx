@@ -1,7 +1,28 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
-import { Loader2, Plus, Star, CalendarDays, SlidersHorizontal, ArrowUpAZ, Calendar, Flame, Ticket, Tv, Play } from 'lucide-react';
+import { 
+  Loader2, 
+  Plus, 
+  Star, 
+  Search, 
+  X, 
+  Play, 
+  Tv, 
+  Flame, 
+  Calendar, 
+  ArrowUpAZ, 
+  SlidersHorizontal,
+  Brain,
+  Zap,
+  Smile,
+  Heart,
+  Aperture,
+  Smartphone,
+  Check
+} from 'lucide-react';
 import { UserProfile } from '../types';
+import { haptics } from '../utils/haptics';
 
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number) => void;
@@ -20,42 +41,51 @@ interface TMDBMovie {
   overview: string;
 }
 
-interface ProviderInfo {
-  provider_name: string;
-  logo_path: string;
-}
+const PROVIDERS = [
+  { 
+    id: 8, 
+    name: 'Netflix', 
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Netflix_icon.svg/500px-Netflix_icon.svg.png?20220806170125' 
+  },
+  { 
+    id: 119, 
+    name: 'Prime', 
+    logo: 'https://img.icons8.com/fluent/1200/amazon-prime-video.jpg' 
+  },
+  { 
+    id: 337, 
+    name: 'Disney+', 
+    logo: 'https://store-images.s-microsoft.com/image/apps.14187.14495311847124170.7646206e-bd82-4cf0-8b8c-d06a67bc302c.2e474878-acb7-4afb-a503-c2a1a32feaa8?h=210' 
+  },
+  { 
+    id: 381, 
+    name: 'Canal+', 
+    logo: 'https://play-lh.googleusercontent.com/Z2HJDfXSpjq2liULCCujhfzmRoTOZ1z-6A4JO_SrY-Iw92FZ1owOZ_5AlDqOtAvnrw' 
+  },
+];
+
+const VIBES = [
+  { id: 'cerebral', label: 'Cérébral', icon: <Brain size={14} />, genres: [99, 9648, 18] },
+  { id: 'tension', label: 'Tension', icon: <Zap size={14} />, genres: [53, 27, 80] },
+  { id: 'fun', label: 'Fun', icon: <Smile size={14} />, genres: [35, 28, 12] },
+  { id: 'emotion', label: 'Émotion', icon: <Heart size={14} />, genres: [18, 10749] },
+  { id: 'visual', label: 'Visuel', icon: <Aperture size={14} />, genres: [878, 14, 16] },
+  { id: 'distraction', label: 'Distraction', icon: <Smartphone size={14} />, genres: [10751, 10402, 10770] },
+];
 
 type SortOption = 'popularity' | 'date' | 'alpha';
-
-// --- CONFIGURATION DES MOODS & GENRES ---
-// Mapping des IDs de genres TMDB pour l'algorithme Hero et les filtres Moods
-const GENRE_MAP: Record<string, number> = {
-  'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35, 'Crime': 80,
-  'Documentary': 99, 'Drama': 18, 'Family': 10751, 'Fantasy': 14, 'History': 36,
-  'Horror': 27, 'Music': 10402, 'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-  'TV Movie': 10770, 'Thriller': 53, 'War': 10752, 'Western': 37,
-  // Mapping des noms français utilisés dans l'app
-  'Science-Fiction': 878, 'Drame': 18, 'Comédie': 35, 'Horreur': 27, 'Biopic': 36, 'Aventure': 12
-};
-
-const MOODS = [
-  { id: 'all', label: 'Tout', emojis: '🌍', genres: [] },
-  { id: 'cerebral', label: 'Cérébral', emojis: '🤯', genres: [99, 80, 9648, 36] }, // Doc, Crime, Mystère, Histoire
-  { id: 'fun', label: 'Divertissement', emojis: '🍿', genres: [28, 12, 16, 878, 14] }, // Action, Adv, Anim, SciFi, Fantasy
-  { id: 'lol', label: 'Rigolade', emojis: '😂', genres: [35, 10751] }, // Comédie, Famille
-  { id: 'scary', label: 'Frisson', emojis: '😨', genres: [27, 53] }, // Horreur, Thriller
-  { id: 'feels', label: 'Émotion', emojis: '🥰', genres: [18, 10749] }, // Drame, Romance
-];
 
 const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile }) => {
   const [movies, setMovies] = useState<TMDBMovie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeVibe, setActiveVibe] = useState<string | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<number[]>([]);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>('popularity');
-  const [activeMood, setActiveMood] = useState<string>('all');
   const [heroMovie, setHeroMovie] = useState<{ movie: TMDBMovie, reason: string } | null>(null);
-  
-  const [providersMap, setProvidersMap] = useState<Record<number, ProviderInfo | 'cinema'>>({});
+
+  const isSearchActive = searchQuery.length > 0;
 
   const nextMonths = useMemo(() => {
     const months = [];
@@ -67,301 +97,287 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
     return months;
   }, []);
 
-  useEffect(() => {
-    const fetchMoviesByMonth = async () => {
-      setLoading(true);
-      setProvidersMap({});
-      try {
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'Prochainement';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return dateStr;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // --- LOGIQUE API ---
+  const fetchMovies = async () => {
+    setLoading(true);
+    try {
+      let url = "";
+      
+      if (isSearchActive) {
+        url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&query=${encodeURIComponent(searchQuery)}&page=1&include_adult=false`;
+      } else {
         const targetDate = nextMonths[selectedMonthIndex];
         const year = targetDate.getFullYear();
         const month = targetDate.getMonth() + 1;
-        
         const firstDay = `${year}-${month.toString().padStart(2, '0')}-01`;
-        const lastDayObj = new Date(year, month, 0); 
-        const lastDay = `${lastDayObj.getFullYear()}-${(lastDayObj.getMonth() + 1).toString().padStart(2, '0')}-${lastDayObj.getDate()}`;
+        const lastDayObj = new Date(year, month, 0);
+        const lastDay = `${year}-${month.toString().padStart(2, '0')}-${lastDayObj.getDate()}`;
 
-        const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&sort_by=popularity.desc&include_adult=false&include_video=false&page=1&primary_release_date.gte=${firstDay}&primary_release_date.lte=${lastDay}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
+        // Base de l'URL avec filtrage strict sur la France
+        url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&sort_by=${sortBy === 'popularity' ? 'popularity.desc' : sortBy === 'date' ? 'primary_release_date.desc' : 'title.asc'}&page=1`;
         
-        if (data.results) {
-          const validMovies = data.results.filter((m: TMDBMovie) => m.release_date);
-          setMovies(validMovies);
-          fetchProviders(validMovies);
+        // Ajout des filtres Vibes (Genres)
+        if (activeVibe) {
+          const vibe = VIBES.find(v => v.id === activeVibe);
+          if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
         }
-      } catch (error) {
-        console.error("Failed to fetch movies", error);
-      } finally {
-        setLoading(false);
+
+        // Ajout des filtres Plateformes
+        if (selectedProviders.length > 0) {
+          url += `&with_watch_providers=${selectedProviders.join('|')}&with_watch_monetization_types=flatrate`;
+        } else if (!activeVibe && !isSearchActive) {
+          // Si on est en mode "Calendrier" (pas de recherche/vibe/plateforme), on cible les sorties ciné FR
+          url += `&with_release_type=2|3&primary_release_date.gte=${firstDay}&primary_release_date.lte=${lastDay}`;
+        }
       }
-    };
 
-    fetchMoviesByMonth();
-  }, [selectedMonthIndex, nextMonths]);
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.results) {
+        // Filtrage supplémentaire pour s'assurer qu'on a des films avec poster
+        setMovies(data.results.filter((m: any) => m.poster_path));
+      }
+    } catch (error) {
+      console.error("Discovery error", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // --- LOGIQUE HERO PERSONNALISÉ ---
   useEffect(() => {
-    if (!userProfile || movies.length === 0) {
+    const timer = setTimeout(() => {
+        fetchMovies();
+    }, isSearchActive ? 500 : 0);
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeVibe, selectedProviders, selectedMonthIndex, sortBy]);
+
+  // HERO MOVIE (RECOMMENDATION)
+  useEffect(() => {
+    if (!userProfile || movies.length === 0 || isSearchActive) {
       setHeroMovie(null);
       return;
     }
-
-    // 1. Déterminer le genre préféré de l'utilisateur
-    const genreCounts: Record<string, number> = {};
-    userProfile.movies.forEach(m => {
-        const g = m.genre;
-        genreCounts[g] = (genreCounts[g] || 0) + 1;
-    });
-
-    const favoriteGenreName = Object.keys(genreCounts).reduce((a, b) => genreCounts[a] > genreCounts[b] ? a : b, '');
-    
-    if (!favoriteGenreName) return;
-
-    // 2. Convertir le nom du genre en ID TMDB
-    const favoriteGenreId = GENRE_MAP[favoriteGenreName];
-    if (!favoriteGenreId) return;
-
-    // 3. Trouver un film à l'affiche correspondant
-    // On exclut les films déjà dans la liste de l'utilisateur (par ID TMDB)
-    const existingIds = new Set(userProfile.movies.map(m => m.tmdbId).filter(Boolean));
-    
-    const recommendation = movies.find(m => 
-      m.genre_ids && 
-      m.genre_ids.includes(favoriteGenreId) && 
-      !existingIds.has(m.id) &&
-      m.backdrop_path // Il faut une belle image pour le Hero
-    );
-
-    if (recommendation) {
-      setHeroMovie({
-        movie: recommendation,
-        reason: favoriteGenreName
-      });
-    } else {
-        setHeroMovie(null);
+    const favGenre = userProfile.favoriteGenres?.[0];
+    if (favGenre) {
+        const movie = movies.find(m => m.backdrop_path && !userProfile.movies.some(um => um.tmdbId === m.id));
+        if (movie) setHeroMovie({ movie, reason: favGenre });
     }
+  }, [movies, userProfile, isSearchActive]);
 
-  }, [userProfile, movies]);
-
-
-  const fetchProviders = async (movieList: TMDBMovie[]) => {
-      const newProviders: Record<number, ProviderInfo | 'cinema'> = {};
-      const promises = movieList.map(async (movie) => {
-          try {
-              const res = await fetch(`${TMDB_BASE_URL}/movie/${movie.id}/watch/providers?api_key=${TMDB_API_KEY}`);
-              const data = await res.json();
-              if (data.results && data.results.FR) {
-                  const frData = data.results.FR;
-                  if (frData.flatrate && frData.flatrate.length > 0) {
-                      newProviders[movie.id] = {
-                          provider_name: frData.flatrate[0].provider_name,
-                          logo_path: frData.flatrate[0].logo_path
-                      };
-                  } else {
-                      newProviders[movie.id] = 'cinema';
-                  }
-              } else {
-                  newProviders[movie.id] = 'cinema';
-              }
-          } catch (e) {
-              newProviders[movie.id] = 'cinema';
-          }
-      });
-      await Promise.all(promises);
-      setProvidersMap(prev => ({ ...prev, ...newProviders }));
+  const toggleProvider = (id: number) => {
+    haptics.soft();
+    setSelectedProviders(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
 
-  const filteredMovies = useMemo(() => {
-    let m = [...movies];
-    
-    // Filtre par Mood
-    if (activeMood !== 'all') {
-      const mood = MOODS.find(mood => mood.id === activeMood);
-      if (mood) {
-        m = m.filter(movie => movie.genre_ids.some(id => mood.genres.includes(id)));
-      }
-    }
-
-    if (sortBy === 'alpha') {
-      return m.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'popularity') {
-      return m.sort((a, b) => b.popularity - a.popularity);
-    } else {
-      return m.sort((a, b) => new Date(a.release_date).getTime() - new Date(b.release_date).getTime());
-    }
-  }, [movies, sortBy, activeMood]);
-
-  const formatDateShort = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).toUpperCase().replace('.', '');
-  };
-
-  const formatMonthLabel = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', { month: 'long', year: '2-digit' });
-  };
-
-  const renderProviderBadge = (movieId: number) => {
-      const info = providersMap[movieId];
-      if (!info) return null;
-      if (info === 'cinema') {
-          return (
-              <div className="absolute top-2 left-2 bg-charcoal text-white px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-lg z-10 animate-[fadeIn_0.5s_ease-out]">
-                  <Ticket size={10} strokeWidth={2.5} />
-                  <span className="text-[9px] font-black uppercase tracking-wider">Cinéma</span>
-              </div>
-          );
-      } else {
-          return (
-              <div className="absolute top-2 left-2 bg-white text-charcoal pl-1 pr-2 py-1 rounded-lg flex items-center gap-1.5 shadow-lg z-10 animate-[fadeIn_0.5s_ease-out]">
-                  <img src={`${TMDB_IMAGE_URL}${info.logo_path}`} alt={info.provider_name} className="w-4 h-4 rounded-md object-cover" />
-                  <span className="text-[9px] font-black uppercase tracking-wider max-w-[60px] truncate">{info.provider_name}</span>
-              </div>
-          );
-      }
+  const handleQuickAdd = (e: React.MouseEvent, id: number) => {
+      e.stopPropagation();
+      haptics.medium();
+      onSelectMovie(id);
   };
 
   return (
-    <div className="animate-[fadeIn_0.4s_ease-out]">
-      <div className="mt-2 mb-6">
-         <h2 className="text-3xl font-black text-charcoal tracking-tight">À l'affiche</h2>
-         <p className="text-[10px] font-bold text-stone-300 uppercase tracking-[0.15em] mt-1">SORTIES CINÉMA & STREAMING</p>
+    <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
+      
+      {/* 1. SEARCH BAR */}
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 group-focus-within:text-charcoal transition-colors">
+            <Search size={20} strokeWidth={3} />
+        </div>
+        <input 
+            type="text" 
+            placeholder="Rechercher un film..." 
+            className="w-full bg-stone-100/50 hover:bg-stone-100 focus:bg-white border-2 border-transparent focus:border-stone-200 rounded-[2rem] py-5 pl-14 pr-12 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 text-charcoal"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {isSearchActive && (
+            <button 
+                onClick={() => { haptics.soft(); setSearchQuery(''); }}
+                className="absolute inset-y-0 right-4 flex items-center px-2 text-stone-300 hover:text-charcoal"
+            >
+                <X size={20} strokeWidth={3} />
+            </button>
+        )}
       </div>
 
-      {/* --- SECTION HERO (Recommandation Personnalisée) --- */}
-      {heroMovie && activeMood === 'all' && (
-         <div className="w-full relative rounded-[2.5rem] overflow-hidden shadow-2xl mb-10 aspect-[16/9] sm:aspect-[21/9] group cursor-pointer" onClick={() => onSelectMovie(heroMovie.movie.id)}>
-            <img 
-               src={`${TMDB_IMAGE_URL.replace('w780', 'original')}${heroMovie.movie.backdrop_path}`} 
-               alt={heroMovie.movie.title}
-               className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/40 to-transparent" />
-            <div className="absolute bottom-0 left-0 p-6 sm:p-10 w-full">
-               <div className="flex items-center gap-2 mb-2 animate-[fadeIn_0.5s_ease-out]">
-                   <span className="bg-forest text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                      <Star size={10} fill="currentColor" /> {heroMovie.reason}
-                   </span>
-                   <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Recommandé pour vous</span>
-               </div>
-               <h3 className="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-none mb-4 max-w-2xl">{heroMovie.movie.title}</h3>
-               <p className="text-white/80 text-sm font-medium line-clamp-2 max-w-xl mb-6 hidden sm:block">{heroMovie.movie.overview}</p>
-               
-               <button className="bg-white text-charcoal px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all">
-                  <Play size={14} fill="currentColor" /> Ajouter à ma liste
-               </button>
+      {/* 2. STREAMING PROVIDERS */}
+      <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Streaming</span>
+              <span className="text-[8px] font-bold text-stone-300 uppercase tracking-widest">FRANCE</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6">
+              {PROVIDERS.map(p => {
+                  const isActive = selectedProviders.includes(p.id);
+                  return (
+                      <button 
+                        key={p.id} 
+                        onClick={() => toggleProvider(p.id)}
+                        className={`flex items-center gap-2 p-1.5 pr-4 rounded-2xl border-2 transition-all shrink-0 ${isActive ? 'bg-charcoal border-charcoal text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}
+                      >
+                          <div className="w-8 h-8 rounded-xl bg-stone-100 overflow-hidden shadow-sm flex items-center justify-center">
+                            <img src={p.logo} alt={p.name} className="w-full h-full object-cover" />
+                          </div>
+                          <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
+                          {isActive && <Check size={12} strokeWidth={4} className="ml-1 text-lime-400" />}
+                      </button>
+                  );
+              })}
+          </div>
+      </div>
+
+      {/* 3. VIBE MATCHING */}
+      <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Vibe Matching</span>
+              {activeVibe && (
+                  <button onClick={() => { haptics.soft(); setActiveVibe(null); }} className="text-[9px] font-black text-forest uppercase tracking-widest underline underline-offset-2">Réinitialiser</button>
+              )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-6 px-6">
+              {VIBES.map(v => {
+                  const isActive = activeVibe === v.id;
+                  return (
+                      <button 
+                        key={v.id} 
+                        onClick={() => { haptics.soft(); setActiveVibe(isActive ? null : v.id); }}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-full border-2 transition-all shrink-0 text-[10px] font-black uppercase tracking-widest ${isActive ? 'bg-lime-400 border-lime-400 text-charcoal shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}
+                      >
+                          {v.icon}
+                          {v.label}
+                      </button>
+                  );
+              })}
+          </div>
+      </div>
+
+      {/* 4. HERO SECTION (RECOMMENDATION) */}
+      {heroMovie && !isSearchActive && (
+         <div 
+            className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden shadow-2xl group cursor-pointer animate-[fadeIn_0.6s_ease-out]"
+            onClick={() => onSelectMovie(heroMovie.movie.id)}
+         >
+            <img src={`${TMDB_IMAGE_URL.replace('w780', 'original')}${heroMovie.movie.backdrop_path}`} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" />
+            <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/20 to-transparent" />
+            <div className="absolute bottom-0 left-0 p-8 w-full">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="bg-lime-400 text-charcoal px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Bitter Recommends</span>
+                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">Basé sur {heroMovie.reason}</span>
+                </div>
+                <h3 className="text-3xl font-black text-white tracking-tighter leading-tight mb-4">{heroMovie.movie.title}</h3>
+                <button className="bg-white text-charcoal px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all">
+                    <Plus size={16} strokeWidth={3} /> Ajouter à ma liste
+                </button>
             </div>
          </div>
       )}
 
-      {/* --- MOOD PICKER --- */}
-      <div className="flex gap-3 overflow-x-auto pb-6 mb-2 no-scrollbar -mx-6 px-6">
-         {MOODS.map(mood => (
-            <button
-               key={mood.id}
-               onClick={() => setActiveMood(mood.id)}
-               className={`whitespace-nowrap px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 border flex items-center gap-2 ${activeMood === mood.id ? 'bg-charcoal text-white border-charcoal shadow-lg scale-105' : 'bg-white text-stone-400 border-sand hover:border-stone-300'}`}
-            >
-               <span className="text-sm">{mood.emojis}</span> {mood.label}
-            </button>
-         ))}
-      </div>
+      {/* 5. CONTROLS & GRID */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between px-1">
+            {!isSearchActive && !activeVibe && selectedProviders.length === 0 ? (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[65%]">
+                    {nextMonths.map((date, idx) => (
+                        <button 
+                            key={idx} 
+                            onClick={() => { haptics.soft(); setSelectedMonthIndex(idx); }}
+                            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedMonthIndex === idx ? 'bg-stone-200 text-charcoal' : 'text-stone-300'}`}
+                        >
+                            {date.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-[10px] font-black uppercase tracking-widest text-charcoal">
+                    {movies.length} résultats
+                </div>
+            )}
 
-      {/* --- FILTRES MOIS & TRI --- */}
-      <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[70%]">
-            {nextMonths.map((date, index) => {
-               const isActive = index === selectedMonthIndex;
-               const label = formatMonthLabel(date);
-               return (
-                <button 
-                    key={index} 
-                    onClick={() => setSelectedMonthIndex(index)} 
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${isActive ? 'bg-stone-200 text-charcoal' : 'text-stone-400 hover:text-stone-600'}`}
+            <div className="flex items-center gap-2 bg-stone-50 border border-stone-100 px-3 py-1.5 rounded-xl">
+                {sortBy === 'popularity' ? <Flame size={12} /> : sortBy === 'alpha' ? <ArrowUpAZ size={12} /> : <Calendar size={12} />}
+                <select 
+                    value={sortBy} 
+                    onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }}
+                    className="bg-transparent text-[9px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest appearance-none pr-4"
                 >
-                    {label.split(' ')[0]}
-                </button>
-               );
-            })}
-          </div>
-          
-          <div className="flex items-center gap-2 group cursor-pointer bg-white border border-sand px-3 py-1.5 rounded-xl shadow-sm hover:border-stone-300 transition-colors">
-            {sortBy === 'popularity' ? <Flame size={12} /> : sortBy === 'alpha' ? <ArrowUpAZ size={12} /> : <Calendar size={12} />}
-            <select 
-                value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as SortOption)} 
-                className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest appearance-none pr-4 relative z-10"
-            >
-                <option value="popularity">Top</option>
-                <option value="date">Date</option>
-                <option value="alpha">A-Z</option>
-            </select>
-            <SlidersHorizontal size={10} className="text-stone-400 absolute right-3 pointer-events-none" />
-         </div>
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center h-[30vh] text-stone-300 gap-3">
-          <Loader2 size={32} className="animate-spin text-forest" />
-          <p className="text-xs font-black uppercase tracking-widest">Recherche des séances...</p>
+                    <option value="popularity">Populaire</option>
+                    <option value="date">Récent</option>
+                    <option value="alpha">A-Z</option>
+                </select>
+                <SlidersHorizontal size={10} className="text-stone-300 pointer-events-none" />
+            </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-24">
-            {filteredMovies.map((movie, index) => (
-            <div key={movie.id} className="group relative flex flex-col items-start text-left">
-                <button onClick={() => onSelectMovie(movie.id)} className="w-full relative group/poster">
-                    <div className="w-full aspect-[2/3] rounded-3xl overflow-hidden bg-stone-100 shadow-sm relative mb-3 group-hover/poster:shadow-xl transition-all duration-300">
-                        {movie.poster_path ? (
+
+        {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-4">
+                <Loader2 size={40} className="animate-spin text-charcoal opacity-20" />
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-300">Synchronisation TMDB...</p>
+            </div>
+        ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+                {movies.map(movie => (
+                    <div 
+                        key={movie.id} 
+                        onClick={() => onSelectMovie(movie.id)}
+                        className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer"
+                    >
+                        <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl group-hover:-translate-y-1 transition-all duration-500">
                             <img 
                                 src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
-                                alt={movie.title} 
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover/poster:scale-105"
-                                loading="lazy"
+                                className="w-full h-full object-cover" 
+                                alt={movie.title}
+                                loading="lazy" 
                             />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-stone-300">
-                                <span className="text-[10px] font-black uppercase tracking-widest">Sans Affiche</span>
-                            </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[1px]">
-                            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-charcoal shadow-2xl scale-50 group-hover/poster:scale-100 transition-all duration-300 delay-75">
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            
+                            {/* QUICK ADD BUTTON */}
+                            <button 
+                                onClick={(e) => handleQuickAdd(e, movie.id)}
+                                className="absolute bottom-4 right-4 w-12 h-12 bg-lime-400 text-charcoal rounded-full flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 active:scale-90"
+                            >
                                 <Plus size={24} strokeWidth={3} />
+                            </button>
+
+                            {movie.vote_average > 0 && (
+                                <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1">
+                                    <Star size={10} fill="currentColor" className="text-lime-400" />
+                                    <span className="text-[10px] font-black text-white">{movie.vote_average.toFixed(1)}</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-1">
+                            <h4 className="text-sm font-black text-charcoal leading-tight line-clamp-2 mb-1 group-hover:text-forest transition-colors">{movie.title}</h4>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-stone-300 tracking-tighter uppercase">{formatDate(movie.release_date)}</span>
                             </div>
                         </div>
-                        {renderProviderBadge(movie.id)}
-                        {sortBy === 'popularity' && activeMood === 'all' && index < 3 && (
-                             <div className="absolute bottom-2 left-2 w-6 h-6 bg-charcoal text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg z-10 border border-white/10">
-                                #{index + 1}
-                             </div>
-                        )}
-                        {movie.vote_average > 0 && (
-                            <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md text-white px-2 py-1 rounded-lg flex items-center gap-1">
-                                <Star size={10} fill="currentColor" className="text-tz-yellow" />
-                                <span className="text-[10px] font-bold">{movie.vote_average.toFixed(1)}</span>
-                            </div>
-                        )}
                     </div>
-                </button>
-                <h3 className="font-black text-sm text-charcoal leading-tight line-clamp-2 group-hover:text-forest transition-colors w-full">{movie.title}</h3>
-                <div className="flex items-center gap-2 mt-2 opacity-60">
-                    <div className="w-5 h-5 rounded-full bg-sand flex items-center justify-center text-charcoal">
-                        <CalendarDays size={10} strokeWidth={2.5} />
-                    </div>
-                    <span className="text-[10px] font-black tracking-wider uppercase text-forest">
-                        {formatDateShort(movie.release_date)}
-                    </span>
-                </div>
+                ))}
             </div>
-            ))}
-            
-            {filteredMovies.length === 0 && (
-                 <div className="col-span-full py-20 text-center opacity-40">
-                    <p className="text-sm font-bold text-charcoal">Aucun film pour cette humeur.</p>
-                 </div>
-            )}
-        </div>
-      )}
+        )}
+
+        {!loading && movies.length === 0 && (
+            <div className="py-32 text-center">
+                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200">
+                    <Search size={32} />
+                </div>
+                <h3 className="text-xl font-black text-charcoal mb-2">Aucun résultat</h3>
+                <p className="text-sm font-medium text-stone-400">Essayez de modifier vos filtres ou votre recherche pour la région FR.</p>
+            </div>
+        )}
+      </div>
     </div>
   );
 };

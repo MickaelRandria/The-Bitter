@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Movie, ThemeColor } from '../types';
-import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film, Calendar, Clock, Sparkles } from 'lucide-react';
+import { Star, ChevronDown, ChevronUp, Trash2, Pencil, AlertCircle, Play, CheckCircle2, Ticket, Globe, TrendingUp, TrendingDown, Minus, Repeat, Film, Calendar, Clock, Sparkles, Share, Instagram } from 'lucide-react';
 
 interface MovieCardProps {
   movie: Movie;
@@ -8,7 +9,8 @@ interface MovieCardProps {
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
   onOpenFilmography?: (id: number, name: string) => void;
-  onShowRecommendations?: (movie: Movie) => void; // Nouvelle Prop
+  onShowRecommendations?: (movie: Movie) => void; 
+  onShare?: (movie: Movie) => void; // Nouvelle prop
   searchQuery?: string;
 }
 
@@ -21,7 +23,7 @@ const themeStyles: Record<ThemeColor, string> = {
   black: 'bg-charcoal text-white',
 };
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, onOpenFilmography, onShowRecommendations, searchQuery }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, onOpenFilmography, onShowRecommendations, onShare, searchQuery }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
@@ -68,22 +70,31 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
     );
   };
 
-  const RatingBar = ({ label, value }: { label: string, value: number }) => (
-    <div className="flex items-center gap-4 mb-3 group/bar">
-      <span className={`text-[9px] font-black uppercase w-10 opacity-40 tracking-widest ${hasPoster ? 'text-white' : 'text-current'}`}>
-        {label}
-      </span>
-      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${hasPoster ? 'bg-white/10' : 'bg-black/5'}`}>
-        <div 
-          className="h-full bg-current rounded-full transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/bar:brightness-110" 
-          style={{ width: isExpanded ? `${value * 10}%` : '0%' }}
-        />
-      </div>
-      <span className={`text-[10px] font-black w-4 text-right ${hasPoster ? 'text-white' : 'text-current'}`}>
-        {value}
-      </span>
-    </div>
-  );
+  const RatingBar = ({ label, value }: { label: string, value: number }) => {
+    // Logic couleur High Contrast
+    const getColor = (v: number) => {
+        if (v < 5) return 'bg-red-500';
+        if (v < 8) return 'bg-yellow-400';
+        return 'bg-emerald-500';
+    };
+    
+    return (
+        <div className="flex items-center gap-4 mb-3 group/bar">
+        <span className={`text-[9px] font-black uppercase w-10 opacity-40 tracking-widest ${hasPoster ? 'text-white' : 'text-current'}`}>
+            {label}
+        </span>
+        <div className={`flex-1 h-2 rounded-full overflow-hidden ${hasPoster ? 'bg-white/10' : 'bg-black/5'}`}>
+            <div 
+            className={`h-full rounded-full transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${hasPoster ? 'bg-current' : getColor(value)}`} 
+            style={{ width: isExpanded ? `${value * 10}%` : '0%' }}
+            />
+        </div>
+        <span className={`text-[10px] font-black w-4 text-right ${hasPoster ? 'text-white' : 'text-current'}`}>
+            {Math.round(value)}
+        </span>
+        </div>
+    );
+  };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -259,7 +270,18 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, index, onDelete, onEdit, o
                 {isWatchlist ? 'Marquer Vu' : 'Éditer'}
              </button>
              
-             {/* Recommendation Sparkle Button (New) */}
+             {/* Share Button (New) */}
+             {onShare && !isWatchlist && (
+                 <button
+                    onClick={(e) => { e.stopPropagation(); onShare(movie); }}
+                    className={`p-4 rounded-2xl transition-all active:scale-90 shadow-lg ${hasPoster ? 'bg-white/20 hover:bg-white text-white hover:text-charcoal backdrop-blur-md' : 'bg-gradient-to-tr from-purple-500 to-orange-500 text-white'}`}
+                    title="Partager en Story"
+                 >
+                    <Instagram size={20} />
+                 </button>
+             )}
+
+             {/* Recommendation Sparkle Button */}
              {movie.tmdbId && onShowRecommendations && (
                  <button 
                     onClick={(e) => { e.stopPropagation(); onShowRecommendations(movie); }}
