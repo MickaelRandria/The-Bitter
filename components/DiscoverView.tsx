@@ -7,19 +7,17 @@ import {
   Star, 
   Search, 
   X, 
-  Play, 
-  Tv, 
   Flame, 
   Calendar, 
   ArrowUpAZ, 
-  SlidersHorizontal,
   Brain,
   Zap,
   Smile,
   Heart,
   Aperture,
   Smartphone,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -42,26 +40,10 @@ interface TMDBMovie {
 }
 
 const PROVIDERS = [
-  { 
-    id: 8, 
-    name: 'Netflix', 
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Netflix_icon.svg/500px-Netflix_icon.svg.png?20220806170125' 
-  },
-  { 
-    id: 119, 
-    name: 'Prime', 
-    logo: 'https://img.icons8.com/fluent/1200/amazon-prime-video.jpg' 
-  },
-  { 
-    id: 337, 
-    name: 'Disney+', 
-    logo: 'https://store-images.s-microsoft.com/image/apps.14187.14495311847124170.7646206e-bd82-4cf0-8b8c-d06a67bc302c.2e474878-acb7-4afb-a503-c2a1a32feaa8?h=210' 
-  },
-  { 
-    id: 381, 
-    name: 'Canal+', 
-    logo: 'https://play-lh.googleusercontent.com/Z2HJDfXSpjq2liULCCujhfzmRoTOZ1z-6A4JO_SrY-Iw92FZ1owOZ_5AlDqOtAvnrw' 
-  },
+  { id: 8, name: 'Netflix', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Netflix_icon.svg/500px-Netflix_icon.svg.png' },
+  { id: 119, name: 'Prime', logo: 'https://img.icons8.com/fluent/1200/amazon-prime-video.jpg' },
+  { id: 337, name: 'Disney+', logo: 'https://store-images.s-microsoft.com/image/apps.14187.14495311847124170.7646206e-bd82-4cf0-8b8c-d06a67bc302c.2e474878-acb7-4afb-a503-c2a1a32feaa8?h=210' },
+  { id: 381, name: 'Canal+', logo: 'https://play-lh.googleusercontent.com/Z2HJDfXSpjq2liULCCujhfzmRoTOZ1z-6A4JO_SrY-Iw92FZ1owOZ_5AlDqOtAvnrw' },
 ];
 
 const VIBES = [
@@ -108,12 +90,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
     }
   };
 
-  // --- LOGIQUE API ---
   const fetchMovies = async () => {
     setLoading(true);
     try {
       let url = "";
-      
       if (isSearchActive) {
         url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&query=${encodeURIComponent(searchQuery)}&page=1&include_adult=false`;
       } else {
@@ -124,20 +104,16 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
         const lastDayObj = new Date(year, month, 0);
         const lastDay = `${year}-${month.toString().padStart(2, '0')}-${lastDayObj.getDate()}`;
 
-        // Base de l'URL avec filtrage strict sur la France
         url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&sort_by=${sortBy === 'popularity' ? 'popularity.desc' : sortBy === 'date' ? 'primary_release_date.desc' : 'title.asc'}&page=1`;
         
-        // Ajout des filtres Vibes (Genres)
         if (activeVibe) {
           const vibe = VIBES.find(v => v.id === activeVibe);
           if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
         }
 
-        // Ajout des filtres Plateformes
         if (selectedProviders.length > 0) {
           url += `&with_watch_providers=${selectedProviders.join('|')}&with_watch_monetization_types=flatrate`;
         } else if (!activeVibe && !isSearchActive) {
-          // Si on est en mode "Calendrier" (pas de recherche/vibe/plateforme), on cible les sorties ciné FR
           url += `&with_release_type=2|3&primary_release_date.gte=${firstDay}&primary_release_date.lte=${lastDay}`;
         }
       }
@@ -146,8 +122,17 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
       const data = await res.json();
       
       if (data.results) {
-        // Filtrage supplémentaire pour s'assurer qu'on a des films avec poster
-        setMovies(data.results.filter((m: any) => m.poster_path));
+        let results = data.results.filter((m: any) => m.poster_path);
+        
+        if (isSearchActive) {
+          results.sort((a: TMDBMovie, b: TMDBMovie) => {
+            if (sortBy === 'popularity') return b.popularity - a.popularity;
+            if (sortBy === 'date') return new Date(b.release_date).getTime() - new Date(a.release_date).getTime();
+            return a.title.localeCompare(b.title);
+          });
+        }
+        
+        setMovies(results);
       }
     } catch (error) {
       console.error("Discovery error", error);
@@ -157,13 +142,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-        fetchMovies();
-    }, isSearchActive ? 500 : 0);
+    const timer = setTimeout(() => { fetchMovies(); }, isSearchActive ? 500 : 0);
     return () => clearTimeout(timer);
   }, [searchQuery, activeVibe, selectedProviders, selectedMonthIndex, sortBy]);
 
-  // HERO MOVIE (RECOMMENDATION)
   useEffect(() => {
     if (!userProfile || movies.length === 0 || isSearchActive) {
       setHeroMovie(null);
@@ -189,7 +171,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
 
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
-      
       {/* 1. SEARCH BAR */}
       <div className="relative group">
         <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 group-focus-within:text-charcoal transition-colors">
@@ -203,16 +184,31 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
             onChange={(e) => setSearchQuery(e.target.value)}
         />
         {isSearchActive && (
-            <button 
-                onClick={() => { haptics.soft(); setSearchQuery(''); }}
-                className="absolute inset-y-0 right-4 flex items-center px-2 text-stone-300 hover:text-charcoal"
-            >
+            <button onClick={() => { haptics.soft(); setSearchQuery(''); }} className="absolute inset-y-0 right-4 flex items-center px-2 text-stone-300 hover:text-charcoal">
                 <X size={20} strokeWidth={3} />
             </button>
         )}
       </div>
 
-      {/* 2. STREAMING PROVIDERS */}
+      {/* 2. SORTING */}
+      <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Trier par</span>
+          </div>
+          <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full">
+            <button onClick={() => { haptics.soft(); setSortBy('popularity'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'popularity' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
+              <Flame size={14} /> Popularité
+            </button>
+            <button onClick={() => { haptics.soft(); setSortBy('date'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'date' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
+              <Calendar size={14} /> Date
+            </button>
+            <button onClick={() => { haptics.soft(); setSortBy('alpha'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'alpha' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
+              <ArrowUpAZ size={14} /> Titre
+            </button>
+          </div>
+      </div>
+
+      {/* 3. STREAMING PROVIDERS */}
       <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Streaming</span>
@@ -222,23 +218,19 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
               {PROVIDERS.map(p => {
                   const isActive = selectedProviders.includes(p.id);
                   return (
-                      <button 
-                        key={p.id} 
-                        onClick={() => toggleProvider(p.id)}
-                        className={`flex items-center gap-2 p-1.5 pr-4 rounded-2xl border-2 transition-all shrink-0 ${isActive ? 'bg-charcoal border-charcoal text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}
-                      >
+                      <button key={p.id} onClick={() => toggleProvider(p.id)} className={`flex items-center gap-2 p-1.5 pr-4 rounded-2xl border-2 transition-all shrink-0 ${isActive ? 'bg-charcoal border-charcoal text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}>
                           <div className="w-8 h-8 rounded-xl bg-stone-100 overflow-hidden shadow-sm flex items-center justify-center">
                             <img src={p.logo} alt={p.name} className="w-full h-full object-cover" />
                           </div>
                           <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
-                          {isActive && <Check size={12} strokeWidth={4} className="ml-1 text-lime-400" />}
+                          {isActive && <Check size={12} strokeWidth={4} className="ml-1 text-forest" />}
                       </button>
                   );
               })}
           </div>
       </div>
 
-      {/* 3. VIBE MATCHING */}
+      {/* 4. VIBE MATCHING */}
       <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Vibe Matching</span>
@@ -250,11 +242,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
               {VIBES.map(v => {
                   const isActive = activeVibe === v.id;
                   return (
-                      <button 
-                        key={v.id} 
-                        onClick={() => { haptics.soft(); setActiveVibe(isActive ? null : v.id); }}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-full border-2 transition-all shrink-0 text-[10px] font-black uppercase tracking-widest ${isActive ? 'bg-lime-400 border-lime-400 text-charcoal shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}
-                      >
+                      <button key={v.id} onClick={() => { haptics.soft(); setActiveVibe(isActive ? null : v.id); }} className={`flex items-center gap-2 px-5 py-3 rounded-full border-2 transition-all shrink-0 text-[10px] font-black uppercase tracking-widest ${isActive ? 'bg-forest border-forest text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}>
                           {v.icon}
                           {v.label}
                       </button>
@@ -263,20 +251,22 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
           </div>
       </div>
 
-      {/* 4. HERO SECTION (RECOMMENDATION) */}
+      {/* 5. HERO BANNER (RE-INTEGRATED) */}
       {heroMovie && !isSearchActive && (
          <div 
-            className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden shadow-2xl group cursor-pointer animate-[fadeIn_0.6s_ease-out]"
+            className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden shadow-2xl group cursor-pointer animate-[fadeIn_0.6s_ease-out] border border-white/5"
             onClick={() => onSelectMovie(heroMovie.movie.id)}
          >
             <img src={`${TMDB_IMAGE_URL.replace('w780', 'original')}${heroMovie.movie.backdrop_path}`} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" />
             <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/20 to-transparent" />
-            <div className="absolute bottom-0 left-0 p-8 w-full">
-                <div className="flex items-center gap-2 mb-3">
-                    <span className="bg-lime-400 text-charcoal px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Bitter Recommends</span>
-                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">Basé sur {heroMovie.reason}</span>
+            <div className="absolute bottom-0 left-0 p-8 w-full z-10">
+                <div className="flex items-center gap-3 mb-4">
+                    <span className="bg-forest text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-forest/20 flex items-center gap-1.5">
+                        <Sparkles size={10} fill="currentColor" /> Bitter Recommends
+                    </span>
+                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">Basé sur vos goûts</span>
                 </div>
-                <h3 className="text-3xl font-black text-white tracking-tighter leading-tight mb-4">{heroMovie.movie.title}</h3>
+                <h3 className="text-3xl font-black text-white tracking-tighter leading-tight mb-4 line-clamp-2">{heroMovie.movie.title}</h3>
                 <button className="bg-white text-charcoal px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all">
                     <Plus size={16} strokeWidth={3} /> Ajouter à ma liste
                 </button>
@@ -284,40 +274,18 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
          </div>
       )}
 
-      {/* 5. CONTROLS & GRID */}
+      {/* 6. GRID RESULTS */}
       <div className="space-y-6">
         <div className="flex items-center justify-between px-1">
             {!isSearchActive && !activeVibe && selectedProviders.length === 0 ? (
                 <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[65%]">
                     {nextMonths.map((date, idx) => (
-                        <button 
-                            key={idx} 
-                            onClick={() => { haptics.soft(); setSelectedMonthIndex(idx); }}
-                            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedMonthIndex === idx ? 'bg-stone-200 text-charcoal' : 'text-stone-300'}`}
-                        >
-                            {date.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}
-                        </button>
+                        <button key={idx} onClick={() => { haptics.soft(); setSelectedMonthIndex(idx); }} className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedMonthIndex === idx ? 'bg-stone-200 text-charcoal' : 'text-stone-300'}`}>{date.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}</button>
                     ))}
                 </div>
             ) : (
-                <div className="text-[10px] font-black uppercase tracking-widest text-charcoal">
-                    {movies.length} résultats
-                </div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-charcoal">{movies.length} résultats</div>
             )}
-
-            <div className="flex items-center gap-2 bg-stone-50 border border-stone-100 px-3 py-1.5 rounded-xl">
-                {sortBy === 'popularity' ? <Flame size={12} /> : sortBy === 'alpha' ? <ArrowUpAZ size={12} /> : <Calendar size={12} />}
-                <select 
-                    value={sortBy} 
-                    onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }}
-                    className="bg-transparent text-[9px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest appearance-none pr-4"
-                >
-                    <option value="popularity">Populaire</option>
-                    <option value="date">Récent</option>
-                    <option value="alpha">A-Z</option>
-                </select>
-                <SlidersHorizontal size={10} className="text-stone-300 pointer-events-none" />
-            </div>
         </div>
 
         {loading ? (
@@ -328,31 +296,16 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
         ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
                 {movies.map(movie => (
-                    <div 
-                        key={movie.id} 
-                        onClick={() => onSelectMovie(movie.id)}
-                        className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer"
-                    >
+                    <div key={movie.id} onClick={() => onSelectMovie(movie.id)} className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer">
                         <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl group-hover:-translate-y-1 transition-all duration-500">
-                            <img 
-                                src={`${TMDB_IMAGE_URL}${movie.poster_path}`} 
-                                className="w-full h-full object-cover" 
-                                alt={movie.title}
-                                loading="lazy" 
-                            />
+                            <img src={`${TMDB_IMAGE_URL}${movie.poster_path}`} className="w-full h-full object-cover" alt={movie.title} loading="lazy" />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            
-                            {/* QUICK ADD BUTTON */}
-                            <button 
-                                onClick={(e) => handleQuickAdd(e, movie.id)}
-                                className="absolute bottom-4 right-4 w-12 h-12 bg-lime-400 text-charcoal rounded-full flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 active:scale-90"
-                            >
+                            <button onClick={(e) => handleQuickAdd(e, movie.id)} className="absolute bottom-4 right-4 w-12 h-12 bg-forest text-white rounded-full flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 active:scale-90">
                                 <Plus size={24} strokeWidth={3} />
                             </button>
-
                             {movie.vote_average > 0 && (
                                 <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1">
-                                    <Star size={10} fill="currentColor" className="text-lime-400" />
+                                    <Star size={10} fill="currentColor" className="text-white" />
                                     <span className="text-[10px] font-black text-white">{movie.vote_average.toFixed(1)}</span>
                                 </div>
                             )}
@@ -370,9 +323,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
 
         {!loading && movies.length === 0 && (
             <div className="py-32 text-center">
-                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200">
-                    <Search size={32} />
-                </div>
+                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200"><X size={32} /></div>
                 <h3 className="text-xl font-black text-charcoal mb-2">Aucun résultat</h3>
                 <p className="text-sm font-medium text-stone-400">Essayez de modifier vos filtres ou votre recherche pour la région FR.</p>
             </div>

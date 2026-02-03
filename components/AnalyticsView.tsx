@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Movie, UserProfile } from '../types';
 import { 
   ScanFace, 
@@ -22,14 +22,9 @@ import {
   Tags,
   Calculator,
   X,
-  Star,
-  Share,
-  Instagram,
-  Download,
-  Loader2
+  Star
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
-import html2canvas from 'html2canvas';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -41,20 +36,15 @@ interface AnalyticsViewProps {
 type TabMode = 'miroir' | 'audit';
 type FilterType = 'actor' | 'director' | 'genre';
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNavigateToCalendar, onRecalibrate }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('miroir');
   const [activeFilter, setActiveFilter] = useState<{ type: FilterType, value: string } | null>(null);
-  const [isSharing, setIsSharing] = useState(false);
-  const storyRef = useRef<HTMLDivElement>(null);
 
-  // --- LOGIQUE DE CALCUL DES STATS ---
   const stats = useMemo(() => {
     const watched = movies.filter(m => m.status === 'watched');
     const count = watched.length;
-
     if (count === 0) return null;
 
-    // 1. Calcul des moyennes (Miroir)
     const sums = watched.reduce((acc, m) => {
       acc.cerebral += m.vibe?.story || 5;
       acc.emotion += m.vibe?.emotion || 5;
@@ -74,7 +64,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
       smartphone: Math.round(sums.smartphone / count)
     };
 
-    // 2. Calcul des Tops (Audit)
     const actorCounts: Record<string, number> = {};
     const directorCounts: Record<string, number> = {};
     const genreCounts: Record<string, number> = {};
@@ -115,10 +104,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
     };
   }, [movies]);
 
-  // --- LOGIQUE DU DRILL-DOWN (MODALE) ---
   const drillDownData = useMemo(() => {
     if (!activeFilter) return [];
-    
     return movies
       .filter(m => m.status === 'watched')
       .filter(m => {
@@ -134,72 +121,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
       .sort((a, b) => {
         const ra = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
         const rb = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
-        return rb - ra; // Du meilleur au moins bon
+        return rb - ra;
       });
   }, [movies, activeFilter]);
-
-  const handleShareStory = async () => {
-    if (!storyRef.current || isSharing) return;
-    
-    setIsSharing(true);
-    haptics.medium();
-
-    try {
-      // 1. Délai pour s'assurer que le rendu est prêt
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const canvas = await html2canvas(storyRef.current, {
-        scale: 2, // Retina quality
-        backgroundColor: '#0c0c0c',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        onclone: (clonedDoc) => {
-            // S'assurer que les éléments sont visibles dans le clone
-            const element = clonedDoc.getElementById('story-container');
-            if (element) {
-                element.style.display = 'block';
-                element.style.visibility = 'visible';
-            }
-        }
-      });
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-            console.error("Blob generation failed");
-            setIsSharing(false);
-            return;
-        }
-
-        const file = new File([blob], 'the-bitter-story.png', { type: 'image/png' });
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    // Pas de titre/texte pour Instagram Stories, juste le fichier
-                });
-                haptics.success();
-            } catch (err) {
-                console.log("Share cancelled or failed", err);
-            }
-        } else {
-            // Fallback : Téléchargement direct
-            const link = document.createElement('a');
-            link.download = 'the-bitter-story.png';
-            link.href = canvas.toDataURL();
-            link.click();
-            alert("Image enregistrée ! Ouvrez Instagram pour la publier en Story.");
-            haptics.success();
-        }
-        setIsSharing(false);
-      }, 'image/png');
-    } catch (error) {
-        console.error("Generation failed", error);
-        setIsSharing(false);
-        haptics.error();
-    }
-  };
 
   if (!stats) {
     return (
@@ -235,45 +159,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.4s_ease-out] pb-24 relative">
-      
-      {/* HEADER AVEC BOUTON DE PARTAGE */}
       <div className="flex items-center justify-between pt-2">
         <div className="bg-stone-100 p-1.5 rounded-full flex flex-1 max-w-[280px] shadow-inner border border-stone-200/50 mx-auto">
-          <button 
-            onClick={() => { haptics.soft(); setActiveTab('miroir'); }} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'miroir' ? 'bg-charcoal text-lime-400 shadow-lg' : 'text-stone-400'}`}
-          >
+          <button onClick={() => { haptics.soft(); setActiveTab('miroir'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'miroir' ? 'bg-charcoal text-lime-400 shadow-lg' : 'text-stone-400'}`}>
             <ScanFace size={14} /> Miroir
           </button>
-          <button 
-            onClick={() => { haptics.soft(); setActiveTab('audit'); }} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-charcoal text-lime-400 shadow-lg' : 'text-stone-400'}`}
-          >
+          <button onClick={() => { haptics.soft(); setActiveTab('audit'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-charcoal text-lime-400 shadow-lg' : 'text-stone-400'}`}>
             <Calculator size={14} /> Audit
           </button>
         </div>
-
-        {/* Bouton Partage */}
-        <button 
-            onClick={handleShareStory}
-            disabled={isSharing}
-            className="absolute right-0 top-3 p-3 bg-gradient-to-tr from-purple-600 to-orange-500 text-white rounded-full shadow-lg active:scale-90 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-            {isSharing ? <Loader2 size={20} className="animate-spin" /> : <Instagram size={20} />}
-        </button>
       </div>
       
-      {/* Feedback de génération */}
-      {isSharing && (
-          <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-             <div className="bg-white p-6 rounded-3xl flex items-center gap-4 shadow-2xl">
-                <Loader2 size={24} className="animate-spin text-charcoal" />
-                <span className="text-xs font-black uppercase tracking-widest text-charcoal">Génération de la Story...</span>
-             </div>
-          </div>
-      )}
-
-      {/* CONTENU DYNAMIQUE */}
       {activeTab === 'miroir' ? (
         <div className="space-y-12 animate-[slideUp_0.4s_ease-out]">
           <div>
@@ -307,7 +203,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
             <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Statistiques<br/><span className="text-stone-300">Comptables</span></h2>
             <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Données brutes & Rentabilité</p>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-charcoal text-white p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-xl">
               <Film size={24} className="text-white/20" />
@@ -327,77 +222,36 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
               </div>
             </div>
           </div>
-
           <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-10 shadow-sm">
-            {/* Top Réalisateurs */}
             <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30">
-                <Clapperboard size={14} />
-                <h4 className="text-[10px] font-black uppercase tracking-widest">Top Réalisateurs</h4>
-              </div>
+              <div className="flex items-center gap-2 mb-6 opacity-30"><Clapperboard size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Réalisateurs</h4></div>
               <div className="space-y-4">
                 {stats.tops.directors.map(([name, count], i) => (
-                  <button 
-                    key={name} 
-                    onClick={() => { haptics.medium(); setActiveFilter({ type: 'director', value: name }); }}
-                    className="flex justify-between items-center group w-full text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span>
-                      <span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-stone-300">{count} films</span>
-                        <ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" />
-                    </div>
+                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'director', value: name }); }} className="flex justify-between items-center group w-full text-left">
+                    <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
+                    <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
                   </button>
                 ))}
               </div>
             </div>
-
             <div className="h-px bg-stone-100" />
-
-            {/* Top Casting */}
             <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30">
-                <User size={14} />
-                <h4 className="text-[10px] font-black uppercase tracking-widest">Top Casting</h4>
-              </div>
+              <div className="flex items-center gap-2 mb-6 opacity-30"><User size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Casting</h4></div>
               <div className="space-y-4">
                 {stats.tops.actors.map(([name, count], i) => (
-                  <button 
-                    key={name} 
-                    onClick={() => { haptics.medium(); setActiveFilter({ type: 'actor', value: name }); }}
-                    className="flex justify-between items-center group w-full text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span>
-                      <span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-stone-300">{count} films</span>
-                        <ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" />
-                    </div>
+                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'actor', value: name }); }} className="flex justify-between items-center group w-full text-left">
+                    <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
+                    <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
                   </button>
                 ))}
               </div>
             </div>
-
             <div className="h-px bg-stone-100" />
-
-            {/* Top Genres */}
             <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30">
-                <Tags size={14} />
-                <h4 className="text-[10px] font-black uppercase tracking-widest">Genres Favoris</h4>
-              </div>
+              <div className="flex items-center gap-2 mb-6 opacity-30"><Tags size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Genres Favoris</h4></div>
               <div className="flex flex-wrap gap-2">
                 {stats.tops.genres.map(([name, count]) => (
-                  <button 
-                    key={name} 
-                    onClick={() => { haptics.medium(); setActiveFilter({ type: 'genre', value: name }); }}
-                    className="bg-stone-50 border border-stone-100 px-4 py-2 rounded-xl flex items-center gap-3 hover:border-lime-400 hover:bg-white transition-all active:scale-95"
-                  >
+                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'genre', value: name }); }} className="bg-stone-50 border border-stone-100 px-4 py-2 rounded-xl flex items-center gap-3 hover:border-lime-400 hover:bg-white transition-all active:scale-95">
                     <span className="text-xs font-bold text-charcoal">{name}</span>
                     <span className="bg-charcoal text-white px-2 py-0.5 rounded text-[8px] font-black">{count}</span>
                   </button>
@@ -408,131 +262,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
         </div>
       )}
 
-      {/* --- HIDDEN SWISS MODERN STORY TEMPLATE (9:16) --- */}
-      {/* 
-          IMPORTANT: Pour que html2canvas fonctionne, l'élément ne doit PAS être en display:none ou visibility:hidden.
-          On utilise une position fixed hors écran mais avec opacity:1 au moment du clone, ou z-index négatif.
-          Ici, on le place derrière tout le contenu.
-      */}
-      <div 
-        id="story-wrapper"
-        style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '1px', 
-            height: '1px', 
-            overflow: 'hidden', 
-            zIndex: -9999,
-            pointerEvents: 'none'
-        }}
-      >
-          <div 
-            ref={storyRef}
-            id="story-container"
-            className="w-[1080px] h-[1920px] bg-[#0c0c0c] text-white p-[100px] flex flex-col font-sans"
-            style={{ 
-                fontFamily: 'Inter, sans-serif',
-                transformOrigin: 'top left',
-            }}
-          >
-            {/* Story Header */}
-            <div className="flex justify-between items-center mb-[120px]">
-                <span className="text-lime-400 text-3xl font-black uppercase tracking-[0.4em]">The Bitter</span>
-                <span className="text-stone-500 text-3xl font-bold uppercase tracking-[0.2em]">Recap 2026</span>
-            </div>
-
-            {/* Main Stat: COUNT */}
-            <div className="mb-[140px]">
-                <span className="block text-[480px] font-black leading-[0.8] text-white tracking-tighter -ml-6">
-                    {stats.count}
-                </span>
-                <span className="block text-5xl font-bold text-stone-500 uppercase tracking-[0.3em] mt-10 ml-4">
-                    Films Analysés
-                </span>
-            </div>
-
-            {/* BENTO GRID VISUAL */}
-            <div className="flex-1 grid grid-cols-2 gap-8 content-start">
-                {/* Archetype Box */}
-                <div className="bg-[#141414] rounded-[60px] p-[60px] flex flex-col justify-between border border-white/10 aspect-square">
-                    <div className="w-24 h-24 bg-lime-400 rounded-full flex items-center justify-center text-black">
-                        {React.cloneElement(stats.vibeInsight.icon as React.ReactElement<any>, { size: 50 })}
-                    </div>
-                    <div>
-                        <span className="block text-2xl font-black text-stone-500 uppercase tracking-widest mb-4">Profil</span>
-                        <span className="block text-5xl font-black text-white leading-tight">{userProfile?.role || stats.vibeInsight.label}</span>
-                    </div>
-                </div>
-
-                {/* Top Genre Box */}
-                <div className="bg-lime-400 rounded-[60px] p-[60px] flex flex-col justify-between aspect-square">
-                    <div className="w-24 h-24 bg-black rounded-full flex items-center justify-center text-lime-400">
-                        <Tags size={50} />
-                    </div>
-                    <div>
-                        <span className="block text-2xl font-black text-black/60 uppercase tracking-widest mb-4">Obsession</span>
-                        <span className="block text-5xl font-black text-black leading-tight break-words">
-                            {stats.tops.genres[0]?.[0] || 'Cinéma'}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Wide Stat Box */}
-                <div className="col-span-2 bg-[#141414] rounded-[60px] p-[60px] border border-white/10 flex items-center justify-between">
-                    <div>
-                        <span className="block text-2xl font-black text-stone-500 uppercase tracking-widest mb-2">Smartphone Factor</span>
-                        <span className="block text-6xl font-black text-white">{stats.averages.smartphone}%</span>
-                    </div>
-                    <div className="h-full w-[200px] bg-stone-800 rounded-3xl overflow-hidden relative">
-                        <div 
-                            className="absolute bottom-0 left-0 right-0 bg-lime-400" 
-                            style={{ height: `${stats.averages.smartphone}%` }} 
-                        />
-                    </div>
-                </div>
-            </div>
-            
-            {/* Footer */}
-            <div className="mt-auto pt-[80px] flex justify-between items-center opacity-60">
-                <span className="text-3xl font-bold text-stone-500">Généré par The Bitter App</span>
-                <div className="w-20 h-20 bg-white rounded-2xl" />
-            </div>
-          </div>
-      </div>
-
-      {/* MODALE DE DRILL-DOWN */}
       {activeFilter && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-10">
-          <div 
-            className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" 
-            onClick={() => setActiveFilter(null)} 
-          />
+          <div className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" onClick={() => setActiveFilter(null)} />
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative z-10 flex flex-col max-h-[80vh] overflow-hidden animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)]">
              <div className="p-8 pb-6 flex justify-between items-center border-b border-sand">
                 <div className="flex items-center gap-3">
-                    <div className="bg-lime-400 p-3 rounded-2xl text-charcoal">
+                    <div className="bg-bitter-lime p-3 rounded-2xl text-charcoal">
                         {activeFilter.type === 'actor' ? <User size={20} /> : activeFilter.type === 'director' ? <Clapperboard size={20} /> : <Tags size={20} />}
                     </div>
-                    <div>
-                        <h3 className="text-2xl font-black text-charcoal tracking-tight leading-none mb-1">
-                            {activeFilter.type === 'actor' ? 'Acteur' : activeFilter.type === 'director' ? 'Réalisateur' : 'Genre'}
-                        </h3>
-                        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{activeFilter.value}</p>
-                    </div>
+                    <div><h3 className="text-2xl font-black text-charcoal tracking-tight leading-none mb-1">{activeFilter.type === 'actor' ? 'Acteur' : activeFilter.type === 'director' ? 'Réalisateur' : 'Genre'}</h3><p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{activeFilter.value}</p></div>
                 </div>
-                <button onClick={() => setActiveFilter(null)} className="p-2.5 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200 transition-all">
-                    <X size={20} strokeWidth={2.5} />
-                </button>
+                <button onClick={() => setActiveFilter(null)} className="p-2.5 bg-stone-100 rounded-full text-stone-500"><X size={20} strokeWidth={2.5} /></button>
              </div>
-
              <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-                <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest px-2 mb-2">Films vus — Classés par note</p>
                 {drillDownData.map((movie) => {
                   const rating = ((movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4).toFixed(1);
-                  const score = parseFloat(rating);
-                  const ratingColor = score >= 8 ? 'bg-emerald-500' : score >= 5 ? 'bg-yellow-400' : 'bg-red-500';
-                  
                   return (
                     <div key={movie.id} className="bg-stone-50 p-4 rounded-2xl border border-stone-100 flex gap-4 group">
                        <div className="w-16 h-24 rounded-xl overflow-hidden bg-stone-200 shrink-0 shadow-sm border border-white">
@@ -541,10 +286,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
                        <div className="flex-1 min-w-0 py-1">
                           <h4 className="font-black text-charcoal leading-tight mb-1 truncate">{movie.title}</h4>
                           <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-3">Sortie {movie.year}</p>
-                          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white shadow-sm ${ratingColor}`}>
-                             <Star size={10} fill="currentColor" />
-                             <span className="text-xs font-black">{rating}</span>
-                          </div>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-charcoal bg-bitter-lime shadow-sm"><Star size={10} fill="currentColor" /><span className="text-xs font-black">{rating}</span></div>
                        </div>
                     </div>
                   );
@@ -554,16 +296,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onNa
         </div>
       )}
 
-      {/* FOOTER ACTION */}
       <div className="px-6 pt-4">
-        <button 
-          onClick={() => { haptics.medium(); onRecalibrate?.(); }}
-          className="w-full py-4 rounded-2xl border-2 border-dashed border-stone-200 text-[9px] font-black uppercase tracking-[0.2em] text-stone-300 hover:text-charcoal hover:border-stone-300 transition-all flex items-center justify-center gap-2"
-        >
+        <button onClick={() => { haptics.medium(); onRecalibrate?.(); }} className="w-full py-4 rounded-2xl border-2 border-dashed border-stone-200 text-[9px] font-black uppercase tracking-[0.2em] text-stone-300 hover:text-charcoal hover:border-stone-300 transition-all flex items-center justify-center gap-2">
           <Settings2 size={12} /> Refaire ma calibration psychologique
         </button>
       </div>
-
     </div>
   );
 };

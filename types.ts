@@ -1,3 +1,4 @@
+
 export interface RatingCriteria {
   story: number;
   visuals: number;
@@ -6,10 +7,10 @@ export interface RatingCriteria {
 }
 
 export interface QualityMetrics {
-  scenario: number; // Note technique /10
-  acting: number;   // Note technique /10
-  visual: number;   // Note technique /10
-  sound: number;    // Note technique /10
+  scenario: number;
+  acting: number;
+  visual: number;
+  sound: number;
 }
 
 export type ThemeColor = 'orange' | 'green' | 'yellow' | 'blue' | 'purple' | 'black';
@@ -24,11 +25,11 @@ export interface ActorInfo {
 }
 
 export interface VibeCriteria {
-  story: number;    // Scénario / Intello
-  emotion: number;  // Larmes / Frissons
-  fun: number;      // Divertissement / Rire
-  visual: number;   // Esthétique / FX
-  tension: number;  // Rythme / Suspense
+  story: number;
+  emotion: number;
+  fun: number;
+  visual: number;
+  tension: number;
 }
 
 export interface Movie {
@@ -40,10 +41,10 @@ export interface Movie {
   actors: string;
   actorIds?: ActorInfo[];
   year: number;
-  releaseDate?: string; // Format YYYY-MM-DD
+  releaseDate?: string;
   runtime?: number;
   genre: string;
-  ratings: RatingCriteria; // Legacy support (Derived from QualityMetrics or Manual Global)
+  ratings: RatingCriteria;
   review: string;
   dateAdded: number;
   dateWatched?: number;
@@ -53,14 +54,10 @@ export interface Movie {
   tmdbRating?: number;
   rewatch?: boolean;
   tags?: string[];
-  
-  // Bitter Mode Additions
-  smartphoneFactor?: number; // 0-100
+  smartphoneFactor?: number;
   vibe?: VibeCriteria;
   qualityMetrics?: QualityMetrics;
-  
-  // New Experience Fields
-  hype?: number; // 0-10
+  hype?: number;
   pacing?: PacingType;
   symptoms?: string[];
 }
@@ -71,17 +68,16 @@ export interface UserProfile {
   lastName: string;
   gender?: 'h' | 'f';
   age?: number;
-  favoriteMovie: string;
+  viewingPreference?: 'cinema' | 'streaming' | 'both';
+  streamingPlatforms?: string[];
   movies: Movie[];
   createdAt: number;
   seenTutorials?: string[];
-  
-  // Calibration Analyste
-  severityIndex?: number; // 0-10
-  patienceLevel?: number; // 0-10
+  severityIndex?: number;
+  patienceLevel?: number;
   favoriteGenres?: string[];
   isOnboarded?: boolean;
-  role?: string; // Archétype calculé
+  role?: string;
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;

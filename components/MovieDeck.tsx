@@ -85,7 +85,7 @@ const MovieDeck: React.FC<MovieDeckProps> = ({ onRate, onClose, advanceTrigger =
 
   if (currentIndex >= movies.length || movies.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-center animate-[scaleIn_0.5s_ease-out]">
-      <div className="w-24 h-24 bg-lime-400 text-charcoal rounded-[2.5rem] flex items-center justify-center mb-8 shadow-2xl shadow-lime-400/20 rotate-3">
+      <div className="w-24 h-24 bg-forest text-white rounded-[2.5rem] flex items-center justify-center mb-8 shadow-2xl shadow-forest/20 rotate-3">
         <Check size={48} strokeWidth={3} />
       </div>
       <h3 className="text-3xl font-black text-charcoal mb-3 tracking-tighter">Profil Calibré</h3>
@@ -119,7 +119,7 @@ const MovieDeck: React.FC<MovieDeckProps> = ({ onRate, onClose, advanceTrigger =
         
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/30 to-transparent flex flex-col justify-end p-8">
           <div className="flex items-center gap-2 mb-3">
-            <span className="bg-lime-400 text-charcoal px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
+            <span className="bg-white/10 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg border border-white/10">
                 Spécial {favoriteGenres[0] || 'Culte'}
             </span>
             <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-xl text-white px-2.5 py-1.5 rounded-xl border border-white/10">
@@ -145,7 +145,7 @@ const MovieDeck: React.FC<MovieDeckProps> = ({ onRate, onClose, advanceTrigger =
             </button>
             <button 
                 onClick={handleRate} 
-                className="flex-[1.5] bg-lime-400 text-charcoal p-6 rounded-[2.2rem] flex flex-col items-center gap-2 shadow-xl shadow-lime-400/20 hover:scale-105 active:scale-95 transition-all"
+                className="flex-[1.5] bg-forest text-white p-6 rounded-[2.2rem] flex flex-col items-center gap-2 shadow-xl shadow-forest/20 hover:scale-105 active:scale-95 transition-all"
             >
                 <PenTool size={24} />
                 <span className="text-[9px] font-black uppercase tracking-widest">Je note</span>
