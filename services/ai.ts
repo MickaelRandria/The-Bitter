@@ -11,41 +11,41 @@ export interface AISearchResult {
  * Nettoie le texte des astérisques résiduels et s'assure que le formatage est propre.
  */
 const cleanAIResponse = (text: string): string => {
-  return text.replace(/\*\*/g, '').trim();
+  return text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
 };
 
-// Pour la recherche simple existante
+const getApiKey = () => {
+  return process.env.API_KEY || "";
+};
+
+// Pour la recherche simple
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    // Initialisation JIT pour éviter les ReferenceError au chargement du module
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: query,
+      contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert ciné. Réponds en utilisant des balises HTML <b> et </b> pour mettre en gras les noms de films ou les points clés. NE JAMAIS utiliser d'astérisques (**)."
+        systemInstruction: "Tu es un expert ciné. Réponds en utilisant des balises HTML <b> et </b> pour mettre en gras. NE JAMAIS utiliser d'astérisques (**)."
       },
     });
 
-    const text = cleanAIResponse(response.text || "Désolé, je n'ai pas trouvé d'informations récentes.");
+    const text = cleanAIResponse(response.text || "Désolé, je n'ai pas trouvé d'informations.");
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
     const sources = chunks
       .filter((chunk: any) => chunk.web)
       .map((chunk: any) => ({
-        title: chunk.web.title || "Lien source",
+        title: chunk.web.title || "Source",
         uri: chunk.web.uri,
       }));
 
     return { text, sources };
   } catch (error) {
     console.error("Gemini Search Error:", error);
-    return { 
-      text: "Une erreur est survenue lors de la recherche en ligne. Veuillez réessayer.", 
-      sources: [] 
-    };
+    return { text: "Erreur de connexion à l'IA.", sources: [] };
   }
 };
 
@@ -63,52 +63,52 @@ CONTEXTE UTILISATEUR:
 - Nom: ${userProfile.firstName}
 - Profil: ${userProfile.role || 'Analyste'}
 - Traits: Sévérité ${userProfile.severityIndex || 5}/10, Patience ${userProfile.patienceLevel || 5}/10.
-- Goûts: Adore ${userProfile.favoriteGenres?.join(', ') || 'tous les genres'}.
+- Goûts: ${userProfile.favoriteGenres?.join(', ') || 'tous les genres'}.
 
-HISTORIQUE DE VISIONNAGE (Rappel):
+HISTORIQUE RÉCENT:
 ${recentMovies.map(m => `- ${m.title} (${m.year}) - Note: ${((m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4).toFixed(1)}/10`).join('\n')}
 `;
 
   const systemInstruction = `Tu es le Ciné-Assistant de l'application "The Bitter". Tu parles à ${userProfile.firstName}.
-Ton ton est celui d'un ami expert, passionné, parfois un peu piquant (bitter) mais toujours pertinent. Tu tutoies l'utilisateur.
+Ton ton est expert, passionné et piquant. Tu tutoies l'utilisateur.
 
-DIRECTIVES DE CONVERSATION :
-1. ANALYSE L'HISTORIQUE : Regarde les messages précédents pour ne pas te répéter. Si l'utilisateur rebondit sur une suggestion, approfondis au lieu de changer de sujet.
-2. NATUREL : Évite les formules robotiques comme "En tant qu'assistant..." ou de répéter son nom à chaque phrase. Sois direct.
-3. CONTEXTE : Utilise son profil psychologique (${userProfile.role}) pour nuancer tes recommandations.
-4. RECHERCHE : Utilise Google Search pour les nouveautés ou vérifier sur quelles plateformes (Netflix, Prime, Disney+, Canal+) les films sont dispos en France.
+DIRECTIVES :
+1. ANALYSE L'HISTORIQUE : Ne te répète pas.
+2. NATUREL : Pas de phrases type "En tant qu'IA". Sois direct.
+3. RECHERCHE : Utilise Google Search pour les plateformes streaming en France.
 
 FORMATAGE STRICT :
-- NE JAMAIS utiliser d'astérisques (**).
-- Utilise UNIQUEMENT <b>titre du film</b> pour les noms de films et les termes essentiels.
-- Réponse courte (max 120 mots).
+- PAS d'astérisques (**).
+- <b>titre</b> pour les films.
+- Max 120 mots.
 
 ${userContext}`;
 
   try {
-    // Initialisation JIT pour assurer la présence de la clé API au moment de l'appel
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
     
+    // Formatage correct des messages pour le SDK
+    const formattedContents = [
+      ...conversationHistory.map(h => ({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }]
+      })),
+      { role: 'user', parts: [{ text: userQuestion }] }
+    ];
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [
-        ...conversationHistory.map(h => ({
-          role: h.role === 'user' ? 'user' : 'model',
-          parts: [{ text: h.content }]
-        })),
-        { role: 'user', parts: [{ text: userQuestion }] }
-      ],
+      contents: formattedContents as any,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
-        temperature: 0.8,
+        temperature: 0.7,
       },
     });
 
-    const rawText = response.text || "Je n'ai pas pu générer de réponse.";
-    return cleanAIResponse(rawText);
+    return cleanAIResponse(response.text || "Je n'ai pas pu générer de réponse.");
   } catch (error) {
-    console.error("CineAssistant Error:", error);
-    return "Oups, ma pellicule a brûlé. Peux-tu reformuler ?";
+    console.error("CineAssistant Error Details:", error);
+    return "Ma pellicule a brûlé... Peux-tu réessayer dans un instant ?";
   }
 };

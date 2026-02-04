@@ -33,7 +33,6 @@ const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, val
   );
 };
 
-// Fix the component completion and add missing default export
 const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -45,7 +44,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
 
   const cardClasses = `
     relative rounded-[2.5rem] p-8 flex flex-col transition-[transform,box-shadow,height] duration-300 w-full overflow-hidden cursor-pointer group/card
-    ${isExpanded ? 'shadow-2xl z-20 scale-[1.01]' : `shadow-lg hover:shadow-xl hover:-translate-y-2 ${baseHeight}`}
+    ${isExpanded ? 'shadow-2xl z-20 scale-[1.01] h-auto' : `shadow-lg hover:shadow-xl hover:-translate-y-2 ${baseHeight}`}
     ${hasPoster ? 'text-white bg-[#0c0c0c]' : 'text-charcoal bg-white border border-stone-100'}
   `;
 
@@ -54,7 +53,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
       onClick={() => setIsExpanded(!isExpanded)}
       className={cardClasses}
       style={{
-        backgroundImage: hasPoster ? `linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.85)), url(${movie.posterUrl})` : 'none',
+        backgroundImage: hasPoster ? `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.9)), url(${movie.posterUrl})` : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         willChange: 'transform, opacity'
@@ -66,14 +65,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
         </span>
         
         {!isWatchlist ? (
-           <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-current/10 transition-all duration-200 ${hasPoster ? 'bg-black/70 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50'}`}>
+           <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-current/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50'}`}>
              {movie.tmdbRating && (
                <>
                  <div className="flex items-center gap-1">
                    <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300'}`}>TMDB</span>
                    <span className={`text-xs font-black ${hasPoster ? 'text-white' : 'text-charcoal'}`}>{movie.tmdbRating}</span>
                  </div>
-                 <div className={`w-px h-3 ${hasPoster ? 'bg-white/10' : 'bg-stone-200'}`} />
+                 <div className={`w-px h-3 ${hasPoster ? 'bg-white/20' : 'bg-stone-200'}`} />
                </>
              )}
              <div className="flex items-center gap-1.5">
@@ -128,7 +127,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
             </div>
           )}
 
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3 mt-4 pb-4">
              <button 
                 onClick={(e) => { e.stopPropagation(); onEdit(movie); }}
                 className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white text-charcoal active:scale-95 transition-[transform,background-color] duration-150 shadow-lg"
