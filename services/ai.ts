@@ -2,8 +2,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export interface AISearchResult {
   text: string;
   sources: { title: string; uri: string }[];
@@ -19,6 +17,9 @@ const cleanAIResponse = (text: string): string => {
 // Pour la recherche simple existante
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
+    // Initialisation JIT pour éviter les ReferenceError au chargement du module
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: query,
@@ -85,6 +86,9 @@ FORMATAGE STRICT :
 ${userContext}`;
 
   try {
+    // Initialisation JIT pour assurer la présence de la clé API au moment de l'appel
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [

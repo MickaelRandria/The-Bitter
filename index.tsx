@@ -3,6 +3,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
+// Polyfill pour process.env pour éviter les ReferenceError sur mobile
+if (typeof window !== 'undefined') {
+  (window as any).process = (window as any).process || {};
+  (window as any).process.env = (window as any).process.env || {};
+}
+
 // Explicitly define ImportMeta for environments where vite/client types are missing
 declare global {
   interface ImportMeta {
