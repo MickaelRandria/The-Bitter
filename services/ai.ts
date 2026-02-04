@@ -7,8 +7,10 @@ export interface AISearchResult {
   sources: { title: string; uri: string }[];
 }
 
+/**
+ * Nettoie la réponse de l'IA pour supprimer le Markdown et formater les titres en HTML.
+ */
 const cleanAIResponse = (text: string): string => {
-  // Nettoyage complet des scories Markdown pour un rendu HTML pur
   return text
     .replace(/(\*\*|__)(.*?)\1/g, "<b>$2</b>") // Conversion du gras Markdown en HTML
     .replace(/(\*|_)(.*?)\1/g, "$2")           // Suppression de l'italique
@@ -19,16 +21,19 @@ const cleanAIResponse = (text: string): string => {
     .trim();
 };
 
+/**
+ * Recherche approfondie d'informations sur un film via Gemini 3 & Google Search.
+ */
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    // Utilisation impérative de process.env.API_KEY pour la plateforme
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+    // Utilisation de la clé configurée pour Vite/Vercel
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert cinéma. Réponds de manière concise. Utilise des balises <b> pour les titres de films. Pas de markdown type astérisques."
+        systemInstruction: "Tu es un expert cinéma. Réponds de manière concise. Utilise des balises <b> pour les titres de films. Pas de markdown."
       },
     });
 
@@ -45,27 +50,31 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
   }
 };
 
+/**
+ * Assistant conversationnel expert utilisant le modèle stable Gemini 2.5 Flash Lite.
+ */
 export const callCineAssistant = async (
   userQuestion: string,
   userProfile: UserProfile,
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+    // Récupération dynamique de la clé pour éviter les closures vides
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
     
     const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
     const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films vus: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
-    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter" (v0.71). 
-Ton ton est expert, passionné et un peu piquant. Tutoie l'utilisateur.
-TU DOIS :
-1. Ne jamais utiliser d'astérisques (*).
-2. Utiliser des balises <b> pour les noms de films.
-3. Utiliser Google Search pour les infos de streaming ou actus récentes.
-4. Répondre en moins de 100 mots.
+    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". 
+Ton ton est expert, passionné et piquant. Tutoie l'utilisateur.
+RÈGLES :
+1. JAMAIS d'astérisques (*).
+2. Utilise <b> pour les noms de films.
+3. Utilise Google Search pour le streaming ou actus.
+4. Réponds en maximum 100 mots.
 ${context}`;
 
-    // Formatage des messages pour le SDK Gemini (user / model)
+    // Formatage des rôles conforme au SDK (user/model)
     const formattedContents = [
       ...conversationHistory.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
@@ -75,7 +84,7 @@ ${context}`;
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-lite-latest", // Passage au modèle stable Gemini 2.5 Flash Lite
       contents: formattedContents as any,
       config: {
         systemInstruction,
@@ -84,11 +93,11 @@ ${context}`;
       },
     });
 
-    if (!response.text) throw new Error("IA_EMPTY_RESPONSE");
+    if (!response.text) throw new Error("Réponse vide de l'IA");
 
     return cleanAIResponse(response.text);
   } catch (error: any) {
     console.error("CRITICAL CineAssistant Error:", error.message);
-    return "Ma pellicule a brûlé... (v0.71) Erreur d'initialisation de la clé API ou du modèle. Vérifie la configuration de l'environnement.";
+    return "Ma pellicule a brûlé... Une erreur technique de configuration empêche l'IA de répondre (Vérifiez la clé VITE_GOOGLE_AI_KEY).";
   }
 };
