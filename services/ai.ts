@@ -1,85 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile } from "../types";
-import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL, TMDB_GENRE_MAP } from "../constants";
-
-/**
- * Logique de récupération de clé API robuste pour environnements Vite (client) et Vercel.
- */
-const getApiKey = (): string => {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_AI_KEY) {
-    return import.meta.env.VITE_GOOGLE_AI_KEY as string;
-  }
-  if (typeof process !== 'undefined' && process.env?.VITE_GOOGLE_AI_KEY) {
-    return process.env.VITE_GOOGLE_AI_KEY;
-  }
-  // Fallback plateforme standard
-  if (typeof process !== 'undefined' && process.env?.API_KEY) {
-    return process.env.API_KEY;
-  }
-  return "";
-};
-
-/**
- * Nettoyage des réponses pour l'affichage mobile : 
- * Convertit le gras Markdown en HTML et préserve les balises structurales.
- */
-const cleanAIResponse = (text: string): string => {
-  if (!text) return "";
-  
-  return text
-    // Conversion du gras Markdown (**titre**) en HTML <b>
-    .replace(/\*\*(.*?)\*\*/g, "<b>$2</b>")
-    .replace(/__(.*?)__/g, "<b>$2</b>")
-    // // Suppression des astérisques et underscores résiduels (italique, listes)
-    // .replace(/\*/g, "")
-    // .replace(/_/g, "")
-    // // Suppression des headers Markdown
-    // .replace(/#{1,6}\s?/g, "")
-    // // On NE supprime PAS les chevrons > car ils servent aux balises HTML
-    // .replace(/\n{3,}/g, "\n\n")
-    .trim();
-};
-
-/**
- * Grounding TMDB : Récupère les films populaires sur Netflix France.
- */
-const getNetflixGrounding = async (genre?: string): Promise<string> => {
-  try {
-    const genreId = genre ? TMDB_GENRE_MAP[genre] : '';
-    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&with_watch_providers=8${genreId ? `&with_genres=${genreId}` : ''}&sort_by=popularity.desc&page=1`;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (!data.results?.length) return "";
-    
-    return "\nCATALOGUE NETFLIX FRANCE ACTUEL :\n" + data.results.slice(0, 8).map((m: any) => 
-      `- ${m.title} (${m.release_date?.split('-')[0]}) : ${m.vote_average}/10`
-    ).join('\n');
-  } catch (e) {
-    return "";
-  }
-};
-
-/**
- * Grounding TMDB : Récupère les films similaires au dernier film vu.
- */
-const getSimilarityGrounding = async (tmdbId: number): Promise<string> => {
-  try {
-    const url = `${TMDB_BASE_URL}/movie/${tmdbId}/similar?api_key=${TMDB_API_KEY}&language=fr-FR&page=1`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (!data.results?.length) return "";
-    
-    return `\nFILMS SIMILAIRES TROUVÉS SUR TMDB :\n` + data.results.slice(0, 5).map((m: any) => 
-      `- ${m.title} (${m.release_date?.split('-')[0]}) : ${m.vote_average}/10`
-    ).join('\n');
-  } catch (e) {
-    return "";
-  }
-};
 
 export interface AISearchResult {
   text: string;
@@ -87,27 +8,40 @@ export interface AISearchResult {
 }
 
 /**
- * Recherche profonde Gemini 3 avec Google Search Grounding.
+ * Nettoie la réponse de l'IA pour supprimer le Markdown et formater les titres en HTML.
+ */
+const cleanAIResponse = (text: string): string => {
+  return text
+    .replace(/(\*\*|__)(.*?)\1/g, "<b>$2</b>") // Conversion du gras Markdown en HTML
+    // .replace(/(\*|_)(.*?)\1/g, "$2")           // Suppression de l'italique
+    // .replace(/#{1,6}\s?/g, "")                // Suppression des headers
+    // .replace(/`{1,3}.*?`{1,3}/g, "")          // Suppression du code
+    // .replace(/>\s?/g, "")                     // Suppression des citations
+    // .replace(/\n{3,}/g, "\n\n")               // Normalisation des sauts de ligne
+    .trim();
+};
+
+/**
+ * Recherche approfondie d'informations sur un film via Gemini 3 & Google Search.
  */
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
-    
+    // Utilisation de la clé configurée pour Vite/Vercel
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        maxOutputTokens: 800,
-        thinkingConfig: { thinkingBudget: 400 },
-        systemInstruction: "Expert cinéma. Réponds sans markdown type astérisques. Utilise <b> pour les titres. Sois percutant."
+        systemInstruction: "Tu es un expert cinéma. Réponds de manière concise. Utilise des balises <b> pour les titres de films. Pas de markdown."
       },
     });
 
     const text = cleanAIResponse(response.text || "Aucune information trouvée.");
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = chunks.filter((c: any) => c.web).map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
+    const sources = chunks
+      .filter((c: any) => c.web)
+      .map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
 
     return { text, sources };
   } catch (error: any) {
@@ -117,7 +51,7 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
 };
 
 /**
- * Assistant Ciné-Analyste enrichi dynamiquement avec Grounding TMDB et Gemini 3 Flash.
+ * Assistant conversationnel expert utilisant le modèle stable Gemini 2.5 Flash Lite.
  */
 export const callCineAssistant = async (
   userQuestion: string,
@@ -125,44 +59,22 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
-    const questionLower = userQuestion.toLowerCase();
+    // Récupération dynamique de la clé pour éviter les closures vides
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
     
-    const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 15);
-    const favoriteGenre = userProfile.favoriteGenres?.[0];
-    
-    let tmdbData = "";
-    if (questionLower.includes('netflix') || questionLower.includes('regarder') || questionLower.includes('streaming')) {
-      tmdbData += await getNetflixGrounding(favoriteGenre);
-    }
-    
-    if (questionLower.includes('comme') || questionLower.includes('similaire') || questionLower.includes('conseille')) {
-      const lastWatched = watchedMovies[0];
-      if (lastWatched?.tmdbId) {
-        tmdbData += await getSimilarityGrounding(lastWatched.tmdbId);
-      }
-    }
+    const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
+    const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films vus: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
     const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". 
-Ton ton est celui d'un critique érudit, passionné et piquant. Tutoie l'utilisateur.
+Ton ton est expert, passionné et piquant. Tutoie l'utilisateur.
+RÈGLES :
+1. JAMAIS d'astérisques (*).
+2. Utilise <b> pour les noms de films.
+3. Utilise Google Search pour le streaming ou actus.
+4. Réponds en maximum 100 mots.
+${context}`;
 
-CONTEXTE UTILISATEUR :
-- Prénom : ${userProfile.firstName}
-- Profil : ${userProfile.role || 'Analyste'}
-- Exigence : ${userProfile.severityIndex}/10
-- Patience : ${userProfile.patienceLevel}/10
-- Bibliothèque : ${watchedMovies.map(m => m.title).join(', ')}
-
-DONNÉES TMDB :
-${tmdbData || 'Aucune donnée TMDB spécifique.'}
-
-RÈGLES ABSOLUES :
-1. TERMINES TOUJOURS tes phrases. Ne t'arrête jamais en plein milieu d'une idée.
-2. PAS D'ASTÉRISQUES (*). Utilise exclusivement <b> pour les titres de films.
-3. Utilise les données TMDB et Google Search pour des recommandations actuelles et streaming FR.
-4. Réponse complète et fluide d'environ 100-120 mots.`;
-
+    // Formatage des rôles conforme au SDK (user/model)
     const formattedContents = [
       ...conversationHistory.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
@@ -172,22 +84,20 @@ RÈGLES ABSOLUES :
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-lite-latest", // Passage au modèle stable Gemini 2.5 Flash Lite
       contents: formattedContents as any,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
-        maxOutputTokens: 800,
-        thinkingConfig: { thinkingBudget: 400 },
         temperature: 0.7,
       },
     });
 
-    if (!response.text) throw new Error("Empty response");
+    if (!response.text) throw new Error("Réponse vide de l'IA");
 
     return cleanAIResponse(response.text);
   } catch (error: any) {
-    console.error("CineAssistant Error:", error.message);
-    return "Ma pellicule a brûlé... 🎬 Une erreur technique liée à la clé API ou à la configuration empêche l'IA de répondre. Vérifie tes secrets VITE_GOOGLE_AI_KEY.";
+    console.error("CRITICAL CineAssistant Error:", error.message);
+    return "Ma pellicule a brûlé... Une erreur technique de configuration empêche l'IA de répondre (Vérifiez la clé VITE_GOOGLE_AI_KEY).";
   }
 };
