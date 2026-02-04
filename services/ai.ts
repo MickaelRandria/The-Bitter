@@ -8,37 +8,38 @@ export interface AISearchResult {
 }
 
 const cleanAIResponse = (text: string): string => {
-  return text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
-};
-
-const getAIInstance = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.error("ERREUR : Clé API manquante dans l'environnement.");
-  }
-  return new GoogleGenAI({ apiKey: apiKey || "" });
+  // Regex plus complète pour nettoyer TOUT le markdown restant
+  return text
+    .replace(/\*\*\*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/###/g, '')
+    .replace(/##/g, '')
+    .replace(/#/g, '')
+    .trim();
 };
 
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    const ai = getAIInstance();
+    // Initialisation directe pour éviter les closures instables sur mobile
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert ciné. Réponds avec des balises <b> pour les titres. Pas d'astérisques."
+        systemInstruction: "Tu es un expert cinéma. Utilise des balises <b> pour les titres. Pas de markdown (*)."
       },
     });
 
-    const text = cleanAIResponse(response.text || "Aucune information trouvée.");
+    const text = cleanAIResponse(response.text || "Aucune donnée trouvée.");
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = chunks.filter((c: any) => c.web).map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
 
     return { text, sources };
-  } catch (error) {
-    console.error("DeepSearch Error:", error);
-    return { text: "Service de recherche indisponible.", sources: [] };
+  } catch (error: any) {
+    console.error("DEBUG IA - DeepSearch Fail:", error.message || error);
+    return { text: "Recherche temporairement indisponible.", sources: [] };
   }
 };
 
@@ -48,17 +49,21 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    const ai = getAIInstance();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
     
     const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
     const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films récents: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
     const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". Tu parles à ${userProfile.firstName}.
 Ton ton est piquant, expert et passionné. Tutoie l'utilisateur.
-DIRECTIVES : Pas d'astérisques (**). Utilise <b>titre</b> pour les films. 
-Utilise Google Search pour le streaming en France. Max 100 mots.
+RÈGLES STRICTES : 
+1. JAMAIS d'astérisques (*). 
+2. Utilise <b>titre</b> pour les films. 
+3. Utilise Google Search pour vérifier les plateformes streaming en France si besoin.
+4. Réponds en maximum 100 mots.
 ${context}`;
 
+    // Le SDK attend 'model' pour les réponses de l'IA
     const formattedContents = [
       ...conversationHistory.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
@@ -77,9 +82,14 @@ ${context}`;
       },
     });
 
-    return cleanAIResponse(response.text || "Erreur de réponse.");
+    if (!response.text) throw new Error("Réponse IA vide");
+
+    return cleanAIResponse(response.text);
   } catch (error: any) {
-    console.error("CineAssistant Error:", error);
-    return "Ma pellicule a brûlé... Un problème de connexion empêche l'IA de répondre. Réessaie dans un instant.";
+    // Log crucial pour diagnostiquer le problème sur ton téléphone
+    console.error("DEBUG IA - CineAssistant Fail:", error.message || error);
+    
+    // Message d'erreur enrichi pour le test
+    return "Désolé, ma pellicule a brûlé... (Erreur technique détectée). Vérifie ta connexion ou réessaie dans quelques secondes.";
   }
 };

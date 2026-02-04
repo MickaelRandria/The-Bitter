@@ -70,14 +70,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
                <>
                  <div className="flex items-center gap-1.5">
                    <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300'}`}>TMDB</span>
-                   <span className={`text-xs font-black text-white`}>{movie.tmdbRating}</span>
+                   <span className="text-xs font-black text-white">{movie.tmdbRating}</span>
                  </div>
                  <div className={`w-px h-3 ${hasPoster ? 'bg-white/20' : 'bg-stone-200'}`} />
                </>
              )}
              <div className="flex items-center gap-1.5">
-               <Star size={12} fill="#D9FF00" className="text-[#D9FF00]" />
-               <span className="text-xs font-black text-[#D9FF00]">{globalRating}</span>
+               <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+               <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
              </div>
            </div>
         ) : (
