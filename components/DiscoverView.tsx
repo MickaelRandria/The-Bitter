@@ -17,10 +17,15 @@ import {
   Aperture,
   Smartphone,
   Check,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
+import { deepMovieSearch, AISearchResult } from '../services/ai';
+
+type SortOption = 'popularity' | 'date' | 'alpha';
 
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number) => void;
@@ -55,8 +60,6 @@ const VIBES = [
   { id: 'distraction', label: 'Distraction', icon: <Smartphone size={14} />, genres: [10751, 10402, 10770] },
 ];
 
-type SortOption = 'popularity' | 'date' | 'alpha';
-
 const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile }) => {
   const [movies, setMovies] = useState<TMDBMovie[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>('popularity');
   const [heroMovie, setHeroMovie] = useState<{ movie: TMDBMovie, reason: string } | null>(null);
+
+  // AI Deep Search State
+  const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
+  const [isAiSearching, setIsAiSearching] = useState(false);
 
   const isSearchActive = searchQuery.length > 0;
 
@@ -78,17 +85,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
     }
     return months;
   }, []);
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'Prochainement';
-    try {
-      const parts = dateStr.split('-');
-      if (parts.length < 3) return dateStr;
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    } catch {
-      return dateStr;
-    }
-  };
 
   const fetchMovies = async () => {
     setLoading(true);
@@ -123,15 +119,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
       
       if (data.results) {
         let results = data.results.filter((m: any) => m.poster_path);
-        
-        if (isSearchActive) {
-          results.sort((a: TMDBMovie, b: TMDBMovie) => {
-            if (sortBy === 'popularity') return b.popularity - a.popularity;
-            if (sortBy === 'date') return new Date(b.release_date).getTime() - new Date(a.release_date).getTime();
-            return a.title.localeCompare(b.title);
-          });
-        }
-        
         setMovies(results);
       }
     } catch (error) {
@@ -146,27 +133,14 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
     return () => clearTimeout(timer);
   }, [searchQuery, activeVibe, selectedProviders, selectedMonthIndex, sortBy]);
 
-  useEffect(() => {
-    if (!userProfile || movies.length === 0 || isSearchActive) {
-      setHeroMovie(null);
-      return;
-    }
-    const favGenre = userProfile.favoriteGenres?.[0];
-    if (favGenre) {
-        const movie = movies.find(m => m.backdrop_path && !userProfile.movies.some(um => um.tmdbId === m.id));
-        if (movie) setHeroMovie({ movie, reason: favGenre });
-    }
-  }, [movies, userProfile, isSearchActive]);
-
-  const toggleProvider = (id: number) => {
-    haptics.soft();
-    setSelectedProviders(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
-  };
-
-  const handleQuickAdd = (e: React.MouseEvent, id: number) => {
-      e.stopPropagation();
-      haptics.medium();
-      onSelectMovie(id);
+  const handleDeepSearch = async () => {
+    if (!searchQuery) return;
+    haptics.medium();
+    setIsAiSearching(true);
+    setAiResult(null);
+    const result = await deepMovieSearch(searchQuery);
+    setAiResult(result);
+    setIsAiSearching(false);
   };
 
   return (
@@ -178,116 +152,88 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
         </div>
         <input 
             type="text" 
-            placeholder="Rechercher un film..." 
-            className="w-full bg-stone-100/50 hover:bg-stone-100 focus:bg-white border-2 border-transparent focus:border-stone-200 rounded-[2rem] py-5 pl-14 pr-12 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 text-charcoal"
+            placeholder="Rechercher un film ou une actualité..." 
+            className="w-full bg-stone-100/50 hover:bg-stone-100 focus:bg-white border-2 border-transparent focus:border-stone-200 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 text-charcoal"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
         />
-        {isSearchActive && (
-            <button onClick={() => { haptics.soft(); setSearchQuery(''); }} className="absolute inset-y-0 right-4 flex items-center px-2 text-stone-300 hover:text-charcoal">
-                <X size={20} strokeWidth={3} />
-            </button>
-        )}
-      </div>
-
-      {/* 2. SORTING */}
-      <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Trier par</span>
-          </div>
-          <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full">
-            <button onClick={() => { haptics.soft(); setSortBy('popularity'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'popularity' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
-              <Flame size={14} /> Popularité
-            </button>
-            <button onClick={() => { haptics.soft(); setSortBy('date'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'date' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
-              <Calendar size={14} /> Date
-            </button>
-            <button onClick={() => { haptics.soft(); setSortBy('alpha'); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === 'alpha' ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}>
-              <ArrowUpAZ size={14} /> Titre
-            </button>
-          </div>
-      </div>
-
-      {/* 3. STREAMING PROVIDERS */}
-      <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Streaming</span>
-              <span className="text-[8px] font-bold text-stone-300 uppercase tracking-widest">FRANCE</span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6">
-              {PROVIDERS.map(p => {
-                  const isActive = selectedProviders.includes(p.id);
-                  return (
-                      <button key={p.id} onClick={() => toggleProvider(p.id)} className={`flex items-center gap-2 p-1.5 pr-4 rounded-2xl border-2 transition-all shrink-0 ${isActive ? 'bg-charcoal border-charcoal text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}>
-                          <div className="w-8 h-8 rounded-xl bg-stone-100 overflow-hidden shadow-sm flex items-center justify-center">
-                            <img src={p.logo} alt={p.name} className="w-full h-full object-cover" />
-                          </div>
-                          <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
-                          {isActive && <Check size={12} strokeWidth={4} className="ml-1 text-forest" />}
-                      </button>
-                  );
-              })}
-          </div>
-      </div>
-
-      {/* 4. VIBE MATCHING */}
-      <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Vibe Matching</span>
-              {activeVibe && (
-                  <button onClick={() => { haptics.soft(); setActiveVibe(null); }} className="text-[9px] font-black text-forest uppercase tracking-widest underline underline-offset-2">Réinitialiser</button>
-              )}
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-6 px-6">
-              {VIBES.map(v => {
-                  const isActive = activeVibe === v.id;
-                  return (
-                      <button key={v.id} onClick={() => { haptics.soft(); setActiveVibe(isActive ? null : v.id); }} className={`flex items-center gap-2 px-5 py-3 rounded-full border-2 transition-all shrink-0 text-[10px] font-black uppercase tracking-widest ${isActive ? 'bg-forest border-forest text-white shadow-lg' : 'bg-white border-stone-100 text-stone-400'}`}>
-                          {v.icon}
-                          {v.label}
-                      </button>
-                  );
-              })}
-          </div>
-      </div>
-
-      {/* 5. HERO BANNER (RE-INTEGRATED) */}
-      {heroMovie && !isSearchActive && (
-         <div 
-            className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden shadow-2xl group cursor-pointer animate-[fadeIn_0.6s_ease-out] border border-white/5"
-            onClick={() => onSelectMovie(heroMovie.movie.id)}
-         >
-            <img src={`${TMDB_IMAGE_URL.replace('w780', 'original')}${heroMovie.movie.backdrop_path}`} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" />
-            <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/20 to-transparent" />
-            <div className="absolute bottom-0 left-0 p-8 w-full z-10">
-                <div className="flex items-center gap-3 mb-4">
-                    <span className="bg-forest text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-forest/20 flex items-center gap-1.5">
-                        <Sparkles size={10} fill="currentColor" /> Bitter Recommends
-                    </span>
-                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">Basé sur vos goûts</span>
-                </div>
-                <h3 className="text-3xl font-black text-white tracking-tighter leading-tight mb-4 line-clamp-2">{heroMovie.movie.title}</h3>
-                <button className="bg-white text-charcoal px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all">
-                    <Plus size={16} strokeWidth={3} /> Ajouter à ma liste
+        <div className="absolute inset-y-0 right-2 flex items-center gap-2">
+            {isSearchActive && (
+                <button 
+                  onClick={handleDeepSearch}
+                  className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform"
+                >
+                    {isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+                    Deep Info
                 </button>
-            </div>
-         </div>
-      )}
-
-      {/* 6. GRID RESULTS */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-1">
-            {!isSearchActive && !activeVibe && selectedProviders.length === 0 ? (
-                <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[65%]">
-                    {nextMonths.map((date, idx) => (
-                        <button key={idx} onClick={() => { haptics.soft(); setSelectedMonthIndex(idx); }} className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedMonthIndex === idx ? 'bg-stone-200 text-charcoal' : 'text-stone-300'}`}>{date.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}</button>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-[10px] font-black uppercase tracking-widest text-charcoal">{movies.length} résultats</div>
+            )}
+            {isSearchActive && !isAiSearching && (
+                <button onClick={() => { haptics.soft(); setSearchQuery(''); setAiResult(null); }} className="p-2 text-stone-300 hover:text-charcoal">
+                    <X size={20} strokeWidth={3} />
+                </button>
             )}
         </div>
+      </div>
 
+      {/* AI RESULT DISPLAY */}
+      {aiResult && (
+        <div className="bg-stone-900 text-white rounded-[2.5rem] p-8 space-y-6 animate-[slideUp_0.4s_ease-out] border border-bitter-lime/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-bitter-lime text-charcoal rounded-lg">
+                    <Sparkles size={16} fill="currentColor" />
+                </div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">Gemini Insight</h3>
+            </div>
+            <p 
+                className="text-sm font-medium leading-relaxed text-stone-300"
+                dangerouslySetInnerHTML={{ __html: aiResult.text }}
+            />
+            {aiResult.sources.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500">Sources vérifiées</p>
+                    <div className="flex flex-wrap gap-2">
+                        {aiResult.sources.map((source, i) => (
+                            <a 
+                                key={i} 
+                                href={source.uri} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-stone-300 transition-colors"
+                            >
+                                {source.title}
+                                <ExternalLink size={10} />
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+      )}
+
+      {/* 2. SORTING */}
+      {!aiResult && (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Trier par</span>
+            </div>
+            <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full">
+              {(['popularity', 'date', 'alpha'] as SortOption[]).map((opt) => (
+                <button 
+                  key={opt}
+                  onClick={() => { haptics.soft(); setSortBy(opt); }} 
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === opt ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}
+                >
+                  {opt === 'popularity' ? <Flame size={14} /> : opt === 'date' ? <Calendar size={14} /> : <ArrowUpAZ size={14} />} 
+                  {opt === 'popularity' ? 'Popularité' : opt === 'date' ? 'Date' : 'Titre'}
+                </button>
+              ))}
+            </div>
+        </div>
+      )}
+
+      {/* 3. GRID RESULTS */}
+      <div className="space-y-6">
         {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4">
                 <Loader2 size={40} className="animate-spin text-charcoal opacity-20" />
@@ -300,7 +246,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
                         <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl group-hover:-translate-y-1 transition-all duration-500">
                             <img src={`${TMDB_IMAGE_URL}${movie.poster_path}`} className="w-full h-full object-cover" alt={movie.title} loading="lazy" />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            <button onClick={(e) => handleQuickAdd(e, movie.id)} className="absolute bottom-4 right-4 w-12 h-12 bg-forest text-white rounded-full flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 active:scale-90">
+                            <button onClick={(e) => { e.stopPropagation(); haptics.medium(); onSelectMovie(movie.id); }} className="absolute bottom-4 right-4 w-12 h-12 bg-forest text-white rounded-full flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 active:scale-90">
                                 <Plus size={24} strokeWidth={3} />
                             </button>
                             {movie.vote_average > 0 && (
@@ -312,20 +258,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, userProfile 
                         </div>
                         <div className="px-1">
                             <h4 className="text-sm font-black text-charcoal leading-tight line-clamp-2 mb-1 group-hover:text-forest transition-colors">{movie.title}</h4>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-stone-300 tracking-tighter uppercase">{formatDate(movie.release_date)}</span>
-                            </div>
+                            <span className="text-[10px] font-bold text-stone-300 uppercase tracking-tighter">
+                                {movie.release_date?.split('-')[0] || 'N/A'}
+                            </span>
                         </div>
                     </div>
                 ))}
-            </div>
-        )}
-
-        {!loading && movies.length === 0 && (
-            <div className="py-32 text-center">
-                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200"><X size={32} /></div>
-                <h3 className="text-xl font-black text-charcoal mb-2">Aucun résultat</h3>
-                <p className="text-sm font-medium text-stone-400">Essayez de modifier vos filtres ou votre recherche pour la région FR.</p>
             </div>
         )}
       </div>

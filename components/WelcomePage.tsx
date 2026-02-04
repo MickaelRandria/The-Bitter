@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Film, UserPlus, Users, Heart, Sparkles, User, Check, Trash2, AlertTriangle, X, Tv, Ticket, Clapperboard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Film, UserPlus, Users, Heart, Sparkles, User, Check, Trash2, AlertTriangle, X, Tv, Ticket, Clapperboard, ChevronLeft } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 
@@ -74,13 +74,35 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
       onDeleteProfile(profileToDelete);
       setProfileToDelete(null);
       haptics.error();
+      // Si on a tout supprimé, on repasse sur landing ou création
+      if (existingProfiles.length <= 1) {
+        setIsManaging(false);
+        setStep('landing');
+      }
     }
+  };
+
+  const goBack = () => {
+    haptics.soft();
+    setStep('landing');
+    setIsManaging(false);
   };
 
   return (
     <div className="min-h-screen bg-cream flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
       <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand rounded-full blur-[140px] opacity-30 animate-blob" />
       <div className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 rounded-full blur-[120px] opacity-50 animate-blob" style={{ animationDelay: '-5s' }} />
+
+      {/* Navigation Retour Persistante */}
+      {step !== 'landing' && (
+        <button 
+          onClick={goBack} 
+          className="absolute top-8 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-full border border-sand shadow-sm active:scale-95 transition-all group"
+        >
+          <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-charcoal">Retour</span>
+        </button>
+      )}
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl mx-auto">
         
@@ -105,16 +127,16 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
             <div className="space-y-5 w-full max-w-sm sm:max-w-md">
               {existingProfiles.length > 0 ? (
                 <>
-                  <button onClick={() => setStep('select')} className="w-full flex items-center justify-between bg-charcoal text-white px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest shadow-2xl shadow-charcoal/20 active:scale-95 transition-all hover:bg-black group">
+                  <button onClick={() => { haptics.medium(); setStep('select'); }} className="w-full flex items-center justify-between bg-charcoal text-white px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest shadow-2xl shadow-charcoal/20 active:scale-95 transition-all hover:bg-black group">
                     <div className="flex items-center gap-5"><Users size={22} strokeWidth={2} /> Mes Profils</div>
                     <ArrowRight size={22} className="group-hover:translate-x-2 transition-transform duration-300" />
                   </button>
-                  <button onClick={() => setStep('create')} className="w-full flex items-center justify-center gap-5 bg-white border border-sand text-charcoal px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all hover:bg-sand shadow-sm">
+                  <button onClick={() => { haptics.medium(); setStep('create'); }} className="w-full flex items-center justify-center gap-5 bg-white border border-sand text-charcoal px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all hover:bg-sand shadow-sm">
                     <UserPlus size={22} strokeWidth={2} /> Nouveau Compte
                   </button>
                 </>
               ) : (
-                <button onClick={() => setStep('create')} className="w-full flex items-center justify-between bg-charcoal text-white px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest shadow-2xl shadow-charcoal/20 active:scale-95 transition-all hover:bg-forest group">
+                <button onClick={() => { haptics.medium(); setStep('create'); }} className="w-full flex items-center justify-between bg-charcoal text-white px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest shadow-2xl shadow-charcoal/20 active:scale-95 transition-all hover:bg-forest group">
                   <div className="flex items-center gap-5">Commencer l'aventure</div>
                   <ArrowRight size={22} className="group-hover:translate-x-2 transition-transform duration-300" />
                 </button>
@@ -137,38 +159,59 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
                 )}
             </div>
 
-            <div className="grid gap-6 max-h-[60vh] overflow-y-auto no-scrollbar px-4 pt-4 pb-12 -mx-4">
-              {sortedProfiles.map(p => {
-                const isLast = p.id === lastProfileId;
-                return (
-                  <button key={p.id} onClick={() => !isManaging && onSelectProfile(p.id)} disabled={isManaging} className={`relative flex items-center gap-6 p-6 rounded-[2.5rem] transition-all text-left group w-full ${isLast && !isManaging ? 'bg-white border-2 border-forest/15 shadow-2xl shadow-forest/10 active:scale-[0.98]' : 'bg-white border border-sand shadow-lg shadow-black/[0.02]'} ${!isManaging ? 'hover:border-forest/30 hover:shadow-xl active:scale-[0.98]' : 'opacity-100 cursor-default'}`}>
-                    <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast && !isManaging ? 'bg-forest text-white' : 'bg-sand text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}>
-                      {p.firstName[0]}{p.lastName[0]}
+            {existingProfiles.length > 0 ? (
+              <div className="grid gap-6 max-h-[60vh] overflow-y-auto no-scrollbar px-4 pt-4 pb-12 -mx-4">
+                {sortedProfiles.map(p => {
+                  const isLast = p.id === lastProfileId;
+                  return (
+                    <div 
+                      key={p.id} 
+                      onClick={() => !isManaging && onSelectProfile(p.id)} 
+                      role={!isManaging ? "button" : undefined}
+                      className={`relative flex items-center gap-6 p-6 rounded-[2.5rem] transition-all text-left group w-full ${isLast && !isManaging ? 'bg-white border-2 border-forest/15 shadow-2xl shadow-forest/10 active:scale-[0.98]' : 'bg-white border border-sand shadow-lg shadow-black/[0.02]'} ${!isManaging ? 'hover:border-forest/30 hover:shadow-xl active:scale-[0.98] cursor-pointer' : 'opacity-100 cursor-default'}`}
+                    >
+                      <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast && !isManaging ? 'bg-forest text-white' : 'bg-sand text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}>
+                        {p.firstName[0]}{p.lastName[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-xl text-charcoal tracking-tight group-hover:text-forest transition-colors truncate">{p.firstName} {p.lastName}</p>
+                        <p className="text-[11px] font-black uppercase text-stone-400 tracking-[0.1em] mt-1">{p.movies.length} FILMS</p>
+                      </div>
+                      {isManaging && (
+                          <button 
+                              type="button"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                e.preventDefault(); 
+                                haptics.medium(); 
+                                setProfileToDelete(p.id); 
+                              }} 
+                              className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100 z-20"
+                          >
+                              <Trash2 size={20} strokeWidth={2.5} />
+                          </button>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-xl text-charcoal tracking-tight group-hover:text-forest transition-colors truncate">{p.firstName} {p.lastName}</p>
-                      <p className="text-[11px] font-black uppercase text-stone-400 tracking-[0.1em] mt-1">{p.movies.length} FILMS</p>
-                    </div>
-                    {isManaging && (
-                        <div onClick={(e) => { e.stopPropagation(); haptics.medium(); setProfileToDelete(p.id); }} className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100">
-                            <Trash2 size={20} strokeWidth={2.5} />
-                        </div>
-                    )}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-20 flex flex-col items-center text-center animate-[fadeIn_0.5s_ease-out]">
+                  <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200">
+                      <Users size={32} />
+                  </div>
+                  <h3 className="text-xl font-black text-charcoal mb-2">Aucun profil trouvé</h3>
+                  <p className="text-stone-400 text-sm max-w-[240px] mb-10 leading-relaxed">Commencez votre héritage cinématographique en créant votre premier compte.</p>
+                  <button onClick={() => { haptics.medium(); setStep('create'); }} className="bg-charcoal text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-3 active:scale-95 transition-all">
+                      <UserPlus size={16} /> Créer un profil
                   </button>
-                );
-              })}
-            </div>
-            {!isManaging && (
-                <button onClick={() => setStep('landing')} className="mt-6 flex items-center gap-3 text-stone-300 font-black text-[11px] uppercase tracking-widest hover:text-charcoal transition-all group mx-auto">
-                <div className="p-2 bg-stone-50 rounded-full group-hover:bg-sand transition-colors"><ArrowRight size={14} className="rotate-180 group-hover:-translate-x-1 transition-transform" /></div>
-                Retour
-                </button>
+              </div>
             )}
           </div>
         )}
 
         {step === 'create' && (
-          <form onSubmit={handleSubmit} className="w-full animate-[slideUp_0.5s_ease-out] pb-20 no-scrollbar max-h-[90vh] overflow-y-auto pr-2">
+          <form onSubmit={handleSubmit} className="w-full animate-[slideUp_0.5s_ease-out] pb-20 no-scrollbar max-h-[80vh] overflow-y-auto pr-2 mt-12">
             <div className="flex items-center gap-5 mb-10">
                <div className="p-5 bg-forest text-white rounded-[1.5rem] shadow-xl shadow-forest/20"><Sparkles size={32} /></div>
                <div>
@@ -266,9 +309,6 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
             <button type="submit" className="w-full bg-charcoal text-white py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-xl mt-12 active:scale-95 transition-all hover:bg-forest">
               Établir mon profil
             </button>
-            <button type="button" onClick={() => setStep('landing')} className="w-full mt-6 text-stone-300 font-black text-[10px] uppercase tracking-widest hover:text-charcoal transition-colors text-center">
-                Retour
-            </button>
           </form>
         )}
       </div>
@@ -278,7 +318,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
       </div>
 
       {profileToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-6">
               <div className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={() => setProfileToDelete(null)} />
               <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl relative z-10 w-full max-w-sm text-center animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)]">
                   <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
@@ -289,10 +329,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
                       Cette action supprimera définitivement le profil et tout son historique. C'est irréversible.
                   </p>
                   <div className="flex flex-col gap-3">
-                      <button onClick={confirmDelete} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-red-600 transition-all active:scale-95">
+                      <button 
+                        type="button"
+                        onClick={confirmDelete} 
+                        className="w-full bg-red-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-red-600 transition-all active:scale-95"
+                      >
                           Supprimer définitivement
                       </button>
-                      <button onClick={() => setProfileToDelete(null)} className="w-full bg-stone-100 text-stone-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-all">
+                      <button 
+                        type="button"
+                        onClick={() => setProfileToDelete(null)} 
+                        className="w-full bg-stone-100 text-stone-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-all"
+                      >
                           Annuler
                       </button>
                   </div>
