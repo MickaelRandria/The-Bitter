@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Send, Loader2, X, Film, Search, BrainCircuit, MessageSquareText } from 'lucide-react';
+import { Sparkles, Send, Loader2, X, BrainCircuit } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { callCineAssistant } from '../services/ai';
@@ -18,7 +18,7 @@ interface Message {
   content: string;
 }
 
-const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProfile, onAddToWatchlist }) => {
+const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProfile }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,28 +28,25 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
     "Quoi regarder ce soir ?",
     "Analyse mes goûts",
     "Un film comme mon dernier vu ?",
-    "Nouveautés sur Netflix FR ?"
+    "Plateformes streaming FR ?"
   ];
 
-  // Auto-scroll
+  // Auto-scroll constant
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
 
-  // Initialisation sécurisée pour éviter le crash mobile
+  // Initialisation stable du message de bienvenue
   useEffect(() => {
-    let isMounted = true;
     if (isOpen && messages.length === 0) {
-      const welcome = {
+      setMessages([{
         id: 'welcome',
-        role: 'assistant' as const,
-        content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je connais ton profil <b>${userProfile.role || 'Analyste'}</b>. On regarde quoi ?`
-      };
-      if (isMounted) setMessages([welcome]);
+        role: 'assistant',
+        content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je connais ton profil <b>${userProfile.role || 'Analyste'}</b>. De quoi veux-tu discuter ?`
+      }]);
     }
-    return () => { isMounted = false; };
   }, [isOpen]);
 
   const handleSend = async (text: string) => {
@@ -80,7 +77,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-6">
-      <div className="absolute inset-0 bg-charcoal/40 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
+      <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
       
       <div className="relative bg-cream w-full sm:max-w-xl sm:rounded-[2.5rem] rounded-t-[3rem] shadow-2xl flex flex-col h-[85vh] sm:h-[650px] animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-white/20">
         
@@ -120,7 +117,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
             <div className="flex justify-start">
               <div className="bg-white border border-sand p-4 rounded-[1.8rem] rounded-tl-none flex items-center gap-3 shadow-sm">
                 <Loader2 size={16} className="animate-spin text-forest" />
-                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">Consultation...</span>
+                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">Réflexion...</span>
               </div>
             </div>
           )}
