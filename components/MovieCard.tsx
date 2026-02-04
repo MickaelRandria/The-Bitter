@@ -33,6 +33,7 @@ const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, val
   );
 };
 
+// Fix the component completion and add missing default export
 const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -65,9 +66,20 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
         </span>
         
         {!isWatchlist ? (
-           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border border-current/20 transition-colors duration-200 ${hasPoster ? 'bg-black/60' : 'bg-stone-50'}`}>
-             <Star size={12} fill="currentColor" className={hasPoster ? 'text-white' : 'text-charcoal'} />
-             <span className="text-xs font-black">{globalRating}</span>
+           <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-current/10 transition-all duration-200 ${hasPoster ? 'bg-black/70 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50'}`}>
+             {movie.tmdbRating && (
+               <>
+                 <div className="flex items-center gap-1">
+                   <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300'}`}>TMDB</span>
+                   <span className={`text-xs font-black ${hasPoster ? 'text-white' : 'text-charcoal'}`}>{movie.tmdbRating}</span>
+                 </div>
+                 <div className={`w-px h-3 ${hasPoster ? 'bg-white/10' : 'bg-stone-200'}`} />
+               </>
+             )}
+             <div className="flex items-center gap-1.5">
+               <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+               <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
+             </div>
            </div>
         ) : (
           <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-charcoal shadow-lg border border-sand active:scale-90 transition-transform duration-150">
@@ -135,16 +147,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
       </div>
 
       {!isExpanded && (
-        <div className="absolute bottom-8 right-8 opacity-20 group-hover:translate-y-1 transition-[transform,opacity] duration-200">
-            <ChevronDown size={20} strokeWidth={3} />
+        <div className="absolute bottom-8 right-8 opacity-20 group-hover:translate-y-1 transition-all duration-300">
+           <ChevronDown size={24} />
         </div>
       )}
     </div>
   );
-}, (prev, next) => {
-  return prev.movie.id === next.movie.id && 
-         prev.movie.title === next.movie.title &&
-         prev.index === next.index;
 });
 
 export default MovieCard;
