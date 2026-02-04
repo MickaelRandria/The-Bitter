@@ -21,7 +21,7 @@ const cleanAIResponse = (text: string): string => {
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
     // Utilisation de process.env.API_KEY injecté par l'environnement
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY || "" });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
@@ -48,14 +48,14 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY|| "" });
     
     const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
     const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films vus: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
     const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter" (v0.71). 
 Ton ton est expert et piquant. Tutoie l'utilisateur. 
-RÈGLES : Pas d'astérisques. Titres en <b>. 
+RÈGLES : Pas d'astérisques. Titres en gras <b>. 
 Vérifie le streaming via Google Search. Max 100 mots.
 ${context}`;
 
