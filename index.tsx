@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Polyfill pour process.env pour éviter les ReferenceError sur mobile
+// Polyfill pour process.env sécurisé : on ne remplace que si c'est vide
 if (typeof window !== 'undefined') {
   (window as any).process = (window as any).process || {};
   (window as any).process.env = (window as any).process.env || {};

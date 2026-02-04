@@ -12,33 +12,30 @@ const cleanAIResponse = (text: string): string => {
 };
 
 const getAIInstance = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING");
-  }
-  return new GoogleGenAI({ apiKey });
+  // On utilise directement process.env.API_KEY injecté par le système
+  return new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 };
 
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
     const ai = getAIInstance();
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Expert ciné. Balises <b> obligatoires pour titres. Pas d'astérisques."
+        systemInstruction: "Tu es un expert ciné. Réponds en utilisant <b>titre</b> pour les films. Pas d'astérisques."
       },
     });
 
-    const text = cleanAIResponse(response.text || "Aucune donnée.");
+    const text = cleanAIResponse(response.text || "Aucune donnée trouvée.");
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = chunks.filter((c: any) => c.web).map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
 
     return { text, sources };
   } catch (error) {
     console.error("DeepSearch Error:", error);
-    return { text: "Recherche indisponible.", sources: [] };
+    return { text: "Recherche temporairement indisponible.", sources: [] };
   }
 };
 
@@ -54,8 +51,12 @@ export const callCineAssistant = async (
     const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films récents: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
     const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". Tu parles à ${userProfile.firstName}.
-Ton ton est piquant et expert. Tutoie l'utilisateur.
-RÈGLES : Pas d'astérisques (**). Utilise <b>titre</b> pour les films. Max 100 mots.
+Ton ton est piquant, expert et passionné. Tutoie l'utilisateur.
+RÈGLES STRICTES : 
+1. JAMAIS d'astérisques (**). 
+2. Utilise <b>titre</b> pour les films. 
+3. Utilise Google Search pour vérifier les plateformes streaming en France.
+4. Max 100 mots.
 ${context}`;
 
     const formattedContents = [
@@ -67,7 +68,7 @@ ${context}`;
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: formattedContents as any,
       config: {
         systemInstruction,
@@ -76,10 +77,9 @@ ${context}`;
       },
     });
 
-    return cleanAIResponse(response.text || "Erreur de génération.");
+    return cleanAIResponse(response.text || "Je n'ai pas pu analyser ta demande.");
   } catch (error: any) {
     console.error("CineAssistant Fail:", error);
-    if (error.message === "API_KEY_MISSING") return "Configuration requise : La clé API est absente du serveur.";
-    return "Ma pellicule a brûlé... Un problème technique empêche la connexion à l'IA.";
+    return "Désolé, ma pellicule a brûlé... Peux-tu reformuler ou réessayer dans quelques secondes ?";
   }
 };

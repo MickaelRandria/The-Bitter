@@ -79,7 +79,6 @@ const App: React.FC = () => {
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
-  // Effect pour forcer la calibration sur les nouveaux profils qui n'en ont pas
   useEffect(() => {
     if (activeProfile && !showWelcome && !activeProfile.isOnboarded) {
       setShowCalibration(true);
@@ -101,7 +100,6 @@ const App: React.FC = () => {
       };
     }));
     setShowCalibration(false);
-    // On envoie vers le Deck pour commencer à noter des films
     setViewMode('Deck');
     haptics.success();
   };
@@ -122,8 +120,6 @@ const App: React.FC = () => {
     setEditingMovie(null);
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
-
-    // Si on était dans le Deck, on déclenche l'avancement automatique
     if (viewMode === 'Deck') {
       setDeckAdvanceTrigger(prev => prev + 1);
     }
@@ -174,7 +170,7 @@ const App: React.FC = () => {
                 streamingPlatforms: sp,
                 movies: [], 
                 createdAt: Date.now(),
-                isOnboarded: false // Force l'onboarding au premier passage
+                isOnboarded: false 
               };
               setProfiles(p => [...p, newP]);
               setActiveProfileId(newP.id);
@@ -313,14 +309,14 @@ const App: React.FC = () => {
       {!showWelcome && activeProfile && (
         <button 
           onClick={() => { haptics.medium(); setShowCineAssistant(true); }}
-          className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+          className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group overflow-hidden"
         >
           <Sparkles size={24} fill="currentColor" className="group-hover:rotate-12 transition-transform" />
           <div className="absolute -top-1 -right-1 bg-bitter-lime text-charcoal text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm">AI</div>
         </button>
       )}
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
         {isModalOpen && (
           <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} />
         )}

@@ -76,8 +76,8 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
                </>
              )}
              <div className="flex items-center gap-1.5">
-               <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
-               <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
+               <Star size={12} fill="#D9FF00" className="text-[#D9FF00]" />
+               <span className="text-xs font-black text-[#D9FF00]">{globalRating}</span>
              </div>
            </div>
         ) : (
