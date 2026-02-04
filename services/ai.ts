@@ -8,37 +8,36 @@ export interface AISearchResult {
 }
 
 const cleanAIResponse = (text: string): string => {
-  // Regex plus complète pour nettoyer TOUT le markdown restant
+  // Regex robuste pour supprimer les artefacts Markdown sur mobile
   return text
-    .replace(/\*\*\*/g, '')
-    .replace(/\*\*/g, '')
-    .replace(/\*/g, '')
-    .replace(/###/g, '')
-    .replace(/##/g, '')
-    .replace(/#/g, '')
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/#{1,6}\s?/g, "")
+    .replace(/`{1,3}.*?`{1,3}/g, "")
+    .replace(/>\s?/g, "")
     .trim();
 };
 
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    // Initialisation directe pour éviter les closures instables sur mobile
+    // Utilisation de process.env.API_KEY injecté par l'environnement
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert cinéma. Utilise des balises <b> pour les titres. Pas de markdown (*)."
+        systemInstruction: "Expert cinéma. Utilise <b>titre</b> pour les films. Pas de markdown."
       },
     });
 
-    const text = cleanAIResponse(response.text || "Aucune donnée trouvée.");
+    const text = cleanAIResponse(response.text || "Aucune information trouvée.");
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = chunks.filter((c: any) => c.web).map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
 
     return { text, sources };
   } catch (error: any) {
-    console.error("DEBUG IA - DeepSearch Fail:", error.message || error);
+    console.error("DeepSearch Error:", error.message);
     return { text: "Recherche temporairement indisponible.", sources: [] };
   }
 };
@@ -52,18 +51,15 @@ export const callCineAssistant = async (
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
     
     const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
-    const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films récents: ${watchedMovies.map(m => m.title).join(', ')}.`;
+    const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films vus: ${watchedMovies.map(m => m.title).join(', ')}.`;
 
-    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". Tu parles à ${userProfile.firstName}.
-Ton ton est piquant, expert et passionné. Tutoie l'utilisateur.
-RÈGLES STRICTES : 
-1. JAMAIS d'astérisques (*). 
-2. Utilise <b>titre</b> pour les films. 
-3. Utilise Google Search pour vérifier les plateformes streaming en France si besoin.
-4. Réponds en maximum 100 mots.
+    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter" (v0.71). 
+Ton ton est expert et piquant. Tutoie l'utilisateur. 
+RÈGLES : Pas d'astérisques. Titres en <b>. 
+Vérifie le streaming via Google Search. Max 100 mots.
 ${context}`;
 
-    // Le SDK attend 'model' pour les réponses de l'IA
+    // IMPORTANT : Transformation des rôles pour le SDK stable
     const formattedContents = [
       ...conversationHistory.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
@@ -73,7 +69,7 @@ ${context}`;
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest", // Passage au modèle stable de production
       contents: formattedContents as any,
       config: {
         systemInstruction,
@@ -82,14 +78,11 @@ ${context}`;
       },
     });
 
-    if (!response.text) throw new Error("Réponse IA vide");
+    if (!response.text) throw new Error("IA_EMPTY_RESPONSE");
 
     return cleanAIResponse(response.text);
   } catch (error: any) {
-    // Log crucial pour diagnostiquer le problème sur ton téléphone
-    console.error("DEBUG IA - CineAssistant Fail:", error.message || error);
-    
-    // Message d'erreur enrichi pour le test
-    return "Désolé, ma pellicule a brûlé... (Erreur technique détectée). Vérifie ta connexion ou réessaie dans quelques secondes.";
+    console.error("CRITICAL CineAssistant Error:", error.message);
+    return "Ma pellicule a brûlé... (v0.71) Un problème de connexion avec Google Gemini empêche l'IA de répondre. Vérifie ta connexion.";
   }
 };
