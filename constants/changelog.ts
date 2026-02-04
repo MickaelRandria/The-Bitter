@@ -19,7 +19,7 @@ export const RELEASE_HISTORY: Release[] = [
     date: '05 Février 2026',
     title: 'Focus & Clarté',
     changes: [
-      { type: 'style', text: 'Refonte UI : Nouveau système de notation multi-critères avec réglage par paliers (Steppers) pour plus de précision.' },
+      { type: 'style', text: 'Refonte UI & UX : Nouveau système de notation multi-critères avec réglage par paliers (Steppers) pour plus de précision.' },
       { type: 'feature', text: 'Onboarding optimisé : Choix du mode de visionnage (Cinéma, Streaming ou les deux) et sélection des plateformes favorites dès l\'inscription.' },
       { type: 'fix', text: 'Simplification : Suppression de la question "Film de chevet" au profit de données de visionnage plus utiles.' },
       { type: 'fix', text: 'Focus Qualité : Retrait temporaire du partage Instagram Stories, le rendu visuel actuel ne répondant pas à nos standards d\'exigence.' }
