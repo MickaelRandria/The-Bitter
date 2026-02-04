@@ -53,7 +53,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
       onClick={() => setIsExpanded(!isExpanded)}
       className={cardClasses}
       style={{
-        backgroundImage: hasPoster ? `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.9)), url(${movie.posterUrl})` : 'none',
+        backgroundImage: hasPoster ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.85)), url(${movie.posterUrl})` : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         willChange: 'transform, opacity'
@@ -65,10 +65,10 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
         </span>
         
         {!isWatchlist ? (
-           <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-current/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50'}`}>
+           <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-white/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50 border-stone-100'}`}>
              {movie.tmdbRating && (
                <>
-                 <div className="flex items-center gap-1">
+                 <div className="flex items-center gap-1.5">
                    <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300'}`}>TMDB</span>
                    <span className={`text-xs font-black ${hasPoster ? 'text-white' : 'text-charcoal'}`}>{movie.tmdbRating}</span>
                  </div>

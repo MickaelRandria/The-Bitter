@@ -31,21 +31,26 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
     "Nouveautés sur Netflix FR ?"
   ];
 
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
 
+  // Initialisation sécurisée pour éviter le crash mobile
   useEffect(() => {
+    let isMounted = true;
     if (isOpen && messages.length === 0) {
-      setMessages([{
+      const welcome = {
         id: 'welcome',
-        role: 'assistant',
-        content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je suis ton assistant personnel. Je connais tes <b>${userProfile.movies.length}</b> films et ton profil <b>${userProfile.role || 'Analyste'}</b>. Comment puis-je t'aider ?`
-      }]);
+        role: 'assistant' as const,
+        content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je connais ton profil <b>${userProfile.role || 'Analyste'}</b>. On regarde quoi ?`
+      };
+      if (isMounted) setMessages([welcome]);
     }
-  }, [isOpen, userProfile]);
+    return () => { isMounted = false; };
+  }, [isOpen]);
 
   const handleSend = async (text: string) => {
     const query = text.trim();
@@ -57,13 +62,18 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
     setInput('');
     setIsLoading(true);
 
-    const history = messages.map(m => ({ role: m.role, content: m.content }));
-    const responseText = await callCineAssistant(query, userProfile, history);
-    
-    const assistantMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: responseText };
-    setMessages(prev => [...prev, assistantMsg]);
-    setIsLoading(false);
-    haptics.medium();
+    try {
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const responseText = await callCineAssistant(query, userProfile, history);
+      
+      const assistantMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: responseText };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err) {
+      console.error("Chat Send Error:", err);
+    } finally {
+      setIsLoading(false);
+      haptics.medium();
+    }
   };
 
   if (!isOpen) return null;
@@ -110,7 +120,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
             <div className="flex justify-start">
               <div className="bg-white border border-sand p-4 rounded-[1.8rem] rounded-tl-none flex items-center gap-3 shadow-sm">
                 <Loader2 size={16} className="animate-spin text-forest" />
-                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">Consultation des archives...</span>
+                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">Consultation...</span>
               </div>
             </div>
           )}
@@ -118,7 +128,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
 
         {/* Footer / Input */}
         <div className="p-6 bg-white border-t border-sand shrink-0">
-          {messages.length < 3 && (
+          {messages.length < 3 && !isLoading && (
             <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-2 px-2">
               {quickQuestions.map((q, i) => (
                 <button key={i} onClick={() => handleSend(q)} className="whitespace-nowrap px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black uppercase tracking-widest text-stone-500 hover:bg-forest hover:text-white transition-all active:scale-95">
@@ -131,7 +141,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
           <div className="relative flex items-center">
             <input 
               type="text" 
-              placeholder="Demande-moi n'importe quoi..." 
+              placeholder="Pose-moi une question..." 
               className="w-full bg-stone-100 border-2 border-transparent focus:border-forest/20 p-5 pr-16 rounded-[2rem] font-black text-sm outline-none transition-all placeholder:text-stone-300"
               value={input}
               onChange={(e) => setInput(e.target.value)}
