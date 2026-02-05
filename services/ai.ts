@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile } from "../types";
+import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from "../constants";
 
 export interface AISearchResult {
   text: string;
@@ -8,32 +9,93 @@ export interface AISearchResult {
 }
 
 /**
- * Nettoie la réponse de l'IA pour supprimer le Markdown et formater les titres en HTML.
+ * 🔑 Récupère la clé API de façon robuste (dev + prod)
+ */
+const getGoogleAIKey = (): string => {
+  // 1. Essaie import.meta.env (Vite standard)
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_AI_KEY) {
+    return import.meta.env.VITE_GOOGLE_AI_KEY;
+  }
+  
+  // 2. Essaie process.env (fallback Node)
+  if (typeof process !== 'undefined' && process.env && process.env.VITE_GOOGLE_AI_KEY) {
+    return process.env.VITE_GOOGLE_AI_KEY;
+  }
+
+  // 3. Fallback Hardcoded (Provided in .env)
+  // Essential for environments where env vars injection fails
+  return 'AIzaSyC_djBFDJBClBvhjfYnqNciWxUGCHhgdYE';
+};
+
+/**
+ * ✅ Nettoyage SIMPLE : garde tout sauf les astérisques
  */
 const cleanAIResponse = (text: string): string => {
   return text
-    .replace(/(\*\*|__)(.*?)\1/g, "<b>$2</b>") // Conversion du gras Markdown en HTML
-    // .replace(/(\*|_)(.*?)\1/g, "$2")           // Suppression de l'italique
-    // .replace(/#{1,6}\s?/g, "")                // Suppression des headers
-    // .replace(/`{1,3}.*?`{1,3}/g, "")          // Suppression du code
-    // .replace(/>\s?/g, "")                     // Suppression des citations
-    // .replace(/\n{3,}/g, "\n\n")               // Normalisation des sauts de ligne
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")  // ** → <b>
+    .replace(/\*([^*]+)\*/g, "$1")              // * → supprime
     .trim();
 };
 
 /**
- * Recherche approfondie d'informations sur un film via Gemini 3 & Google Search.
+ * 🎬 Récupère les films Netflix disponibles en France via TMDB
+ */
+const getNetflixMovies = async (genre?: string, limit: number = 10): Promise<any[]> => {
+  try {
+    const genreParam = genre ? `&with_genres=${TMDB_GENRE_MAP[genre] || ''}` : '';
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&with_watch_providers=8${genreParam}&sort_by=popularity.desc&page=1`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    return (data.results || []).slice(0, limit).map((movie: any) => ({
+      id: movie.id,
+      title: movie.title,
+      year: movie.release_date?.split('-')[0] || 'N/A',
+      rating: movie.vote_average?.toFixed(1) || 'N/A',
+      overview: movie.overview || ''
+    }));
+  } catch (error) {
+    console.error("Error fetching Netflix movies:", error);
+    return [];
+  }
+};
+
+/**
+ * 🎯 Trouve des films similaires via TMDB
+ */
+const getSimilarMovies = async (tmdbId: number, limit: number = 5): Promise<any[]> => {
+  try {
+    const url = `${TMDB_BASE_URL}/movie/${tmdbId}/similar?api_key=${TMDB_API_KEY}&language=fr-FR&page=1`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    return (data.results || []).slice(0, limit).map((movie: any) => ({
+      id: movie.id,
+      title: movie.title,
+      year: movie.release_date?.split('-')[0] || 'N/A',
+      rating: movie.vote_average?.toFixed(1) || 'N/A'
+    }));
+  } catch (error) {
+    console.error("Error fetching similar movies:", error);
+    return [];
+  }
+};
+
+/**
+ * Recherche approfondie d'informations sur un film via Gemini + Google Search.
  */
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    // Utilisation de la clé configurée pour Vite/Vercel
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
+    const apiKey = getGoogleAIKey();
+    const ai = new GoogleGenAI({ apiKey });
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert cinéma. Réponds de manière concise. Utilise des balises <b> pour les titres de films. Pas de markdown."
+        systemInstruction: "Tu es un expert cinéma. Réponds naturellement. Utilise **titre** pour mettre en gras les films importants."
       },
     });
 
@@ -51,7 +113,7 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
 };
 
 /**
- * Assistant conversationnel expert utilisant le modèle stable Gemini 2.5 Flash Lite.
+ * 🎬 Assistant conversationnel enrichi avec TMDB
  */
 export const callCineAssistant = async (
   userQuestion: string,
@@ -59,22 +121,102 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    // Récupération dynamique de la clé pour éviter les closures vides
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_KEY });
+    const apiKey = getGoogleAIKey();
+    const ai = new GoogleGenAI({ apiKey });
     
-    const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 10);
-    const context = `Utilisateur: ${userProfile.firstName}, Profil: ${userProfile.role}. Films vus: ${watchedMovies.map(m => m.title).join(', ')}.`;
+    // Contexte utilisateur enrichi
+    const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 15);
+    const favoriteGenres = userProfile.favoriteGenres || [];
+    
+    // Calcul des stats de vibes
+    const vibeStats = watchedMovies.length > 0 ? {
+      cerebral: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.story || 5), 0) / watchedMovies.length).toFixed(1),
+      emotion: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.emotion || 5), 0) / watchedMovies.length).toFixed(1),
+      fun: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.fun || 5), 0) / watchedMovies.length).toFixed(1),
+      visuel: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.visual || 5), 0) / watchedMovies.length).toFixed(1),
+      tension: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.tension || 5), 0) / watchedMovies.length).toFixed(1)
+    } : null;
 
-    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter". 
-Ton ton est expert, passionné et piquant. Tutoie l'utilisateur.
+    // 🔥 ENRICHISSEMENT DYNAMIQUE selon la question
+    let enrichedContext = '';
+    const questionLower = userQuestion.toLowerCase();
+    
+    // Si mention de Netflix/streaming
+    if (questionLower.includes('netflix') || questionLower.includes('streaming') || questionLower.includes('regarder')) {
+      console.log("🎬 Fetching Netflix catalog...");
+      const netflixMovies = await getNetflixMovies(favoriteGenres[0], 8);
+      
+      if (netflixMovies.length > 0) {
+        enrichedContext += `\n\nFILMS NETFLIX FRANCE DISPONIBLES ACTUELLEMENT :\n`;
+        enrichedContext += netflixMovies.map(m => 
+          `- ${m.title} (${m.year}) - Note TMDB: ${m.rating}/10`
+        ).join('\n');
+      }
+    }
+    
+    // Si mention de similarité
+    if (questionLower.includes('comme') || questionLower.includes('similaire')) {
+      const lastMovie = watchedMovies[0];
+      if (lastMovie && lastMovie.tmdbId) {
+        console.log(`🎯 Finding movies similar to ${lastMovie.title}...`);
+        const similarMovies = await getSimilarMovies(lastMovie.tmdbId, 5);
+        
+        if (similarMovies.length > 0) {
+          enrichedContext += `\n\nFILMS SIMILAIRES À "${lastMovie.title}" :\n`;
+          enrichedContext += similarMovies.map(m => 
+            `- ${m.title} (${m.year}) - ${m.rating}/10`
+          ).join('\n');
+        }
+      }
+    }
+
+    // Construction du contexte
+    const userContext = `
+PROFIL DE ${userProfile.firstName.toUpperCase()} :
+- Rôle : ${userProfile.role || 'Analyste'}
+- Exigence : ${userProfile.severityIndex || 5}/10
+- Patience : ${userProfile.patienceLevel || 5}/10
+- Genres préférés : ${favoriteGenres.join(', ') || 'Non défini'}
+
+15 DERNIERS FILMS VUS :
+${watchedMovies.map((m, i) => {
+  const avgRating = ((m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4).toFixed(1);
+  return `${i + 1}. "${m.title}" (${m.year}) - ${m.genre} - Note: ${avgRating}/10${m.review ? ` - "${m.review}"` : ''}`;
+}).join('\n')}
+
+${vibeStats ? `STATISTIQUES VIBES (moyennes) :
+- Cérébral: ${vibeStats.cerebral}/10
+- Émotion: ${vibeStats.emotion}/10
+- Fun: ${vibeStats.fun}/10
+- Visuel: ${vibeStats.visuel}/10
+- Tension: ${vibeStats.tension}/10` : ''}
+
+${enrichedContext}
+`;
+
+    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter", expert cinéma passionné et légèrement piquant.
+
+STYLE DE RÉPONSE :
+- Parle NATURELLEMENT comme un vrai conseiller ciné
+- Tutoie l'utilisateur
+- Utilise **Titre du Film** pour mettre en gras les films importants
+- Utilise des émojis si ça fait sens (🎬 🔥 etc.)
+- Reste conversationnel et fluide
+
+TES OUTILS :
+- Base tes recommandations sur le PROFIL et l'HISTORIQUE de ${userProfile.firstName}
+- Utilise Google Search pour vérifier la dispo streaming EN FRANCE
+- Si tu recommandes, EXPLIQUE pourquoi ça match son profil
+- Cite des films PRÉCIS du catalogue Netflix/Prime si demandé
+
 RÈGLES :
-1. JAMAIS d'astérisques (*).
-2. Utilise <b> pour les noms de films.
-3. Utilise Google Search pour le streaming ou actus.
-4. Réponds en maximum 100 mots.
-${context}`;
+- Maximum 150 mots par réponse
+- Sois précis : cite des titres réels, pas des généralités
+- Si tu ne sais pas, dis-le honnêtement
 
-    // Formatage des rôles conforme au SDK (user/model)
+${userContext}`;
+
+    // Formatage des messages
     const formattedContents = [
       ...conversationHistory.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
@@ -84,12 +226,14 @@ ${context}`;
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-flash-lite-latest", // Passage au modèle stable Gemini 2.5 Flash Lite
+      model: "gemini-flash-lite-latest",
       contents: formattedContents as any,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
-        temperature: 0.7,
+        temperature: 0.9,
+        topP: 0.95,
+        topK: 40
       },
     });
 
@@ -98,6 +242,12 @@ ${context}`;
     return cleanAIResponse(response.text);
   } catch (error: any) {
     console.error("CRITICAL CineAssistant Error:", error.message);
-    return "Ma pellicule a brûlé... Une erreur technique de configuration empêche l'IA de répondre (Vérifiez la clé VITE_GOOGLE_AI_KEY).";
+    console.error("Error stack:", error.stack);
+    
+    if (error.message.includes("API key")) {
+      return "🔑 **Erreur de configuration**\n\nLa clé API Google AI n'est pas accessible. Vérifie que VITE_GOOGLE_AI_KEY est bien configurée dans les variables d'environnement Vercel avec les 3 environnements cochés (Production + Preview + Development).";
+    }
+    
+    return `Ma pellicule a brûlé... 🎬\n\n**Erreur technique:** ${error.message}\n\nRéessaye dans quelques secondes ou contacte le support si le problème persiste.`;
   }
 };
