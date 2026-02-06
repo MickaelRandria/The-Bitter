@@ -92,7 +92,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
           {movie.title}
         </h3>
         <div className={`flex items-center gap-3 uppercase tracking-widest text-[10px] font-black transition-colors duration-200 ${hasPoster ? 'text-white/60' : 'text-stone-400'}`}>
-            <span>{movie.year}</span>
+            <span>
+                {isWatchlist && movie.releaseDate 
+                ? new Date(movie.releaseDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+                : movie.year
+                }
+            </span>
             <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
             <span className="truncate max-w-[140px]">{movie.director}</span>
         </div>

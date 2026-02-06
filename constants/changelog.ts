@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.71',
+    date: '05 Février 2026',
+    title: 'Deep Discovery',
+    changes: [
+      { type: 'feature', text: 'Fiches Films Immersives : Cliquez sur une affiche pour accéder au casting, synopsis et plateformes avant d\'ajouter.' },
+      { type: 'style', text: 'Badges Contextuels : Repérez instantanément les films "Au Cinéma" ou sur vos plateformes dans l\'Explorateur.' },
+      { type: 'fix', text: 'Protocole Watchlist : Correction critique du bug empêchant l\'ajout dans la liste "À Voir".' },
+      { type: 'feature', text: 'Flux Unifié : Pré-sélection intelligente du statut (Vu/À voir) lors de la transition Découverte -> Collection.' }
+    ]
+  },
+  {
     version: 'v0.70 test',
     date: '04 Février 2026',
     title: 'Intelligence Épurée',

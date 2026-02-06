@@ -19,6 +19,7 @@ const AddMovieModal = lazy(() => import('./components/AddMovieModal'));
 const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const CineAssistant = lazy(() => import('./components/CineAssistant'));
+const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck';
@@ -53,6 +54,11 @@ const App: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
+  const [initialStatusForAdd, setInitialStatusForAdd] = useState<MovieStatus>('watched');
+  
+  // New State for Movie Details
+  const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
+  
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showConsent, setShowConsent] = useState(true);
@@ -109,10 +115,30 @@ const App: React.FC = () => {
     setProfiles(prev => prev.map(p => {
       if (p.id !== activeProfileId) return p;
       let updatedMovies = [...p.movies];
+      
+      // LOGIC: Check if movie has ratings to enforce 'watched' status
+      const hasRatings = data.ratings && (
+        data.ratings.story > 0 || 
+        data.ratings.visuals > 0 || 
+        data.ratings.acting > 0 || 
+        data.ratings.sound > 0
+      );
+
+      const determinedStatus: MovieStatus = hasRatings ? 'watched' : (data.status || 'watchlist');
+
       if (editingMovie) {
-        updatedMovies = updatedMovies.map(m => m.id === editingMovie.id ? { ...m, ...data } : m);
+        updatedMovies = updatedMovies.map(m => 
+          m.id === editingMovie.id 
+            ? { ...m, ...data, status: determinedStatus } 
+            : m
+        );
       } else {
-        const newMovie: Movie = { ...data, id: crypto.randomUUID(), dateAdded: Date.now() };
+        const newMovie: Movie = { 
+          ...data, 
+          id: crypto.randomUUID(), 
+          dateAdded: Date.now(),
+          status: determinedStatus
+        };
         updatedMovies = [newMovie, ...updatedMovies];
       }
       return { ...p, movies: updatedMovies };
@@ -229,7 +255,11 @@ const App: React.FC = () => {
           {viewMode === 'Analytics' ? (
             <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
           ) : viewMode === 'Discover' ? (
-            <DiscoverView onSelectMovie={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} userProfile={activeProfile} />
+            <DiscoverView 
+              onSelectMovie={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} 
+              onPreview={(id) => { setPreviewTmdbId(id); }}
+              userProfile={activeProfile} 
+            />
           ) : viewMode === 'Calendar' ? (
             <CalendarView movies={activeProfile?.movies || []} />
           ) : viewMode === 'Deck' ? (
@@ -254,7 +284,7 @@ const App: React.FC = () => {
                  <div className="space-y-10">
                     <div className="flex justify-center w-full">
                       <div className="bg-stone-100 p-1.5 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50">
-                          <button onClick={() => { haptics.soft(); setFeedTab('history'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>Historique</button>
+                          <button onClick={() => { haptics.soft(); setFeedTab('history'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>Vu</button>
                           <button onClick={() => { haptics.soft(); setFeedTab('queue'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>À voir</button>
                       </div>
                     </div>
@@ -272,7 +302,7 @@ const App: React.FC = () => {
 
                     <div className="flex items-center justify-between border-b border-sand pb-4">
                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">
-                          {feedTab === 'history' ? 'Ma Bibliothèque' : 'Watchlist'} ({filteredAndSortedMovies.length})
+                          {feedTab === 'history' ? 'Films Vus' : 'À Voir'} ({filteredAndSortedMovies.length})
                        </h2>
                        <div className="flex items-center gap-2">
                            <SlidersHorizontal size={12} className="text-stone-300" />
@@ -303,7 +333,7 @@ const App: React.FC = () => {
         </Suspense>
       </main>
 
-      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} />
+      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
 
       {/* Floating Action Button for AI Assistant */}
       {!showWelcome && activeProfile && (
@@ -318,8 +348,30 @@ const App: React.FC = () => {
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
         {isModalOpen && (
-          <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} />
+          <AddMovieModal 
+            isOpen={isModalOpen} 
+            onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} 
+            onSave={handleSaveMovie} 
+            initialData={editingMovie} 
+            tmdbIdToLoad={tmdbIdToLoad} 
+            initialStatus={initialStatusForAdd}
+          />
         )}
+        
+        {previewTmdbId && (
+          <MovieDetailModal 
+             tmdbId={previewTmdbId}
+             isOpen={!!previewTmdbId}
+             onClose={() => setPreviewTmdbId(null)}
+             onAction={(id, status) => {
+                 setPreviewTmdbId(null);
+                 setTmdbIdToLoad(id);
+                 setInitialStatusForAdd(status);
+                 setTimeout(() => setIsModalOpen(true), 100);
+             }}
+          />
+        )}
+
         {showChangelog && <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />}
         {showCineAssistant && activeProfile && (
           <CineAssistant 
@@ -328,6 +380,7 @@ const App: React.FC = () => {
             userProfile={activeProfile} 
             onAddToWatchlist={(id) => { 
               setTmdbIdToLoad(id); 
+              setInitialStatusForAdd('watchlist');
               setIsModalOpen(true); 
               setShowCineAssistant(false); 
             }}

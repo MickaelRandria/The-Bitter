@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Movie } from '../types';
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, Film, Star, X, Ticket, Calendar } from 'lucide-react';
@@ -94,10 +95,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
   const monthData = useMemo(() => {
     const daysMap: Record<number, CalendarItem[]> = {};
     let watchedCount = 0;
-    let releaseCount = 0;
     
-    movies.forEach(m => {
-        // Prioritize actual user-defined dates (both watched and watchlist)
+    // 🔥 FILTER: Only show 'watched' movies in the calendar
+    const watchedMovies = movies.filter(m => m.status === 'watched');
+    
+    watchedMovies.forEach(m => {
         if (m.dateWatched) {
              const d = new Date(m.dateWatched);
              if (d.getMonth() === month && d.getFullYear() === year) {
@@ -107,18 +109,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                  watchedCount++;
              }
         }
-        // Fallback for watchlist items without a specific dateWatched (legacy behavior)
-        else if (m.status === 'watchlist' && m.releaseDate) {
-             const [rYear, rMonth, rDay] = m.releaseDate.split('-').map(Number);
-             if (rYear === year && (rMonth - 1) === month) {
-                 if (!daysMap[rDay]) daysMap[rDay] = [];
-                 daysMap[rDay].push({ movie: m, type: 'release' });
-                 releaseCount++;
-             }
-        }
     });
 
-    return { daysMap, watchedCount, releaseCount };
+    return { daysMap, watchedCount };
   }, [movies, month, year]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -136,12 +129,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                   <h2 className="text-sm font-black text-charcoal tracking-widest uppercase leading-none">{MONTHS[month]} {year}</h2>
                   <div className="flex items-center justify-center gap-2 text-[9px] font-bold text-stone-300 mt-1 uppercase tracking-widest">
                       <span>{monthData.watchedCount} Séances</span>
-                      {monthData.releaseCount > 0 && (
-                          <>
-                            <span>•</span>
-                            <span>{monthData.releaseCount} Sorties</span>
-                          </>
-                      )}
                   </div>
               </div>
               
@@ -170,7 +157,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                  const items = monthData.daysMap[day] || [];
                  const count = items.length;
                  const hasItems = count > 0;
-                 const displayItem = items.find(i => i.type === 'watched') || items[0];
+                 const displayItem = items[0];
                  const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
 
                  return (
@@ -194,7 +181,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                                     <img 
                                         src={displayItem.movie.posterUrl} 
                                         alt="" 
-                                        className={`w-full h-full object-cover rounded-xl shadow-md ${displayItem.type === 'release' ? 'grayscale opacity-70' : ''}`}
+                                        className="w-full h-full object-cover rounded-xl shadow-md"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-charcoal text-white rounded-xl shadow-md">

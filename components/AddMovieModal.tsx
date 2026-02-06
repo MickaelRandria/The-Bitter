@@ -11,6 +11,7 @@ interface AddMovieModalProps {
   onSave: (movie: MovieFormData) => void;
   initialData: Movie | null;
   tmdbIdToLoad?: number | null;
+  initialStatus?: MovieStatus;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -76,9 +77,9 @@ const RatingStepper: React.FC<{ label: string; value: number; onChange: (val: nu
   );
 };
 
-const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, initialData, tmdbIdToLoad }) => {
+const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, initialData, tmdbIdToLoad, initialStatus = 'watched' }) => {
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
-  const [mode, setMode] = useState<MovieStatus>('watched');
+  const [mode, setMode] = useState<MovieStatus>(initialStatus);
   const [isBitterMode, setIsBitterMode] = useState(false);
   const [globalRating, setGlobalRating] = useState(5);
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -98,14 +99,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
         setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
       } else if (tmdbIdToLoad) {
         handleSelectTMDBMovie(tmdbIdToLoad);
+        setMode(initialStatus); // Use passed status
       } else {
         skipSearchRef.current = false;
         setFormData({ ...INITIAL_FORM_STATE });
+        setMode(initialStatus); // Default to passed status
         setSearchResults([]);
         setShowResults(false);
       }
     }
-  }, [isOpen, initialData, tmdbIdToLoad]);
+  }, [isOpen, initialData, tmdbIdToLoad, initialStatus]);
 
   // Refined Debounce Logic
   useEffect(() => {
@@ -175,10 +178,20 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
   };
 
   const handleSubmit = () => {
-    const finalRatings = isBitterMode 
-      ? { story: formData.qualityMetrics?.scenario || 5, visuals: formData.qualityMetrics?.visual || 5, acting: formData.qualityMetrics?.acting || 5, sound: formData.qualityMetrics?.sound || 5 }
-      : { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating };
-    onSave({ ...formData, status: mode, ratings: finalRatings });
+    // Si on est en mode "À voir", on force les notes à 0 pour ne pas déclencher le passage automatique en "Vu"
+    const isWatchlist = mode === 'watchlist';
+
+    const finalRatings = isWatchlist
+      ? { story: 0, visuals: 0, acting: 0, sound: 0 }
+      : (isBitterMode 
+          ? { story: formData.qualityMetrics?.scenario || 5, visuals: formData.qualityMetrics?.visual || 5, acting: formData.qualityMetrics?.acting || 5, sound: formData.qualityMetrics?.sound || 5 }
+          : { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating }
+        );
+
+    // On efface la date de visionnage si c'est pour la watchlist
+    const finalDateWatched = isWatchlist ? undefined : formData.dateWatched;
+
+    onSave({ ...formData, status: mode, ratings: finalRatings, dateWatched: finalDateWatched });
     haptics.success();
   };
 
