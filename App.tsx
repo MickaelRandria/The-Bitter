@@ -9,7 +9,9 @@ import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
-import { SharedSpace } from './services/supabase';
+import { SharedSpace, supabase } from './services/supabase';
+import { Session } from '@supabase/supabase-js';
+import AuthScreen from './components/AuthScreen';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -44,6 +46,10 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: {
 ));
 
 const App: React.FC = () => {
+  // SUPABASE SESSION STATE
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [showWelcome, setShowWelcome] = useState(true);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
@@ -72,6 +78,26 @@ const App: React.FC = () => {
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
+
+  // --- AUTH CHECK EFFECT ---
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setAuthLoading(false);
+      });
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+      });
+
+      return () => subscription.unsubscribe();
+    } else {
+        setAuthLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -186,6 +212,28 @@ const App: React.FC = () => {
     setViewMode('Feed');
   };
 
+  const handleSignOut = async () => {
+    haptics.medium();
+    await supabase?.auth.signOut();
+  };
+
+  // --- RENDER GATES ---
+
+  // 1. Loading State
+  if (authLoading) {
+      return (
+        <div className="min-h-screen bg-cream flex items-center justify-center">
+             <Loader2 size={32} className="animate-spin text-forest" />
+        </div>
+      );
+  }
+
+  // 2. Auth Gate
+  if (!session) {
+      return <AuthScreen />;
+  }
+
+  // 3. Main App Flow (Profile Selection)
   if (showWelcome) return (
     <div className="relative min-h-screen">
       <WelcomePage 
@@ -262,6 +310,9 @@ const App: React.FC = () => {
             </button>
             <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
               <User size={20} />
+            </button>
+            <button onClick={handleSignOut} className="w-10 h-10 rounded-2xl bg-stone-100 border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 text-stone-400">
+              <LogOut size={20} />
             </button>
           </div>
         </div>
