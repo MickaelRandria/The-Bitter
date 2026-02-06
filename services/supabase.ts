@@ -57,7 +57,7 @@ export interface SharedMovie {
 // ===============================================
 
 /**
- * Crée un nouvel espace partagé (Version Blindée RLS)
+ * Crée un nouvel espace partagé (Version Blindée RLS via RPC)
  */
 export async function createSharedSpace(
   name: string,
@@ -66,47 +66,20 @@ export async function createSharedSpace(
 ): Promise<SharedSpace | null> {
   if (!supabase) return null;
 
-  // 1. Sécurité : Si l'ID n'est pas passé en argument, on le récupère via Auth
-  let finalUserId = userId;
-  if (!finalUserId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    finalUserId = user?.id;
-  }
-
-  // Si toujours pas d'ID, stop.
-  if (!finalUserId) {
-    console.error("🚨 Création impossible : Utilisateur non connecté.");
-    throw new Error("User must be logged in to create a space");
-  }
-
-  // 2. Insert avec l'ID garanti
-  const { data, error } = await supabase
-    .from('shared_spaces')
-    .insert({
-      name,
-      description,
-      created_by: finalUserId
-    })
-    .select()
-    .single();
+  // Appel de la fonction SQL sécurisée
+  const { data, error } = await supabase.rpc('create_space_v2', {
+    _name: name,
+    _description: description || ''
+  });
 
   if (error) {
-    console.error('Error creating space:', error);
+    console.error('Error creating space (RPC):', error);
     throw error;
   }
 
-  // 3. Auto-join du créateur
-  if (data) {
-    const { error: memberError } = await supabase.from('space_members').insert({
-      space_id: data.id,
-      profile_id: finalUserId,
-      role: 'owner'
-    });
-    
-    if (memberError) console.error('Error adding owner:', memberError);
-  }
-
-  return data;
+  // Supabase RPC retourne parfois les données directement, parfois dans un tableau
+  // On s'assure de renvoyer l'objet propre
+  return data as SharedSpace;
 }
 
 /**
