@@ -35,6 +35,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joinSuccess, setJoinSuccess] = useState(false);
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -78,15 +79,37 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     setLoading(true);
     setError(null);
     
-    const result = await joinSpaceByCode(inviteCode, userId);
-    
-    if (result.success) {
-      haptics.success();
-      await loadSpaces();
-      setShowJoinForm(false);
-      setInviteCode('');
-    } else {
-      setError(result.error || 'Erreur inconnue');
+    try {
+        const result = await joinSpaceByCode(inviteCode, userId);
+        
+        if (result.success) {
+          // 1. Feedback Visuel
+          haptics.success();
+          setJoinSuccess(true);
+
+          // 2. Refresh de la liste
+          await loadSpaces();
+          
+          // 3. UX: Petit délai pour voir le succès puis fermeture/navigation
+          setTimeout(() => {
+              setJoinSuccess(false);
+              setShowJoinForm(false);
+              setInviteCode('');
+              
+              // Si on a l'objet space, on le sélectionne directement (ce qui fermera la modale via App.tsx si configuré ainsi)
+              // Sinon on ferme juste la modale
+              if (result.space) {
+                  onSelectSpace(result.space);
+              } else {
+                  onClose();
+              }
+          }, 800);
+        } else {
+          haptics.error();
+          setError(result.error || 'Code invalide ou erreur inconnue');
+        }
+    } catch (err) {
+        setError("Erreur de connexion");
     }
     
     setLoading(false);
@@ -328,14 +351,22 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                       </button>
                       <button
                         onClick={handleJoinSpace}
-                        disabled={loading || inviteCode.length !== 6}
-                        className="flex-[2] bg-forest text-white py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg shadow-forest/20 flex items-center justify-center gap-2"
+                        disabled={loading || inviteCode.length !== 6 || joinSuccess}
+                        className={`flex-[2] py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg flex items-center justify-center gap-2 transition-all ${
+                            joinSuccess 
+                            ? 'bg-bitter-lime text-charcoal scale-105' 
+                            : 'bg-forest text-white shadow-forest/20'
+                        }`}
                       >
                         {loading && <Loader2 size={14} className="animate-spin" />}
-                        {loading ? 'Vérification...' : 'Rejoindre'}
+                        {joinSuccess ? (
+                            <>Rejoint ! <Check size={16} strokeWidth={3} /></>
+                        ) : (
+                            loading ? 'Vérification...' : 'Rejoindre'
+                        )}
                       </button>
                     </div>
-                    {error && <p className="text-center text-xs text-red-500 font-bold mt-4">{error}</p>}
+                    {error && <p className="text-center text-xs text-red-500 font-bold mt-4 animate-[shake_0.4s_ease-in-out]">{error}</p>}
                   </div>
                 )}
               </div>
