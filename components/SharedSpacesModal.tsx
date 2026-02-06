@@ -53,16 +53,18 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     setLoading(true);
     setError(null);
     
-    const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
-    
-    if (space) {
-      haptics.success();
-      await loadSpaces();
-      setShowCreateForm(false);
-      setNewSpaceName('');
-      setNewSpaceDesc('');
-    } else {
-      setError('Erreur lors de la création. Vérifiez votre connexion.');
+    try {
+      const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
+      
+      if (space) {
+        haptics.success();
+        await loadSpaces();
+        setShowCreateForm(false);
+        setNewSpaceName('');
+        setNewSpaceDesc('');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Erreur lors de la création.');
     }
     
     setLoading(false);

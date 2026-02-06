@@ -57,7 +57,7 @@ export interface SharedMovie {
 // ===============================================
 
 /**
- * Crée un nouvel espace partagé
+ * Crée un nouvel espace partagé (Version Blindée)
  */
 export async function createSharedSpace(
   name: string,
@@ -66,28 +66,44 @@ export async function createSharedSpace(
 ): Promise<SharedSpace | null> {
   if (!supabase) return null;
 
+  // 1. Sécurité : Si l'ID n'est pas passé en argument, on le cherche nous-mêmes
+  let finalUserId = userId;
+  if (!finalUserId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    finalUserId = user?.id;
+  }
+
+  // Si toujours pas d'ID, c'est que l'utilisateur n'est pas connecté
+  if (!finalUserId) {
+    console.error("🚨 Création impossible : Utilisateur non connecté.");
+    throw new Error("User must be logged in to create a space");
+  }
+
+  // 2. On envoie la requête avec l'ID garanti
   const { data, error } = await supabase
     .from('shared_spaces')
     .insert({
       name,
       description,
-      created_by: userId
+      created_by: finalUserId // C'est ici que ça bloquait avant
     })
     .select()
     .single();
 
   if (error) {
     console.error('Error creating space:', error);
-    return null;
+    throw error; // On renvoie l'erreur pour l'afficher à l'utilisateur
   }
 
-  // Ajouter le créateur comme membre owner
-  if (data && userId) {
-    await supabase.from('space_members').insert({
+  // 3. Ajouter le créateur comme membre owner (Auto-Join)
+  if (data) {
+    const { error: memberError } = await supabase.from('space_members').insert({
       space_id: data.id,
-      profile_id: userId,
+      profile_id: finalUserId,
       role: 'owner'
     });
+    
+    if (memberError) console.error('Error adding owner:', memberError);
   }
 
   return data;
