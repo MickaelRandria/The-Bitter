@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
@@ -9,6 +9,7 @@ import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
+import { SharedSpace } from './services/supabase';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -20,6 +21,7 @@ const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
+const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck';
@@ -58,6 +60,10 @@ const App: React.FC = () => {
   
   // New State for Movie Details
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
+  
+  // Collaborative Features
+  const [showSharedSpaces, setShowSharedSpaces] = useState(false);
+  const [activeSharedSpace, setActiveSharedSpace] = useState<SharedSpace | null>(null);
   
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -244,9 +250,20 @@ const App: React.FC = () => {
                 </button>
             </div>
           </div>
-          <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
-             <User size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => { 
+                haptics.soft(); 
+                setShowSharedSpaces(true); 
+              }} 
+              className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200"
+            >
+              <Users size={20} />
+            </button>
+            <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
+              <User size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -373,6 +390,22 @@ const App: React.FC = () => {
         )}
 
         {showChangelog && <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />}
+        
+        {showSharedSpaces && activeProfile && (
+          <SharedSpacesModal
+            isOpen={showSharedSpaces}
+            onClose={() => setShowSharedSpaces(false)}
+            userId={activeProfile.id}
+            onSelectSpace={(space) => {
+              setActiveSharedSpace(space);
+              setShowSharedSpaces(false);
+              // TODO: Naviguer vers la vue de l'espace partagé
+              // Pour l'instant on ferme juste
+              haptics.medium();
+            }}
+          />
+        )}
+
         {showCineAssistant && activeProfile && (
           <CineAssistant 
             isOpen={showCineAssistant} 
