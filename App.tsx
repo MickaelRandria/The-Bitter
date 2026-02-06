@@ -49,6 +49,9 @@ const App: React.FC = () => {
   // SUPABASE SESSION STATE
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // GUEST MODE STATE
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
   const [showWelcome, setShowWelcome] = useState(true);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -214,7 +217,12 @@ const App: React.FC = () => {
 
   const handleSignOut = async () => {
     haptics.medium();
-    await supabase?.auth.signOut();
+    if (session) {
+        await supabase?.auth.signOut();
+    } else {
+        // Mode invité : on réinitialise juste l'état guest
+        setIsGuestMode(false);
+    }
   };
 
   // --- RENDER GATES ---
@@ -228,9 +236,9 @@ const App: React.FC = () => {
       );
   }
 
-  // 2. Auth Gate
-  if (!session) {
-      return <AuthScreen />;
+  // 2. Auth Gate (Supabase OR Guest)
+  if (!session && !isGuestMode) {
+      return <AuthScreen onContinueAsGuest={() => setIsGuestMode(true)} />;
   }
 
   // 3. Main App Flow (Profile Selection)
@@ -302,9 +310,13 @@ const App: React.FC = () => {
             <button 
               onClick={() => { 
                 haptics.soft(); 
+                if (!session) {
+                    alert("Cette fonctionnalité nécessite un compte en ligne.");
+                    return;
+                }
                 setShowSharedSpaces(true); 
               }} 
-              className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200"
+              className={`w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'}`}
             >
               <Users size={20} />
             </button>

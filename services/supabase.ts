@@ -105,52 +105,30 @@ export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
 }
 
 /**
- * Rejoindre un espace via code d'invitation
+ * Rejoindre un espace via code d'invitation (Version RPC)
  */
 export async function joinSpaceByCode(
   inviteCode: string,
-  userId: string
+  userId?: string
 ): Promise<{ success: boolean; space?: SharedSpace; error?: string }> {
   if (!supabase) return { success: false, error: 'Supabase non configuré' };
 
-  // Vérifier que l'espace existe
-  const { data: space, error: spaceError } = await supabase
-    .from('shared_spaces')
-    .select('*')
-    .eq('invite_code', inviteCode.toUpperCase())
-    .single();
-
-  if (spaceError || !space) {
-    return { success: false, error: 'Code invalide' };
-  }
-
-  // Vérifier que l'utilisateur n'est pas déjà membre
-  const { data: existing } = await supabase
-    .from('space_members')
-    .select('id')
-    .eq('space_id', space.id)
-    .eq('profile_id', userId)
-    .single();
-
-  if (existing) {
-    return { success: false, error: 'Vous êtes déjà membre' };
-  }
-
-  // Ajouter l'utilisateur comme membre
-  const { error: memberError } = await supabase
-    .from('space_members')
-    .insert({
-      space_id: space.id,
-      profile_id: userId,
-      role: 'member'
+  try {
+    // On utilise la RPC pour contourner les restrictions RLS sur le SELECT global
+    const { data, error } = await supabase.rpc('join_space_by_code', {
+      _invite_code: inviteCode
     });
 
-  if (memberError) {
-    console.error('Error joining space:', memberError);
-    return { success: false, error: 'Erreur lors de l\'ajout' };
-  }
+    if (error) {
+        console.error('RPC Error:', error);
+        throw error;
+    }
 
-  return { success: true, space };
+    return { success: true, space: data as SharedSpace };
+  } catch (e: any) {
+    console.error('Error joining space:', e);
+    return { success: false, error: e.message || "Code invalide ou vous êtes déjà membre." };
+  }
 }
 
 // ===============================================

@@ -1,10 +1,14 @@
 
 import React, { useState } from 'react';
-import { Film, Heart, ArrowRight, Loader2, Mail, Lock, AlertTriangle, Sparkles } from 'lucide-react';
+import { Film, Heart, ArrowRight, Loader2, Mail, Lock, AlertTriangle, Sparkles, Ghost } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 
-const AuthScreen: React.FC = () => {
+interface AuthScreenProps {
+  onContinueAsGuest: () => void;
+}
+
+const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,85 +71,103 @@ const AuthScreen: React.FC = () => {
               The<br/><span className="text-forest">Bitter</span>
             </h1>
             <p className="text-stone-400 font-bold text-[10px] uppercase tracking-[0.3em] opacity-80">
-              Authentification Requise
+              Authentification
             </p>
         </div>
 
         {/* Auth Form */}
-        <form onSubmit={handleAuth} className="w-full space-y-5 animate-[fadeIn_0.5s_ease-out]">
-            
-            {/* Toggle Mode */}
-            <div className="flex bg-white p-1.5 rounded-2xl border border-sand mb-6 shadow-sm">
-                <button 
-                    type="button" 
-                    onClick={() => { setIsSignUp(false); setError(null); haptics.soft(); }} 
-                    className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isSignUp ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-stone-600'}`}
-                >
-                    Connexion
-                </button>
-                <button 
-                    type="button" 
-                    onClick={() => { setIsSignUp(true); setError(null); haptics.soft(); }} 
-                    className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isSignUp ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-stone-600'}`}
-                >
-                    Inscription
-                </button>
-            </div>
+        <div className="w-full space-y-5 animate-[fadeIn_0.5s_ease-out]">
+            <form onSubmit={handleAuth} className="space-y-5">
+                {/* Toggle Mode */}
+                <div className="flex bg-white p-1.5 rounded-2xl border border-sand mb-6 shadow-sm">
+                    <button 
+                        type="button" 
+                        onClick={() => { setIsSignUp(false); setError(null); haptics.soft(); }} 
+                        className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isSignUp ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                        Connexion
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => { setIsSignUp(true); setError(null); haptics.soft(); }} 
+                        className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isSignUp ? 'bg-charcoal text-white shadow-lg' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                        Inscription
+                    </button>
+                </div>
 
-            {/* Inputs */}
-            <div className="space-y-4">
-                <div className="group/field relative">
-                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors">
-                        <Mail size={20} strokeWidth={2.5} />
+                {/* Inputs */}
+                <div className="space-y-4">
+                    <div className="group/field relative">
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors">
+                            <Mail size={20} strokeWidth={2.5} />
+                        </div>
+                        <input 
+                            required 
+                            type="email" 
+                            placeholder="Email" 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-5 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300" 
+                        />
                     </div>
-                    <input 
-                        required 
-                        type="email" 
-                        placeholder="Email" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-5 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300" 
-                    />
-                </div>
-                <div className="group/field relative">
-                     <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors">
-                        <Lock size={20} strokeWidth={2.5} />
+                    <div className="group/field relative">
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors">
+                            <Lock size={20} strokeWidth={2.5} />
+                        </div>
+                        <input 
+                            required 
+                            type="password" 
+                            placeholder="Mot de passe" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-5 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300" 
+                        />
                     </div>
-                    <input 
-                        required 
-                        type="password" 
-                        placeholder="Mot de passe" 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-5 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300" 
-                    />
                 </div>
-            </div>
 
-            {/* Error Message */}
-            {error && (
-                <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-[shake_0.4s_ease-in-out]">
-                    <AlertTriangle size={18} className="text-red-500 shrink-0" />
-                    <p className="text-xs font-bold text-red-500 leading-tight">{error}</p>
-                </div>
-            )}
-
-            {/* Submit Button */}
-            <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-charcoal text-white py-6 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl mt-6 active:scale-95 transition-all hover:bg-forest disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-3"
-            >
-                {loading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                ) : (
-                    <>
-                        {isSignUp ? "Créer le compte" : "Entrer"}
-                        <ArrowRight size={18} strokeWidth={3} />
-                    </>
+                {/* Error Message */}
+                {error && (
+                    <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-[shake_0.4s_ease-in-out]">
+                        <AlertTriangle size={18} className="text-red-500 shrink-0" />
+                        <p className="text-xs font-bold text-red-500 leading-tight">{error}</p>
+                    </div>
                 )}
+
+                {/* Submit Button */}
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-charcoal text-white py-6 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl mt-6 active:scale-95 transition-all hover:bg-forest disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-3"
+                >
+                    {loading ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <>
+                            {isSignUp ? "Créer le compte" : "Entrer"}
+                            <ArrowRight size={18} strokeWidth={3} />
+                        </>
+                    )}
+                </button>
+            </form>
+
+            {/* Separator */}
+            <div className="flex items-center gap-4 py-2 opacity-50">
+                <div className="h-px bg-stone-300 flex-1" />
+                <span className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Ou</span>
+                <div className="h-px bg-stone-300 flex-1" />
+            </div>
+
+            {/* Guest Mode Button */}
+            <button 
+                type="button"
+                onClick={() => { haptics.medium(); onContinueAsGuest(); }}
+                className="w-full bg-white text-stone-500 border-2 border-sand hover:border-stone-300 hover:text-charcoal py-5 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-3"
+            >
+                <Ghost size={16} />
+                Accéder sans compte
             </button>
-        </form>
+        </div>
 
         {isSignUp && (
             <p className="mt-8 text-[10px] font-bold text-stone-400 text-center max-w-xs leading-relaxed">
