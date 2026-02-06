@@ -54,6 +54,8 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     setError(null);
     
     try {
+      // Note: Passing userId (which is local profile ID) causes RLS 42501. 
+      // We omit it to let createSharedSpace use the Auth User ID.
       const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
       
       if (space) {
