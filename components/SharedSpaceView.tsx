@@ -10,7 +10,9 @@ import {
   ChevronDown,
   Trash2,
   Edit,
-  X
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 import { 
   SharedSpace, 
@@ -45,6 +47,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
   const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Rating State
   const [ratingMovie, setRatingMovie] = useState<SharedMovie | null>(null);
@@ -86,39 +89,60 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     haptics.soft();
   };
 
+  const handleCopyCode = () => {
+    if (space.invite_code) {
+        navigator.clipboard.writeText(space.invite_code);
+        setCopiedCode(true);
+        haptics.success();
+        setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
+
   const handleSubmitRating = async () => {
-    if (!ratingMovie) return;
+    if (!ratingMovie || !currentUserId) {
+        alert("Erreur : Impossible d'identifier l'utilisateur ou le film.");
+        return;
+    }
     
     setSavingRating(true);
     
-    const result = await upsertMovieRating(
-      ratingMovie.id,
-      currentUserId,
-      {
-        story: ratingStory,
-        visuals: ratingVisuals,
-        acting: ratingActing,
-        sound: ratingSound,
-        review: ratingReview.trim() || undefined
-      }
-    );
-    
-    if (result) {
-      haptics.success();
-      
-      // Recharger les notes de ce film
-      await loadRatings(ratingMovie.id);
-      
-      // Fermer le modal
-      setRatingMovie(null);
-      setRatingStory(5);
-      setRatingVisuals(5);
-      setRatingActing(5);
-      setRatingSound(5);
-      setRatingReview('');
+    try {
+        const result = await upsertMovieRating(
+        ratingMovie.id,
+        currentUserId,
+        {
+            story: ratingStory,
+            visuals: ratingVisuals,
+            acting: ratingActing,
+            sound: ratingSound,
+            review: ratingReview.trim() || undefined
+        }
+        );
+        
+        if (result) {
+            haptics.success();
+            
+            // Recharger les notes de ce film pour l'affichage immédiat
+            await loadRatings(ratingMovie.id);
+            
+            // Fermer le modal
+            setRatingMovie(null);
+            // Reset form
+            setRatingStory(5);
+            setRatingVisuals(5);
+            setRatingActing(5);
+            setRatingSound(5);
+            setRatingReview('');
+        } else {
+            throw new Error("Pas de réponse du serveur");
+        }
+    } catch (e) {
+        console.error(e);
+        haptics.error();
+        alert("Erreur lors de la sauvegarde. Vérifiez votre connexion.");
+    } finally {
+        setSavingRating(false);
     }
-    
-    setSavingRating(false);
   };
 
   const calculateAverageRating = (ratings: MovieRating[]) => {
@@ -135,7 +159,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     // Stats par membre
     const memberStats: Record<string, { totalRatings: number; avgRating: number; name: string }> = {};
     
-    Object.values(movieRatings).forEach((ratings: MovieRating[]) => {
+    // Typage explicite pour éviter l'erreur TypeScript "unknown"
+    const allRatingsGroups = Object.values(movieRatings) as MovieRating[][];
+    
+    allRatingsGroups.forEach((ratings) => {
       ratings.forEach(rating => {
         if (!memberStats[rating.profile_id]) {
           memberStats[rating.profile_id] = {
@@ -146,10 +173,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         }
         
         const avg = (rating.story + rating.visuals + rating.acting + rating.sound) / 4;
-        memberStats[rating.profile_id].avgRating = 
-          (memberStats[rating.profile_id].avgRating * memberStats[rating.profile_id].totalRatings + avg) / 
-          (memberStats[rating.profile_id].totalRatings + 1);
-        memberStats[rating.profile_id].totalRatings++;
+        const currentStats = memberStats[rating.profile_id];
+        
+        // Moyenne cumulative glissante
+        currentStats.avgRating = 
+          (currentStats.avgRating * currentStats.totalRatings + avg) / 
+          (currentStats.totalRatings + 1);
+        currentStats.totalRatings++;
       });
     });
     
@@ -213,24 +243,38 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         </div>
 
         <div className="bg-white border border-sand rounded-[2rem] p-6 shadow-sm">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center shadow-lg shadow-forest/20">
-                  <Users size={24} className="text-white" />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center shadow-lg shadow-forest/20">
+                    <Users size={24} className="text-white" />
+                    </div>
+                    <div>
+                    <h1 className="text-2xl font-black tracking-tight text-charcoal">{space.name}</h1>
+                    {space.description && (
+                        <p className="text-xs font-medium text-stone-500 mt-0.5">{space.description}</p>
+                    )}
+                    </div>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight text-charcoal">{space.name}</h1>
-                  {space.description && (
-                    <p className="text-xs font-medium text-stone-500 mt-0.5">{space.description}</p>
-                  )}
+            </div>
+
+            {/* Invite Code Bar */}
+            <div 
+                onClick={handleCopyCode}
+                className="flex items-center justify-between bg-stone-50 border border-dashed border-stone-300 rounded-xl p-3 cursor-pointer hover:bg-stone-100 transition-colors active:scale-[0.98]"
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-stone-400 tracking-widest">Code d'invitation :</span>
+                    <span className="text-sm font-black font-mono text-charcoal tracking-wider">{space.invite_code}</span>
                 </div>
-              </div>
+                <div className={`p-1.5 rounded-lg ${copiedCode ? 'bg-green-100 text-green-700' : 'bg-white text-stone-400 shadow-sm'}`}>
+                    {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                </div>
             </div>
           </div>
 
           {/* Membres */}
-          <div className="flex items-center gap-3 pt-4 border-t border-sand">
+          <div className="flex items-center gap-3 pt-4 border-t border-sand mt-4">
             <div className="flex -space-x-2">
               {members.slice(0, 5).map((member, idx) => (
                 <div

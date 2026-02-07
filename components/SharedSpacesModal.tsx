@@ -37,6 +37,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState(false);
 
+  // Force reload when modal opens
   useEffect(() => {
     if (isOpen && userId) {
       loadSpaces();
@@ -45,6 +46,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
 
   const loadSpaces = async () => {
     setLoading(true);
+    // Directly fetch from DB to ensure list is fresh (persisted)
     const data = await getUserSpaces(userId);
     setSpaces(data);
     setLoading(false);
@@ -61,7 +63,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
       
       if (space) {
         haptics.success();
-        // On redirige directement vers l'espace créé
+        // Immediately select (navigate) to the space
         onSelectSpace(space); 
         setNewSpaceName('');
         setNewSpaceDesc('');
@@ -83,21 +85,17 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
         const result = await joinSpaceByCode(inviteCode, userId);
         
         if (result.success) {
-          // 1. Feedback Visuel
           haptics.success();
           setJoinSuccess(true);
 
-          // 2. Refresh de la liste
+          // Important: Reload spaces so it appears in the list next time
           await loadSpaces();
           
-          // 3. UX: Petit délai pour voir le succès puis fermeture/navigation
           setTimeout(() => {
               setJoinSuccess(false);
               setShowJoinForm(false);
               setInviteCode('');
               
-              // Si on a l'objet space, on le sélectionne directement (ce qui fermera la modale via App.tsx si configuré ainsi)
-              // Sinon on ferme juste la modale
               if (result.space) {
                   onSelectSpace(result.space);
               } else {
@@ -152,7 +150,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
           
-          {/* SUCCESS SCREEN : SPACE CREATED (Legacy, kept for structure but unused due to auto-redirect) */}
+          {/* SUCCESS SCREEN : SPACE CREATED (Legacy logic, mainly bypassed by auto-select) */}
           {createdSpace ? (
              <div className="bg-white border-2 border-charcoal rounded-[2rem] p-8 animate-[scaleIn_0.3s_ease-out] shadow-xl text-center flex flex-col items-center justify-center min-h-[300px]">
                 <div className="w-20 h-20 bg-bitter-lime rounded-full flex items-center justify-center mb-6 border-4 border-charcoal shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]">
