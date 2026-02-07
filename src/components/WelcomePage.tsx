@@ -96,7 +96,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
       {step !== 'landing' && (
         <button 
           onClick={goBack} 
-          className="absolute top-[calc(3.5rem+env(safe-area-inset-top))] left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-full border border-sand shadow-sm active:scale-95 transition-all group"
+          className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-full border border-sand shadow-sm active:scale-95 transition-all group"
         >
           <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           <span className="text-[10px] font-black uppercase tracking-widest text-charcoal">Retour</span>

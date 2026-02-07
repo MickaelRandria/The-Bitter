@@ -24,9 +24,10 @@ const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
+const SharedCalendarView = lazy(() => import('./components/SharedCalendarView'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
-type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
+type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace' | 'SharedCalendar';
 type FeedTab = 'history' | 'queue';
 
 const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: { 
@@ -34,7 +35,7 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: {
   setViewMode: (v: ViewMode) => void,
   setIsModalOpen: (o: boolean) => void 
 }) => {
-    if (viewMode === 'SharedSpace') return null; // Hide bottom nav in shared space view for cleaner UI
+    if (viewMode === 'SharedSpace' || viewMode === 'SharedCalendar') return null; // Hide bottom nav in shared space view for cleaner UI
     return (
         <nav className="fixed bottom-8 left-6 right-6 z-50 max-w-sm mx-auto">
             <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center" style={{ willChange: 'transform' }}>
@@ -374,9 +375,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
       {/* HEADER CONDITIONAL: SharedSpace has its own header internal logic */}
-      {viewMode !== 'SharedSpace' && (
-        <header className="pt-[calc(3.5rem+env(safe-area-inset-top))] px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40 transition-all duration-300">
-            <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
+      {viewMode !== 'SharedSpace' && viewMode !== 'SharedCalendar' && (
+        <header className="sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40 transition-all duration-300 pt-[env(safe-area-inset-top)]">
+            <div className="flex items-center justify-between h-14 py-2 px-6 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
             <div className="flex items-center gap-3">
                 {viewMode !== 'Feed' ? (
                 <button 
@@ -435,9 +436,16 @@ const App: React.FC = () => {
       )}
 
       {/* Main Container - Add Safe Area padding when header is NOT present (SharedSpace mode) */}
-      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-[calc(3.5rem+env(safe-area-inset-top))]' : 'pt-6'} pb-32`}>
+      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' || viewMode === 'SharedCalendar' ? 'pt-[calc(env(safe-area-inset-top)+2rem)]' : 'pt-6'} pb-32`}>
         <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" size={32} /></div>}>
-          {viewMode === 'SharedSpace' && activeSharedSpace ? (
+          {viewMode === 'SharedCalendar' && activeSharedSpace ? (
+              <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="animate-spin text-forest" size={32} /></div>}>
+                  <SharedCalendarView 
+                    space={activeSharedSpace}
+                    onBack={() => { setViewMode('SharedSpace'); haptics.soft(); }}
+                  />
+              </Suspense>
+          ) : viewMode === 'SharedSpace' && activeSharedSpace ? (
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-screen">
                   <div className="text-center">
@@ -451,6 +459,7 @@ const App: React.FC = () => {
                     currentUserId={session?.user?.id || activeProfile?.id || ''}
                     onBack={handleBackToFeed}
                     onAddMovie={() => { setIsModalOpen(true); }}
+                    onOpenCalendar={() => { setViewMode('SharedCalendar'); haptics.medium(); }}
                     refreshTrigger={sharedSpaceRefreshTrigger}
                 />
               </Suspense>
@@ -538,7 +547,7 @@ const App: React.FC = () => {
       <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
 
       {/* Floating Action Button for AI Assistant */}
-      {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
+      {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && viewMode !== 'SharedCalendar' && (
         <button 
           onClick={() => { haptics.medium(); setShowCineAssistant(true); }}
           className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group overflow-hidden"

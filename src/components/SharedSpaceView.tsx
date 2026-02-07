@@ -10,7 +10,9 @@ import {
   Edit,
   X,
   Copy,
-  Check
+  Check,
+  Calendar,
+  Trash2
 } from 'lucide-react';
 import { 
   SharedSpace, 
@@ -19,7 +21,8 @@ import {
   MovieRating,
   getSpaceMembers,
   getMovieRatings,
-  upsertMovieRating
+  upsertMovieRating,
+  supabase
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { useRealtimeMovies } from '../hooks/useRealtimeMovies';
@@ -29,14 +32,16 @@ interface SharedSpaceViewProps {
   currentUserId: string;
   onBack: () => void;
   onAddMovie: () => void;
-  refreshTrigger?: number; // Gardé pour compatibilité mais moins utile avec le realtime
+  onOpenCalendar: () => void;
+  refreshTrigger?: number;
 }
 
 const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({ 
   space, 
   currentUserId,
   onBack,
-  onAddMovie
+  onAddMovie,
+  onOpenCalendar
 }) => {
   // Utilisation du Hook Realtime
   const { movies, loading: moviesLoading } = useRealtimeMovies(space.id);
@@ -47,6 +52,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
   const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
   const [copiedCode, setCopiedCode] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'watched' | 'watchlist'>('watched');
 
   // Rating State
   const [ratingMovie, setRatingMovie] = useState<SharedMovie | null>(null);
@@ -293,8 +299,38 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         </div>
       </div>
 
+      {/* ✅ NOUVEAU : Onglets Vus / À Voir */}
+      <div className="flex bg-white p-1.5 rounded-2xl border border-sand mb-6 shadow-sm">
+        <button 
+            onClick={() => {
+            setFilterStatus('watched');
+            haptics.soft();
+            }}
+            className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            filterStatus === 'watched' 
+                ? 'bg-charcoal text-white shadow-lg' 
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+        >
+            Films Vus ({movies.filter(m => m.status === 'watched').length})
+        </button>
+        <button 
+            onClick={() => {
+            setFilterStatus('watchlist');
+            haptics.soft();
+            }}
+            className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            filterStatus === 'watchlist' 
+                ? 'bg-charcoal text-white shadow-lg' 
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+        >
+            À Voir ({movies.filter(m => m.status === 'watchlist').length})
+        </button>
+      </div>
+
       {/* Stats Comparatives */}
-      {Object.keys(movieRatings).length > 0 && (
+      {Object.keys(movieRatings).length > 0 && filterStatus === 'watched' && (
         <div className="bg-white border border-sand rounded-[2rem] p-6 mb-8 animate-[fadeIn_0.4s_ease-out]">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-4 ml-1">
             Stats du Groupe
@@ -368,30 +404,44 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         <div className="flex items-center justify-between mb-6 px-1">
           <div className="flex items-center gap-2">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                Collection ({movies.length})
+                Collection ({movies.filter(m => m.status === filterStatus).length})
             </h2>
             {moviesLoading && <Loader2 size={10} className="animate-spin text-stone-300" />}
           </div>
-          <button
-            onClick={() => {
-              haptics.medium();
-              onAddMovie();
-            }}
-            className="bg-forest text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg shadow-forest/20"
-          >
-            <Plus size={14} strokeWidth={3} />
-            Ajouter
-          </button>
+          <div className="flex gap-2">
+            {/* ✅ NOUVEAU : Bouton Calendrier */}
+            {filterStatus === 'watched' && (
+                <button
+                    onClick={() => {
+                        haptics.medium();
+                        onOpenCalendar();
+                    }}
+                    className="w-10 h-10 rounded-xl bg-white border border-sand flex items-center justify-center shadow-sm active:scale-90 transition-transform text-charcoal"
+                >
+                    <Calendar size={18} />
+                </button>
+            )}
+            <button
+                onClick={() => {
+                haptics.medium();
+                onAddMovie();
+                }}
+                className="bg-forest text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg shadow-forest/20"
+            >
+                <Plus size={14} strokeWidth={3} />
+                Ajouter
+            </button>
+          </div>
         </div>
 
-        {movies.length === 0 ? (
+        {movies.filter(m => m.status === filterStatus).length === 0 ? (
           <div className="bg-stone-50/50 border border-stone-100 border-dashed rounded-[2rem] p-12 text-center flex flex-col items-center">
             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm text-stone-300">
                 <Film size={24} />
             </div>
             <h3 className="font-black text-charcoal text-sm mb-2">C'est vide ici</h3>
             <p className="text-xs text-stone-400 mb-6 max-w-[200px] leading-relaxed">
-              Lancez le mouvement en ajoutant le premier film à cet espace !
+              Lancez le mouvement en ajoutant le premier film à cette liste !
             </p>
             <button
               onClick={() => {
@@ -405,7 +455,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {movies.map((movie) => {
+            {movies.filter(m => m.status === filterStatus).map((movie) => {
               const isExpanded = expandedMovie === movie.id;
               const ratings = movieRatings[movie.id] || [];
               const avgRating = calculateAverageRating(ratings);
@@ -421,7 +471,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     onClick={() => handleExpandMovie(movie.id)}
                     className="p-5 cursor-pointer hover:bg-stone-50 transition-colors relative"
                   >
-                    {!myRating && (
+                    {!myRating && filterStatus === 'watched' && (
                       <div className="absolute top-3 right-3 bg-orange-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow-sm z-10">
                         À noter
                       </div>
@@ -569,11 +619,75 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           }
                           setRatingMovie(movie);
                         }}
-                        className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] active:scale-95 transition-transform flex items-center justify-center gap-2 ${myRating ? 'bg-stone-100 text-stone-500' : 'bg-charcoal text-white shadow-lg'}`}
+                        className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] active:scale-95 transition-transform flex items-center justify-center gap-2 mb-3 ${myRating ? 'bg-stone-100 text-stone-500' : 'bg-charcoal text-white shadow-lg'}`}
                       >
                         {myRating ? <Edit size={12} /> : <Star size={12} />}
                         {myRating ? 'Modifier mon verdict' : 'Déposer mon verdict'}
                       </button>
+
+                      {/* ✅ NOUVEAU : Bouton pour changer le statut */}
+                      <button
+                        onClick={async () => {
+                            if (!supabase) return;
+                            
+                            const newStatus = movie.status === 'watched' ? 'watchlist' : 'watched';
+                            
+                            const { error } = await supabase
+                            .from('shared_movies')
+                            .update({ 
+                                status: newStatus,
+                                // En Postgres, on ne peut pas mettre à jour added_at facilement, mais on peut ajouter une colonne date_watched si besoin
+                                // Pour l'instant on change juste le statut
+                            })
+                            .eq('id', movie.id);
+                            
+                            if (!error) {
+                                haptics.success();
+                                // Pas besoin de reload manuel grâce au realtime hook
+                            }
+                        }}
+                        className="w-full py-3 rounded-xl border-2 border-sand text-stone-600 font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform mb-3 flex items-center justify-center gap-2 hover:bg-stone-50"
+                      >
+                        {movie.status === 'watched' ? (
+                            <>
+                                <ArrowLeft size={14} />
+                                Remettre à voir
+                            </>
+                        ) : (
+                            <>
+                                <Check size={14} />
+                                Marquer comme vu
+                            </>
+                        )}
+                      </button>
+
+                      {/* ✅ NOUVEAU : Bouton Supprimer (Propriétaire uniquement) */}
+                      {movie.added_by === currentUserId && (
+                        <button
+                            onClick={async () => {
+                            if (!confirm('Supprimer ce film de l\'espace partagé ?')) return;
+                            
+                            if (!supabase) return;
+                            
+                            const { error } = await supabase
+                                .from('shared_movies')
+                                .delete()
+                                .eq('id', movie.id);
+                            
+                            if (!error) {
+                                haptics.success();
+                                // Realtime hook gère la maj
+                            } else {
+                                haptics.error();
+                                alert("Erreur lors de la suppression");
+                            }
+                            }}
+                            className="w-full py-3 rounded-xl bg-red-50 border-2 border-red-100 text-red-500 font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform flex items-center justify-center gap-2 hover:bg-red-100"
+                        >
+                            <Trash2 size={14} />
+                            Supprimer le film
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

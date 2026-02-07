@@ -154,10 +154,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 </div>
             </div>
 
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-100 rounded-xl flex gap-3 text-left">
-                <AlertTriangle size={16} className="text-yellow-600 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-yellow-700 font-medium leading-tight">
-                    <strong>Note importante :</strong> Le lien dans l'email peut mener vers une page d'erreur. C'est normal. Ignorez-la, revenez ici et connectez-vous.
+            <div className="mt-4 p-4 bg-yellow-100/50 border border-yellow-200 rounded-xl flex gap-3 text-left">
+                <AlertTriangle size={18} className="text-yellow-700 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-yellow-800 font-bold leading-tight">
+                    Le lien dans l'email VA OUVRIR UNE PAGE D'ERREUR. C'est normal ! Ignorez-la, revenez simplement ici et connectez-vous.
                 </p>
             </div>
             </div>
