@@ -375,7 +375,7 @@ const App: React.FC = () => {
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
       {/* HEADER CONDITIONAL: SharedSpace has its own header internal logic */}
       {viewMode !== 'SharedSpace' && (
-        <header className="pt-[calc(1.5rem+env(safe-area-inset-top))] sm:pt-[calc(2rem+env(safe-area-inset-top))] px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40 transition-all duration-300">
+        <header className="pt-[calc(3.5rem+env(safe-area-inset-top))] px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40 transition-all duration-300">
             <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
             <div className="flex items-center gap-3">
                 {viewMode !== 'Feed' ? (
@@ -435,7 +435,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Container - Add Safe Area padding when header is NOT present (SharedSpace mode) */}
-      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-[calc(1.5rem+env(safe-area-inset-top))]' : 'pt-6'} pb-32`}>
+      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-[calc(3.5rem+env(safe-area-inset-top))]' : 'pt-6'} pb-32`}>
         <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" size={32} /></div>}>
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
               <Suspense fallback={
