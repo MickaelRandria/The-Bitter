@@ -122,15 +122,14 @@ const App: React.FC = () => {
   }, [profiles]);
 
   // Load Joined Spaces
+  // Note: We use session.user.id for shared spaces logic to ensure RLS compatibility
   useEffect(() => {
     const loadMySpaces = async () => {
-        if (activeProfile?.joinedSpaceIds && activeProfile.joinedSpaceIds.length > 0) {
-            // Note: getUserSpaces already filters by member ID on the server
-            // But we trigger it if we have local awareness or if connected
-            const spaces = await getUserSpaces(activeProfile.id);
+        if (session?.user?.id) {
+            const spaces = await getUserSpaces(session.user.id);
             setMySpaces(spaces);
-        } else if (session && activeProfile) {
-            // Even if local state is empty, check DB
+        } else if (activeProfile?.joinedSpaceIds && activeProfile.joinedSpaceIds.length > 0) {
+            // Fallback to local profile (e.g. guest mode with local logic only, though unexpected for this feature)
             const spaces = await getUserSpaces(activeProfile.id);
             setMySpaces(spaces);
         }
@@ -380,7 +379,7 @@ const App: React.FC = () => {
               }>
                 <SharedSpaceView 
                     space={activeSharedSpace}
-                    currentUserId={activeProfile?.id || ''}
+                    currentUserId={session?.user?.id || activeProfile?.id || ''}
                     onBack={handleBackToFeed}
                     onAddMovie={() => { setIsModalOpen(true); }}
                     refreshTrigger={sharedSpaceRefreshTrigger}
@@ -490,7 +489,7 @@ const App: React.FC = () => {
             tmdbIdToLoad={tmdbIdToLoad} 
             initialStatus={initialStatusForAdd}
             sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
-            currentUserId={activeProfile?.id}
+            currentUserId={session?.user?.id || activeProfile?.id}
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)}
           />
         )}
@@ -515,7 +514,7 @@ const App: React.FC = () => {
           <SharedSpacesModal
             isOpen={showSharedSpaces}
             onClose={() => setShowSharedSpaces(false)}
-            userId={activeProfile.id}
+            userId={session?.user?.id || activeProfile.id}
             onSelectSpace={(space) => {
               // ✅ Sauvegarder l'espace dans le profil local
               if (activeProfile && !activeProfile.joinedSpaceIds?.includes(space.id)) {

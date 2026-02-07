@@ -66,16 +66,16 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
       const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
       
       if (space) {
-        // 🛠️ CRITICAL FIX: Force self-join to ensure the creator is a member in the DB
-        // This ensures the space appears in getUserSpaces() next time.
+        // 🛠️ FIX CRITIQUE: Forcer l'auto-join pour garantir que l'utilisateur est membre
+        // et que l'espace apparaisse au prochain chargement
         await joinSpaceByCode(space.invite_code, userId);
 
         haptics.success();
         
-        // Update local list immediately so it appears if we come back
+        // Mettre à jour la liste locale immédiatement
         setSpaces(prev => [space, ...prev]);
 
-        // Immediately select (navigate) to the space
+        // Redirection immédiate
         onSelectSpace(space); 
         
         setNewSpaceName('');

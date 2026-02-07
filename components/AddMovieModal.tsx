@@ -240,12 +240,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 onSharedMovieAdded?.(); // Rafraîchir la vue parent
                 onClose(); 
             } else {
-                throw new Error("Échec de l'ajout (Réponse vide)");
+                throw new Error("Opération échouée. Vérifiez que vous êtes bien membre de cet espace.");
             }
         } catch (err: any) {
             console.error("Erreur addMovieToSpace:", err);
             haptics.error();
-            alert("Erreur lors de l'ajout à l'espace partagé : " + (err.message || "Erreur inconnue"));
+            alert("Erreur lors de l'ajout : " + (err.message || "Erreur inconnue"));
         } finally {
             setIsSaving(false);
         }
