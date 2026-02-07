@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.72',
+    date: '06 Février 2026',
+    title: 'Symbiose Sociale',
+    changes: [
+      { type: 'feature', text: 'Espaces Partagés : Créez des cercles privés (Ciné-club, Famille...), invitez vos amis via un code unique et construisez une cinémathèque commune. Comparez vos verdicts et visualisez votre "Match" de groupe.' },
+      { type: 'fix', text: 'Authentification Blindée : Nouveau flux de vérification d\'email clair et synchronisation automatique du profil (Prénom, Calibration) entre tous vos appareils dès la connexion.' },
+      { type: 'style', text: 'Stabilité Visuelle : Éradication des écrans blancs lors du chargement des espaces grâce à une gestion asynchrone optimisée.' },
+      { type: 'feature', text: 'Onboarding Connecté : Votre identité est désormais préservée et synchronisée avec la base de données centrale.' }
+    ]
+  },
+  {
     version: 'v0.71',
     date: '05 Février 2026',
     title: 'Deep Discovery',

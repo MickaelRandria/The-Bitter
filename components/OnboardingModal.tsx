@@ -1,16 +1,19 @@
+
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Check, Activity, Scale, Timer, Layers, Loader2, Fingerprint, Sparkles } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getArchetype } from '../utils/archetypes';
+import { supabase } from '../services/supabase';
 
 interface OnboardingModalProps {
   initialName: string;
+  userId?: string;
   onComplete: (data: { name: string; severityIndex: number; patienceLevel: number; favoriteGenres: string[]; role: string }) => void;
 }
 
 const GENRES_LIST = ['Science-Fiction', 'Thriller', 'Drame', 'Comédie', 'Horreur', 'Animation', 'Action', 'Documentaire'];
 
-const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, onComplete }) => {
+const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, onComplete }) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState(initialName);
   const [severityIndex, setSeverityIndex] = useState(5);
@@ -41,9 +44,32 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, onComple
     }
   };
 
-  const handleFinalValidation = () => {
+  const handleFinalValidation = async () => {
     haptics.success();
     if (archetype) {
+      // ✅ Sauvegarder dans Supabase si connecté
+      if (supabase && userId) {
+        try {
+            const { error: updateError } = await supabase
+            .from('profiles')
+            .update({
+                severity_index: severityIndex,
+                patience_level: patienceLevel,
+                favorite_genres: favoriteGenres,
+                role: archetype.title,
+                is_onboarded: true,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+            
+            if (updateError) {
+                console.error("Erreur sauvegarde Supabase:", updateError);
+            }
+        } catch (e) {
+            console.error("Erreur technique Supabase", e);
+        }
+      }
+
       onComplete({ 
         name, 
         severityIndex, 
@@ -119,14 +145,18 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, onComple
             
             <div className="group">
               <label className="text-[10px] font-black uppercase text-stone-400 tracking-[0.2em] mb-3 block">Identifiant</label>
-              <input 
-                type="text" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full text-2xl font-black text-charcoal border-b-2 border-stone-100 py-2 outline-none focus:border-charcoal transition-colors bg-transparent placeholder:text-stone-200"
-                placeholder="Votre nom"
-                autoFocus
-              />
+              <div className="relative">
+                <input 
+                    type="text" 
+                    value={name}
+                    readOnly
+                    disabled
+                    className="w-full bg-stone-50 border-2 border-sand rounded-[1.5rem] py-5 px-6 font-black text-xl outline-none text-stone-500 cursor-not-allowed"
+                />
+                <p className="text-[10px] text-stone-400 mt-2 font-medium flex items-center gap-1">
+                    <Check size={12} className="text-forest" strokeWidth={3} /> Récupéré depuis votre compte
+                </p>
+              </div>
             </div>
           </div>
         )}

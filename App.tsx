@@ -90,18 +90,87 @@ const App: React.FC = () => {
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
+  // Chargement du profil Supabase vers le state local
+  const loadSupabaseProfile = async (userId: string) => {
+    if (!supabase) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error("Erreur chargement profil Supabase:", error);
+        return;
+      }
+      
+      if (data) {
+        // Si le profil Supabase existe, créer/mettre à jour le profil local
+        setProfiles(prev => {
+          const existing = prev.find(p => p.id === data.id);
+          
+          if (existing) {
+            // Mettre à jour le profil existant avec les données Supabase
+            return prev.map(p => p.id === data.id ? {
+              ...p,
+              firstName: data.first_name,
+              lastName: data.last_name || p.lastName,
+              severityIndex: data.severity_index || p.severityIndex,
+              patienceLevel: data.patience_level || p.patienceLevel,
+              favoriteGenres: data.favorite_genres || p.favoriteGenres,
+              role: data.role || p.role,
+              isOnboarded: data.is_onboarded || p.isOnboarded,
+              joinedSpaceIds: p.joinedSpaceIds // On garde les espaces locaux pour l'instant
+            } : p);
+          } else {
+            // Créer un nouveau profil local basé sur Supabase
+            return [...prev, {
+              id: data.id,
+              firstName: data.first_name,
+              lastName: data.last_name || '',
+              movies: [],
+              createdAt: new Date(data.created_at).getTime(),
+              severityIndex: data.severity_index || 5,
+              patienceLevel: data.patience_level || 5,
+              favoriteGenres: data.favorite_genres || [],
+              role: data.role,
+              isOnboarded: data.is_onboarded || false,
+              gender: 'h', // Valeur par défaut
+              age: 25 // Valeur par défaut
+            }];
+          }
+        });
+        
+        // Définir ce profil comme actif
+        setActiveProfileId(data.id);
+      }
+    } catch (err) {
+      console.error("Exception loading profile", err);
+    }
+  };
+
   // --- AUTH CHECK EFFECT ---
   useEffect(() => {
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setAuthLoading(false);
+        // Charger le profil Supabase si connecté
+        if (session?.user) {
+          loadSupabaseProfile(session.user.id);
+        }
       });
 
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
         setSession(session);
+        // Charger le profil à chaque changement de session
+        if (session?.user) {
+          loadSupabaseProfile(session.user.id);
+        }
       });
 
       return () => subscription.unsubscribe();
@@ -372,8 +441,8 @@ const App: React.FC = () => {
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-screen">
                   <div className="text-center">
-                    <Loader2 className="animate-spin text-forest mx-auto mb-4" size={32} />
-                    <p className="text-sm text-stone-500 font-medium">Chargement de l'espace...</p>
+                    <Loader2 className="animate-spin text-forest mx-auto mb-4" size={40} />
+                    <p className="text-sm text-stone-500 font-medium animate-pulse">Chargement de l'espace partagé...</p>
                   </div>
                 </div>
               }>
@@ -548,7 +617,11 @@ const App: React.FC = () => {
           />
         )}
         {showCalibration && activeProfile && (
-          <OnboardingModal initialName={activeProfile.firstName} onComplete={handleCompleteCalibration} />
+          <OnboardingModal 
+            initialName={activeProfile.firstName} 
+            userId={session?.user?.id || activeProfile.id}
+            onComplete={handleCompleteCalibration} 
+          />
         )}
       </Suspense>
     </div>
