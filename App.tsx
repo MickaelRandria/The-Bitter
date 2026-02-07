@@ -24,26 +24,30 @@ const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
+const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
-type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck';
+type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
 
 const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: { 
   viewMode: ViewMode, 
   setViewMode: (v: ViewMode) => void,
   setIsModalOpen: (o: boolean) => void 
-}) => (
-  <nav className="fixed bottom-8 left-6 right-6 z-50 max-w-sm mx-auto">
-    <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center" style={{ willChange: 'transform' }}>
-      <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Feed' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><LayoutGrid size={22} /></button>
-      <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Discover' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><Clapperboard size={22} /></button>
-      <button onClick={() => { haptics.medium(); setIsModalOpen(true); }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150"><Plus size={24} strokeWidth={3} /></button>
-      <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Analytics' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><PieChart size={22} /></button>
-      <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Calendar' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><CalendarDays size={22} /></button>
-    </div>
-  </nav>
-));
+}) => {
+    if (viewMode === 'SharedSpace') return null; // Hide bottom nav in shared space view for cleaner UI
+    return (
+        <nav className="fixed bottom-8 left-6 right-6 z-50 max-w-sm mx-auto">
+            <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center" style={{ willChange: 'transform' }}>
+            <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Feed' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><LayoutGrid size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Discover' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><Clapperboard size={22} /></button>
+            <button onClick={() => { haptics.medium(); setIsModalOpen(true); }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150"><Plus size={24} strokeWidth={3} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Analytics' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><PieChart size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Calendar' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><CalendarDays size={22} /></button>
+            </div>
+        </nav>
+    );
+});
 
 const App: React.FC = () => {
   // SUPABASE SESSION STATE
@@ -73,6 +77,7 @@ const App: React.FC = () => {
   // Collaborative Features
   const [showSharedSpaces, setShowSharedSpaces] = useState(false);
   const [activeSharedSpace, setActiveSharedSpace] = useState<SharedSpace | null>(null);
+  const [sharedSpaceRefreshTrigger, setSharedSpaceRefreshTrigger] = useState(0);
   
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -212,6 +217,9 @@ const App: React.FC = () => {
 
   const handleBackToFeed = () => {
     haptics.soft();
+    if (viewMode === 'SharedSpace') {
+        setActiveSharedSpace(null);
+    }
     setViewMode('Feed');
   };
 
@@ -278,61 +286,72 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
-      <header className="pt-6 sm:pt-8 px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40">
-        <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
-          <div className="flex items-center gap-3">
-            {viewMode !== 'Feed' ? (
-              <button 
-                onClick={handleBackToFeed}
-                className="w-10 h-10 bg-white border border-sand rounded-2xl flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200"
-              >
-                <ChevronLeft size={20} strokeWidth={3} />
-              </button>
-            ) : (
-              <div 
-                  onClick={() => { haptics.soft(); setShowChangelog(true); }}
-                  className="w-10 h-10 bg-charcoal text-white rounded-2xl flex items-center justify-center shadow-lg rotate-3 cursor-pointer hover:rotate-0 transition-all duration-300 active:scale-95"
-              >
-                  <Film size={20} strokeWidth={2} />
-              </div>
-            )}
-            <div>
-                <h1 className="text-xl font-black tracking-tighter leading-none text-charcoal">The Bitter</h1>
+      {/* HEADER CONDITIONAL: SharedSpace has its own header internal logic */}
+      {viewMode !== 'SharedSpace' && (
+        <header className="pt-6 sm:pt-8 px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40">
+            <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
+            <div className="flex items-center gap-3">
+                {viewMode !== 'Feed' ? (
                 <button 
-                    onClick={() => { haptics.soft(); setShowChangelog(true); }}
-                    className="text-[9px] font-black uppercase tracking-widest text-stone-400 hover:text-forest transition-colors duration-200"
+                    onClick={handleBackToFeed}
+                    className="w-10 h-10 bg-white border border-sand rounded-2xl flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200"
                 >
-                    {RELEASE_HISTORY[0].version} • Notes
+                    <ChevronLeft size={20} strokeWidth={3} />
+                </button>
+                ) : (
+                <div 
+                    onClick={() => { haptics.soft(); setShowChangelog(true); }}
+                    className="w-10 h-10 bg-charcoal text-white rounded-2xl flex items-center justify-center shadow-lg rotate-3 cursor-pointer hover:rotate-0 transition-all duration-300 active:scale-95"
+                >
+                    <Film size={20} strokeWidth={2} />
+                </div>
+                )}
+                <div>
+                    <h1 className="text-xl font-black tracking-tighter leading-none text-charcoal">The Bitter</h1>
+                    <button 
+                        onClick={() => { haptics.soft(); setShowChangelog(true); }}
+                        className="text-[9px] font-black uppercase tracking-widest text-stone-400 hover:text-forest transition-colors duration-200"
+                    >
+                        {RELEASE_HISTORY[0].version} • Notes
+                    </button>
+                </div>
+            </div>
+            <div className="flex items-center gap-2">
+                <button 
+                onClick={() => { 
+                    haptics.soft(); 
+                    if (!session) {
+                        alert("Cette fonctionnalité nécessite un compte en ligne.");
+                        return;
+                    }
+                    setShowSharedSpaces(true); 
+                }} 
+                className={`w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'}`}
+                >
+                <Users size={20} />
+                </button>
+                <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
+                <User size={20} />
+                </button>
+                <button onClick={handleSignOut} className="w-10 h-10 rounded-2xl bg-stone-100 border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 text-stone-400">
+                <LogOut size={20} />
                 </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => { 
-                haptics.soft(); 
-                if (!session) {
-                    alert("Cette fonctionnalité nécessite un compte en ligne.");
-                    return;
-                }
-                setShowSharedSpaces(true); 
-              }} 
-              className={`w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'}`}
-            >
-              <Users size={20} />
-            </button>
-            <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
-              <User size={20} />
-            </button>
-            <button onClick={handleSignOut} className="w-10 h-10 rounded-2xl bg-stone-100 border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 text-stone-400">
-              <LogOut size={20} />
-            </button>
-          </div>
-        </div>
-      </header>
+            </div>
+        </header>
+      )}
 
-      <main className="flex-1 px-6 pt-6 pb-32">
+      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-6' : 'pt-6'} pb-32`}>
         <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" size={32} /></div>}>
-          {viewMode === 'Analytics' ? (
+          {viewMode === 'SharedSpace' && activeSharedSpace ? (
+              <SharedSpaceView 
+                space={activeSharedSpace}
+                currentUserId={activeProfile?.id || ''}
+                onBack={handleBackToFeed}
+                onAddMovie={() => { setIsModalOpen(true); }}
+                refreshTrigger={sharedSpaceRefreshTrigger}
+              />
+          ) : viewMode === 'Analytics' ? (
             <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
           ) : viewMode === 'Discover' ? (
             <DiscoverView 
@@ -416,7 +435,7 @@ const App: React.FC = () => {
       <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
 
       {/* Floating Action Button for AI Assistant */}
-      {!showWelcome && activeProfile && (
+      {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
         <button 
           onClick={() => { haptics.medium(); setShowCineAssistant(true); }}
           className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group overflow-hidden"
@@ -435,6 +454,9 @@ const App: React.FC = () => {
             initialData={editingMovie} 
             tmdbIdToLoad={tmdbIdToLoad} 
             initialStatus={initialStatusForAdd}
+            sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
+            currentUserId={activeProfile?.id}
+            onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)}
           />
         )}
         
@@ -462,8 +484,7 @@ const App: React.FC = () => {
             onSelectSpace={(space) => {
               setActiveSharedSpace(space);
               setShowSharedSpaces(false);
-              // TODO: Naviguer vers la vue de l'espace partagé
-              // Pour l'instant on ferme juste
+              setViewMode('SharedSpace');
               haptics.medium();
             }}
           />

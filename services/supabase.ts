@@ -52,6 +52,21 @@ export interface SharedMovie {
   };
 }
 
+export interface MovieRating {
+  id: string;
+  movie_id: string;
+  profile_id: string;
+  story: number;
+  visuals: number;
+  acting: number;
+  sound: number;
+  review?: string;
+  rated_at: string;
+  profile?: {
+    first_name: string;
+  };
+}
+
 // ===============================================
 // FONCTIONS POUR LES ESPACES PARTAGÉS
 // ===============================================
@@ -129,6 +144,144 @@ export async function joinSpaceByCode(
     console.error('Error joining space:', e);
     return { success: false, error: e.message || "Code invalide ou vous êtes déjà membre." };
   }
+}
+
+/**
+ * Récupère tous les films d'un espace partagé
+ */
+export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('shared_movies')
+    .select(`
+      *,
+      added_by_profile:profiles!added_by(first_name, last_name)
+    `)
+    .eq('space_id', spaceId)
+    .order('added_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching space movies:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Ajoute un film à un espace partagé
+ */
+export async function addMovieToSpace(
+  spaceId: string,
+  movieData: {
+    tmdb_id?: number;
+    title: string;
+    director: string;
+    year: number;
+    genre: string;
+    poster_url?: string;
+    status?: 'watched' | 'watchlist';
+  },
+  userId: string
+): Promise<SharedMovie | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('shared_movies')
+    .insert({
+      space_id: spaceId,
+      added_by: userId,
+      ...movieData
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding movie to space:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Récupère les notes d'un film
+ */
+export async function getMovieRatings(movieId: string): Promise<MovieRating[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('movie_ratings')
+    .select(`
+      *,
+      profile:profiles(first_name, last_name)
+    `)
+    .eq('movie_id', movieId);
+
+  if (error) {
+    console.error('Error fetching ratings:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Ajoute/Met à jour la note d'un utilisateur sur un film
+ */
+export async function upsertMovieRating(
+  movieId: string,
+  userId: string,
+  ratings: {
+    story: number;
+    visuals: number;
+    acting: number;
+    sound: number;
+    review?: string;
+  }
+): Promise<MovieRating | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('movie_ratings')
+    .upsert({
+      movie_id: movieId,
+      profile_id: userId,
+      ...ratings,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error upserting rating:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Récupère les membres d'un espace
+ */
+export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('space_members')
+    .select(`
+      *,
+      profile:profiles(first_name, last_name)
+    `)
+    .eq('space_id', spaceId);
+
+  if (error) {
+    console.error('Error fetching members:', error);
+    return [];
+  }
+
+  return data || [];
 }
 
 // ===============================================

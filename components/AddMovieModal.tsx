@@ -4,6 +4,7 @@ import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Hear
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { MovieFormData, Movie, MovieStatus, VibeCriteria, QualityMetrics } from '../types';
 import { haptics } from '../utils/haptics';
+import { SharedSpace, addMovieToSpace } from '../services/supabase';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -12,6 +13,9 @@ interface AddMovieModalProps {
   initialData: Movie | null;
   tmdbIdToLoad?: number | null;
   initialStatus?: MovieStatus;
+  sharedSpace?: SharedSpace | null; // ✅ NOUVEAU PROP
+  currentUserId?: string; // ✅ NOUVEAU PROP
+  onSharedMovieAdded?: () => void; // ✅ Callback de rafraîchissement
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -77,7 +81,17 @@ const RatingStepper: React.FC<{ label: string; value: number; onChange: (val: nu
   );
 };
 
-const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, initialData, tmdbIdToLoad, initialStatus = 'watched' }) => {
+const AddMovieModal: React.FC<AddMovieModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    onSave, 
+    initialData, 
+    tmdbIdToLoad, 
+    initialStatus = 'watched',
+    sharedSpace,
+    currentUserId,
+    onSharedMovieAdded
+}) => {
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
   const [isBitterMode, setIsBitterMode] = useState(false);
@@ -85,6 +99,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const skipSearchRef = useRef(false);
   const searchTimeoutRef = useRef<number | null>(null);
@@ -177,8 +192,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
     setIsSearching(false);
   };
 
-  const handleSubmit = () => {
-    // Si on est en mode "À voir", on force les notes à 0 pour ne pas déclencher le passage automatique en "Vu"
+  const handleSubmit = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    haptics.medium();
+
+    // Si on est en mode "À voir", on force les notes à 0
     const isWatchlist = mode === 'watchlist';
 
     const finalRatings = isWatchlist
@@ -190,9 +209,37 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
 
     // On efface la date de visionnage si c'est pour la watchlist
     const finalDateWatched = isWatchlist ? undefined : formData.dateWatched;
+    
+    // --- MODE ESPACE PARTAGÉ ---
+    if (sharedSpace && currentUserId) {
+        try {
+            await addMovieToSpace(sharedSpace.id, {
+                tmdb_id: formData.tmdbId,
+                title: formData.title,
+                director: formData.director,
+                year: formData.year,
+                genre: formData.genre,
+                poster_url: formData.posterUrl,
+                status: mode
+            }, currentUserId);
+            
+            haptics.success();
+            onSharedMovieAdded?.(); // Rafraîchir la vue parent
+            onClose(); // Fermer la modale directement (on ne passe pas par onSave local)
+        } catch (err) {
+            console.error(err);
+            haptics.error();
+            alert("Erreur lors de l'ajout à l'espace partagé");
+        } finally {
+            setIsSaving(false);
+        }
+        return;
+    }
 
+    // --- MODE LOCAL ---
     onSave({ ...formData, status: mode, ratings: finalRatings, dateWatched: finalDateWatched });
     haptics.success();
+    setIsSaving(false);
   };
 
   if (!isOpen) return null;
@@ -202,9 +249,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
       <div className="absolute inset-0 bg-charcoal/40" onClick={onClose} />
       <div className="bg-cream w-full sm:max-w-md rounded-t-[3.5rem] sm:rounded-[3.5rem] shadow-2xl relative z-10 max-h-[92vh] flex flex-col animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
         
+        {/* En-tête conditionnel pour Espace Partagé */}
         <div className="flex justify-between items-center p-8 border-b border-black/5 bg-white shrink-0">
-          <h2 className="text-2xl font-black tracking-tighter truncate">{formData.title || 'Nouveau Verdict'}</h2>
-          <button onClick={onClose} className="p-3 bg-charcoal text-white rounded-full active:scale-90 transition-all"><X size={20} /></button>
+          <div className="min-w-0">
+            {sharedSpace && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-forest mb-1 truncate">
+                    Ajout dans : {sharedSpace.name}
+                </p>
+            )}
+            <h2 className="text-2xl font-black tracking-tighter truncate">{formData.title || 'Nouveau Verdict'}</h2>
+          </div>
+          <button onClick={onClose} className="p-3 bg-charcoal text-white rounded-full active:scale-90 transition-all ml-4 shrink-0"><X size={20} /></button>
         </div>
 
         <div className="overflow-y-auto p-6 sm:p-8 space-y-8 no-scrollbar flex-1 pb-32">
@@ -259,7 +314,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
               </div>
            </div>
 
-           {mode === 'watched' && (
+           {/* Affichage conditionnel des outils avancés (Masqué en mode Shared Space pour simplicité initialement, ou activé si nécessaire) */}
+           {/* Pour l'instant on garde tout, mais l'analyse Bitter ne sera pas sauvegardée dans shared_movies pour simplifier */}
+           {!sharedSpace && mode === 'watched' && (
               <div className="space-y-8">
                  <div onClick={() => { haptics.medium(); setIsBitterMode(!isBitterMode); }} className={`p-5 rounded-[2rem] border-2 transition-all cursor-pointer flex items-center justify-between ${isBitterMode ? 'bg-bitter-lime border-bitter-lime text-charcoal shadow-lg' : 'bg-white border-stone-100 text-stone-300'}`}>
                     <div className="flex items-center gap-4">
@@ -302,11 +359,25 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ isOpen, onClose, onSave, 
                  </div>
               </div>
            )}
+           
+           {/* Pas d'analyse Bitter avancée pour les espaces partagés dans un premier temps pour garder la cohérence des données */}
+           {sharedSpace && mode === 'watched' && (
+               <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100 text-center">
+                   <Info size={24} className="mx-auto text-stone-300 mb-2" />
+                   <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                       Notez ce film après l'ajout pour détailler votre verdict.
+                   </p>
+               </div>
+           )}
         </div>
 
         <div className="p-8 border-t border-black/5 bg-white rounded-b-[3.5rem] shrink-0">
-           <button onClick={handleSubmit} className="w-full bg-charcoal text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl">
-              Confirmer le Verdict
+           <button 
+                onClick={handleSubmit} 
+                disabled={isSaving}
+                className="w-full bg-charcoal text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-70"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Confirmer'}
            </button>
         </div>
       </div>
