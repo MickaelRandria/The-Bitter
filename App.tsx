@@ -9,7 +9,7 @@ import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
-import { SharedSpace, supabase } from './services/supabase';
+import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
 import { Session } from '@supabase/supabase-js';
 import AuthScreen from './components/AuthScreen';
 
@@ -78,6 +78,7 @@ const App: React.FC = () => {
   const [showSharedSpaces, setShowSharedSpaces] = useState(false);
   const [activeSharedSpace, setActiveSharedSpace] = useState<SharedSpace | null>(null);
   const [sharedSpaceRefreshTrigger, setSharedSpaceRefreshTrigger] = useState(0);
+  const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
   
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -86,6 +87,8 @@ const App: React.FC = () => {
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
+
+  const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
   // --- AUTH CHECK EFFECT ---
   useEffect(() => {
@@ -118,12 +121,29 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
   }, [profiles]);
 
+  // Load Joined Spaces
+  useEffect(() => {
+    const loadMySpaces = async () => {
+        if (activeProfile?.joinedSpaceIds && activeProfile.joinedSpaceIds.length > 0) {
+            // Note: getUserSpaces already filters by member ID on the server
+            // But we trigger it if we have local awareness or if connected
+            const spaces = await getUserSpaces(activeProfile.id);
+            setMySpaces(spaces);
+        } else if (session && activeProfile) {
+            // Even if local state is empty, check DB
+            const spaces = await getUserSpaces(activeProfile.id);
+            setMySpaces(spaces);
+        }
+    };
+    if (activeProfile) {
+        loadMySpaces();
+    }
+  }, [activeProfile?.id, activeProfile?.joinedSpaceIds?.length, session]);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
   useEffect(() => {
     if (activeProfile && !showWelcome && !activeProfile.isOnboarded) {
@@ -141,7 +161,7 @@ const App: React.FC = () => {
         severityIndex: data.severityIndex, 
         patienceLevel: data.patienceLevel, 
         favoriteGenres: data.favoriteGenres, 
-        role: data.role,
+        role: data.role, 
         isOnboarded: true 
       };
     }));
@@ -326,9 +346,15 @@ const App: React.FC = () => {
                     }
                     setShowSharedSpaces(true); 
                 }} 
-                className={`w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'}`}
+                className={`relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'} group`}
                 >
-                <Users size={20} />
+                <Users size={20} className="group-hover:scale-110 transition-transform" />
+                {/* Badge si espaces rejoints */}
+                {mySpaces.length > 0 && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-forest text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm">
+                    {mySpaces.length}
+                    </div>
+                )}
                 </button>
                 <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
                 <User size={20} />
@@ -344,13 +370,22 @@ const App: React.FC = () => {
       <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-6' : 'pt-6'} pb-32`}>
         <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" size={32} /></div>}>
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
-              <SharedSpaceView 
-                space={activeSharedSpace}
-                currentUserId={activeProfile?.id || ''}
-                onBack={handleBackToFeed}
-                onAddMovie={() => { setIsModalOpen(true); }}
-                refreshTrigger={sharedSpaceRefreshTrigger}
-              />
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-screen">
+                  <div className="text-center">
+                    <Loader2 className="animate-spin text-forest mx-auto mb-4" size={32} />
+                    <p className="text-sm text-stone-500 font-medium">Chargement de l'espace...</p>
+                  </div>
+                </div>
+              }>
+                <SharedSpaceView 
+                    space={activeSharedSpace}
+                    currentUserId={activeProfile?.id || ''}
+                    onBack={handleBackToFeed}
+                    onAddMovie={() => { setIsModalOpen(true); }}
+                    refreshTrigger={sharedSpaceRefreshTrigger}
+                />
+              </Suspense>
           ) : viewMode === 'Analytics' ? (
             <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
           ) : viewMode === 'Discover' ? (
@@ -482,6 +517,16 @@ const App: React.FC = () => {
             onClose={() => setShowSharedSpaces(false)}
             userId={activeProfile.id}
             onSelectSpace={(space) => {
+              // ✅ Sauvegarder l'espace dans le profil local
+              if (activeProfile && !activeProfile.joinedSpaceIds?.includes(space.id)) {
+                setProfiles(prev => prev.map(p => {
+                  if (p.id !== activeProfileId) return p;
+                  return {
+                    ...p,
+                    joinedSpaceIds: [...(p.joinedSpaceIds || []), space.id]
+                  };
+                }));
+              }
               setActiveSharedSpace(space);
               setShowSharedSpaces(false);
               setViewMode('SharedSpace');

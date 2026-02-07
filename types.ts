@@ -78,6 +78,7 @@ export interface UserProfile {
   favoriteGenres?: string[];
   isOnboarded?: boolean;
   role?: string;
+  joinedSpaceIds?: string[];
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;

@@ -9,7 +9,8 @@ import {
   Film,
   ChevronDown,
   Trash2,
-  Edit
+  Edit,
+  X
 } from 'lucide-react';
 import { 
   SharedSpace, 
@@ -29,7 +30,7 @@ interface SharedSpaceViewProps {
   currentUserId: string;
   onBack: () => void;
   onAddMovie: () => void;
-  refreshTrigger?: number; // Prop pour forcer le rafraîchissement depuis le parent
+  refreshTrigger?: number;
 }
 
 const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({ 
@@ -44,6 +45,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
   const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
+
+  // Rating State
+  const [ratingMovie, setRatingMovie] = useState<SharedMovie | null>(null);
+  const [ratingStory, setRatingStory] = useState(5);
+  const [ratingVisuals, setRatingVisuals] = useState(5);
+  const [ratingActing, setRatingActing] = useState(5);
+  const [ratingSound, setRatingSound] = useState(5);
+  const [ratingReview, setRatingReview] = useState('');
+  const [savingRating, setSavingRating] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -61,8 +71,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   const loadRatings = async (movieId: string) => {
-    if (movieRatings[movieId]) return; // Déjà chargé
-    
+    // Force reload to get fresh data
     const ratings = await getMovieRatings(movieId);
     setMovieRatings(prev => ({ ...prev, [movieId]: ratings }));
   };
@@ -77,6 +86,41 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     haptics.soft();
   };
 
+  const handleSubmitRating = async () => {
+    if (!ratingMovie) return;
+    
+    setSavingRating(true);
+    
+    const result = await upsertMovieRating(
+      ratingMovie.id,
+      currentUserId,
+      {
+        story: ratingStory,
+        visuals: ratingVisuals,
+        acting: ratingActing,
+        sound: ratingSound,
+        review: ratingReview.trim() || undefined
+      }
+    );
+    
+    if (result) {
+      haptics.success();
+      
+      // Recharger les notes de ce film
+      await loadRatings(ratingMovie.id);
+      
+      // Fermer le modal
+      setRatingMovie(null);
+      setRatingStory(5);
+      setRatingVisuals(5);
+      setRatingActing(5);
+      setRatingSound(5);
+      setRatingReview('');
+    }
+    
+    setSavingRating(false);
+  };
+
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
     
@@ -85,6 +129,31 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     }, 0);
     
     return (total / ratings.length).toFixed(1);
+  };
+
+  const calculateSpaceStats = () => {
+    // Stats par membre
+    const memberStats: Record<string, { totalRatings: number; avgRating: number; name: string }> = {};
+    
+    Object.values(movieRatings).forEach((ratings: MovieRating[]) => {
+      ratings.forEach(rating => {
+        if (!memberStats[rating.profile_id]) {
+          memberStats[rating.profile_id] = {
+            totalRatings: 0,
+            avgRating: 0,
+            name: rating.profile?.first_name || 'Membre'
+          };
+        }
+        
+        const avg = (rating.story + rating.visuals + rating.acting + rating.sound) / 4;
+        memberStats[rating.profile_id].avgRating = 
+          (memberStats[rating.profile_id].avgRating * memberStats[rating.profile_id].totalRatings + avg) / 
+          (memberStats[rating.profile_id].totalRatings + 1);
+        memberStats[rating.profile_id].totalRatings++;
+      });
+    });
+    
+    return memberStats;
   };
 
   if (loading && movies.length === 0) {
@@ -97,15 +166,51 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto w-full pb-32 animate-[fadeIn_0.3s_ease-out]">
+      <style>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 24px;
+          height: 24px;
+          background: #2D5016;
+          border: 3px solid white;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .slider::-moz-range-thumb {
+          width: 24px;
+          height: 24px;
+          background: #2D5016;
+          border: 3px solid white;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+      `}</style>
+
       {/* Header */}
       <div className="mb-8">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 mb-4 text-stone-500 hover:text-charcoal transition-colors px-1"
-        >
-          <ArrowLeft size={16} strokeWidth={2.5} />
-          <span className="text-[10px] font-black uppercase tracking-widest">Retour</span>
-        </button>
+        <div className="flex justify-between items-center mb-4">
+            <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-stone-500 hover:text-charcoal transition-colors px-1"
+            >
+            <ArrowLeft size={16} strokeWidth={2.5} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Retour</span>
+            </button>
+            <button
+                onClick={async () => {
+                    if (confirm('Voulez-vous vraiment quitter cet espace ?')) {
+                    // TODO: Implémenter la suppression du membre en DB
+                    haptics.medium();
+                    onBack();
+                    }
+                }}
+                className="text-[10px] text-red-400 hover:text-red-600 font-bold uppercase tracking-widest"
+            >
+                Quitter
+            </button>
+        </div>
 
         <div className="bg-white border border-sand rounded-[2rem] p-6 shadow-sm">
           <div className="flex items-start justify-between mb-4">
@@ -148,6 +253,76 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Stats Comparatives */}
+      {Object.keys(movieRatings).length > 0 && (
+        <div className="bg-white border border-sand rounded-[2rem] p-6 mb-8 animate-[fadeIn_0.4s_ease-out]">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-4 ml-1">
+            Stats du Groupe
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+            {Object.entries(calculateSpaceStats()).map(([memberId, stats]) => {
+                const isMe = memberId === currentUserId;
+                
+                return (
+                <div 
+                    key={memberId}
+                    className={`p-4 rounded-xl border-2 ${
+                    isMe ? 'bg-forest/5 border-forest' : 'bg-stone-50 border-sand'
+                    }`}
+                >
+                    <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
+                        isMe ? 'bg-forest' : 'bg-stone-400'
+                    }`}>
+                        {stats.name[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="font-bold text-xs truncate">
+                        {stats.name}
+                        {isMe && <span className="text-forest ml-1">(Toi)</span>}
+                        </p>
+                    </div>
+                    </div>
+                    
+                    <div className="flex items-baseline gap-1">
+                    <Star size={14} fill="currentColor" className="text-forest" />
+                    <span className="text-2xl font-black text-charcoal">
+                        {stats.avgRating.toFixed(1)}
+                    </span>
+                    <span className="text-[10px] text-stone-400 font-bold">/10</span>
+                    </div>
+                    
+                    <p className="text-[9px] text-stone-500 font-medium mt-1">
+                    {stats.totalRatings} film{stats.totalRatings > 1 ? 's' : ''} noté{stats.totalRatings > 1 ? 's' : ''}
+                    </p>
+                </div>
+                );
+            })}
+            </div>
+            
+            {/* Match entre membres */}
+            {Object.keys(calculateSpaceStats()).length === 2 && (
+            <div className="mt-4 pt-4 border-t border-sand">
+                <p className="text-center text-xs">
+                <span className="font-bold text-stone-500">Match du groupe :</span>
+                {' '}
+                <span className="text-forest font-black uppercase tracking-wider ml-1">
+                    {(() => {
+                    const stats = Object.values(calculateSpaceStats());
+                    const diff = Math.abs(stats[0].avgRating - stats[1].avgRating);
+                    if (diff < 0.5) return "🔥 Presque identiques !";
+                    if (diff < 1.5) return "✨ Très proches";
+                    if (diff < 2.5) return "🎬 Complémentaires";
+                    return "🌟 Goûts différents";
+                    })()}
+                </span>
+                </p>
+            </div>
+            )}
+        </div>
+      )}
 
       {/* Films */}
       <div>
@@ -202,8 +377,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   {/* Card principale */}
                   <div
                     onClick={() => handleExpandMovie(movie.id)}
-                    className="p-5 cursor-pointer hover:bg-stone-50 transition-colors"
+                    className="p-5 cursor-pointer hover:bg-stone-50 transition-colors relative"
                   >
+                    {!myRating && (
+                      <div className="absolute top-3 right-3 bg-orange-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow-sm z-10">
+                        À noter
+                      </div>
+                    )}
+                    
                     <div className="flex items-start gap-4">
                       {/* Poster */}
                       <div className="w-16 aspect-[2/3] bg-stone-200 rounded-xl overflow-hidden shadow-sm shrink-0">
@@ -220,7 +401,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
                       {/* Infos */}
                       <div className="flex-1 min-w-0 pt-1">
-                        <h3 className="font-black text-base text-charcoal leading-tight mb-1 truncate">{movie.title}</h3>
+                        <h3 className="font-black text-base text-charcoal leading-tight mb-1 truncate pr-8">{movie.title}</h3>
                         <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-3">
                           {movie.director} • {movie.year}
                         </p>
@@ -251,7 +432,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       </div>
 
                       {/* Chevron */}
-                      <div className={`text-stone-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                      <div className={`text-stone-300 transition-transform duration-300 self-center ${isExpanded ? 'rotate-180' : ''}`}>
                         <ChevronDown size={20} />
                       </div>
                     </div>
@@ -336,7 +517,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       <button
                         onClick={() => {
                           haptics.medium();
-                          alert('Fonctionnalité de notation collaborative à venir dans la v0.72');
+                          // Pré-remplir si l'utilisateur a déjà noté
+                          if (myRating) {
+                            setRatingStory(myRating.story);
+                            setRatingVisuals(myRating.visuals);
+                            setRatingActing(myRating.acting);
+                            setRatingSound(myRating.sound);
+                            setRatingReview(myRating.review || '');
+                          }
+                          setRatingMovie(movie);
                         }}
                         className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] active:scale-95 transition-transform flex items-center justify-center gap-2 ${myRating ? 'bg-stone-100 text-stone-500' : 'bg-charcoal text-white shadow-lg'}`}
                       >
@@ -351,6 +540,167 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal de Notation */}
+      {ratingMovie && (
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+            <div className="relative bg-cream w-full sm:max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-sand/60 flex items-center justify-between bg-white/50 backdrop-blur-xl">
+                <div>
+                <h3 className="text-lg font-black tracking-tight leading-none text-charcoal">{ratingMovie.title}</h3>
+                <p className="text-xs font-bold text-stone-400 mt-1">{ratingMovie.director} • {ratingMovie.year}</p>
+                </div>
+                <button 
+                onClick={() => {
+                    setRatingMovie(null);
+                    haptics.soft();
+                }}
+                className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center active:scale-90 transition-transform"
+                >
+                <X size={20} />
+                </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
+                
+                {/* Sliders de notation */}
+                <div className="space-y-6 mb-8">
+                {/* Story */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Histoire</label>
+                    <span className="text-lg font-black text-forest">{ratingStory}/10</span>
+                    </div>
+                    <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={ratingStory}
+                    onChange={(e) => {
+                        setRatingStory(parseInt(e.target.value));
+                        haptics.soft();
+                    }}
+                    className="w-full h-2 bg-stone-200 rounded-full appearance-none cursor-pointer slider"
+                    style={{'--value': `${ratingStory*10}%`} as React.CSSProperties}
+                    />
+                </div>
+
+                {/* Visuals */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Visuel</label>
+                    <span className="text-lg font-black text-forest">{ratingVisuals}/10</span>
+                    </div>
+                    <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={ratingVisuals}
+                    onChange={(e) => {
+                        setRatingVisuals(parseInt(e.target.value));
+                        haptics.soft();
+                    }}
+                    className="w-full h-2 bg-stone-200 rounded-full appearance-none cursor-pointer slider"
+                    style={{'--value': `${ratingVisuals*10}%`} as React.CSSProperties}
+                    />
+                </div>
+
+                {/* Acting */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Acting</label>
+                    <span className="text-lg font-black text-forest">{ratingActing}/10</span>
+                    </div>
+                    <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={ratingActing}
+                    onChange={(e) => {
+                        setRatingActing(parseInt(e.target.value));
+                        haptics.soft();
+                    }}
+                    className="w-full h-2 bg-stone-200 rounded-full appearance-none cursor-pointer slider"
+                    style={{'--value': `${ratingActing*10}%`} as React.CSSProperties}
+                    />
+                </div>
+
+                {/* Sound */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Son</label>
+                    <span className="text-lg font-black text-forest">{ratingSound}/10</span>
+                    </div>
+                    <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={ratingSound}
+                    onChange={(e) => {
+                        setRatingSound(parseInt(e.target.value));
+                        haptics.soft();
+                    }}
+                    className="w-full h-2 bg-stone-200 rounded-full appearance-none cursor-pointer slider"
+                    style={{'--value': `${ratingSound*10}%`} as React.CSSProperties}
+                    />
+                </div>
+                </div>
+
+                {/* Note moyenne preview */}
+                <div className="bg-forest text-white rounded-2xl p-6 text-center mb-8 shadow-xl shadow-forest/20">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Moyenne Globale</p>
+                    <p className="text-5xl font-black tracking-tighter">
+                        {((ratingStory + ratingVisuals + ratingActing + ratingSound) / 4).toFixed(1)}
+                    </p>
+                </div>
+
+                {/* Review */}
+                <div className="mb-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2 block ml-1">
+                    Verdict (optionnel)
+                </label>
+                <textarea
+                    value={ratingReview}
+                    onChange={(e) => setRatingReview(e.target.value)}
+                    placeholder="Ton avis en quelques mots..."
+                    className="w-full p-5 rounded-2xl border-2 border-stone-100 bg-white text-sm font-medium focus:outline-none focus:border-forest resize-none transition-all"
+                    rows={3}
+                    maxLength={200}
+                />
+                <p className="text-[9px] font-bold text-stone-300 mt-2 text-right">{ratingReview.length}/200</p>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-sand bg-white shrink-0">
+                <button
+                onClick={handleSubmitRating}
+                disabled={savingRating}
+                className="w-full bg-charcoal text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3 shadow-xl"
+                >
+                {savingRating ? (
+                    <>
+                    <Loader2 className="animate-spin" size={16} />
+                    Enregistrement...
+                    </>
+                ) : (
+                    <>
+                    <Star size={16} />
+                    Valider mon verdict
+                    </>
+                )}
+                </button>
+            </div>
+            </div>
+        </div>
+        )}
     </div>
   );
 };

@@ -61,8 +61,8 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
       
       if (space) {
         haptics.success();
-        await loadSpaces();
-        setCreatedSpace(space); // On stocke l'espace créé pour afficher l'écran de succès
+        // On redirige directement vers l'espace créé
+        onSelectSpace(space); 
         setNewSpaceName('');
         setNewSpaceDesc('');
       }
@@ -152,7 +152,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
           
-          {/* SUCCESS SCREEN : SPACE CREATED */}
+          {/* SUCCESS SCREEN : SPACE CREATED (Legacy, kept for structure but unused due to auto-redirect) */}
           {createdSpace ? (
              <div className="bg-white border-2 border-charcoal rounded-[2rem] p-8 animate-[scaleIn_0.3s_ease-out] shadow-xl text-center flex flex-col items-center justify-center min-h-[300px]">
                 <div className="w-20 h-20 bg-bitter-lime rounded-full flex items-center justify-center mb-6 border-4 border-charcoal shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]">
