@@ -46,10 +46,14 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
 
   const loadSpaces = async () => {
     setLoading(true);
-    // Directly fetch from DB to ensure list is fresh (persisted)
-    const data = await getUserSpaces(userId);
-    setSpaces(data);
-    setLoading(false);
+    try {
+        const data = await getUserSpaces(userId);
+        setSpaces(data);
+    } catch (e) {
+        console.error("Erreur chargement espaces", e);
+    } finally {
+        setLoading(false);
+    }
   };
 
   const handleCreateSpace = async () => {
@@ -62,13 +66,23 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
       const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
       
       if (space) {
+        // 🛠️ CRITICAL FIX: Force self-join to ensure the creator is a member in the DB
+        // This ensures the space appears in getUserSpaces() next time.
+        await joinSpaceByCode(space.invite_code, userId);
+
         haptics.success();
+        
+        // Update local list immediately so it appears if we come back
+        setSpaces(prev => [space, ...prev]);
+
         // Immediately select (navigate) to the space
         onSelectSpace(space); 
+        
         setNewSpaceName('');
         setNewSpaceDesc('');
       }
     } catch (e: any) {
+      console.error(e);
       setError(e.message || 'Erreur lors de la création.');
     }
     
@@ -88,7 +102,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
           haptics.success();
           setJoinSuccess(true);
 
-          // Important: Reload spaces so it appears in the list next time
+          // Refresh list for persistence
           await loadSpaces();
           
           setTimeout(() => {
@@ -150,226 +164,194 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
           
-          {/* SUCCESS SCREEN : SPACE CREATED (Legacy logic, mainly bypassed by auto-select) */}
-          {createdSpace ? (
-             <div className="bg-white border-2 border-charcoal rounded-[2rem] p-8 animate-[scaleIn_0.3s_ease-out] shadow-xl text-center flex flex-col items-center justify-center min-h-[300px]">
-                <div className="w-20 h-20 bg-bitter-lime rounded-full flex items-center justify-center mb-6 border-4 border-charcoal shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]">
-                   <Check size={40} className="text-charcoal" strokeWidth={4} />
-                </div>
-                
-                <h3 className="text-3xl font-black text-charcoal uppercase tracking-tighter mb-2 leading-none">Espace Créé !</h3>
-                <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-8">Invitez vos amis avec ce code</p>
-                
-                <div 
-                  onClick={() => copyInviteCode(createdSpace.invite_code)}
-                  className="w-full bg-stone-50 border-2 border-dashed border-charcoal p-8 rounded-2xl mb-8 relative group cursor-pointer hover:bg-stone-100 transition-colors active:scale-95"
-                >
-                   <p className="text-5xl font-black text-charcoal tracking-[0.15em] font-mono leading-none select-all">{createdSpace.invite_code}</p>
-                   <div className="absolute bottom-3 right-3 text-[9px] font-black uppercase text-stone-400 flex items-center gap-1.5 bg-white px-2 py-1 rounded-md border border-stone-200">
-                      {copiedCode === createdSpace.invite_code ? <Check size={10} /> : <Copy size={10} />} 
-                      {copiedCode === createdSpace.invite_code ? 'Copié' : 'Copier'}
-                   </div>
-                </div>
-
-                <button 
-                  onClick={() => { setCreatedSpace(null); setShowCreateForm(false); }} 
-                  className="w-full bg-charcoal text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:translate-y-[2px] active:shadow-none transition-all hover:bg-black"
-                >
-                   C'est noté
-                </button>
-             </div>
-          ) : (
-            <>
-              {/* Mes espaces */}
-              {loading && spaces.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-3">
-                    <Loader2 size={32} className="animate-spin text-stone-300" />
-                    <p className="text-[10px] font-black uppercase text-stone-300 tracking-widest">Synchronisation...</p>
-                </div>
-              ) : spaces.length > 0 ? (
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
-                    Vos Collections ({spaces.length})
-                  </h3>
-                  <div className="grid gap-3">
-                    {spaces.map((space) => (
-                      <div 
-                        key={space.id}
-                        onClick={() => onSelectSpace(space)}
-                        className="bg-white border border-sand rounded-[1.5rem] p-5 cursor-pointer hover:border-forest active:scale-[0.98] transition-all shadow-sm group"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-charcoal font-black text-xs">
-                                  {space.name.substring(0, 2).toUpperCase()}
-                              </div>
-                              <h4 className="font-black text-base text-charcoal group-hover:text-forest transition-colors">{space.name}</h4>
+          {/* Mes espaces */}
+          {loading && spaces.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <Loader2 size={32} className="animate-spin text-stone-300" />
+                <p className="text-[10px] font-black uppercase text-stone-300 tracking-widest">Synchronisation...</p>
+            </div>
+          ) : spaces.length > 0 && !showCreateForm && !showJoinForm ? (
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
+                Vos Collections ({spaces.length})
+              </h3>
+              <div className="grid gap-3">
+                {spaces.map((space) => (
+                  <div 
+                    key={space.id}
+                    onClick={() => onSelectSpace(space)}
+                    className="bg-white border border-sand rounded-[1.5rem] p-5 cursor-pointer hover:border-forest active:scale-[0.98] transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-charcoal font-black text-xs">
+                              {space.name.substring(0, 2).toUpperCase()}
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyInviteCode(space.invite_code);
-                            }}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors ${copiedCode === space.invite_code ? 'bg-green-100 text-green-700' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
-                          >
-                            {copiedCode === space.invite_code ? (
-                              <>Copié <Check size={12} /></>
-                            ) : (
-                              <>Code: {space.invite_code} <Copy size={12} /></>
-                            )}
-                          </button>
-                        </div>
-                        {space.description ? (
-                          <p className="text-xs text-stone-500 font-medium pl-11 line-clamp-1">{space.description}</p>
-                        ) : (
-                            <p className="text-[10px] text-stone-300 pl-11 italic">Aucune description</p>
-                        )}
+                          <h4 className="font-black text-base text-charcoal group-hover:text-forest transition-colors">{space.name}</h4>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : !showCreateForm && !showJoinForm ? (
-                <div className="py-10 text-center space-y-4">
-                    <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto text-stone-300">
-                        <Share2 size={32} />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyInviteCode(space.invite_code);
+                        }}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors ${copiedCode === space.invite_code ? 'bg-green-100 text-green-700' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
+                      >
+                        {copiedCode === space.invite_code ? (
+                          <>Copié <Check size={12} /></>
+                        ) : (
+                          <>Code: {space.invite_code} <Copy size={12} /></>
+                        )}
+                      </button>
                     </div>
-                    <p className="text-sm font-medium text-stone-500 max-w-[200px] mx-auto">Vous ne participez à aucun espace partagé pour le moment.</p>
+                    {space.description ? (
+                      <p className="text-xs text-stone-500 font-medium pl-11 line-clamp-1">{space.description}</p>
+                    ) : (
+                        <p className="text-[10px] text-stone-300 pl-11 italic">Aucune description</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : !showCreateForm && !showJoinForm ? (
+            <div className="py-10 text-center space-y-4">
+                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto text-stone-300">
+                    <Share2 size={32} />
                 </div>
-              ) : null}
+                <p className="text-sm font-medium text-stone-500 max-w-[200px] mx-auto">Vous ne participez à aucun espace partagé pour le moment.</p>
+            </div>
+          ) : null}
 
-              {/* Actions */}
-              <div className="space-y-4 pt-4 border-t border-sand/50">
+          {/* Actions */}
+          <div className="space-y-4 pt-4 border-t border-sand/50">
+            
+            {/* Créer un espace */}
+            {!showCreateForm && !showJoinForm ? (
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                    onClick={() => {
+                    setShowCreateForm(true);
+                    setShowJoinForm(false);
+                    haptics.soft();
+                    }}
+                    className="w-full bg-charcoal text-white p-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg shadow-charcoal/20"
+                >
+                    <Plus size={18} strokeWidth={3} />
+                    Créer un espace
+                </button>
+                <button
+                    onClick={() => {
+                    setShowJoinForm(true);
+                    setShowCreateForm(false);
+                    haptics.soft();
+                    }}
+                    className="w-full bg-white border border-sand text-charcoal p-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 transition-transform hover:bg-stone-50"
+                >
+                    <Lock size={16} />
+                    Rejoindre avec un code
+                </button>
+              </div>
+            ) : showCreateForm ? (
+              <div className="bg-white border border-sand rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out] shadow-xl">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-stone-100 rounded-lg text-charcoal"><Plus size={16} /></div>
+                    <h4 className="font-black text-charcoal">Nouvel Espace</h4>
+                </div>
                 
-                {/* Créer un espace */}
-                {!showCreateForm && !showJoinForm ? (
-                  <div className="grid grid-cols-1 gap-3">
-                    <button
-                        onClick={() => {
-                        setShowCreateForm(true);
-                        setShowJoinForm(false);
-                        haptics.soft();
-                        }}
-                        className="w-full bg-charcoal text-white p-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg shadow-charcoal/20"
-                    >
-                        <Plus size={18} strokeWidth={3} />
-                        Créer un espace
-                    </button>
-                    <button
-                        onClick={() => {
-                        setShowJoinForm(true);
-                        setShowCreateForm(false);
-                        haptics.soft();
-                        }}
-                        className="w-full bg-white border border-sand text-charcoal p-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 transition-transform hover:bg-stone-50"
-                    >
-                        <Lock size={16} />
-                        Rejoindre avec un code
-                    </button>
-                  </div>
-                ) : showCreateForm ? (
-                  <div className="bg-white border border-sand rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out] shadow-xl">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-stone-100 rounded-lg text-charcoal"><Plus size={16} /></div>
-                        <h4 className="font-black text-charcoal">Nouvel Espace</h4>
-                    </div>
-                    
-                    <div className="space-y-4 mb-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Nom</label>
-                            <input
-                            type="text"
-                            placeholder="Ex: Ciné-club entre potes"
-                            value={newSpaceName}
-                            onChange={(e) => setNewSpaceName(e.target.value)}
-                            className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-sm font-bold focus:outline-none focus:border-forest focus:bg-white transition-all"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Description</label>
-                            <textarea
-                            placeholder="Quel est le but de ce groupe ?"
-                            value={newSpaceDesc}
-                            onChange={(e) => setNewSpaceDesc(e.target.value)}
-                            className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-sm font-medium focus:outline-none focus:border-forest focus:bg-white resize-none h-24 transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setShowCreateForm(false);
-                          setNewSpaceName('');
-                          setNewSpaceDesc('');
-                        }}
-                        className="flex-1 px-6 py-4 rounded-xl bg-stone-100 text-stone-500 font-black text-xs uppercase tracking-wider hover:bg-stone-200"
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        onClick={handleCreateSpace}
-                        disabled={loading || !newSpaceName.trim()}
-                        className="flex-[2] bg-forest text-white py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg shadow-forest/20 flex items-center justify-center gap-2"
-                      >
-                        {loading && <Loader2 size={14} className="animate-spin" />}
-                        {loading ? 'Création...' : 'Valider'}
-                      </button>
-                    </div>
-                    {error && <p className="text-center text-xs text-red-500 font-bold mt-4">{error}</p>}
-                  </div>
-                ) : (
-                  <div className="bg-white border border-sand rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out] shadow-xl">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-stone-100 rounded-lg text-charcoal"><Lock size={16} /></div>
-                        <h4 className="font-black text-charcoal">Rejoindre un Espace</h4>
-                    </div>
-
-                    <div className="space-y-2 mb-6">
-                        <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Code d'invitation</label>
+                <div className="space-y-4 mb-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Nom</label>
                         <input
-                            type="text"
-                            placeholder="EX: ABC123"
-                            value={inviteCode}
-                            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                            className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-lg font-black font-mono uppercase text-center focus:outline-none focus:border-forest focus:bg-white tracking-[0.2em] placeholder:tracking-normal transition-all"
-                            maxLength={6}
+                        type="text"
+                        placeholder="Ex: Ciné-club entre potes"
+                        value={newSpaceName}
+                        onChange={(e) => setNewSpaceName(e.target.value)}
+                        className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-sm font-bold focus:outline-none focus:border-forest focus:bg-white transition-all"
                         />
                     </div>
-                    
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setShowJoinForm(false);
-                          setInviteCode('');
-                          setError(null);
-                        }}
-                        className="flex-1 px-6 py-4 rounded-xl bg-stone-100 text-stone-500 font-black text-xs uppercase tracking-wider hover:bg-stone-200"
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        onClick={handleJoinSpace}
-                        disabled={loading || inviteCode.length !== 6 || joinSuccess}
-                        className={`flex-[2] py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg flex items-center justify-center gap-2 transition-all ${
-                            joinSuccess 
-                            ? 'bg-bitter-lime text-charcoal scale-105' 
-                            : 'bg-forest text-white shadow-forest/20'
-                        }`}
-                      >
-                        {loading && <Loader2 size={14} className="animate-spin" />}
-                        {joinSuccess ? (
-                            <>Rejoint ! <Check size={16} strokeWidth={3} /></>
-                        ) : (
-                            loading ? 'Vérification...' : 'Rejoindre'
-                        )}
-                      </button>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Description</label>
+                        <textarea
+                        placeholder="Quel est le but de ce groupe ?"
+                        value={newSpaceDesc}
+                        onChange={(e) => setNewSpaceDesc(e.target.value)}
+                        className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-sm font-medium focus:outline-none focus:border-forest focus:bg-white resize-none h-24 transition-all"
+                        />
                     </div>
-                    {error && <p className="text-center text-xs text-red-500 font-bold mt-4 animate-[shake_0.4s_ease-in-out]">{error}</p>}
-                  </div>
-                )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setNewSpaceName('');
+                      setNewSpaceDesc('');
+                    }}
+                    className="flex-1 px-6 py-4 rounded-xl bg-stone-100 text-stone-500 font-black text-xs uppercase tracking-wider hover:bg-stone-200"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleCreateSpace}
+                    disabled={loading || !newSpaceName.trim()}
+                    className="flex-[2] bg-forest text-white py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg shadow-forest/20 flex items-center justify-center gap-2"
+                  >
+                    {loading && <Loader2 size={14} className="animate-spin" />}
+                    {loading ? 'Création...' : 'Valider'}
+                  </button>
+                </div>
+                {error && <p className="text-center text-xs text-red-500 font-bold mt-4">{error}</p>}
               </div>
-            </>
-          )}
+            ) : (
+              <div className="bg-white border border-sand rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out] shadow-xl">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-stone-100 rounded-lg text-charcoal"><Lock size={16} /></div>
+                    <h4 className="font-black text-charcoal">Rejoindre un Espace</h4>
+                </div>
+
+                <div className="space-y-2 mb-6">
+                    <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-1">Code d'invitation</label>
+                    <input
+                        type="text"
+                        placeholder="EX: ABC123"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                        className="w-full p-4 rounded-xl border-2 border-stone-100 bg-stone-50 text-lg font-black font-mono uppercase text-center focus:outline-none focus:border-forest focus:bg-white tracking-[0.2em] placeholder:tracking-normal transition-all"
+                        maxLength={6}
+                    />
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowJoinForm(false);
+                      setInviteCode('');
+                      setError(null);
+                    }}
+                    className="flex-1 px-6 py-4 rounded-xl bg-stone-100 text-stone-500 font-black text-xs uppercase tracking-wider hover:bg-stone-200"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleJoinSpace}
+                    disabled={loading || inviteCode.length !== 6 || joinSuccess}
+                    className={`flex-[2] py-4 rounded-xl font-black text-xs uppercase tracking-wider disabled:opacity-40 shadow-lg flex items-center justify-center gap-2 transition-all ${
+                        joinSuccess 
+                        ? 'bg-bitter-lime text-charcoal scale-105' 
+                        : 'bg-forest text-white shadow-forest/20'
+                    }`}
+                  >
+                    {loading && <Loader2 size={14} className="animate-spin" />}
+                    {joinSuccess ? (
+                        <>Rejoint ! <Check size={16} strokeWidth={3} /></>
+                    ) : (
+                        loading ? 'Vérification...' : 'Rejoindre'
+                    )}
+                  </button>
+                </div>
+                {error && <p className="text-center text-xs text-red-500 font-bold mt-4 animate-[shake_0.4s_ease-in-out]">{error}</p>}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -13,9 +13,9 @@ interface AddMovieModalProps {
   initialData: Movie | null;
   tmdbIdToLoad?: number | null;
   initialStatus?: MovieStatus;
-  sharedSpace?: SharedSpace | null; // ✅ NOUVEAU PROP
-  currentUserId?: string; // ✅ NOUVEAU PROP
-  onSharedMovieAdded?: () => void; // ✅ Callback de rafraîchissement
+  sharedSpace?: SharedSpace | null; 
+  currentUserId?: string; 
+  onSharedMovieAdded?: () => void;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -194,8 +194,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
   const handleSubmit = async () => {
     if (isSaving) return;
-    setIsSaving(true);
+    
+    // Validation du titre
+    if (!formData.title.trim()) {
+        alert("Veuillez saisir un titre de film.");
+        return;
+    }
+
     haptics.medium();
+    setIsSaving(true);
 
     // Si on est en mode "À voir", on force les notes à 0
     const isWatchlist = mode === 'watchlist';
@@ -207,13 +214,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           : { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating }
         );
 
-    // On efface la date de visionnage si c'est pour la watchlist
     const finalDateWatched = isWatchlist ? undefined : formData.dateWatched;
     
     // --- MODE ESPACE PARTAGÉ ---
-    if (sharedSpace && currentUserId) {
+    if (sharedSpace) {
+        if (!currentUserId) {
+            alert("Erreur de session : Identifiant utilisateur manquant. Veuillez vous reconnecter.");
+            setIsSaving(false);
+            return;
+        }
+
         try {
-            await addMovieToSpace(sharedSpace.id, {
+            const result = await addMovieToSpace(sharedSpace.id, {
                 tmdb_id: formData.tmdbId,
                 title: formData.title,
                 director: formData.director,
@@ -223,13 +235,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 status: mode
             }, currentUserId);
             
-            haptics.success();
-            onSharedMovieAdded?.(); // Rafraîchir la vue parent
-            onClose(); // Fermer la modale directement (on ne passe pas par onSave local)
-        } catch (err) {
-            console.error(err);
+            if (result) {
+                haptics.success();
+                onSharedMovieAdded?.(); // Rafraîchir la vue parent
+                onClose(); 
+            } else {
+                throw new Error("Échec de l'ajout (Réponse vide)");
+            }
+        } catch (err: any) {
+            console.error("Erreur addMovieToSpace:", err);
             haptics.error();
-            alert("Erreur lors de l'ajout à l'espace partagé");
+            alert("Erreur lors de l'ajout à l'espace partagé : " + (err.message || "Erreur inconnue"));
         } finally {
             setIsSaving(false);
         }
