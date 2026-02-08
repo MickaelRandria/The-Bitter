@@ -18,7 +18,8 @@
     "react-ga4": "^2.1.0",
     "posthog-js": "^1.337.0",
     "@google/genai": "^1.39.0",
-    "@supabase/supabase-js": "^2.95.3"
+    "@supabase/supabase-js": "^2.95.3",
+    "html-to-image": "^1.11.11"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

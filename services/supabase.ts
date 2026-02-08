@@ -50,6 +50,8 @@ export interface SharedMovie {
   added_by_profile?: {
     first_name: string;
   };
+  media_type?: 'movie' | 'tv';
+  number_of_seasons?: number;
 }
 
 export interface MovieRating {
@@ -182,6 +184,8 @@ export async function addMovieToSpace(
     genre: string;
     poster_url?: string;
     status?: 'watched' | 'watchlist';
+    media_type?: 'movie' | 'tv';
+    number_of_seasons?: number;
   },
   userId: string
 ): Promise<SharedMovie | null> {

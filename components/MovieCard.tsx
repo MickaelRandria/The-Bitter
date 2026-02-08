@@ -2,6 +2,7 @@
 import React, { useState, memo } from 'react';
 import { Movie } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone } from 'lucide-react';
+import ShareStoryButtonSimple from './ShareStoryButtonSimple';
 
 interface MovieCardProps {
   movie: Movie;
@@ -41,6 +42,8 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
   const hasPoster = !!movie.posterUrl;
   const isWatchlist = movie.status === 'watchlist';
   const baseHeight = index % 3 === 0 ? 'h-80' : 'h-64';
+
+  const isTv = movie.mediaType === 'tv';
 
   const cardClasses = `
     relative rounded-[2.5rem] p-8 flex flex-col transition-[transform,box-shadow,height] duration-300 w-full overflow-hidden cursor-pointer group/card
@@ -98,6 +101,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
                 : movie.year
                 }
             </span>
+            {isTv && movie.numberOfSeasons && (
+                <>
+                  <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
+                  <span>{movie.numberOfSeasons} Saisons</span>
+                </>
+            )}
             <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
             <span className="truncate max-w-[140px]">{movie.director}</span>
         </div>
@@ -133,6 +142,9 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
           )}
 
           <div className="flex gap-3 mt-4 pb-4">
+             {/* Bouton Partage Story (Désactivé temporairement pour v0.73) */}
+             {/* {!isWatchlist && <ShareStoryButtonSimple movie={movie} />} */}
+
              <button 
                 onClick={(e) => { e.stopPropagation(); onEdit(movie); }}
                 className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white text-charcoal active:scale-95 transition-[transform,background-color] duration-150 shadow-lg"

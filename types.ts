@@ -60,6 +60,9 @@ export interface Movie {
   hype?: number;
   pacing?: PacingType;
   symptoms?: string[];
+  // Nouveaux champs pour Séries TV
+  mediaType?: 'movie' | 'tv';
+  numberOfSeasons?: number;
 }
 
 export interface UserProfile {

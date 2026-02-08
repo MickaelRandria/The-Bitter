@@ -10,22 +10,28 @@ interface MovieDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAction: (id: number, status: MovieStatus) => void;
+  mediaType?: 'movie' | 'tv';
 }
 
 interface MovieDetail {
   id: number;
-  title: string;
+  title?: string;
+  name?: string; // For TV
   overview: string;
   poster_path: string;
   backdrop_path: string;
-  release_date: string;
-  runtime: number;
+  release_date?: string;
+  first_air_date?: string; // For TV
+  runtime?: number;
+  episode_run_time?: number[]; // For TV
+  number_of_seasons?: number; // For TV
   vote_average: number;
   genres: { name: string }[];
   credits: {
     crew: { job: string; name: string }[];
     cast: { name: string; character: string; profile_path: string }[];
   };
+  created_by?: { name: string }[]; // For TV
   'watch/providers': {
     results: {
       FR?: {
@@ -37,7 +43,7 @@ interface MovieDetail {
   };
 }
 
-const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction }) => {
+const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, mediaType = 'movie' }) => {
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +52,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
       const fetchDetails = async () => {
         setLoading(true);
         try {
-          const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers`);
+          const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers`);
           const data = await res.json();
           setMovie(data);
         } catch (e) {
@@ -59,11 +65,29 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
     } else {
       setMovie(null);
     }
-  }, [isOpen, tmdbId]);
+  }, [isOpen, tmdbId, mediaType]);
 
   if (!isOpen) return null;
 
-  const director = movie?.credits.crew.find(c => c.job === 'Director')?.name;
+  // Normalized data for Movie/TV
+  const title = movie?.title || movie?.name;
+  const date = movie?.release_date || movie?.first_air_date;
+  const year = date?.split('-')[0];
+  
+  // Director Logic
+  let director = 'Inconnu';
+  if (mediaType === 'movie') {
+      director = movie?.credits.crew.find(c => c.job === 'Director')?.name || 'Inconnu';
+  } else if (movie?.created_by && movie.created_by.length > 0) {
+      director = movie.created_by.map(c => c.name).join(', ');
+  }
+
+  // Runtime Logic
+  let runtime = movie?.runtime;
+  if (!runtime && movie?.episode_run_time && movie.episode_run_time.length > 0) {
+      runtime = movie.episode_run_time[0];
+  }
+
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const providers = movie?.['watch/providers']?.results?.FR?.flatrate || [];
 
@@ -87,7 +111,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                <img 
                  src={movie.backdrop_path ? `${TMDB_IMAGE_URL}${movie.backdrop_path}` : `${TMDB_IMAGE_URL}${movie.poster_path}`} 
                  className="w-full h-full object-cover"
-                 alt={movie.title}
+                 alt={title}
                />
                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-cream" />
                <button 
@@ -106,19 +130,27 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                     <img src={`${TMDB_IMAGE_URL}${movie.poster_path}`} className="w-full h-full object-cover" alt="" />
                   </div>
                   <div className="flex-1 pt-2">
-                     <h2 className="text-2xl font-black text-charcoal leading-tight mb-1 line-clamp-2">{movie.title}</h2>
-                     <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
-                        {movie.release_date?.split('-')[0]} • {director}
+                     <h2 className="text-2xl font-black text-charcoal leading-tight mb-1 line-clamp-2">{title}</h2>
+                     <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
+                        {year} • {director}
                      </p>
-                     <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1 bg-charcoal text-white px-2 py-0.5 rounded-md text-[10px] font-black">
                            <Star size={8} fill="currentColor" className="text-bitter-lime" />
                            {movie.vote_average.toFixed(1)}
                         </div>
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 border border-stone-200">
-                           <Clock size={8} />
-                           {movie.runtime} min
-                        </div>
+                        {runtime ? (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 border border-stone-200">
+                                <Clock size={8} />
+                                {runtime} min
+                            </div>
+                        ) : null}
+                        {mediaType === 'tv' && movie.number_of_seasons && (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 border border-stone-200">
+                                <Tv size={8} />
+                                {movie.number_of_seasons} S
+                            </div>
+                        )}
                      </div>
                   </div>
                </div>

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.73',
+    date: 'Aujourd\'hui',
+    title: 'Séries & Performance',
+    changes: [
+      { type: 'feature', text: '📺 Séries TV : Support complet (Recherche & Saisons)' },
+      { type: 'style', text: '🚀 Performance : Optimisation de l\'affichage des cartes.' }
+    ]
+  },
+  {
     version: 'v0.72',
     date: '06 Février 2026',
     title: 'Symbiose Sociale',

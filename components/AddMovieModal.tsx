@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info } from 'lucide-react';
+import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { MovieFormData, Movie, MovieStatus, VibeCriteria, QualityMetrics } from '../types';
 import { haptics } from '../utils/haptics';
@@ -16,6 +16,7 @@ interface AddMovieModalProps {
   sharedSpace?: SharedSpace | null; 
   currentUserId?: string; 
   onSharedMovieAdded?: () => void;
+  initialMediaType?: 'movie' | 'tv';
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -37,6 +38,8 @@ const INITIAL_FORM_STATE: MovieFormData = {
   vibe: INITIAL_VIBE,
   qualityMetrics: INITIAL_QUALITY,
   hype: 5,
+  mediaType: 'movie',
+  numberOfSeasons: 0
 };
 
 const RatingStepper: React.FC<{ label: string; value: number; onChange: (val: number) => void; isBitter?: boolean }> = ({ label, value, onChange, isBitter }) => {
@@ -90,7 +93,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     initialStatus = 'watched',
     sharedSpace,
     currentUserId,
-    onSharedMovieAdded
+    onSharedMovieAdded,
+    initialMediaType = 'movie'
 }) => {
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
@@ -100,6 +104,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Nouveau state pour le type de recherche
+  const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
   
   const skipSearchRef = useRef(false);
   const searchTimeoutRef = useRef<number | null>(null);
@@ -112,18 +119,22 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setMode(initialData.status || 'watched');
         setGlobalRating((initialData.ratings.story + initialData.ratings.visuals + initialData.ratings.acting + initialData.ratings.sound) / 4);
         setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
+        setSearchType(initialData.mediaType || 'movie');
       } else if (tmdbIdToLoad) {
-        handleSelectTMDBMovie(tmdbIdToLoad);
-        setMode(initialStatus); // Use passed status
+        // Important: Set searchType BEFORE loading to use correct endpoint
+        setSearchType(initialMediaType);
+        handleSelectTMDBMovie(tmdbIdToLoad, initialMediaType);
+        setMode(initialStatus);
       } else {
         skipSearchRef.current = false;
         setFormData({ ...INITIAL_FORM_STATE });
-        setMode(initialStatus); // Default to passed status
+        setMode(initialStatus);
         setSearchResults([]);
         setShowResults(false);
+        setSearchType('movie');
       }
     }
-  }, [isOpen, initialData, tmdbIdToLoad, initialStatus]);
+  }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
 
   // Refined Debounce Logic
   useEffect(() => {
@@ -151,15 +162,30 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     return () => {
         if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
     };
-  }, [formData.title]);
+  }, [formData.title, searchType]);
 
   const searchTMDB = async (query: string) => {
     setIsSearching(true);
     setShowResults(true);
     try {
-      const res = await fetch(`${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=fr-FR&query=${encodeURIComponent(query)}&page=1`);
+      // Switch endpoint based on searchType
+      const endpoint = searchType === 'tv' ? 'search/tv' : 'search/movie';
+      const res = await fetch(`${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&query=${encodeURIComponent(query)}&page=1`);
       const data = await res.json();
-      setSearchResults(data.results.slice(0, 5));
+      
+      // Normalize TV results to look like Movie results for the dropdown
+      const normalizedResults = data.results.map((item: any) => {
+        if (searchType === 'tv') {
+          return {
+            ...item,
+            title: item.name, // TV shows use 'name'
+            release_date: item.first_air_date // TV shows use 'first_air_date'
+          };
+        }
+        return item;
+      });
+      
+      setSearchResults(normalizedResults.slice(0, 5));
     } catch (e) { 
       console.error(e); 
       setSearchResults([]);
@@ -168,25 +194,46 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     }
   };
 
-  const handleSelectTMDBMovie = async (id: number) => {
+  const handleSelectTMDBMovie = async (id: number, explicitType?: 'movie' | 'tv') => {
     haptics.medium();
     setIsSearching(true);
     setShowResults(false);
     skipSearchRef.current = true;
+    
+    const typeToUse = explicitType || searchType;
+
     try {
-      const res = await fetch(`${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`);
+      const endpoint = typeToUse === 'tv' ? 'tv' : 'movie';
+      const res = await fetch(`${TMDB_BASE_URL}/${endpoint}/${id}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`);
       const data = await res.json();
-      const director = data.credits?.crew?.find((c: any) => c.job === 'Director')?.name || 'Inconnu';
+      
+      let director = 'Inconnu';
+      
+      if (typeToUse === 'tv') {
+        // Pour les séries, on cherche le créateur
+        if (data.created_by && data.created_by.length > 0) {
+          director = data.created_by.map((c: any) => c.name).join(', ');
+        }
+      } else {
+        // Pour les films, on cherche le réalisateur
+        director = data.credits?.crew?.find((c: any) => c.job === 'Director')?.name || 'Inconnu';
+      }
+      
+      const genre = data.genres?.[0]?.name || GENRES[0];
+      const yearStr = typeToUse === 'tv' ? data.first_air_date : data.release_date;
+      const year = yearStr ? parseInt(yearStr.split('-')[0]) : new Date().getFullYear();
       
       setFormData(prev => ({
         ...prev,
-        title: data.title,
+        title: typeToUse === 'tv' ? data.name : data.title,
         tmdbId: data.id,
-        year: data.release_date ? parseInt(data.release_date.split('-')[0]) : prev.year,
+        year: year,
         director: director,
         posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : '',
         review: data.overview || '',
-        genre: data.genres?.[0]?.name || GENRES[0]
+        genre: genre,
+        mediaType: typeToUse,
+        numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined
       }));
     } catch (e) { console.error(e); }
     setIsSearching(false);
@@ -232,7 +279,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 year: formData.year,
                 genre: formData.genre,
                 poster_url: formData.posterUrl,
-                status: mode
+                status: mode,
+                media_type: formData.mediaType,
+                number_of_seasons: formData.numberOfSeasons
             }, currentUserId);
             
             if (result) {
@@ -287,11 +336,28 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
            <div className="space-y-6 relative">
               <div className="group">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2 block ml-1">Titre de l'œuvre</label>
+                
+                {/* Switch Film / Série */}
+                <div className="flex bg-stone-100 p-1 rounded-2xl mb-3 w-fit">
+                    <button 
+                        onClick={() => { haptics.soft(); setSearchType('movie'); }} 
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'movie' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                        <Film size={12} /> Films
+                    </button>
+                    <button 
+                        onClick={() => { haptics.soft(); setSearchType('tv'); }} 
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'tv' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                        <Tv size={12} /> Séries
+                    </button>
+                </div>
+
                 <div className="relative">
                   <input 
                     type="text" 
                     className="w-full bg-white border-2 border-stone-100 focus:border-charcoal p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12" 
-                    placeholder="Saisissez le titre..." 
+                    placeholder={searchType === 'tv' ? "Nom de la série..." : "Titre du film..."} 
                     value={formData.title} 
                     onChange={e => { setFormData({...formData, title: e.target.value}); }} 
                   />

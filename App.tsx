@@ -25,6 +25,7 @@ const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
+const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
@@ -71,8 +72,12 @@ const App: React.FC = () => {
   const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
   const [initialStatusForAdd, setInitialStatusForAdd] = useState<MovieStatus>('watched');
   
+  // New State for Media Type handling (Films vs Series)
+  const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
+  
   // New State for Movie Details
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
+  const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
   
   // Collaborative Features
   const [showSharedSpaces, setShowSharedSpaces] = useState(false);
@@ -85,8 +90,12 @@ const App: React.FC = () => {
   const [showConsent, setShowConsent] = useState(true);
   const [showCineAssistant, setShowCineAssistant] = useState(false);
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
+  
+  // New Feature Announcement State
+  const [showNewFeatures, setShowNewFeatures] = useState(false);
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
+  const SEEN_V0_73_KEY = 'seen_v0.73';
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -183,6 +192,12 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try { setProfiles(JSON.parse(saved)); } catch (e) { setProfiles([]); }
+    }
+    
+    // Check for New Features Announcement
+    const hasSeenNewFeatures = localStorage.getItem(SEEN_V0_73_KEY);
+    if (!hasSeenNewFeatures) {
+        setShowNewFeatures(true);
     }
   }, []);
 
@@ -458,15 +473,15 @@ const App: React.FC = () => {
             <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
           ) : viewMode === 'Discover' ? (
             <DiscoverView 
-              onSelectMovie={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} 
-              onPreview={(id) => { setPreviewTmdbId(id); }}
+              onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} 
+              onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }}
               userProfile={activeProfile} 
             />
           ) : viewMode === 'Calendar' ? (
             <CalendarView movies={activeProfile?.movies || []} />
           ) : viewMode === 'Deck' ? (
             <MovieDeck 
-              onRate={(id) => { setTmdbIdToLoad(id); setIsModalOpen(true); }} 
+              onRate={(id) => { setTmdbIdToLoad(id); setMediaTypeToLoad('movie'); setIsModalOpen(true); }} 
               onClose={() => setViewMode('Feed')} 
               favoriteGenres={activeProfile?.favoriteGenres} 
               advanceTrigger={deckAdvanceTrigger}
@@ -535,7 +550,7 @@ const App: React.FC = () => {
         </Suspense>
       </main>
 
-      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
+      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
 
       {/* Floating Action Button for AI Assistant */}
       {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
@@ -549,13 +564,21 @@ const App: React.FC = () => {
       )}
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
+        {showNewFeatures && (
+            <NewFeaturesModal onClose={() => {
+                setShowNewFeatures(false);
+                localStorage.setItem(SEEN_V0_73_KEY, 'true');
+            }} />
+        )}
+
         {isModalOpen && (
           <AddMovieModal 
             isOpen={isModalOpen} 
             onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} 
             onSave={handleSaveMovie} 
             initialData={editingMovie} 
-            tmdbIdToLoad={tmdbIdToLoad} 
+            tmdbIdToLoad={tmdbIdToLoad}
+            initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
             sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
             currentUserId={session?.user?.id || activeProfile?.id}
@@ -566,11 +589,13 @@ const App: React.FC = () => {
         {previewTmdbId && (
           <MovieDetailModal 
              tmdbId={previewTmdbId}
+             mediaType={previewMediaType}
              isOpen={!!previewTmdbId}
              onClose={() => setPreviewTmdbId(null)}
              onAction={(id, status) => {
                  setPreviewTmdbId(null);
                  setTmdbIdToLoad(id);
+                 setMediaTypeToLoad(previewMediaType); // Use the preview type for add
                  setInitialStatusForAdd(status);
                  setTimeout(() => setIsModalOpen(true), 100);
              }}
@@ -610,6 +635,7 @@ const App: React.FC = () => {
             userProfile={activeProfile} 
             onAddToWatchlist={(id) => { 
               setTmdbIdToLoad(id); 
+              setMediaTypeToLoad('movie'); // Default to movie for AI assistant for now
               setInitialStatusForAdd('watchlist');
               setIsModalOpen(true); 
               setShowCineAssistant(false); 
