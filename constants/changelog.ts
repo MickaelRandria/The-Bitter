@@ -21,6 +21,7 @@ export const RELEASE_HISTORY: Release[] = [
       { type: 'feature', text: '🔍 Découverte Avancée : Filtres par période (Mois, Année, Tout) pour explorer le catalogue avec précision.' },
       { type: 'feature', text: '📺 Séries TV : Support complet (Recherche, Saisons & Détails) dans l\'Explorateur et la Collection.' },
       { type: 'feature', text: '📸 Partage Story (Beta) : Générez une carte de verdict esthétique pour Instagram directement depuis vos films vus.' },
+      { type: 'fix', text: '🧠 Persistance de Session : L\'application se souvient de votre dernier profil actif (Invité ou Mail) au démarrage, évitant les redirections forcées.' },
       { type: 'style', text: '🚀 Performance : Optimisation massive de la fluidité des listes et du moteur de rendu.' }
     ]
   },
