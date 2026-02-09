@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { 
@@ -22,7 +21,9 @@ import {
   Globe,
   Film,
   Ticket,
-  Tv
+  Tv,
+  Clock,
+  History
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -31,6 +32,7 @@ import StreamingBadge from './StreamingBadge';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
+type TimePeriod = 'this_month' | 'this_year' | 'all_time';
 
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
@@ -80,68 +82,96 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
   const [streamingFilter, setStreamingFilter] = useState<'all' | 'netflix' | 'prime' | 'disney' | 'canal' | 'cinema'>('all');
   const [mediaType, setMediaType] = useState<MediaType>('movie');
   
+  // Filtre temporel par défaut sur 'all_time'
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
+  
   // AI Deep Search State
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
 
   const isSearchActive = searchQuery.length > 0;
 
-  const nextMonths = useMemo(() => {
-    const months = [];
-    for (let i = 0; i < 6; i++) {
-      const d = new Date();
-      d.setMonth(d.getMonth() + i);
-      months.push(d);
+  const getDateRange = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    
+    switch (timePeriod) {
+      case 'this_month':
+        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        return {
+          gte: `${year}-${month}-01`,
+          lte: `${year}-${month}-${lastDay}`
+        };
+        
+      case 'this_year':
+        return {
+          gte: `${year}-01-01`,
+          lte: `${year}-12-31`
+        };
+        
+      case 'all_time':
+        return null;
     }
-    return months;
-  }, []);
+  };
 
   const fetchItems = async () => {
     setLoading(true);
     try {
       let url = "";
+      const dateRange = getDateRange();
       
-      // Determine date field based on media type
       const dateFieldGte = mediaType === 'movie' ? 'primary_release_date.gte' : 'first_air_date.gte';
       const dateFieldLte = mediaType === 'movie' ? 'primary_release_date.lte' : 'first_air_date.lte';
       const sortDate = mediaType === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc';
 
       if (isSearchActive) {
+        // MODE RECHERCHE
         url = `${TMDB_BASE_URL}/search/${mediaType}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&query=${encodeURIComponent(searchQuery)}&page=1&include_adult=false`;
-      } else {
-        const targetDate = nextMonths[selectedMonthIndex];
-        const year = targetDate.getFullYear();
-        const month = String(targetDate.getMonth() + 1).padStart(2, '0');
         
-        // 🔥 LOGIC: Streaming & Cinema filters
-        if (streamingFilter === 'cinema' && mediaType === 'movie') {
-            // Cinema logic (Movies only)
-            const today = new Date();
-            const twoMonthsAgo = new Date();
-            twoMonthsAgo.setMonth(today.getMonth() - 2);
-            const releaseStart = twoMonthsAgo.toISOString().split('T')[0];
-            const releaseEnd = today.toISOString().split('T')[0];
-            
-            url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&${dateFieldGte}=${releaseStart}&${dateFieldLte}=${releaseEnd}&with_release_type=2|3&sort_by=popularity.desc&page=1`;
-        } else if (streamingFilter !== 'all' && streamingFilter !== 'cinema') {
-            // Streaming logic
-            const endpoint = mediaType === 'movie' ? 'discover/movie' : 'discover/tv';
-            url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&with_watch_providers=${streamingFilter}&${dateFieldGte}=${year}-${month}-01&${dateFieldLte}=${year}-${month}-31&sort_by=popularity.desc&page=1`;
-        } else {
-            // Default discover behavior
-            const endpoint = mediaType === 'movie' ? 'discover/movie' : 'discover/tv';
-            const firstDay = `${year}-${month}-01`;
-            const lastDayObj = new Date(year, parseInt(month), 0);
-            const lastDay = `${year}-${month}-${lastDayObj.getDate()}`;
-            
-            const sortParam = sortBy === 'popularity' ? 'popularity.desc' : sortBy === 'date' ? sortDate : (mediaType === 'movie' ? 'title.asc' : 'name.asc');
-            
-            url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&${dateFieldGte}=${firstDay}&${dateFieldLte}=${lastDay}&sort_by=${sortParam}&page=1`;
+        // On n'applique pas les filtres de date sur une recherche par texte pour éviter les résultats vides inattendus, 
+        // à moins que l'utilisateur n'ait explicitement choisi une période
+        if (dateRange) {
+          url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
         }
+      } else {
+        // MODE DÉCOUVERTE
+        const endpoint = mediaType === 'movie' ? 'discover/movie' : 'discover/tv';
         
-        if (activeVibe) {
-          const vibe = VIBES.find(v => v.id === activeVibe);
-          if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
+        // Gérer le cas "Cinéma" (movies only)
+        if (streamingFilter === 'cinema' && mediaType === 'movie') {
+          const today = new Date();
+          const twoMonthsAgo = new Date();
+          twoMonthsAgo.setMonth(today.getMonth() - 2);
+          const releaseStart = twoMonthsAgo.toISOString().split('T')[0];
+          const releaseEnd = today.toISOString().split('T')[0];
+          
+          url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&${dateFieldGte}=${releaseStart}&${dateFieldLte}=${releaseEnd}&with_release_type=2|3&sort_by=popularity.desc&page=1`;
+        } else {
+          // Découverte standard
+          url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR`;
+          
+          // Ajouter filtre temporel si actif
+          if (dateRange) {
+            url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
+          }
+          
+          // Ajouter filtre streaming
+          if (streamingFilter !== 'all' && streamingFilter !== 'cinema') {
+            url += `&with_watch_providers=${streamingFilter}`;
+          }
+          
+          // Ajouter filtre vibe
+          if (activeVibe) {
+            const vibe = VIBES.find(v => v.id === activeVibe);
+            if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
+          }
+          
+          // Ajouter tri
+          const sortParam = sortBy === 'popularity' ? 'popularity.desc' 
+                          : sortBy === 'date' ? sortDate
+                          : (mediaType === 'movie' ? 'title.asc' : 'name.asc');
+          url += `&sort_by=${sortParam}&page=1`;
         }
       }
 
@@ -162,7 +192,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
   useEffect(() => {
     const timer = setTimeout(() => { fetchItems(); }, isSearchActive ? 500 : 0);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeVibe, selectedMonthIndex, sortBy, streamingFilter, mediaType]);
+  }, [searchQuery, activeVibe, selectedMonthIndex, sortBy, streamingFilter, mediaType, timePeriod]);
 
   const handleDeepSearch = async () => {
     if (!searchQuery) return;
@@ -178,7 +208,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
       
       {/* 0. MEDIA TYPE TOGGLE */}
-      <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200/50 w-full">
+      <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200/50 w-full shadow-inner">
          <button 
             onClick={() => { haptics.soft(); setMediaType('movie'); }} 
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-charcoal text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
@@ -261,9 +291,53 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
 
       {/* 2. FILTERS & SORTING */}
       {!aiResult && (
-        <>
+        <div className="animate-[fadeIn_0.5s_ease-out] space-y-8">
+            {/* FILTRE PÉRIODE (POLISHED) */}
+            <div>
+              <div className="flex items-center justify-between px-1 mb-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 flex items-center gap-2">
+                  <Clock size={12} /> Période d'exploration
+                </h3>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => { haptics.soft(); setTimePeriod('this_month'); }}
+                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
+                    timePeriod === 'this_month'
+                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
+                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <Calendar size={18} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Mois en cours</span>
+                </button>
+                <button
+                  onClick={() => { haptics.soft(); setTimePeriod('this_year'); }}
+                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
+                    timePeriod === 'this_year'
+                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
+                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <Zap size={18} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Sorties {new Date().getFullYear()}</span>
+                </button>
+                <button
+                  onClick={() => { haptics.soft(); setTimePeriod('all_time'); }}
+                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
+                    timePeriod === 'all_time'
+                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
+                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <History size={18} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Patrimoine</span>
+                </button>
+              </div>
+            </div>
+
             {/* Streaming Filters */}
-            <div className="mb-2">
+            <div>
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 mb-4 px-1">
                     Plateforme
                 </h3>
@@ -282,7 +356,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
                                 className={`flex-shrink-0 px-4 py-3 rounded-2xl font-bold text-xs transition-all border flex items-center gap-2 ${
                                     streamingFilter === provider.id
                                     ? 'bg-charcoal text-white border-charcoal shadow-lg scale-105'
-                                    : 'bg-white text-stone-600 border-sand hover:border-stone-300'
+                                    : 'bg-white text-stone-600 border-sand hover:border-stone-300 shadow-sm'
                                 }`}
                             >
                                 {/* @ts-ignore */}
@@ -298,11 +372,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
                 </div>
             </div>
 
+            {/* Sort Logic */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
                     <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Trier par</span>
                 </div>
-                <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full">
+                <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full shadow-inner">
                 {(['popularity', 'date', 'alpha'] as SortOption[]).map((opt) => (
                     <button 
                     key={opt}
@@ -315,7 +390,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
                 ))}
                 </div>
             </div>
-        </>
+        </div>
       )}
 
       {/* 3. GRID RESULTS */}
@@ -326,6 +401,22 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-300">
                     Synchronisation {mediaType === 'movie' ? 'TMDB' : 'Séries'}...
                 </p>
+            </div>
+        ) : items.length === 0 ? (
+            <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white rounded-[3rem] border border-stone-100 shadow-sm animate-[scaleIn_0.5s_ease-out]">
+              <div className="w-16 h-16 bg-stone-50 rounded-full flex items-center justify-center text-stone-300 mb-6">
+                 <Search size={24} />
+              </div>
+              <h3 className="font-black text-charcoal text-base mb-2">Aucun résultat</h3>
+              <p className="text-xs text-stone-500 max-w-[200px] leading-relaxed">
+                Essaye de modifier la période ou d'élargir tes critères de recherche.
+              </p>
+              <button 
+                onClick={() => { setTimePeriod('all_time'); setStreamingFilter('all'); setSearchQuery(''); }}
+                className="mt-8 text-[10px] font-black uppercase tracking-widest text-forest border-b-2 border-forest pb-1 active:scale-95 transition-transform"
+              >
+                Réinitialiser tout
+              </button>
             </div>
         ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">

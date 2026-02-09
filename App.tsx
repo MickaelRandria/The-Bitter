@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo } from 'react';
 import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
@@ -50,6 +51,11 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: {
 });
 
 const App: React.FC = () => {
+  // STORAGE KEYS
+  const STORAGE_KEY = 'the_bitter_profiles_v2';
+  const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
+  const NEVER_SHOW_V0_73_KEY = 'never_show_v0.73';
+
   // SUPABASE SESSION STATE
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -93,10 +99,53 @@ const App: React.FC = () => {
   // New Feature Announcement State
   const [showNewFeatures, setShowNewFeatures] = useState(false);
 
-  const STORAGE_KEY = 'the_bitter_profiles_v2';
-  const NEVER_SHOW_V0_73_KEY = 'never_show_v0.73';
-
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
+
+  // --- INITIAL LOAD EFFECT ---
+  useEffect(() => {
+    // 1. Charger les profils locaux
+    const savedProfiles = localStorage.getItem(STORAGE_KEY);
+    let loadedProfiles: UserProfile[] = [];
+    if (savedProfiles) {
+      try { 
+        loadedProfiles = JSON.parse(savedProfiles);
+        setProfiles(loadedProfiles); 
+      } catch (e) { 
+        console.error("Error loading profiles", e);
+      }
+    }
+
+    // 2. Vérifier le dernier profil actif (Priorité UX)
+    const lastProfileId = localStorage.getItem(LAST_PROFILE_ID_KEY);
+    if (lastProfileId) {
+      const exists = loadedProfiles.some(p => p.id === lastProfileId);
+      if (exists) {
+        setActiveProfileId(lastProfileId);
+        setShowWelcome(false);
+        setViewMode('Feed');
+      }
+    }
+    
+    // 3. Check for New Features Announcement
+    const neverShowAgain = localStorage.getItem(NEVER_SHOW_V0_73_KEY);
+    if (neverShowAgain !== 'true') {
+        setShowNewFeatures(true);
+    }
+  }, []);
+
+  // --- PERSIST ACTIVE PROFILE ID ---
+  useEffect(() => {
+    if (activeProfileId) {
+      localStorage.setItem(LAST_PROFILE_ID_KEY, activeProfileId);
+    }
+  }, [activeProfileId]);
+
+  // --- PERSIST PROFILES LIST ---
+  useEffect(() => {
+    if (profiles.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+    }
+  }, [profiles]);
 
   // Chargement du profil Supabase vers le state local
   const loadSupabaseProfile = async (userId: string) => {
@@ -115,12 +164,10 @@ const App: React.FC = () => {
       }
       
       if (data) {
-        // Si le profil Supabase existe, créer/mettre à jour le profil local
         setProfiles(prev => {
           const existing = prev.find(p => p.id === data.id);
           
           if (existing) {
-            // Mettre à jour le profil existant avec les données Supabase
             return prev.map(p => p.id === data.id ? {
               ...p,
               firstName: data.first_name,
@@ -130,10 +177,9 @@ const App: React.FC = () => {
               favoriteGenres: data.favorite_genres || p.favoriteGenres,
               role: data.role || p.role,
               isOnboarded: data.is_onboarded || p.isOnboarded,
-              joinedSpaceIds: p.joinedSpaceIds // On garde les espaces locaux pour l'instant
+              joinedSpaceIds: p.joinedSpaceIds
             } : p);
           } else {
-            // Créer un nouveau profil local basé sur Supabase
             return [...prev, {
               id: data.id,
               firstName: data.first_name,
@@ -145,14 +191,18 @@ const App: React.FC = () => {
               favoriteGenres: data.favorite_genres || [],
               role: data.role,
               isOnboarded: data.is_onboarded || false,
-              gender: 'h', // Valeur par défaut
-              age: 25 // Valeur par défaut
+              gender: 'h',
+              age: 25
             }];
           }
         });
         
-        // Définir ce profil comme actif
-        setActiveProfileId(data.id);
+        // 🔥 LOGIQUE CRITIQUE : N'activer le profil mail que si AUCUN profil n'est déjà actif 
+        // ou si l'utilisateur est sur l'écran d'accueil sans session active.
+        setActiveProfileId(current => {
+          if (!current) return data.id;
+          return current; // On garde le profil déjà chargé par la session locale
+        });
       }
     } catch (err) {
       console.error("Exception loading profile", err);
@@ -165,7 +215,6 @@ const App: React.FC = () => {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setAuthLoading(false);
-        // Charger le profil Supabase si connecté
         if (session?.user) {
           loadSupabaseProfile(session.user.id);
         }
@@ -175,7 +224,6 @@ const App: React.FC = () => {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
         setSession(session);
-        // Charger le profil à chaque changement de session
         if (session?.user) {
           loadSupabaseProfile(session.user.id);
         }
@@ -187,33 +235,13 @@ const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { setProfiles(JSON.parse(saved)); } catch (e) { setProfiles([]); }
-    }
-    
-    // Check for New Features Announcement
-    // On affiche à chaque démarrage sauf si l'utilisateur a cliqué sur "Ne plus afficher"
-    const neverShowAgain = localStorage.getItem(NEVER_SHOW_V0_73_KEY);
-    if (neverShowAgain !== 'true') {
-        setShowNewFeatures(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-  }, [profiles]);
-
   // Load Joined Spaces
-  // Note: We use session.user.id for shared spaces logic to ensure RLS compatibility
   useEffect(() => {
     const loadMySpaces = async () => {
         if (session?.user?.id) {
             const spaces = await getUserSpaces(session.user.id);
             setMySpaces(spaces);
         } else if (activeProfile?.joinedSpaceIds && activeProfile.joinedSpaceIds.length > 0) {
-            // Fallback to local profile (e.g. guest mode with local logic only, though unexpected for this feature)
             const spaces = await getUserSpaces(activeProfile.id);
             setMySpaces(spaces);
         }
@@ -259,7 +287,6 @@ const App: React.FC = () => {
       if (p.id !== activeProfileId) return p;
       let updatedMovies = [...p.movies];
       
-      // LOGIC: Check if movie has ratings to enforce 'watched' status
       const hasRatings = data.ratings && (
         data.ratings.story > 0 || 
         data.ratings.visuals > 0 || 
@@ -331,14 +358,12 @@ const App: React.FC = () => {
     if (session) {
         await supabase?.auth.signOut();
     } else {
-        // Mode invité : on réinitialise juste l'état guest
         setIsGuestMode(false);
     }
   };
 
   // --- RENDER GATES ---
 
-  // 1. Loading State
   if (authLoading) {
       return (
         <div className="min-h-screen bg-cream flex items-center justify-center">
@@ -347,17 +372,20 @@ const App: React.FC = () => {
       );
   }
 
-  // 2. Auth Gate (Supabase OR Guest)
-  if (!session && !isGuestMode) {
+  if (!session && !isGuestMode && !activeProfileId) {
       return <AuthScreen onContinueAsGuest={() => setIsGuestMode(true)} />;
   }
 
-  // 3. Main App Flow (Profile Selection)
-  if (showWelcome) return (
+  if (showWelcome && !activeProfileId) return (
     <div className="relative min-h-screen">
       <WelcomePage 
           existingProfiles={profiles} 
-          onSelectProfile={(id) => { setActiveProfileId(id); setShowWelcome(false); setViewMode('Feed'); }} 
+          onSelectProfile={(id) => { 
+            setActiveProfileId(id); 
+            setShowWelcome(false); 
+            setViewMode('Feed'); 
+            haptics.medium();
+          }} 
           onCreateProfile={(f, l, g, a, vp, sp) => {
               const newP: UserProfile = { 
                 id: crypto.randomUUID(), 
@@ -378,7 +406,10 @@ const App: React.FC = () => {
           onDeleteProfile={id => {
             setProfiles(prev => {
               const updated = prev.filter(x => x.id !== id);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              if (activeProfileId === id) {
+                setActiveProfileId(null);
+                localStorage.removeItem(LAST_PROFILE_ID_KEY);
+              }
               return updated;
             });
           }} 
@@ -389,7 +420,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
-      {/* HEADER CONDITIONAL: SharedSpace has its own header internal logic */}
       {viewMode !== 'SharedSpace' && (
         <header className="pt-6 sm:pt-8 px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40">
             <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
@@ -432,7 +462,6 @@ const App: React.FC = () => {
                 className={`relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 ${!session ? 'bg-stone-50 border-stone-100 text-stone-300' : 'bg-white border-sand text-charcoal'} group`}
                 >
                 <Users size={20} className="group-hover:scale-110 transition-transform" />
-                {/* Badge si espaces rejoints */}
                 {mySpaces.length > 0 && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-forest text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm">
                     {mySpaces.length}
@@ -552,7 +581,6 @@ const App: React.FC = () => {
 
       <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
 
-      {/* Floating Action Button for AI Assistant */}
       {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
         <button 
           onClick={() => { haptics.medium(); setShowCineAssistant(true); }}
@@ -598,7 +626,7 @@ const App: React.FC = () => {
              onAction={(id, status) => {
                  setPreviewTmdbId(null);
                  setTmdbIdToLoad(id);
-                 setMediaTypeToLoad(previewMediaType); // Use the preview type for add
+                 setMediaTypeToLoad(previewMediaType);
                  setInitialStatusForAdd(status);
                  setTimeout(() => setIsModalOpen(true), 100);
              }}
@@ -613,7 +641,6 @@ const App: React.FC = () => {
             onClose={() => setShowSharedSpaces(false)}
             userId={session?.user?.id || activeProfile.id}
             onSelectSpace={(space) => {
-              // ✅ Sauvegarder l'espace dans le profil local
               if (activeProfile && !activeProfile.joinedSpaceIds?.includes(space.id)) {
                 setProfiles(prev => prev.map(p => {
                   if (p.id !== activeProfileId) return p;
@@ -638,7 +665,7 @@ const App: React.FC = () => {
             userProfile={activeProfile} 
             onAddToWatchlist={(id) => { 
               setTmdbIdToLoad(id); 
-              setMediaTypeToLoad('movie'); // Default to movie for AI assistant for now
+              setMediaTypeToLoad('movie');
               setInitialStatusForAdd('watchlist');
               setIsModalOpen(true); 
               setShowCineAssistant(false); 
