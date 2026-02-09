@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
 import { Instagram, Loader2, Share2 } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import { Movie } from '../types';
 
 interface ShareStoryButtonSimpleProps {
@@ -18,195 +16,183 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   const globalRating = ((movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4).toFixed(1);
 
   const generateStoryImage = async (): Promise<string> => {
-    // 1. Pré-chargement de l'image en Base64 pour éviter les problèmes CORS / html-to-image
-    const posterUrl = movie.posterUrl ? movie.posterUrl.replace('w780', 'original') : '';
-    let finalPosterSrc = posterUrl;
+    // Créer un canvas HTML5 natif (PAS de librairie externe)
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) throw new Error('Canvas non supporté');
 
-    if (posterUrl) {
+    // 1. FOND NOIR
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    // 2. CHARGER L'AFFICHE (si disponible)
+    if (movie.posterUrl) {
       try {
-        // Ajout d'un timestamp pour éviter le cache opaque du navigateur qui bloque CORS
-        const urlWithCacheBust = `${posterUrl}${posterUrl.includes('?') ? '&' : '?'}t=${new Date().getTime()}`;
-        const response = await fetch(urlWithCacheBust, { mode: 'cors' });
-        const blob = await response.blob();
-        finalPosterSrc = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // CRITICAL pour CORS
+        
+        await new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => {
+            console.warn('Affiche non chargée, on continue sans');
+            resolve();
+          };
+          // Utilisation de l'URL originale pour une meilleure qualité en Story
+          const posterUrl = movie.posterUrl?.replace('w780', 'original');
+          if (posterUrl) img.src = posterUrl;
+          else resolve();
         });
+
+        // Si l'image a chargé, la dessiner en mode "cover"
+        if (img.complete && img.naturalWidth > 0) {
+          const imgRatio = img.width / img.height;
+          const canvasRatio = 1080 / 1920;
+          
+          let drawWidth, drawHeight, offsetX, offsetY;
+          
+          if (imgRatio > canvasRatio) {
+            drawHeight = 1920;
+            drawWidth = img.width * (1920 / img.height);
+            offsetX = (1080 - drawWidth) / 2;
+            offsetY = 0;
+          } else {
+            drawWidth = 1080;
+            drawHeight = img.height * (1080 / img.width);
+            offsetX = 0;
+            offsetY = (1920 - drawHeight) / 2;
+          }
+
+          ctx.globalAlpha = 0.85;
+          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          ctx.globalAlpha = 1.0;
+        }
       } catch (err) {
-        console.warn("Erreur chargement poster base64", err);
+        console.warn('Erreur affiche:', err);
       }
     }
 
-    const canvas = document.createElement('div');
-    canvas.style.width = '1080px';
-    canvas.style.height = '1920px';
-    canvas.style.position = 'absolute';
-    canvas.style.left = '-9999px';
-    canvas.style.top = '0';
+    // 3. GRADIENT OVERLAY (Pour la lisibilité)
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
+    gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.3)');
+    gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.6)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    // 4. CONFIGURATION TEXTE
+    ctx.textBaseline = 'top';
+
+    // 5. HEADER "THE BITTER"
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 36px "Inter", sans-serif';
+    ctx.fillText('THE', 60, 100);
     
-    // On utilise une structure HTML simple pour html-to-image
-    canvas.innerHTML = `
-      <div style="
-        width: 1080px;
-        height: 1920px;
-        background: #000000;
-        position: relative;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        color: white;
-        overflow: hidden;
-      ">
-        
-        ${finalPosterSrc ? `
-          <img 
-            src="${finalPosterSrc}"
-            crossorigin="anonymous"
-            style="
-              position: absolute;
-              inset: 0;
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-              object-position: center;
-              opacity: 0.85;
-              filter: blur(2px);
-            "
-          />
-        ` : `
-          <div style="
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, #1a1a1a 0%, #0c0c0c 100%);
-          "></div>
-        `}
-        
-        <div style="
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            to bottom,
-            rgba(0, 0, 0, 0.75) 0%,
-            rgba(0, 0, 0, 0.4) 40%,
-            rgba(0, 0, 0, 0.6) 70%,
-            rgba(0, 0, 0, 0.95) 100%
-          );
-        "></div>
-        
-        <div style="
-          position: absolute;
-          inset: 0;
-          padding: 80px 60px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          z-index: 10;
-        ">
-          
-          <div style="
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 60px;
-          ">
-            <div style="
-              font-size: 36px;
-              font-weight: 900;
-              text-transform: uppercase;
-              letter-spacing: 0.2em;
-            ">
-              <span style="
-                border-bottom: 6px solid #a3e635;
-                padding-bottom: 8px;
-              ">The</span>
-              <span style="margin-left: 12px;">Bitter</span>
-            </div>
-            <div style="
-              font-size: 32px;
-              font-weight: 700;
-              color: #d6d3d1;
-              letter-spacing: 0.1em;
-            ">${movie.year || '2026'}</div>
-          </div>
-          
-          <div>
-            <h1 style="
-              font-size: 100px;
-              font-weight: 900;
-              line-height: 0.95;
-              margin: 0 0 50px 0;
-              text-transform: uppercase;
-              letter-spacing: -0.02em;
-              text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            ">${movie.title}</h1>
-            
-            <div style="
-              display: inline-block;
-              border: 4px solid rgba(163, 230, 53, 0.6);
-              color: #a3e635;
-              padding: 14px 40px;
-              border-radius: 999px;
-              font-size: 26px;
-              font-weight: 800;
-              text-transform: uppercase;
-              letter-spacing: 0.15em;
-              background: rgba(0, 0, 0, 0.6);
-              margin-bottom: 80px;
-            ">${movie.genre}</div>
-            
-            <div style="position: relative; margin-top: 60px;">
-              <div style="
-                font-size: 340px;
-                font-weight: 900;
-                color: #a3e635;
-                line-height: 0.75;
-                margin-left: -20px;
-                text-shadow: 
-                  0 0 100px rgba(163, 230, 53, 0.4),
-                  0 4px 30px rgba(0, 0, 0, 0.8);
-              ">${globalRating}</div>
-              <div style="
-                position: absolute;
-                bottom: 50px;
-                left: 35px;
-                font-size: 30px;
-                font-weight: 800;
-                text-transform: uppercase;
-                letter-spacing: 0.3em;
-                opacity: 0.95;
-                text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-                color: white;
-              ">Mon Verdict</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    // Soulignage vert
+    ctx.fillStyle = '#D9FF00';
+    ctx.fillRect(60, 145, 90, 6);
     
-    document.body.appendChild(canvas);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('BITTER', 165, 100);
+
+    // 6. ANNÉE
+    ctx.fillStyle = '#d6d3d1';
+    ctx.font = '700 32px "Inter", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(movie.year.toString(), 1020, 100);
+    ctx.textAlign = 'left';
+
+    // 7. TITRE DU FILM
+    ctx.fillStyle = '#ffffff';
+    let fontSize = 90;
+    const maxWidth = 960;
+    ctx.font = `900 ${fontSize}px "Inter", sans-serif`;
     
-    try {
-      // Délai pour assurer le chargement des fonts et de l'image (surtout sur iOS)
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const dataUrl = await toPng(canvas, {
-        width: 1080,
-        height: 1920,
-        quality: 1.0,
-        pixelRatio: 1.5,
-        cacheBust: true,
-        useCORS: true, // Crucial pour les fallbacks
-      });
-      
-      return dataUrl;
-      
-    } finally {
-      document.body.removeChild(canvas);
+    // Multi-ligne intelligent
+    const words = movie.title.toUpperCase().split(' ');
+    let lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
     }
+    if (currentLine) lines.push(currentLine);
+    
+    // Ajustement taille si trop de lignes
+    if (lines.length > 3) {
+      fontSize = 70;
+      ctx.font = `900 ${fontSize}px "Inter", sans-serif`;
+      lines = lines.slice(0, 3);
+      lines[2] = lines[2] + '...';
+    }
+    
+    const titleY = 1350;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, 60, titleY + (i * (fontSize + 10)));
+    });
+
+    // 8. BADGE GENRE
+    const genreY = titleY + (lines.length * (fontSize + 10)) + 40;
+    const genreText = movie.genre.toUpperCase();
+    
+    ctx.font = '800 24px "Inter", sans-serif';
+    const genreWidth = ctx.measureText(genreText).width;
+    const badgeWidth = genreWidth + 60;
+    const badgeHeight = 54;
+    
+    // Background du badge
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    // @ts-ignore - roundRect est supporté sur les navigateurs modernes
+    if (ctx.roundRect) ctx.roundRect(60, genreY, badgeWidth, badgeHeight, 27);
+    else ctx.fillRect(60, genreY, badgeWidth, badgeHeight);
+    ctx.fill();
+    
+    // Bordure du badge
+    ctx.strokeStyle = 'rgba(217, 255, 0, 0.6)';
+    ctx.lineWidth = 3;
+    // @ts-ignore
+    if (ctx.roundRect) ctx.roundRect(60, genreY, badgeWidth, badgeHeight, 27);
+    ctx.stroke();
+    
+    // Texte du genre
+    ctx.fillStyle = '#D9FF00';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(genreText, 90, genreY + 27);
+    ctx.textBaseline = 'top';
+
+    // 9. NOTE GLOBALE (Gros impact visuel)
+    const noteY = 1580;
+    ctx.fillStyle = '#D9FF00';
+    ctx.font = '900 320px "Inter", sans-serif';
+    
+    // Glow effect
+    ctx.shadowColor = 'rgba(217, 255, 0, 0.5)';
+    ctx.shadowBlur = 80;
+    ctx.fillText(globalRating, 40, noteY);
+    ctx.shadowBlur = 0;
+
+    // 10. LABEL VERDICT
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 28px "Inter", sans-serif';
+    ctx.fillText('MON VERDICT CRITIQUE', 65, noteY + 270);
+
+    // Convertir en PNG Haute Définition
+    return canvas.toDataURL('image/png', 1.0);
   };
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsSharing(true);
+    haptics.medium();
     
     try {
       const imageDataUrl = await generateStoryImage();
@@ -214,43 +200,44 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       const response = await fetch(imageDataUrl);
       const blob = await response.blob();
       
-      // Nom de fichier sécurisé
-      const safeTitle = movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
-      const file = new File([blob], `bitter-${safeTitle}.png`, { 
-        type: 'image/png' 
-      });
+      const fileName = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
       
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          files: [file],
-          title: `Verdict: ${movie.title}`,
-          text: `Mon avis sur ${movie.title} : ${globalRating}/10 #TheBitter`
+          title: `Verdict Bitter: ${movie.title}`,
+          text: `Mon analyse sur ${movie.title} est tombée : ${globalRating}/10.`,
+          files: [file]
         });
       } else {
-        // Fallback téléchargement
+        // Fallback: Téléchargement
         const link = document.createElement('a');
         link.href = imageDataUrl;
-        link.download = `bitter-${safeTitle}.png`;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        alert('📥 Verdict généré ! Tu peux maintenant le partager en story.');
       }
       
     } catch (error) {
-      console.error('Erreur partage:', error);
-      alert('Erreur lors de la génération de l\'image. Réessayez.');
+      console.error('Erreur partage Story:', error);
+      alert('Erreur lors de la génération. Réessayez.');
     } finally {
       setIsSharing(false);
     }
   };
+
+  const gradientStyles = "bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045]";
 
   if (compact) {
     return (
       <button
         onClick={handleShare}
         disabled={isSharing}
-        className="p-4 rounded-2xl bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white active:scale-90 transition-all duration-150 shadow-lg disabled:opacity-50"
-        title="Partager en Story"
+        className={`p-4 rounded-2xl ${gradientStyles} text-white active:scale-90 transition-all duration-150 shadow-lg disabled:opacity-50`}
+        title="Partager mon verdict"
       >
         {isSharing ? (
           <Loader2 size={20} className="animate-spin" />
@@ -265,12 +252,12 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     <button
       onClick={handleShare}
       disabled={isSharing}
-      className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white active:scale-95 transition-all duration-150 shadow-lg disabled:opacity-50 disabled:scale-100"
+      className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${gradientStyles} text-white active:scale-95 transition-all duration-150 shadow-lg disabled:opacity-50 disabled:scale-100`}
     >
       {isSharing ? (
         <>
           <Loader2 size={14} className="animate-spin" />
-          Génération...
+          Verdict...
         </>
       ) : (
         <>
@@ -280,6 +267,14 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       )}
     </button>
   );
+};
+
+const haptics = {
+  medium: () => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(40);
+    }
+  }
 };
 
 export default ShareStoryButtonSimple;

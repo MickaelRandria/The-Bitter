@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ArrowRight, Tv, Globe, Users, Merge, Sparkles } from 'lucide-react';
+import { ArrowRight, Tv, Globe, Users, Merge, Sparkles, Instagram, Share2 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
@@ -12,7 +11,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
 
   const handleNext = () => {
     haptics.medium();
-    setStep(1);
+    setStep(prev => prev + 1);
   };
 
   const handleComplete = () => {
@@ -69,8 +68,46 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* STEP 1: ESPACES (TUTO) */}
+          {/* STEP 1: INSTAGRAM STORIES (NEW) */}
           {step === 1 && (
+            <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
+                  <Instagram size={12} />
+                  NOUVEAUTÉ BETA
+                </div>
+                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
+                  PARTAGE TES<br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]">VERDICTS.</span>
+                </h2>
+                
+                <div className="bg-gradient-to-tr from-[#833ab4]/10 via-[#fd1d1d]/10 to-[#fcb045]/10 border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-[#833ab4]/20 via-transparent to-[#fcb045]/20 blur-2xl opacity-50" />
+                    <div className="w-20 h-20 bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl rotate-[-3deg]">
+                      <Share2 size={36} strokeWidth={2.5} />
+                    </div>
+                    <p className="text-stone-200 text-sm font-medium leading-relaxed">
+                      Génère instantanément une carte de score esthétique pour tes <b>Stories Instagram</b>. Affiche ton expertise auprès de ta communauté.
+                    </p>
+                    <p className="text-pink-400 text-[10px] font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
+                      <Instagram size={12} /> Disponible sur tes films notés
+                    </p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button 
+                  onClick={handleNext}
+                  className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
+                >
+                  Suivant <ArrowRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: ESPACES (TUTO) */}
+          {step === 2 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-stone-300 text-[9px] font-black uppercase tracking-widest mb-6">
@@ -132,7 +169,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
           {/* Dots Indicator */}
           <div className="flex justify-center gap-2 mt-8 pb-4 sm:pb-0">
             <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
+            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
           </div>
 
         </div>

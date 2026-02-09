@@ -1,4 +1,3 @@
-
 import React, { useState, memo } from 'react';
 import { Movie } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone } from 'lucide-react';
@@ -142,8 +141,8 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
           )}
 
           <div className="flex gap-3 mt-4 pb-4">
-             {/* Bouton Partage Story (Désactivé temporairement pour v0.73) */}
-             {/* {!isWatchlist && <ShareStoryButtonSimple movie={movie} />} */}
+             {/* Bouton Partage Story (Activé en v0.73+) */}
+             {!isWatchlist && <ShareStoryButtonSimple movie={movie} />}
 
              <button 
                 onClick={(e) => { e.stopPropagation(); onEdit(movie); }}

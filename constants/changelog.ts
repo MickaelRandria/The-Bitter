@@ -1,4 +1,3 @@
-
 export type ChangeType = 'feature' | 'fix' | 'style';
 
 export interface ChangeEntry {
@@ -17,10 +16,11 @@ export const RELEASE_HISTORY: Release[] = [
   {
     version: 'v0.73',
     date: 'Aujourd\'hui',
-    title: 'Séries & Performance',
+    title: 'Séries & Stories',
     changes: [
-      { type: 'feature', text: '📺 Séries TV : Support complet (Recherche & Saisons)' },
-      { type: 'style', text: '🚀 Performance : Optimisation de l\'affichage des cartes.' }
+      { type: 'feature', text: '📺 Séries TV : Support complet (Recherche, Saisons & Détails)' },
+      { type: 'feature', text: '📸 Partage Story (Beta) : Générez une carte de verdict esthétique pour Instagram directement depuis vos films vus.' },
+      { type: 'style', text: '🚀 Performance : Optimisation massive de la fluidité des listes et du moteur de rendu.' }
     ]
   },
   {
@@ -54,16 +54,6 @@ export const RELEASE_HISTORY: Release[] = [
       { type: 'feature', text: 'Flux Direct-to-Collection : Redirection automatique vers le Movie Deck après calibration.' },
       { type: 'style', text: 'AI Design System : Nettoyage complet des scories Markdown pour un rendu pur.' },
       { type: 'fix', text: 'Stabilité Mobile : Optimisation des appels API pour éviter les plantages sur smartphone.' }
-    ]
-  },
-  {
-    version: 'v0.69',
-    date: '04 Février 2026',
-    title: 'Vitesse Lumière',
-    changes: [
-      { type: 'style', text: 'Optimisation Critique : Fluidité augmentée (60 FPS) via GPU acceleration.' },
-      { type: 'fix', text: 'Stabilité : Correction définitive du bug de suppression des comptes.' },
-      { type: 'feature', text: 'Smart Loading : Implémentation du Lazy Loading pour les modules lourds.' }
     ]
   }
 ];

@@ -1,4 +1,7 @@
 
+// DO NOT add any new files, classes, or namespaces.
+// Fix for type narrowing of "movie" | "tv" union literals.
+
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
@@ -119,11 +122,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setMode(initialData.status || 'watched');
         setGlobalRating((initialData.ratings.story + initialData.ratings.visuals + initialData.ratings.acting + initialData.ratings.sound) / 4);
         setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
-        setSearchType(initialData.mediaType || 'movie');
+        // Fix for line 128: ensure literal type narrowing for "movie" | "tv" union
+        setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
       } else if (tmdbIdToLoad) {
         // Important: Set searchType BEFORE loading to use correct endpoint
-        setSearchType(initialMediaType);
-        handleSelectTMDBMovie(tmdbIdToLoad, initialMediaType);
+        // Fix for searchType assignment: ensure it receives exactly the literal union type allowed by state
+        const type: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
+        setSearchType(type);
+        handleSelectTMDBMovie(tmdbIdToLoad, type);
         setMode(initialStatus);
       } else {
         skipSearchRef.current = false;
@@ -170,7 +176,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     try {
       // Switch endpoint based on searchType
       const endpoint = searchType === 'tv' ? 'search/tv' : 'search/movie';
-      const res = await fetch(`${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&query=${encodeURIComponent(query)}&page=1`);
+      const res = await fetch(`${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&query=${encodeURIComponent(query)}&page=1`);
       const data = await res.json();
       
       // Normalize TV results to look like Movie results for the dropdown
@@ -200,7 +206,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     setShowResults(false);
     skipSearchRef.current = true;
     
-    const typeToUse = explicitType || searchType;
+    // Explicitly narrow the union type to avoid "string" widening
+    const typeToUse: 'movie' | 'tv' = explicitType || searchType;
 
     try {
       const endpoint = typeToUse === 'tv' ? 'tv' : 'movie';
