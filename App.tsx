@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo } from 'react';
 import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
@@ -95,7 +94,7 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
 
   const STORAGE_KEY = 'the_bitter_profiles_v2';
-  const SEEN_V0_73_KEY = 'seen_v0.73';
+  const NEVER_SHOW_V0_73_KEY = 'never_show_v0.73';
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -195,8 +194,9 @@ const App: React.FC = () => {
     }
     
     // Check for New Features Announcement
-    const hasSeenNewFeatures = localStorage.getItem(SEEN_V0_73_KEY);
-    if (!hasSeenNewFeatures) {
+    // On affiche à chaque démarrage sauf si l'utilisateur a cliqué sur "Ne plus afficher"
+    const neverShowAgain = localStorage.getItem(NEVER_SHOW_V0_73_KEY);
+    if (neverShowAgain !== 'true') {
         setShowNewFeatures(true);
     }
   }, []);
@@ -565,10 +565,13 @@ const App: React.FC = () => {
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
         {showNewFeatures && (
-            <NewFeaturesModal onClose={() => {
-                setShowNewFeatures(false);
-                localStorage.setItem(SEEN_V0_73_KEY, 'true');
-            }} />
+            <NewFeaturesModal 
+                onClose={() => setShowNewFeatures(false)} 
+                onNeverShowAgain={() => {
+                    setShowNewFeatures(false);
+                    localStorage.setItem(NEVER_SHOW_V0_73_KEY, 'true');
+                }}
+            />
         )}
 
         {isModalOpen && (

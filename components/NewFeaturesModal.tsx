@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { ArrowRight, Tv, Globe, Users, Merge, Sparkles, Instagram, Share2 } from 'lucide-react';
+import { ArrowRight, Tv, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
   onClose: () => void;
+  onNeverShowAgain?: () => void;
 }
 
-const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
+const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverShowAgain }) => {
   const [step, setStep] = useState(0);
 
   const handleNext = () => {
@@ -17,6 +18,11 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
   const handleComplete = () => {
     haptics.success();
     onClose();
+  };
+
+  const handleNeverShowAgain = () => {
+    haptics.medium();
+    if (onNeverShowAgain) onNeverShowAgain();
   };
 
   return (
@@ -166,11 +172,25 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* Dots Indicator */}
-          <div className="flex justify-center gap-2 mt-8 pb-4 sm:pb-0">
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+          {/* Bottom Controls */}
+          <div className="mt-8 flex flex-col items-center gap-6 pb-4 sm:pb-0">
+            {/* Dots Indicator */}
+            <div className="flex justify-center gap-2">
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+            </div>
+
+            {/* Opt-out discrete button */}
+            {onNeverShowAgain && (
+              <button 
+                onClick={handleNeverShowAgain}
+                className="flex items-center gap-2 text-[10px] font-bold text-stone-600 hover:text-stone-400 uppercase tracking-widest transition-colors opacity-60 hover:opacity-100"
+              >
+                <EyeOff size={12} />
+                Ne plus afficher à l'ouverture
+              </button>
+            )}
           </div>
 
         </div>
