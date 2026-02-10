@@ -19,8 +19,22 @@ interface StoryTemplateProps {
   };
 }
 
+// Simple SVG Icons definitions to ensure perfect rendering with html2canvas
+const Icons = {
+  Film: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 12h4"/><path d="M3 17h4"/><path d="M17 7h4"/><path d="M17 12h4"/><path d="M17 17h4"/>
+    </svg>
+  ),
+  Check: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}>
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  )
+};
+
 const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
-  // Calculs
+  // Logic (Untouched as requested)
   const avgScore = (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
   const isDistracted = (movie.smartphoneFactor || 0) > 50;
 
@@ -28,7 +42,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
     if (!minutes) return "--";
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
-    return `${h}h ${m.toString().padStart(2, '0')}min`;
+    return `${h}h ${m.toString().padStart(2, '0')}m`;
   };
 
   const getRatingColor = (val: number) => {
@@ -37,7 +51,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
     return '#ef4444';
   };
 
-  // Styles de base
+  // Swiss Modern Bento Light Styles
   const styles: { [key: string]: React.CSSProperties } = {
     root: {
       width: '1080px',
@@ -47,7 +61,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       boxSizing: 'border-box',
       display: 'flex',
       flexDirection: 'column',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       color: '#1a1a1a',
       overflow: 'hidden',
     },
@@ -55,28 +69,31 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: '40px',
+      marginBottom: '42px',
     },
     badge: {
       backgroundColor: '#a3e635',
       borderRadius: '999px',
-      padding: '12px 28px',
-      fontSize: '11px',
-      fontWeight: 800,
+      padding: '14px 32px',
+      fontSize: '14px',
+      fontWeight: 900,
       textTransform: 'uppercase',
       letterSpacing: '0.2em',
+      display: 'flex',
+      alignItems: 'center',
+      boxShadow: '0 4px 16px rgba(163, 230, 53, 0.3)',
     },
     year: {
-      color: '#737373',
-      fontSize: '13px',
-      fontWeight: 600,
+      color: '#1a1a1a',
+      fontSize: '16px',
+      fontWeight: 800,
       textTransform: 'uppercase',
       letterSpacing: '0.1em',
     },
     posterCard: {
       backgroundColor: '#FFFFFF',
-      borderRadius: '2.8rem',
-      height: '920px',
+      borderRadius: '3rem',
+      height: '780px',
       width: '100%',
       marginBottom: '32px',
       overflow: 'hidden',
@@ -89,52 +106,43 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       objectFit: 'cover',
       objectPosition: 'center top',
     },
-    noPoster: {
-      width: '100%',
-      height: '100%',
-      backgroundColor: '#E8E5E0',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#737373',
-      fontSize: '24px',
-      fontWeight: 700,
-      textTransform: 'uppercase',
-    },
     posterOverlay: {
       position: 'absolute',
       bottom: 0,
       left: 0,
       right: 0,
-      padding: '60px 40px',
-      background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)',
+      padding: '80px 50px 50px 50px',
+      background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: '10px',
+      minHeight: '280px',
+      justifyContent: 'flex-end',
     },
     title: {
       color: '#FFFFFF',
-      fontSize: '52px',
+      fontSize: '58px',
       fontWeight: 900,
-      lineHeight: 1.05,
+      lineHeight: 1.1,
       margin: 0,
       letterSpacing: '-0.02em',
+      textTransform: 'uppercase',
     },
     director: {
-      color: 'rgba(255,255,255,0.65)',
-      fontSize: '16px',
-      fontWeight: 600,
+      color: 'rgba(255,255,255,0.75)',
+      fontSize: '18px',
+      fontWeight: 700,
       margin: 0,
       textTransform: 'uppercase',
-      letterSpacing: '0.1em',
+      letterSpacing: '0.15em',
     },
     bentoRow: {
       flex: 1,
       display: 'flex',
-      gap: '24px',
+      gap: '32px',
     },
     leftCol: {
-      width: '420px',
+      width: '440px',
       display: 'flex',
       flexDirection: 'column',
       gap: '24px',
@@ -142,19 +150,31 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
     rightCol: {
       flex: 1,
     },
-    smallCard: {
+    miniCard: {
       backgroundColor: '#FFFFFF',
-      borderRadius: '1.6rem',
+      borderRadius: '1.8rem',
       padding: '32px',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    ratingsCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: '1.8rem',
+      padding: '36px',
       boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
       display: 'flex',
       flexDirection: 'column',
       flex: 1,
+      border: '2px solid #a3e635',
     },
     verdictCard: {
       backgroundColor: isDistracted ? '#ef4444' : '#a3e635',
-      borderRadius: '2.8rem',
-      padding: '40px',
+      borderRadius: '3rem',
+      padding: '48px',
       height: '100%',
       boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
       display: 'flex',
@@ -164,64 +184,90 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       overflow: 'hidden',
     },
     label: {
-      fontSize: '11px',
+      fontSize: '12px',
       fontWeight: 700,
       textTransform: 'uppercase',
       letterSpacing: '0.15em',
       color: '#737373',
-      marginBottom: '12px',
-      display: 'block',
+      marginBottom: '8px',
     },
     verdictLabel: {
-      fontSize: '11px',
+      fontSize: '13px',
       fontWeight: 800,
       textTransform: 'uppercase',
-      letterSpacing: '0.25em',
-      color: 'rgba(0,0,0,0.5)',
+      letterSpacing: '0.3em',
+      color: 'rgba(0,0,0,0.6)',
     },
     ratingRow: {
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
-      marginBottom: '14px',
+      gap: '16px',
+      marginBottom: '16px',
     },
     ratingLabel: {
-      fontSize: '10px',
+      fontSize: '11px',
       fontWeight: 700,
       textTransform: 'uppercase',
-      color: '#737373',
-      width: '70px',
+      color: '#1a1a1a',
+      width: '80px',
     },
     ratingBarBg: {
       flex: 1,
-      height: '6px',
+      height: '8px',
       backgroundColor: '#F0EDE8',
       borderRadius: '999px',
       overflow: 'hidden',
     },
     ratingVal: {
-      fontSize: '14px',
+      fontSize: '16px',
       fontWeight: 800,
-      width: '25px',
+      width: '30px',
       textAlign: 'right',
     },
     ghostScore: {
       position: 'absolute',
-      top: '20px',
-      right: '-30px',
-      fontSize: '350px',
+      top: '-20px',
+      right: '-50px',
+      fontSize: '420px',
       fontWeight: 900,
-      color: 'rgba(0,0,0,0.06)',
+      color: 'rgba(0,0,0,0.08)',
       pointerEvents: 'none',
       lineHeight: 1,
+    },
+    scoreMain: {
+      fontSize: '260px', 
+      fontWeight: 900, 
+      lineHeight: 0.85,
+      textShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    },
+    scoreDecimal: {
+      fontSize: '130px', 
+      fontWeight: 900, 
+      opacity: 0.45,
+    },
+    bottomBox: {
+      backgroundColor: 'rgba(0,0,0,0.12)', 
+      padding: '24px', 
+      borderRadius: '1.4rem',
+      position: 'relative',
+      zIndex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      fontSize: '13px',
+      fontWeight: 900,
+      textTransform: 'uppercase',
+      letterSpacing: '0.1em',
     }
   };
 
   return (
     <div style={styles.root}>
-      {/* ROW 1: HEADER */}
+      {/* ROW 1: HEADER & BRANDING */}
       <div style={styles.header}>
-        <div style={styles.badge}>The Bitter</div>
+        <div style={styles.badge}>
+          <Icons.Film />
+          THE BITTER
+        </div>
         <div style={styles.year}>{movie.year}</div>
       </div>
 
@@ -235,7 +281,9 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
             crossOrigin="anonymous"
           />
         ) : (
-          <div style={styles.noPoster}>No Poster</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#E8E5E0', color: '#737373', fontSize: '24px', fontWeight: 700 }}>
+            No Poster
+          </div>
         )}
         <div style={styles.posterOverlay}>
           <h1 style={styles.title}>{movie.title}</h1>
@@ -245,25 +293,28 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
 
       {/* ROW 3: BENTO GRID */}
       <div style={styles.bentoRow}>
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN: DETAILS */}
         <div style={styles.leftCol}>
-          {/* Card A: Genre & Runtime */}
-          <div style={{ ...styles.smallCard, flexDirection: 'row', padding: 0 }}>
-            <div style={{ flex: 1, padding: '32px', borderRight: '1px solid rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* MINI CARD: GENRE */}
+            <div style={{ ...styles.miniCard, background: 'linear-gradient(135deg, #FFFFFF 0%, #F9F9F9 100%)' }}>
+              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>🎬</span>
               <span style={styles.label}>Genre</span>
-              <span style={{ fontSize: '20px', fontWeight: 800, display: 'block' }}>{movie.genre}</span>
+              <span style={{ fontSize: '22px', fontWeight: 900 }}>{movie.genre}</span>
             </div>
-            <div style={{ flex: 1, padding: '32px' }}>
+            {/* MINI CARD: DURATION */}
+            <div style={{ ...styles.miniCard, background: 'linear-gradient(135deg, #F9F9F9 0%, #FFFFFF 100%)' }}>
+              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>⏱️</span>
               <span style={styles.label}>Durée</span>
-              <span style={{ fontSize: '20px', fontWeight: 800, display: 'block' }}>{formatRuntime(movie.runtime)}</span>
+              <span style={{ fontSize: '22px', fontWeight: 900 }}>{formatRuntime(movie.runtime)}</span>
             </div>
           </div>
 
-          {/* Card B: Ratings */}
-          <div style={styles.smallCard}>
-            <span style={styles.label}>Détails Critiques</span>
+          {/* CARD B: RATINGS */}
+          <div style={styles.ratingsCard}>
+            <span style={{ ...styles.label, color: '#a3e635', fontWeight: 800 }}>Détails Critiques</span>
             {[
-              { label: 'Scénar', val: movie.ratings.story },
+              { label: 'Scénario', val: movie.ratings.story },
               { label: 'Visuel', val: movie.ratings.visuals },
               { label: 'Jeu', val: movie.ratings.acting },
               { label: 'Son', val: movie.ratings.sound },
@@ -275,10 +326,11 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
                     height: '100%',
                     width: `${r.val * 10}%`,
                     backgroundColor: getRatingColor(r.val),
-                    borderRadius: '999px'
+                    borderRadius: '999px',
+                    boxShadow: r.val >= 8 ? '0 2px 8px rgba(163, 230, 53, 0.4)' : 'none'
                   }} />
                 </div>
-                <span style={styles.ratingVal}>{r.val}</span>
+                <span style={styles.ratingVal}>{r.val.toFixed(1)}</span>
               </div>
             ))}
           </div>
@@ -298,17 +350,17 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
             <div style={{ position: 'relative', zIndex: 1 }}>
               {isDistracted ? (
                 <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '220px', fontWeight: 900, lineHeight: 0.9 }}>
+                  <span style={styles.scoreMain}>
                     {movie.smartphoneFactor}
                   </span>
-                  <span style={{ fontSize: '110px', fontWeight: 900, opacity: 0.6 }}>%</span>
+                  <span style={{ ...styles.scoreDecimal, opacity: 0.6 }}>%</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '220px', fontWeight: 900, lineHeight: 0.9 }}>
+                  <span style={styles.scoreMain}>
                     {Math.floor(avgScore)}
                   </span>
-                  <span style={{ fontSize: '110px', fontWeight: 900, opacity: 0.4 }}>
+                  <span style={styles.scoreDecimal}>
                     .{Math.round((avgScore % 1) * 10)}
                   </span>
                 </div>
@@ -316,27 +368,20 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
               
               <span style={{ 
                 fontSize: '24px', 
-                fontWeight: 800, 
+                fontWeight: 900, 
                 textTransform: 'uppercase', 
-                letterSpacing: '0.1em',
+                letterSpacing: '0.2em',
                 opacity: 0.4,
                 display: 'block',
                 marginTop: '10px'
               }}>
-                {isDistracted ? '/ 100 FACTOR' : '/ 10 POINTS'}
+                {isDistracted ? 'Smartphone Factor' : 'Sur 10 points'}
               </span>
             </div>
 
-            <div style={{ 
-              backgroundColor: 'rgba(0,0,0,0.1)', 
-              padding: '20px', 
-              borderRadius: '1.2rem',
-              position: 'relative',
-              zIndex: 1
-            }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {isDistracted ? 'Lâchez ce téléphone.' : 'Analyse Certifiée'}
-              </span>
+            <div style={styles.bottomBox}>
+              {!isDistracted && <Icons.Check />}
+              {isDistracted ? 'Lâchez ce téléphone.' : 'Analyse Certifiée'}
             </div>
           </div>
         </div>

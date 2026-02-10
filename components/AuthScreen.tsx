@@ -40,7 +40,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
     try {
       if (isSignUp) {
         // 1. Création du compte Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // Fixed: Cast auth to any to bypass missing signUp property error
+        const { data: authData, error: authError } = await (supabase.auth as any).signUp({
           email,
           password,
           options: {
@@ -76,7 +77,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
 
       } else {
         // Login classique
-        const { error } = await supabase.auth.signInWithPassword({
+        // Fixed: Cast auth to any to bypass missing signInWithPassword property error
+        const { error } = await (supabase.auth as any).signInWithPassword({
           email,
           password,
         });

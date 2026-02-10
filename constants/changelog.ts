@@ -1,3 +1,4 @@
+
 export type ChangeType = 'feature' | 'fix' | 'style';
 
 export interface ChangeEntry {
@@ -14,14 +15,27 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.73',
+    version: 'v0.74',
     date: 'Aujourd\'hui',
+    title: 'Consensus & Collectif',
+    changes: [
+      { type: 'feature', text: '🍿 Watchlist Collective : Un nouvel onglet "À voir" dans vos espaces pour centraliser les suggestions du groupe.' },
+      { type: 'feature', text: '🔥 Système d\'intérêt : Votez "Je veux voir" sur les suggestions. Les films les plus plébiscités remontent automatiquement en haut de liste.' },
+      { type: 'feature', text: '✅ Cycle de Visionnage : Bouton "Marquer comme vu" pour basculer instantanément un film de la Watchlist vers l\'Historique commun.' },
+      { type: 'feature', text: '🚪 Liberté de mouvement : Ajout de la fonctionnalité "Quitter l\'espace" pour gérer plus finement vos cercles de partage.' },
+      { type: 'style', text: '📊 Jauge d\'adhésion : Visualisez en un coup d\'œil le pourcentage de membres intéressés par une œuvre.' },
+      { type: 'fix', text: '🧹 Nettoyage simplifié : Possibilité de supprimer les suggestions ou les erreurs directement depuis l\'espace partagé.' }
+    ]
+  },
+  {
+    version: 'v0.73',
+    date: '07 Février 2026',
     title: 'Séries & Stories',
     changes: [
       { type: 'feature', text: '🔍 Découverte Avancée : Filtres par période (Mois, Année, Tout) pour explorer le catalogue avec précision.' },
       { type: 'feature', text: '📺 Séries TV : Support complet (Recherche, Saisons & Détails) dans l\'Explorateur et la Collection.' },
       { type: 'feature', text: '📸 Partage Story (Beta) : Générez une carte de verdict esthétique pour Instagram directement depuis vos films vus.' },
-      { type: 'fix', text: '🧠 Persistance de Session : L\'application se souvient de votre dernier profil actif (Invité ou Mail) au démarrage, évitant les redirections forcées.' },
+      { type: 'fix', text: '🧠 Persistance de Session : L\'application se souvient de votre dernier profil actif (Invité ou Mail) au démarrage.' },
       { type: 'style', text: '🚀 Performance : Optimisation massive de la fluidité des listes et du moteur de rendu.' }
     ]
   },
@@ -30,10 +44,10 @@ export const RELEASE_HISTORY: Release[] = [
     date: '06 Février 2026',
     title: 'Symbiose Sociale',
     changes: [
-      { type: 'feature', text: 'Espaces Partagés : Créez des cercles privés (Ciné-club, Famille...), invitez vos amis via un code unique et construisez une cinémathèque commune. Comparez vos verdicts et visualisez votre "Match" de groupe.' },
-      { type: 'fix', text: 'Authentification Blindée : Nouveau flux de vérification d\'email clair et synchronisation automatique du profil (Prénom, Calibration) entre tous vos appareils dès la connexion.' },
-      { type: 'style', text: 'Stabilité Visuelle : Éradication des écrans blancs lors du chargement des espaces grâce à une gestion asynchrone optimisée.' },
-      { type: 'feature', text: 'Onboarding Connecté : Votre identité est désormais préservée et synchronisée avec la base de données centrale.' }
+      { type: 'feature', text: 'Espaces Partagés : Créez des cercles privés (Ciné-club, Famille...), invitez vos amis via un code unique.' },
+      { type: 'fix', text: 'Authentification Blindée : Nouveau flux de vérification d\'email clair et synchronisation automatique du profil.' },
+      { type: 'style', text: 'Stabilité Visuelle : Éradication des écrans blancs lors du chargement des espaces.' },
+      { type: 'feature', text: 'Onboarding Connecté : Votre identité est désormais préservée et synchronisée.' }
     ]
   },
   {
@@ -41,21 +55,9 @@ export const RELEASE_HISTORY: Release[] = [
     date: '05 Février 2026',
     title: 'Deep Discovery',
     changes: [
-      { type: 'feature', text: 'Fiches Films Immersives : Cliquez sur une affiche pour accéder au casting, synopsis et plateformes avant d\'ajouter.' },
-      { type: 'style', text: 'Badges Contextuels : Repérez instantanément les films "Au Cinéma" ou sur vos plateformes dans l\'Explorateur.' },
-      { type: 'fix', text: 'Protocole Watchlist : Correction critique du bug empêchant l\'ajout dans la liste "À Voir".' },
-      { type: 'feature', text: 'Flux Unifié : Pré-sélection intelligente du statut (Vu/À voir) lors de la transition Découverte -> Collection.' }
-    ]
-  },
-  {
-    version: 'v0.70 test',
-    date: '04 Février 2026',
-    title: 'Intelligence Épurée',
-    changes: [
-      { type: 'feature', text: 'Ciné-Assistant IA : Votre expert personnel s\'appuyant sur gemini-3-flash-preview et Google Search pour des données temps réel.' },
-      { type: 'feature', text: 'Flux Direct-to-Collection : Redirection automatique vers le Movie Deck après calibration.' },
-      { type: 'style', text: 'AI Design System : Nettoyage complet des scories Markdown pour un rendu pur.' },
-      { type: 'fix', text: 'Stabilité Mobile : Optimisation des appels API pour éviter les plantages sur smartphone.' }
+      { type: 'feature', text: 'Fiches Films Immersives : Cliquez sur une affiche pour accéder au casting, synopsis et plateformes.' },
+      { type: 'style', text: 'Badges Contextuels : Repérez instantanément les films "Au Cinéma" ou sur vos plateformes.' },
+      { type: 'fix', text: 'Protocole Watchlist : Correction critique du bug empêchant l\'ajout dans la liste "À Voir".' }
     ]
   }
 ];

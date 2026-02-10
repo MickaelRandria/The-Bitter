@@ -93,10 +93,10 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                       <Share2 size={36} strokeWidth={2.5} />
                     </div>
                     <p className="text-stone-200 text-sm font-medium leading-relaxed">
-                      Génère instantanément une carte de score esthétique pour tes <b>Stories Instagram</b>. Affiche ton expertise auprès de ta communauté.
+                      Partage tes notes, que ce soit pour tes films ou bien tes series, fais une <b>Stories Instagram</b>. Affiche ton expertise auprès de ta communauté.
                     </p>
                     <p className="text-pink-400 text-[10px] font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
-                      <Instagram size={12} /> Disponible sur tes films notés
+                      <Instagram size={12} /> Disponible sur tes films/series notés
                     </p>
                 </div>
               </div>

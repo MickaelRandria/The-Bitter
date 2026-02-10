@@ -69,12 +69,19 @@ export interface MovieRating {
   };
 }
 
+export interface MovieVote {
+  id: string;
+  movie_id: string;
+  profile_id: string;
+  created_at: string;
+}
+
 // ===============================================
 // FONCTIONS POUR LES ESPACES PARTAGÉS
 // ===============================================
 
 /**
- * Crée un nouvel espace partagé (Version Blindée RLS via RPC)
+ * Crée un nouvel espace partagé
  */
 export async function createSharedSpace(
   name: string,
@@ -83,7 +90,6 @@ export async function createSharedSpace(
 ): Promise<SharedSpace | null> {
   if (!supabase) return null;
 
-  // Appel de la fonction SQL sécurisée
   const { data, error } = await supabase.rpc('create_space_v2', {
     _name: name,
     _description: description || ''
@@ -94,8 +100,6 @@ export async function createSharedSpace(
     throw error;
   }
 
-  // Supabase RPC retourne parfois les données directement, parfois dans un tableau
-  // On s'assure de renvoyer l'objet propre
   return data as SharedSpace;
 }
 
@@ -122,7 +126,7 @@ export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
 }
 
 /**
- * Rejoindre un espace via code d'invitation (Version RPC)
+ * Rejoindre un espace via code d'invitation
  */
 export async function joinSpaceByCode(
   inviteCode: string,
@@ -131,21 +135,36 @@ export async function joinSpaceByCode(
   if (!supabase) return { success: false, error: 'Supabase non configuré' };
 
   try {
-    // On utilise la RPC pour contourner les restrictions RLS sur le SELECT global
     const { data, error } = await supabase.rpc('join_space_by_code', {
       _invite_code: inviteCode
     });
 
-    if (error) {
-        console.error('RPC Error:', error);
-        throw error;
-    }
-
+    if (error) throw error;
     return { success: true, space: data as SharedSpace };
   } catch (e: any) {
     console.error('Error joining space:', e);
     return { success: false, error: e.message || "Code invalide ou vous êtes déjà membre." };
   }
+}
+
+/**
+ * Quitter un espace partagé
+ */
+export async function leaveSharedSpace(spaceId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+  
+  const { error } = await supabase
+    .from('space_members')
+    .delete()
+    .eq('space_id', spaceId)
+    .eq('profile_id', userId);
+
+  if (error) {
+    console.error('Error leaving space:', error);
+    return false;
+  }
+  
+  return true;
 }
 
 /**
@@ -207,6 +226,65 @@ export async function addMovieToSpace(
   }
 
   return data;
+}
+
+/**
+ * Supprimer un film d'un espace (uniquement par l'auteur ou admin de l'espace)
+ */
+export async function deleteSharedMovie(movieId: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { error } = await supabase.from('shared_movies').delete().eq('id', movieId);
+    return !error;
+}
+
+/**
+ * Marquer un film de la watchlist comme "Regardé"
+ */
+export async function markMovieAsWatched(movieId: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { error } = await supabase
+        .from('shared_movies')
+        .update({ status: 'watched', added_at: new Date().toISOString() })
+        .eq('id', movieId);
+    return !error;
+}
+
+/**
+ * Gérer les votes "Je veux voir" sur la watchlist
+ */
+export async function toggleMovieVote(movieId: string, userId: string): Promise<boolean> {
+    if (!supabase) return false;
+
+    // Vérifier si déjà voté
+    const { data: existing } = await supabase
+        .from('space_movie_votes')
+        .select('id')
+        .eq('movie_id', movieId)
+        .eq('profile_id', userId)
+        .single();
+
+    if (existing) {
+        // Unvote
+        await supabase.from('space_movie_votes').delete().eq('id', existing.id);
+    } else {
+        // Vote
+        await supabase.from('space_movie_votes').insert({ movie_id: movieId, profile_id: userId });
+    }
+    return true;
+}
+
+/**
+ * Récupère tous les votes pour un film ou un espace
+ */
+export async function getSpaceMovieVotes(spaceId: string): Promise<MovieVote[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+        .from('space_movie_votes')
+        .select('*, shared_movies!inner(space_id)')
+        .eq('shared_movies.space_id', spaceId);
+    
+    if (error) return [];
+    return data || [];
 }
 
 /**
@@ -302,7 +380,6 @@ export function subscribeToSpace(
 ) {
   if (!supabase) return () => {};
 
-  // Subscription aux films
   const moviesChannel = supabase
     .channel(`space-movies-${spaceId}`)
     .on(
@@ -317,7 +394,6 @@ export function subscribeToSpace(
     )
     .subscribe();
 
-  // Subscription aux notes
   const ratingsChannel = supabase
     .channel(`space-ratings-${spaceId}`)
     .on(
@@ -331,9 +407,22 @@ export function subscribeToSpace(
     )
     .subscribe();
 
-  // Fonction de cleanup
+  const votesChannel = supabase
+    .channel(`space-votes-${spaceId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'space_movie_votes'
+      },
+      onRatingChange // Re-use rating callback for general refresh
+    )
+    .subscribe();
+
   return () => {
     supabase?.removeChannel(moviesChannel);
     supabase?.removeChannel(ratingsChannel);
+    supabase?.removeChannel(votesChannel);
   };
 }
