@@ -143,11 +143,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       const success = await toggleMovieVote(movieId, currentUserId);
       console.log('✅ Résultat vote:', success);
       if (success) {
-          await loadData();
+          await loadData(); // Refresh complet au lieu de juste les votes pour être sûr
           haptics.success();
       } else {
-          console.error('❌ Échec vote - vérifier table space_movie_votes');
-          alert('Erreur lors du vote. Réessayez.');
+          console.error('❌ Échec vote - vérifier table space_movie_votes et RLS');
+          alert('Erreur lors du vote. Vérifiez que vous êtes bien membre.');
           haptics.error();
       }
   };
@@ -171,8 +171,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               await loadData();
               haptics.success();
           } else {
-              console.error('❌ Échec suppression - vérifier RLS Supabase');
-              alert('Erreur lors de la suppression. Vérifiez vos permissions.');
+              console.error('❌ Échec suppression - vérifier RLS table shared_movies policy DELETE');
+              alert('Erreur lors de la suppression. Vous ne pouvez supprimer que vos propres ajouts.');
               haptics.error();
           }
       }
@@ -404,10 +404,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">Détail des Verdicts ({ratings.length})</h4>
                                 {(movie.added_by === currentUserId || movie.added_by === undefined) && (
                                     <button 
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteMovie(movie.id); }} 
-                                      className="text-red-400 hover:text-red-600 transition-colors active:scale-90"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteMovie(movie.id);
+                                        }} 
+                                        className="text-red-400 hover:text-red-600 transition-colors active:scale-90"
                                     >
-                                      <Trash2 size={16} />
+                                        <Trash2 size={16} />
                                     </button>
                                 )}
                             </div>
@@ -457,10 +460,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 <div className="flex items-center gap-3">
                                     {(movie.added_by === currentUserId || movie.added_by === undefined) && (
                                         <button 
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteMovie(movie.id); }} 
-                                          className="text-stone-300 hover:text-red-500 transition-colors active:scale-90"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteMovie(movie.id);
+                                            }} 
+                                            className="text-stone-300 hover:text-red-500 transition-colors active:scale-90"
                                         >
-                                          <Trash2 size={16} />
+                                            <Trash2 size={16} />
                                         </button>
                                     )}
                                 </div>
