@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo } from 'react';
 import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
@@ -120,9 +119,14 @@ const App: React.FC = () => {
     if (lastProfileId) {
       const exists = loadedProfiles.some(p => p.id === lastProfileId);
       if (exists) {
+        console.log('🟢 Dernier profil trouvé et chargé:', lastProfileId);
         setActiveProfileId(lastProfileId);
         setShowWelcome(false);
         setViewMode('Feed');
+      } else {
+        // Le lastProfileId n'existe plus dans les profils locaux
+        console.warn('⚠️ Dernier profil introuvable, nettoyage localStorage');
+        localStorage.removeItem(LAST_PROFILE_ID_KEY);
       }
     }
     
@@ -151,6 +155,8 @@ const App: React.FC = () => {
   const loadSupabaseProfile = async (userId: string) => {
     if (!supabase) return;
     
+    console.log('📥 Tentative de chargement du profil Supabase:', userId);
+    
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -164,10 +170,13 @@ const App: React.FC = () => {
       }
       
       if (data) {
+        console.log('✅ Profil Supabase chargé pour:', data.first_name);
+        
         setProfiles(prev => {
           const existing = prev.find(p => p.id === data.id);
           
           if (existing) {
+            console.log('🔄 Mise à jour du profil existant');
             return prev.map(p => p.id === data.id ? {
               ...p,
               firstName: data.first_name,
@@ -180,6 +189,7 @@ const App: React.FC = () => {
               joinedSpaceIds: p.joinedSpaceIds
             } : p);
           } else {
+            console.log('➕ Ajout d\'un nouveau profil mail');
             return [...prev, {
               id: data.id,
               firstName: data.first_name,
@@ -197,11 +207,35 @@ const App: React.FC = () => {
           }
         });
         
-        // 🔥 LOGIQUE CRITIQUE : N'activer le profil mail que si AUCUN profil n'est déjà actif 
-        // ou si l'utilisateur est sur l'écran d'accueil sans session active.
+        // 🔥 LOGIQUE CRITIQUE : Respecter le lastProfileId (Priorité UX)
+        // On n'active le profil mail QUE si aucun profil n'est déjà actif dans le state
+        // ET que le lastProfileId du localStorage n'existe pas ou n'est plus valide.
+        const lastProfileId = localStorage.getItem(LAST_PROFILE_ID_KEY);
+        console.log('🔍 Recherche de cohérence. Dernier ID stocké:', lastProfileId);
+
         setActiveProfileId(current => {
-          if (!current) return data.id;
-          return current; // On garde le profil déjà chargé par la session locale
+          console.log('🔍 Profil actuellement en mémoire (React):', current);
+          
+          // 1. Si un profil est déjà actif (chargé par le useEffect initial), on ne change RIEN
+          if (current) {
+            console.log('✅ Profil déjà actif, on conserve la session en cours.');
+            return current;
+          }
+          
+          // 2. Si pas de profil actif en mémoire, mais un lastProfileId existe dans le storage
+          if (lastProfileId) {
+            // NOTE: On se fie au fait que setProfiles a été appelé juste avant, 
+            // mais profiles dans cette closure peut être stale. 
+            // Cependant, si le useEffect initial a fait son job, activeProfileId devrait déjà être set.
+            // Si on est ici c'est que current est null.
+            console.log('✅ Utilisation de lastProfileId comme fallback prioritaire.');
+            return lastProfileId;
+          }
+          
+          // 3. SEULEMENT si aucun profil n'est actif ET aucun lastProfileId n'existe
+          // Alors on active le profil lié au mail par défaut.
+          console.log('🆕 Aucun profil trouvé, activation du profil mail par défaut.');
+          return data.id;
         });
       }
     } catch (err) {
