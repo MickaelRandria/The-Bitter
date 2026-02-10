@@ -208,8 +208,6 @@ const App: React.FC = () => {
         });
         
         // 🔥 LOGIQUE CRITIQUE : Respecter le lastProfileId (Priorité UX)
-        // On n'active le profil mail QUE si aucun profil n'est déjà actif dans le state
-        // ET que le lastProfileId du localStorage n'existe pas ou n'est plus valide.
         const lastProfileId = localStorage.getItem(LAST_PROFILE_ID_KEY);
         console.log('🔍 Recherche de cohérence. Dernier ID stocké:', lastProfileId);
 
@@ -224,10 +222,6 @@ const App: React.FC = () => {
           
           // 2. Si pas de profil actif en mémoire, mais un lastProfileId existe dans le storage
           if (lastProfileId) {
-            // NOTE: On se fie au fait que setProfiles a été appelé juste avant, 
-            // mais profiles dans cette closure peut être stale. 
-            // Cependant, si le useEffect initial a fait son job, activeProfileId devrait déjà être set.
-            // Si on est ici c'est que current est null.
             console.log('✅ Utilisation de lastProfileId comme fallback prioritaire.');
             return lastProfileId;
           }
@@ -389,11 +383,25 @@ const App: React.FC = () => {
 
   const handleSignOut = async () => {
     haptics.medium();
+    
+    // Confirmation avant déconnexion pour éviter les erreurs
+    const confirmSignOut = window.confirm("Souhaitez-vous vraiment vous déconnecter ? Vos profils locaux resteront accessibles sur cet appareil.");
+    if (!confirmSignOut) return;
+
     if (session) {
         await supabase?.auth.signOut();
-    } else {
-        setIsGuestMode(false);
     }
+    
+    // Reset complet de l'état applicatif
+    setIsGuestMode(false);
+    setActiveProfileId(null);
+    setSession(null);
+    setShowWelcome(true);
+    setViewMode('Feed');
+    setActiveSharedSpace(null);
+    
+    // Nettoyage de la persistance session
+    localStorage.removeItem(LAST_PROFILE_ID_KEY);
   };
 
   // --- RENDER GATES ---
@@ -502,8 +510,18 @@ const App: React.FC = () => {
                     </div>
                 )}
                 </button>
-                <button onClick={() => { haptics.soft(); setShowWelcome(true); }} className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200">
-                <User size={20} />
+                <button 
+                  onClick={() => { 
+                    haptics.soft(); 
+                    // Pour changer de profil, on réinitialise l'actif pour forcer l'affichage de WelcomePage
+                    setActiveProfileId(null);
+                    localStorage.removeItem(LAST_PROFILE_ID_KEY);
+                    setShowWelcome(true);
+                    setViewMode('Feed');
+                  }} 
+                  className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200"
+                >
+                  <User size={20} />
                 </button>
                 <button onClick={handleSignOut} className="w-10 h-10 rounded-2xl bg-stone-100 border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 text-stone-400">
                 <LogOut size={20} />
