@@ -5,7 +5,7 @@ import {
   Plus, 
   Users, 
   Star, 
-  Loader2,
+  Loader2, 
   Film,
   ChevronDown,
   Trash2,
@@ -137,22 +137,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     }
   };
 
-  const handleToggleVote = async (movieId: string) => {
-      console.log('👍 Tentative vote:', movieId, 'par user:', currentUserId);
+  const handleToggleVote = async (e: React.MouseEvent, movieId: string) => {
+      e.stopPropagation(); // Empêcher la fermeture de l'accordéon
       haptics.medium();
-      const success = await toggleMovieVote(movieId, currentUserId);
-      console.log('✅ Résultat vote:', success);
-      if (success) {
-          await loadData(); // Refresh complet au lieu de juste les votes pour être sûr
-          haptics.success();
-      } else {
-          console.error('❌ Échec vote - vérifier table space_movie_votes et RLS');
-          alert('Erreur lors du vote. Vérifiez que vous êtes bien membre.');
-          haptics.error();
-      }
+      
+      // Appel asynchrone
+      await toggleMovieVote(movieId, currentUserId);
+      
+      // Rafraîchissement des votes
+      const newVotes = await getSpaceMovieVotes(space.id);
+      setVotes(newVotes);
   };
 
-  const handleMarkAsWatched = async (movieId: string) => {
+  const handleMarkAsWatched = async (e: React.MouseEvent, movieId: string) => {
+      e.stopPropagation();
       if (confirm('Marquer ce film comme regardé par le groupe ?')) {
           haptics.success();
           await markMovieAsWatched(movieId);
@@ -161,19 +159,19 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       }
   };
 
-  const handleDeleteMovie = async (movieId: string) => {
-      console.log('🗑️ Tentative suppression:', movieId);
+  const handleDeleteMovie = async (e: React.MouseEvent, movieId: string) => {
+      e.stopPropagation(); // Empêcher la fermeture de l'accordéon
       if (confirm('Supprimer définitivement ce film de l\'espace ?')) {
           haptics.error();
+          
+          // Mise à jour optimiste de l'UI
+          setMovies(prev => prev.filter(m => m.id !== movieId));
+          
           const success = await deleteSharedMovie(movieId);
-          console.log('✅ Résultat suppression:', success);
-          if (success) {
-              await loadData();
-              haptics.success();
-          } else {
-              console.error('❌ Échec suppression - vérifier RLS table shared_movies policy DELETE');
-              alert('Erreur lors de la suppression. Vous ne pouvez supprimer que vos propres ajouts.');
-              haptics.error();
+          if (!success) {
+              // Si échec, on recharge pour remettre le film
+              alert("Impossible de supprimer ce film (droits insuffisants ?)");
+              loadData();
           }
       }
   };
@@ -402,16 +400,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           <>
                             <div className="flex items-center justify-between">
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">Détail des Verdicts ({ratings.length})</h4>
-                                {(movie.added_by === currentUserId || movie.added_by === undefined) && (
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteMovie(movie.id);
-                                        }} 
-                                        className="text-red-400 hover:text-red-600 transition-colors active:scale-90"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                {movie.added_by === currentUserId && (
+                                    <button onClick={(e) => handleDeleteMovie(e, movie.id)} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                                 )}
                             </div>
 
@@ -449,7 +439,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               </div>
                             )}
 
-                            <button onClick={() => { haptics.medium(); if (myRating) { setRatingStory(myRating.story); setRatingVisuals(myRating.visuals); setRatingActing(myRating.acting); setRatingSound(myRating.sound); setRatingReview(myRating.review || ''); } setRatingMovie(movie); }} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 text-stone-500' : 'bg-charcoal text-white shadow-xl'}`}>
+                            <button onClick={(e) => { e.stopPropagation(); haptics.medium(); if (myRating) { setRatingStory(myRating.story); setRatingVisuals(myRating.visuals); setRatingActing(myRating.acting); setRatingSound(myRating.sound); setRatingReview(myRating.review || ''); } setRatingMovie(movie); }} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 text-stone-500' : 'bg-charcoal text-white shadow-xl'}`}>
                               {myRating ? 'Éditer mon verdict' : 'Déposer mon verdict'}
                             </button>
                           </>
@@ -458,27 +448,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             <div className="flex items-center justify-between">
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">Intérêts ({voteCount})</h4>
                                 <div className="flex items-center gap-3">
-                                    {(movie.added_by === currentUserId || movie.added_by === undefined) && (
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteMovie(movie.id);
-                                            }} 
-                                            className="text-stone-300 hover:text-red-500 transition-colors active:scale-90"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    )}
+                                    <button onClick={(e) => handleDeleteMovie(e, movie.id)} className="text-stone-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                                 </div>
                             </div>
                             
                             <div className="grid gap-4">
                                 <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleVote(movie.id);
-                                    }}
-                                    className={`w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all active:scale-95 ${hasIVoted ? 'bg-forest border-forest text-white shadow-lg shadow-forest/20' : 'bg-white border-stone-200 text-stone-400 hover:border-forest'}`}
+                                    onClick={(e) => handleToggleVote(e, movie.id)}
+                                    className={`w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all ${hasIVoted ? 'bg-forest border-forest text-white shadow-lg shadow-forest/20' : 'bg-white border-stone-200 text-stone-400 hover:border-forest'}`}
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className={`p-2 rounded-lg ${hasIVoted ? 'bg-white/20' : 'bg-stone-50 text-stone-300'}`}>
@@ -490,10 +467,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 </button>
 
                                 <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleMarkAsWatched(movie.id);
-                                    }}
+                                    onClick={(e) => handleMarkAsWatched(e, movie.id)}
                                     className="w-full bg-bitter-lime text-charcoal py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl shadow-bitter-lime/10"
                                 >
                                     <Ticket size={18} strokeWidth={2.5} />
