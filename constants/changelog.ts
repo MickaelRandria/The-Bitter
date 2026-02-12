@@ -15,8 +15,18 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.74',
+    version: 'v0.74.5',
     date: 'Aujourd\'hui',
+    title: 'Espaces : Consolidation',
+    changes: [
+      { type: 'fix', text: '🛡️ Départ Sécurisé : Quitter un espace est désormais une action non-destructive (Soft Delete), préservant l\'intégrité de la base de données.' },
+      { type: 'fix', text: '👻 Filtrage Actif : Les membres ayant quitté un espace n\'apparaissent plus, ni dans la liste des participants, ni dans le calcul des votes.' },
+      { type: 'style', text: '⚡ Flux Instantané : L\'interface se met à jour immédiatement lors du départ d\'un groupe, sans latence ni rechargement.' }
+    ]
+  },
+  {
+    version: 'v0.74',
+    date: '08 Février 2026',
     title: 'Consensus & Collectif',
     changes: [
       { type: 'feature', text: '🍿 Watchlist Collective : Un nouvel onglet "À voir" dans vos espaces pour centraliser les suggestions du groupe.' },
