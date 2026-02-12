@@ -129,8 +129,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 throw new Error("Erreur lors de la sortie");
             }
         } catch (e) {
+            console.error(e);
             haptics.error();
-            alert("Impossible de quitter l'espace pour le moment.");
+            alert("Impossible de quitter l'espace — réessayez.");
         } finally {
             setIsLeaving(false);
         }

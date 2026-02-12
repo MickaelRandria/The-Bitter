@@ -29,6 +29,8 @@ export interface SpaceMember {
   profile_id: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
+  is_active?: boolean;
+  left_at?: string;
   profile?: {
     first_name: string;
     last_name?: string;
@@ -104,7 +106,7 @@ export async function createSharedSpace(
 }
 
 /**
- * Récupère tous les espaces d'un utilisateur
+ * Récupère tous les espaces d'un utilisateur (uniquement ceux où il est actif)
  */
 export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
   if (!supabase) return [];
@@ -115,7 +117,8 @@ export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
       *,
       space_members!inner(profile_id)
     `)
-    .eq('space_members.profile_id', userId);
+    .eq('space_members.profile_id', userId)
+    .eq('space_members.is_active', true); // Only fetch spaces where user is active
 
   if (error) {
     console.error('Error fetching spaces:', error);
@@ -148,14 +151,18 @@ export async function joinSpaceByCode(
 }
 
 /**
- * Quitter un espace partagé
+ * Quitter un espace partagé (Soft Delete)
  */
 export async function leaveSharedSpace(spaceId: string, userId: string): Promise<boolean> {
   if (!supabase) return false;
   
+  // Soft delete: set is_active to false and record left_at timestamp
   const { error } = await supabase
     .from('space_members')
-    .delete()
+    .update({ 
+      is_active: false, 
+      left_at: new Date().toISOString() 
+    })
     .eq('space_id', spaceId)
     .eq('profile_id', userId);
 
@@ -368,7 +375,7 @@ export async function upsertMovieRating(
 }
 
 /**
- * Récupère les membres d'un espace
+ * Récupère les membres actifs d'un espace
  */
 export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
   if (!supabase) return [];
@@ -379,7 +386,8 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
       *,
       profile:profiles(first_name, last_name)
     `)
-    .eq('space_id', spaceId);
+    .eq('space_id', spaceId)
+    .eq('is_active', true); // Filter only active members
 
   if (error) {
     console.error('Error fetching members:', error);
