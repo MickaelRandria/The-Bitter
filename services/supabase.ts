@@ -210,6 +210,29 @@ export async function addMovieToSpace(
 ): Promise<SharedMovie | null> {
   if (!supabase) return null;
 
+  // --- DEBUG LOGS START ---
+  try {
+    console.log("DEBUG: about to add movie");
+    console.log("DEBUG: space_id (a) =", spaceId);
+    console.log("DEBUG: added_by (i) =", userId);
+    console.log("DEBUG: movie object (e) =", movieData);
+    
+    // Supabase v2 uses getSession, v1 uses user()
+    if (supabase.auth && typeof (supabase.auth as any).getSession === 'function') {
+      (supabase.auth as any).getSession().then(({ data }: any) => {
+        console.log("DEBUG: Supabase Session =", data.session);
+        console.log("DEBUG: Session User ID =", data.session?.user?.id);
+      }).catch((err: any) => console.error("DEBUG: error getting session", err));
+    } else if (supabase.auth && (supabase.auth as any).user) {
+      const user = (supabase.auth as any).user();
+      console.log("DEBUG: Supabase User =", user);
+      console.log("DEBUG: User ID =", user?.id);
+    }
+  } catch (err) {
+    console.error("DEBUG: error in logging", err);
+  }
+  // --- DEBUG LOGS END ---
+
   const { data, error } = await supabase
     .from('shared_movies')
     .insert({
