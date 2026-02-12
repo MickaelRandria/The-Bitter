@@ -19,7 +19,9 @@ import {
   Ticket,
   UserCheck,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  PartyPopper,
+  BarChart3
 } from 'lucide-react';
 import { 
   SharedSpace, 
@@ -216,6 +218,16 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     return (total / ratings.length).toFixed(1);
   };
 
+  const calculateCriteriaAverages = (ratings: MovieRating[]) => {
+    if (ratings.length === 0) return null;
+    return {
+        story: ratings.reduce((acc, r) => acc + r.story, 0) / ratings.length,
+        visuals: ratings.reduce((acc, r) => acc + r.visuals, 0) / ratings.length,
+        acting: ratings.reduce((acc, r) => acc + r.acting, 0) / ratings.length,
+        sound: ratings.reduce((acc, r) => acc + r.sound, 0) / ratings.length
+    };
+  };
+
   const feedMovies = useMemo(() => movies.filter(m => m.status === 'watched'), [movies]);
   const watchlistMovies = useMemo(() => {
     const list = movies.filter(m => m.status === 'watchlist');
@@ -247,6 +259,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        @keyframes celebrate {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(217, 255, 0, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(217, 255, 0, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(217, 255, 0, 0); }
         }
       `}</style>
 
@@ -345,6 +362,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 const avgRating = calculateAverageRating(ratings);
                 const myRating = ratings.find(r => r.profile_id === currentUserId);
                 
+                // Critères moyens pour le récap
+                const criteriaAvg = calculateCriteriaAverages(ratings);
+                
+                // Unanimité Check
+                const isConsensus = members.length > 1 && ratings.length === members.length;
+                const participationRate = (ratings.length / members.length) * 100;
+
                 // Watchlist specific data
                 const movieVotes = votes.filter(v => v.movie_id === movie.id);
                 const hasIVoted = movieVotes.some(v => v.profile_id === currentUserId);
@@ -364,18 +388,34 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-3">{movie.director} • {movie.year}</p>
 
                           {activeTab === 'feed' ? (
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-stone-100 text-[9px] font-black flex items-center justify-center text-stone-500">{(movie.added_by_profile?.first_name || '?')[0].toUpperCase()}</div>
-                                <span className="text-[10px] font-bold text-stone-400">{movie.added_by_profile?.first_name || 'Inconnu'}</span>
-                              </div>
-                              <div className="w-px h-3 bg-stone-200" />
-                              {avgRating ? (
-                                <div className="flex items-center gap-1.5 text-forest">
-                                  <Star size={12} fill="currentColor" />
-                                  <span className="text-xs font-black">{avgRating}</span>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-5 h-5 rounded-full bg-stone-100 text-[9px] font-black flex items-center justify-center text-stone-500">{(movie.added_by_profile?.first_name || '?')[0].toUpperCase()}</div>
+                                        <span className="text-[10px] font-bold text-stone-400">{movie.added_by_profile?.first_name || 'Inconnu'}</span>
+                                    </div>
+                                    <div className="w-px h-3 bg-stone-200" />
+                                    {avgRating ? (
+                                        <div className="flex items-center gap-1.5 text-forest">
+                                        <Star size={12} fill="currentColor" />
+                                        <span className="text-xs font-black">{avgRating}</span>
+                                        </div>
+                                    ) : <span className="text-[10px] font-bold text-stone-300">Non noté</span>}
                                 </div>
-                              ) : <span className="text-[10px] font-bold text-stone-300">Non noté</span>}
+                                {/* Petite jauge de participation */}
+                                {ratings.length > 0 && ratings.length < members.length && (
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-1.5 flex-1 bg-stone-100 rounded-full overflow-hidden max-w-[80px]">
+                                            <div className="h-full bg-stone-300" style={{ width: `${participationRate}%` }} />
+                                        </div>
+                                        <span className="text-[9px] font-bold text-stone-300">{ratings.length}/{members.length}</span>
+                                    </div>
+                                )}
+                                {isConsensus && (
+                                    <div className="inline-flex items-center gap-1.5 text-[9px] font-black text-bitter-lime bg-charcoal px-2 py-0.5 rounded-md w-fit">
+                                        <CheckCircle2 size={10} strokeWidth={3} /> UNANIMITÉ
+                                    </div>
+                                )}
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -399,8 +439,45 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       <div className="border-t border-sand p-6 bg-stone-50/50 animate-[fadeIn_0.3s_ease-out] space-y-6">
                         {activeTab === 'feed' ? (
                           <>
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">Détail des Verdicts ({ratings.length})</h4>
+                            {/* BANNIÈRE DE CONSENSUS ANIMÉE */}
+                            {isConsensus && (
+                                <div className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-bitter-lime/20 border-2 border-charcoal/5" style={{ animation: 'celebrate 2s infinite ease-in-out' }}>
+                                    <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
+                                    <span className="text-xs font-black uppercase tracking-widest text-charcoal">Verdict Complet !</span>
+                                    <PartyPopper size={20} className="text-charcoal scale-x-[-1]" strokeWidth={2.5} />
+                                </div>
+                            )}
+
+                            {/* RÉCAPITULATIF DES MOYENNES (NOUVEAU) */}
+                            {criteriaAvg && (
+                                <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                                    <div className="flex items-center gap-2 mb-4 text-forest">
+                                        <BarChart3 size={16} />
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Moyennes du Groupe</h4>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-bold text-stone-400 uppercase"><span>Script</span><span>{criteriaAvg.story.toFixed(1)}</span></div>
+                                            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-charcoal" style={{ width: `${criteriaAvg.story * 10}%` }} /></div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-bold text-stone-400 uppercase"><span>Visuel</span><span>{criteriaAvg.visuals.toFixed(1)}</span></div>
+                                            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-charcoal" style={{ width: `${criteriaAvg.visuals * 10}%` }} /></div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-bold text-stone-400 uppercase"><span>Jeu</span><span>{criteriaAvg.acting.toFixed(1)}</span></div>
+                                            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-charcoal" style={{ width: `${criteriaAvg.acting * 10}%` }} /></div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-bold text-stone-400 uppercase"><span>Son</span><span>{criteriaAvg.sound.toFixed(1)}</span></div>
+                                            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-charcoal" style={{ width: `${criteriaAvg.sound * 10}%` }} /></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between mt-2">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300">Détail des Verdicts ({ratings.length}/{members.length})</h4>
                                 {movie.added_by === currentUserId && (
                                     <button onClick={(e) => handleDeleteMovie(e, movie.id)} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                                 )}
