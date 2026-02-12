@@ -31,9 +31,14 @@ export interface SpaceMember {
   joined_at: string;
   is_active?: boolean;
   left_at?: string;
+  last_active_at?: string; // Ajout
   profile?: {
     first_name: string;
     last_name?: string;
+    bio?: string; // Ajout
+    location?: string; // Ajout
+    website?: string; // Ajout
+    avatar_url?: string; // Ajout
   };
 }
 
@@ -375,7 +380,7 @@ export async function upsertMovieRating(
 }
 
 /**
- * Récupère les membres actifs d'un espace
+ * Récupère les membres actifs d'un espace avec leurs détails
  */
 export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
   if (!supabase) return [];
@@ -384,7 +389,7 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
     .from('space_members')
     .select(`
       *,
-      profile:profiles(first_name, last_name)
+      profile:profiles(first_name, last_name, bio, location, website, avatar_url)
     `)
     .eq('space_id', spaceId)
     .eq('is_active', true); // Filter only active members
