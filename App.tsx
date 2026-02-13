@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
@@ -32,10 +32,12 @@ type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
 
-const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: { 
+const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen, feedTab, setInitialStatusForAdd }: { 
   viewMode: ViewMode, 
   setViewMode: (v: ViewMode) => void,
-  setIsModalOpen: (o: boolean) => void 
+  setIsModalOpen: (o: boolean) => void,
+  feedTab: FeedTab,
+  setInitialStatusForAdd: (s: MovieStatus) => void
 }) => {
     if (viewMode === 'SharedSpace') return null; // Hide bottom nav in shared space view for cleaner UI
     return (
@@ -46,7 +48,11 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: {
             <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center" style={{ willChange: 'transform' }}>
             <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Feed' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><LayoutGrid size={22} /></button>
             <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Discover' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><Clapperboard size={22} /></button>
-            <button onClick={() => { haptics.medium(); setIsModalOpen(true); }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150"><Plus size={24} strokeWidth={3} /></button>
+            <button onClick={() => { 
+              haptics.medium(); 
+              setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
+              setIsModalOpen(true); 
+            }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150"><Plus size={24} strokeWidth={3} /></button>
             <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Analytics' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><PieChart size={22} /></button>
             <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Calendar' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><CalendarDays size={22} /></button>
             </div>
@@ -82,6 +88,11 @@ const App: React.FC = () => {
   const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
   const [initialStatusForAdd, setInitialStatusForAdd] = useState<MovieStatus>('watched');
   
+  // Watchlist enhanced states
+  const [watchlistGenreFilter, setWatchlistGenreFilter] = useState<string>('all');
+  const [tonightPick, setTonightPick] = useState<Movie | null>(null);
+  const [isPickAnimating, setIsPickAnimating] = useState(false);
+
   // New State for Media Type handling (Films vs Series)
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   
@@ -108,6 +119,8 @@ const App: React.FC = () => {
   const TUTORIAL_DONE_KEY = 'the_bitter_tutorial_done';
   const [showTutorial, setShowTutorial] = useState(false);
   const pendingTutorialRef = useRef(false);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -170,6 +183,13 @@ const App: React.FC = () => {
         setTimeout(() => setShowTutorial(true), 500);
     }
   }, [viewMode]);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   const handleTutorialComplete = () => {
     setShowTutorial(false);
@@ -377,6 +397,16 @@ const App: React.FC = () => {
       }
       return { ...p, movies: updatedMovies };
     }));
+
+    // Toast de confirmation
+    if (editingMovie) {
+      setToastMessage('Film modifié ✓');
+    } else if (data.status === 'watchlist' || (!data.ratings?.story && !data.ratings?.visuals && !data.ratings?.acting && !data.ratings?.sound)) {
+      setToastMessage('Ajouté à ta watchlist ✓');
+    } else {
+      setToastMessage('Film ajouté ✓');
+    }
+
     setEditingMovie(null);
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
@@ -385,6 +415,15 @@ const App: React.FC = () => {
     }
   };
 
+  const watchlistGenres = useMemo(() => {
+    if (!activeProfile) return [];
+    const genres = activeProfile.movies
+      .filter(m => (m.status || 'watched') === 'watchlist')
+      .map(m => m.genre)
+      .filter(Boolean);
+    return [...new Set(genres)];
+  }, [activeProfile]);
+
   const filteredAndSortedMovies = useMemo(() => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
@@ -392,9 +431,16 @@ const App: React.FC = () => {
     return activeProfile.movies
       .filter(m => {
         const matchesStatus = (m.status || 'watched') === targetStatus;
-        if (!debouncedSearch) return matchesStatus;
+        if (!matchesStatus) return false;
+        
+        // Filtre genre (watchlist uniquement)
+        if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter) {
+          return false;
+        }
+        
+        if (!debouncedSearch) return true;
         const q = debouncedSearch.toLowerCase();
-        return matchesStatus && (m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q));
+        return m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q);
       })
       .sort((a, b) => {
         if (sortBy === 'Date') return (b.dateWatched || b.dateAdded) - (a.dateWatched || a.dateAdded);
@@ -407,7 +453,32 @@ const App: React.FC = () => {
         }
         return 0;
       });
-  }, [activeProfile, sortBy, debouncedSearch, feedTab]);
+  }, [activeProfile, sortBy, debouncedSearch, feedTab, watchlistGenreFilter]);
+
+  const handleTonightPick = () => {
+    if (!activeProfile) return;
+    const watchlist = activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist');
+    if (watchlist.length === 0) return;
+    
+    haptics.medium();
+    setIsPickAnimating(true);
+    
+    // Animation : cycle rapide de films pendant 1.5s puis ralentit
+    let count = 0;
+    const maxCycles = 12;
+    const interval = setInterval(() => {
+      const randomIndex = Math.floor(Math.random() * watchlist.length);
+      setTonightPick(watchlist[randomIndex]);
+      count++;
+      if (count >= maxCycles) {
+        clearInterval(interval);
+        // Sélection finale
+        const finalIndex = Math.floor(Math.random() * watchlist.length);
+        setTonightPick(watchlist[finalIndex]);
+        setTimeout(() => setIsPickAnimating(false), 300);
+      }
+    }, 120);
+  };
 
   const handleBackToFeed = () => {
     haptics.soft();
@@ -499,6 +570,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
+      {/* Keyframe pour shimmer (si non présent en global) */}
+      <style>{`
+        @keyframes shimmer {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      `}</style>
+
       {viewMode !== 'SharedSpace' && (
         <header 
           className="px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40"
@@ -636,10 +715,95 @@ const App: React.FC = () => {
                  <div className="space-y-10">
                     <div className="flex justify-center w-full">
                       <div className="bg-stone-100 p-1.5 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50">
-                          <button onClick={() => { haptics.soft(); setFeedTab('history'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>Vu</button>
-                          <button onClick={() => { haptics.soft(); setFeedTab('queue'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>À voir</button>
+                          <button onClick={() => { haptics.soft(); setFeedTab('history'); setWatchlistGenreFilter('all'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>Vu</button>
+                          <button onClick={() => { haptics.soft(); setFeedTab('queue'); setWatchlistGenreFilter('all'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'queue' ? 'bg-white text-charcoal shadow-md scale-[1.02]' : 'text-stone-400 hover:text-stone-500'}`}>À voir</button>
                       </div>
                     </div>
+
+                    {/* Enhanced Watchlist Controls */}
+                    {feedTab === 'queue' && activeProfile && activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').length > 0 && (
+                      <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
+                        
+                        {/* Bouton "Ce soir ?" */}
+                        <button
+                          onClick={handleTonightPick}
+                          className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 relative overflow-hidden"
+                        >
+                          <span className="relative z-10 flex items-center gap-3">
+                            <Shuffle size={18} strokeWidth={2.5} />
+                            Ce soir ?
+                          </span>
+                        </button>
+                        
+                        {/* Film sélectionné */}
+                        {tonightPick && !isPickAnimating && (
+                          <div className="bg-charcoal text-white p-5 rounded-[2rem] shadow-2xl animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] flex gap-4 items-center">
+                            {tonightPick.posterUrl && (
+                              <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg">
+                                <img src={tonightPick.posterUrl} alt={tonightPick.title} className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">🎲 The Bitter suggère</p>
+                              <h4 className="font-black text-lg tracking-tight truncate">{tonightPick.title}</h4>
+                              <p className="text-[10px] text-stone-400 font-bold mt-1">
+                                {tonightPick.director} • {tonightPick.year} • {tonightPick.genre}
+                              </p>
+                            </div>
+                            <button 
+                              onClick={() => setTonightPick(null)} 
+                              className="p-2 text-stone-500 hover:text-white transition-colors shrink-0"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Animation de cycle */}
+                        {isPickAnimating && tonightPick && (
+                          <div className="bg-stone-100 p-5 rounded-[2rem] flex gap-4 items-center animate-pulse">
+                            <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 bg-stone-200">
+                              {tonightPick.posterUrl && (
+                                <img src={tonightPick.posterUrl} alt="" className="w-full h-full object-cover opacity-60" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-forest mb-1">🎰 Sélection en cours...</p>
+                              <h4 className="font-black text-lg tracking-tight truncate text-charcoal">{tonightPick.title}</h4>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Filtre par genre (chips) */}
+                        {watchlistGenres.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button
+                              onClick={() => { haptics.soft(); setWatchlistGenreFilter('all'); }}
+                              className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                watchlistGenreFilter === 'all'
+                                  ? 'bg-charcoal text-white border-charcoal shadow-md'
+                                  : 'bg-white text-stone-400 border-stone-200'
+                              }`}
+                            >
+                              Tous
+                            </button>
+                            {watchlistGenres.map(genre => (
+                              <button
+                                key={genre}
+                                onClick={() => { haptics.soft(); setWatchlistGenreFilter(genre); }}
+                                className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                  watchlistGenreFilter === genre
+                                    ? 'bg-charcoal text-white border-charcoal shadow-md'
+                                    : 'bg-white text-stone-400 border-stone-200'
+                                }`}
+                              >
+                                {genre}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="relative group">
                       <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors" />
@@ -660,7 +824,7 @@ const App: React.FC = () => {
                            <SlidersHorizontal size={12} className="text-stone-300" />
                            <select value={sortBy} onChange={(e) => { haptics.soft(); setSortBy(e.target.value as SortOption); }} className="bg-transparent text-[10px] font-black uppercase text-charcoal outline-none cursor-pointer tracking-widest">
                               <option value="Date">Récents</option>
-                              <option value="Rating">Note</option>
+                              {feedTab === 'history' && <option value="Rating">Note</option>}
                               <option value="Year">Année</option>
                               <option value="Title">A-Z</option>
                            </select>
@@ -685,7 +849,18 @@ const App: React.FC = () => {
         </Suspense>
       </main>
 
-      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setIsModalOpen(true); }} />
+      <BottomNav 
+        viewMode={viewMode} 
+        setViewMode={setViewMode} 
+        setIsModalOpen={() => { 
+            setEditingMovie(null); 
+            setTmdbIdToLoad(null); 
+            setMediaTypeToLoad('movie'); 
+            setIsModalOpen(true); 
+        }} 
+        feedTab={feedTab} 
+        setInitialStatusForAdd={setInitialStatusForAdd} 
+      />
 
       {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
         <button 
@@ -695,6 +870,20 @@ const App: React.FC = () => {
           <Sparkles size={24} fill="currentColor" className="group-hover:rotate-12 transition-transform" />
           <div className="absolute -top-1 -right-1 bg-bitter-lime text-charcoal text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm">AI</div>
         </button>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div 
+          className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+        >
+          <div className="bg-charcoal text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-white/10">
+            <div className="w-5 h-5 bg-forest rounded-full flex items-center justify-center shrink-0">
+              <Check size={12} strokeWidth={3} />
+            </div>
+            <span className="text-sm font-bold tracking-tight">{toastMessage}</span>
+          </div>
+        </div>
       )}
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>

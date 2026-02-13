@@ -111,6 +111,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  const isEditMode = !!initialData;
+
   // Date Picker State
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
@@ -350,7 +352,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     Ajout dans : {sharedSpace.name}
                 </p>
             )}
-            <h2 className="text-2xl font-black tracking-tighter truncate">{formData.title || 'Nouveau Verdict'}</h2>
+            <h2 className="text-2xl font-black tracking-tighter truncate">
+                {isEditMode ? 'Modifier' : (formData.title || 'Nouveau Verdict')}
+            </h2>
           </div>
           <button onClick={onClose} className="p-3 bg-charcoal text-white rounded-full active:scale-90 transition-all ml-4 shrink-0"><X size={20} /></button>
         </div>
@@ -381,68 +385,92 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
              </div>
            )}
 
-           <div className="space-y-6 relative">
-              <div className="group">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2 block ml-1">Titre de l'œuvre</label>
-                
-                {/* Switch Film / Série */}
-                <div className="flex bg-stone-100 p-1 rounded-2xl mb-3 w-fit">
-                    <button 
-                        onClick={() => { haptics.soft(); setSearchType('movie'); }} 
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'movie' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
-                    >
-                        <Film size={12} /> Films
-                    </button>
-                    <button 
-                        onClick={() => { haptics.soft(); setSearchType('tv'); }} 
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'tv' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
-                    >
-                        <Tv size={12} /> Séries
-                    </button>
-                </div>
-
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    className="w-full bg-white border-2 border-stone-100 focus:border-charcoal p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12" 
-                    placeholder={searchType === 'tv' ? "Nom de la série..." : "Titre du film..."} 
-                    value={formData.title} 
-                    onChange={e => { setFormData({...formData, title: e.target.value}); }} 
-                  />
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 text-stone-300">
-                    {isSearching ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
-                  </div>
-                </div>
-
-                {showResults && (
-                  <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-stone-100 rounded-3xl shadow-2xl overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-                    {searchResults.length > 0 ? (
-                        searchResults.map(m => (
-                            <button key={m.id} onClick={() => handleSelectTMDBMovie(m.id)} className="w-full flex items-center gap-4 p-4 hover:bg-stone-50 border-b border-stone-50 last:border-0 transition-colors text-left">
-                                <div className="w-10 h-14 bg-stone-100 rounded-lg shrink-0 overflow-hidden">
-                                {m.poster_path && <img src={`${TMDB_IMAGE_URL}${m.poster_path}`} className="w-full h-full object-cover" alt="" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm text-charcoal truncate">{m.title}</p>
-                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{m.release_date?.split('-')[0] || 'N/A'}</p>
-                                </div>
-                            </button>
-                        ))
-                    ) : !isSearching && formData.title.trim().length >= 2 ? (
-                        <div className="p-10 text-center text-stone-400 flex flex-col items-center gap-4 bg-stone-50/50">
-                            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                                <Info size={20} className="opacity-30" />
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-charcoal">Aucun résultat</p>
-                                <p className="text-[9px] font-medium opacity-60">Vérifiez l'orthographe ou essayez un autre titre.</p>
-                            </div>
-                        </div>
-                    ) : null}
+           {/* Header film compact en mode édition */}
+           {isEditMode && (
+              <div className="flex gap-4 bg-white rounded-[2rem] p-4 border border-stone-100 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                {formData.posterUrl && (
+                  <div className="w-20 h-28 rounded-2xl overflow-hidden shrink-0 shadow-md">
+                    <img src={formData.posterUrl} alt={formData.title} className="w-full h-full object-cover" />
                   </div>
                 )}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <h3 className="font-black text-lg text-charcoal tracking-tight truncate leading-tight">{formData.title}</h3>
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">
+                    {formData.director} • {formData.year}
+                  </p>
+                  {formData.genre && (
+                    <span className="text-[9px] font-black uppercase tracking-widest text-forest bg-forest/10 px-2.5 py-1 rounded-full mt-2 w-fit">
+                      {formData.genre}
+                    </span>
+                  )}
+                </div>
               </div>
-           </div>
+           )}
+
+           {!isEditMode && (
+             <div className="space-y-6 relative">
+                <div className="group">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2 block ml-1">Titre de l'œuvre</label>
+                  
+                  {/* Switch Film / Série */}
+                  <div className="flex bg-stone-100 p-1 rounded-2xl mb-3 w-fit">
+                      <button 
+                          onClick={() => { haptics.soft(); setSearchType('movie'); }} 
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'movie' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+                      >
+                          <Film size={12} /> Films
+                      </button>
+                      <button 
+                          onClick={() => { haptics.soft(); setSearchType('tv'); }} 
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'tv' ? 'bg-charcoal text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+                      >
+                          <Tv size={12} /> Séries
+                      </button>
+                  </div>
+
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      className="w-full bg-white border-2 border-stone-100 focus:border-charcoal p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12" 
+                      placeholder={searchType === 'tv' ? "Nom de la série..." : "Titre du film..."} 
+                      value={formData.title} 
+                      onChange={e => { setFormData({...formData, title: e.target.value}); }} 
+                    />
+                    <div className="absolute right-5 top-1/2 -translate-y-1/2 text-stone-300">
+                      {isSearching ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+                    </div>
+                  </div>
+
+                  {showResults && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-stone-100 rounded-3xl shadow-2xl overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+                      {searchResults.length > 0 ? (
+                          searchResults.map(m => (
+                              <button key={m.id} onClick={() => handleSelectTMDBMovie(m.id)} className="w-full flex items-center gap-4 p-4 hover:bg-stone-50 border-b border-stone-50 last:border-0 transition-colors text-left">
+                                  <div className="w-10 h-14 bg-stone-100 rounded-lg shrink-0 overflow-hidden">
+                                  {m.poster_path && <img src={`${TMDB_IMAGE_URL}${m.poster_path}`} className="w-full h-full object-cover" alt="" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                  <p className="font-black text-sm text-charcoal truncate">{m.title}</p>
+                                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{m.release_date?.split('-')[0] || 'N/A'}</p>
+                                  </div>
+                              </button>
+                          ))
+                      ) : !isSearching && formData.title.trim().length >= 2 ? (
+                          <div className="p-10 text-center text-stone-400 flex flex-col items-center gap-4 bg-stone-50/50">
+                              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                  <Info size={20} className="opacity-30" />
+                              </div>
+                              <div className="space-y-1">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-charcoal">Aucun résultat</p>
+                                  <p className="text-[9px] font-medium opacity-60">Vérifiez l'orthographe ou essayez un autre titre.</p>
+                              </div>
+                          </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+             </div>
+           )}
 
            {/* Affichage conditionnel des outils avancés (Masqué en mode Shared Space pour simplicité initialement, ou activé si nécessaire) */}
            {/* Pour l'instant on garde tout, mais l'analyse Bitter ne sera pas sauvegardée dans shared_movies pour simplifier */}

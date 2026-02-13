@@ -28,6 +28,7 @@ import {
   Trophy
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
+import { getAdvancedArchetype } from '../utils/archetypes';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -38,6 +39,8 @@ interface AnalyticsViewProps {
 
 type TabMode = 'overview' | 'notes' | 'psycho';
 type FilterType = 'actor' | 'director' | 'genre';
+
+const MIN_MOVIES_FOR_ANALYTICS = 5;
 
 // Phrases contextuelles pour les vibes
 const getVibePhrase = (label: string, value: number) => {
@@ -75,7 +78,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   const [activeFilter, setActiveFilter] = useState<{ type: FilterType, value: string } | null>(null);
 
+  const watchedCount = useMemo(() => movies.filter(m => m.status === 'watched').length, [movies]);
+  const isLocked = watchedCount < MIN_MOVIES_FOR_ANALYTICS;
+
   const stats = useMemo(() => {
+    // Si verrouillé, on ne calcule pas les stats lourdes
+    if (isLocked) return null;
+
     const watched = movies.filter(m => m.status === 'watched');
     const count = watched.length;
     if (count === 0) return null;
@@ -117,26 +126,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         global: Number(((sums.ratingStory + sums.ratingVisuals + sums.ratingActing + sums.ratingSound) / (4 * count)).toFixed(1))
     };
 
-    // --- 2. Best/Worst/Strongest ---
-    const sortedByRating = [...watched].sort((a, b) => {
-        const avgA = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
-        const avgB = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
-        return avgB - avgA;
-    });
-    
-    const bestRated = sortedByRating[0];
-    const worstRated = sortedByRating[count - 1];
-    
-    const criteriaScores = [
-        { id: 'story', label: 'Scénario', val: ratingAverages.story },
-        { id: 'visuals', label: 'Visuel', val: ratingAverages.visuals },
-        { id: 'acting', label: 'Jeu d\'acteur', val: ratingAverages.acting },
-        { id: 'sound', label: 'Son', val: ratingAverages.sound },
-    ];
-    
-    const strongestPoint = criteriaScores.reduce((prev, current) => (prev.val > current.val) ? prev : current);
-
-    // --- 3. Tops (Actors, Directors, Genres) ---
+    // --- 2. Tops (Actors, Directors, Genres) ---
+    // DÉPLACÉ AVANT L'ARCHÉTYPE POUR ÊTRE UTILISÉ DANS LE CALCUL
     const actorCounts: Record<string, number> = {};
     const directorCounts: Record<string, number> = {};
     const genreCounts: Record<string, number> = {};
@@ -157,25 +148,49 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     const getTop = (counts: Record<string, number>) => 
       Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3);
 
+    // --- 3. Best/Worst/Strongest ---
+    const sortedByRating = [...watched].sort((a, b) => {
+        const avgA = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
+        const avgB = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
+        return avgB - avgA;
+    });
+    
+    const bestRated = sortedByRating[0];
+    const worstRated = sortedByRating[count - 1];
+    
+    const criteriaScores = [
+        { id: 'story', label: 'Scénario', val: ratingAverages.story },
+        { id: 'visuals', label: 'Visuel', val: ratingAverages.visuals },
+        { id: 'acting', label: 'Jeu d\'acteur', val: ratingAverages.acting },
+        { id: 'sound', label: 'Son', val: ratingAverages.sound },
+    ];
+    
+    const strongestPoint = criteriaScores.reduce((prev, current) => (prev.val > current.val) ? prev : current);
+
     // --- 4. Insight Psycho & Heures ---
     const totalMinutes = watched.reduce((acc, m) => acc + (m.runtime || 0), 0);
     const totalHours = Math.floor(totalMinutes / 60);
 
-    // Logique enrichie des archétypes (V2)
-    let vibeInsight;
-    if (averages.tension > 7) {
-      vibeInsight = { label: "Le Frissonnant", desc: "Tu aimes quand ça fait monter la pression", tag: "TENSION", icon: <Zap size={24} /> };
-    } else if (averages.visuel > 7 && averages.cerebral < 5) {
-      vibeInsight = { label: "L'Esthète", desc: "L'image prime sur le reste", tag: "VISUEL", icon: <Aperture size={24} /> };
-    } else if (averages.emotion > 7) {
-      vibeInsight = { label: "Le Sensible", desc: "Tu cherches l'émotion avant tout", tag: "ÉMOTION", icon: <Heart size={24} /> };
-    } else if (averages.cerebral > averages.fun + 2) {
-      vibeInsight = { label: "L'Intello", desc: "Cinéma = Énigme à résoudre", tag: "CÉRÉBRAL", icon: <Brain size={24} /> };
-    } else if (averages.fun > averages.cerebral + 2) {
-      vibeInsight = { label: "Popcorn", desc: "Le plaisir immédiat avant tout", tag: "FUN", icon: <Smile size={24} /> };
-    } else {
-      vibeInsight = { label: "L'Équilibré", desc: "Le meilleur des deux mondes", tag: "VERSATILE", icon: <History size={24} /> };
-    }
+    // Archétype enrichi V3 (vibes + quality + smartphone + genres)
+    const advancedArchetype = getAdvancedArchetype({
+      vibes: averages,
+      quality: {
+        scenario: ratingAverages.story,
+        acting: ratingAverages.acting,
+        visual: ratingAverages.visuals,
+        sound: ratingAverages.sound
+      },
+      smartphone: averages.smartphone,
+      topGenres: getTop(genreCounts).map(([name]) => name),
+      movieCount: count
+    });
+
+    const vibeInsight = {
+      label: advancedArchetype.title,
+      desc: advancedArchetype.description,
+      tag: advancedArchetype.tag,
+      icon: <span className="text-2xl">{advancedArchetype.icon}</span>
+    };
 
     // --- 5. COMPARATIF SIMPLIFIÉ ---
     const moviesWithTmdb = watched.filter(m => m.tmdbRating && m.tmdbRating > 0);
@@ -227,6 +242,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       count,
       totalHours,
       vibeInsight,
+      advancedArchetype,
       tops: {
         actors: getTop(actorCounts),
         directors: getTop(directorCounts),
@@ -242,7 +258,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       },
       topGenres
     };
-  }, [movies]);
+  }, [movies, isLocked]);
 
   const drillDownData = useMemo(() => {
     if (!activeFilter) return [];
@@ -264,18 +280,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         return rb - ra;
       });
   }, [movies, activeFilter]);
-
-  if (!stats) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 px-10 text-center">
-        <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-6">
-          <ScanFace size={40} className="text-stone-300" />
-        </div>
-        <h3 className="text-2xl font-black text-charcoal mb-2">Pas encore d'ADN</h3>
-        <p className="text-stone-400 font-medium">Notez quelques films pour que votre analyste puisse travailler.</p>
-      </div>
-    );
-  }
 
   const ADNBar = ({ label, value, icon }: { label: string, value: number, icon: React.ReactNode }) => (
     <div className="space-y-2">
@@ -326,284 +330,327 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         </div>
       </div>
       
-      {/* ONGLET 1: MON PROFIL (Ex-Overview) */}
-      {activeTab === 'overview' && (
-        <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
-          
-          <div>
-            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">Profil</span></h2>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Votre identité cinéphile</p>
-          </div>
+      {isLocked ? (
+        <div className="flex flex-col items-center justify-center py-20 px-6 text-center animate-[slideUp_0.4s_ease-out]">
+            <div className="w-24 h-24 bg-stone-100 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-sm">
+                <Film size={40} className="text-stone-300" strokeWidth={1.5} />
+            </div>
+            
+            <h3 className="text-3xl font-black text-charcoal mb-2 tracking-tighter">
+                Encore {MIN_MOVIES_FOR_ANALYTICS - watchedCount} film{MIN_MOVIES_FOR_ANALYTICS - watchedCount > 1 ? 's' : ''} !
+            </h3>
+            
+            <p className="text-stone-400 font-medium mb-10 max-w-xs mx-auto leading-relaxed">
+                Note au moins {MIN_MOVIES_FOR_ANALYTICS} films pour débloquer ton profil d'analyste.
+            </p>
 
-          {/* Hero Archetype Card */}
-          <div className="bg-charcoal text-white p-8 rounded-[2.5rem] relative overflow-hidden shadow-xl">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-lime-400/10 blur-[60px] rounded-full -translate-y-1/4 translate-x-1/4" />
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-bitter-lime text-charcoal rounded-2xl flex items-center justify-center shadow-lg shadow-lime-400/20">
-                  {stats.vibeInsight.icon}
-                </div>
-                <span className="bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-white/80">
-                  {stats.vibeInsight.tag}
-                </span>
-              </div>
-              <h3 className="text-3xl font-black mb-2 tracking-tighter">{stats.vibeInsight.label}</h3>
-              <p className="text-white/60 font-medium leading-relaxed max-w-xs">{stats.vibeInsight.desc}</p>
+            <div className="w-full max-w-xs bg-stone-100 rounded-full h-4 overflow-hidden mb-2 relative border border-stone-200/50">
+                <div 
+                    className="h-full bg-forest transition-all duration-1000 ease-out rounded-full" 
+                    style={{ width: `${(watchedCount / MIN_MOVIES_FOR_ANALYTICS) * 100}%` }} 
+                />
             </div>
-          </div>
-
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-stone-200 p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-sm">
-              <Film size={24} className="text-stone-300" />
-              <div>
-                <span className="text-5xl font-black text-charcoal tracking-tighter block leading-none">{stats.count}</span>
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 block">Films Vus</span>
-              </div>
+            
+            <div className="flex justify-between w-full max-w-xs px-2 mb-8">
+                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Progression</span>
+                <span className="text-[10px] font-black text-charcoal">{watchedCount}/{MIN_MOVIES_FOR_ANALYTICS}</span>
             </div>
-            <div className="bg-lime-400 text-charcoal p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-lg">
-              <Clock size={24} className="text-charcoal/20" />
-              <div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-black tracking-tighter">{stats.totalHours}</span>
-                  <span className="text-xl font-bold opacity-60">h</span>
-                </div>
-                <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest mt-2 block">Heures de cinéma</span>
-              </div>
+            
+            <div className="flex gap-2 opacity-50">
+               {Array.from({length: MIN_MOVIES_FOR_ANALYTICS}).map((_, i) => (
+                   <div key={i} className={`w-2 h-2 rounded-full transition-colors duration-500 ${i < watchedCount ? 'bg-charcoal' : 'bg-stone-300'}`} />
+               ))}
             </div>
-          </div>
-          <p className="text-[9px] font-medium text-stone-400 text-center mt-2 px-4">
-            ⏱️ Compteur disponible depuis la V0.75 (13 fév. 2025). Les films ajoutés avant cette date ne sont pas comptabilisés.
-          </p>
-
-          <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-10 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30"><Clapperboard size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Réalisateurs</h4></div>
-              <div className="space-y-4">
-                {stats.tops.directors.map(([name, count], i) => (
-                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'director', value: name }); }} className="flex justify-between items-center group w-full text-left">
-                    <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
-                    <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="h-px bg-stone-100" />
-            <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30"><User size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Casting</h4></div>
-              <div className="space-y-4">
-                {stats.tops.actors.map(([name, count], i) => (
-                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'actor', value: name }); }} className="flex justify-between items-center group w-full text-left">
-                    <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
-                    <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="h-px bg-stone-100" />
-            <div>
-              <div className="flex items-center gap-2 mb-6 opacity-30"><Tags size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Genres Favoris</h4></div>
-              <div className="flex flex-wrap gap-2">
-                {stats.tops.genres.map(([name, count]) => (
-                  <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'genre', value: name }); }} className="bg-stone-50 border border-stone-100 px-4 py-2 rounded-xl flex items-center gap-3 hover:border-lime-400 hover:bg-white transition-all active:scale-95">
-                    <span className="text-xs font-bold text-charcoal">{name}</span>
-                    <span className="bg-charcoal text-white px-2 py-0.5 rounded text-[8px] font-black">{count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* ONGLET 1: MON PROFIL (Ex-Overview) */}
+          {activeTab === 'overview' && stats && (
+            <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
+              
+              <div>
+                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">Profil</span></h2>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Votre identité cinéphile</p>
+              </div>
 
-      {/* ONGLET 2: MES GOÛTS (Ex-Notes) */}
-      {activeTab === 'notes' && (
-        <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
-            <div>
-                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mes<br/><span className="text-stone-300">Goûts</span></h2>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Comment vous jugez les films</p>
-            </div>
-
-            {/* Global & Details */}
-            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-start gap-8 mb-8">
-                    <div className="bg-lime-400 text-charcoal p-6 rounded-[1.8rem] flex flex-col items-center justify-center min-w-[100px] shadow-lg">
-                        <span className="text-4xl font-black tracking-tighter">{stats.ratingAverages.global}</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-70">Global</span>
+              {/* Hero Archetype Card */}
+              <div className="bg-charcoal text-white p-8 rounded-[2.5rem] relative overflow-hidden shadow-xl">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-lime-400/10 blur-[60px] rounded-full -translate-y-1/4 translate-x-1/4" />
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-16 h-16 bg-bitter-lime text-charcoal rounded-2xl flex items-center justify-center shadow-lg shadow-lime-400/20">
+                      {stats.vibeInsight.icon}
                     </div>
-                    <div className="flex-1 space-y-3 pt-1">
-                        <RatingProgress label="Scénario" value={stats.ratingAverages.story} />
-                        <RatingProgress label="Visuel" value={stats.ratingAverages.visuals} />
-                        <RatingProgress label="Jeu" value={stats.ratingAverages.acting} />
-                        <RatingProgress label="Son" value={stats.ratingAverages.sound} />
-                    </div>
+                    <span className="bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-white/80">
+                      {stats.vibeInsight.tag}
+                    </span>
+                  </div>
+                  <h3 className="text-3xl font-black mb-2 tracking-tighter">{stats.vibeInsight.label}</h3>
+                  <p className="text-white/60 font-medium leading-relaxed max-w-xs">{stats.vibeInsight.desc}</p>
+                  
+                  {/* TRAIT SECONDAIRE */}
+                  {stats.advancedArchetype.secondaryTrait && (
+                    <p className="text-[10px] font-bold text-bitter-lime/70 uppercase tracking-widest mt-3">
+                        ↳ {stats.advancedArchetype.secondaryTrait}
+                    </p>
+                  )}
                 </div>
-                
-                <div className="pt-6 border-t border-stone-100 flex items-center gap-4">
-                    <div className="p-3 bg-stone-50 rounded-2xl text-charcoal"><Award size={20} /></div>
-                    <div>
-                        <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Votre point fort</p>
-                        <p className="text-lg font-black text-charcoal leading-none">
-                            {stats.strongestPoint.label} <span className="text-lime-500">({stats.strongestPoint.val})</span>
-                        </p>
-                        <p className="text-xs text-stone-400 font-medium mt-0.5">C'est le critère qui compte le plus pour vous.</p>
-                    </div>
-                </div>
-            </div>
+              </div>
 
-            {/* COMPARATIF SIMPLIFIÉ */}
-            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Scale size={18} /></div>
-                    <div>
-                    <h3 className="text-lg font-black text-charcoal leading-none">Suis-je sévère ?</h3>
-                    <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Par rapport au grand public</p>
-                    </div>
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white border border-stone-200 p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-sm">
+                  <Film size={24} className="text-stone-300" />
+                  <div>
+                    <span className="text-5xl font-black text-charcoal tracking-tighter block leading-none">{stats.count}</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 block">Films Vus</span>
+                  </div>
                 </div>
-                {stats.comparative.tmdbAvg > 0 ? (
-                    <>
-                    {/* Jauge visuelle sévère ↔ généreux */}
-                    <div className="mb-6">
-                        <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                        <span>Sévère</span>
-                        <span>Généreux</span>
-                        </div>
-                        <div className="h-3 bg-stone-100 rounded-full overflow-hidden relative">
-                        {/* Position du curseur : delta va de -3 à +3, on mappe sur 0-100% */}
-                        <div
-                            className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-charcoal border-2 border-bitter-lime shadow-lg transition-all duration-700"
-                            style={{ left: `clamp(10%, ${50 + (stats.comparative.delta * 16.6)}%, 90%)` }}
-                        />
-                        </div>
+                <div className="bg-lime-400 text-charcoal p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-lg">
+                  <Clock size={24} className="text-charcoal/20" />
+                  <div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-5xl font-black tracking-tighter">{stats.totalHours}</span>
+                      <span className="text-xl font-bold opacity-60">h</span>
                     </div>
-                    <div className="bg-stone-50 rounded-2xl p-5 flex items-center gap-4 border border-stone-100">
-                        <div className={`p-3 rounded-xl ${stats.comparative.delta > 0 ? 'bg-forest/10 text-forest' : 'bg-red-50 text-red-500'}`}>
-                        {React.createElement(stats.comparative.Icon, { size: 20, strokeWidth: 3 })}
-                        </div>
-                        <div>
-                        <p className={`text-sm font-black ${stats.comparative.color} uppercase tracking-wide leading-none mb-1`}>
-                            {stats.comparative.label}
-                        </p>
-                        <p className="text-[10px] font-medium text-stone-400 leading-tight">
-                            Vous : {stats.comparative.userAvg}/10 — Public : {stats.comparative.tmdbAvg}/10
-                        </p>
-                        </div>
-                    </div>
-                    </>
-                ) : (
-                    <div className="bg-orange-50 border border-orange-100 p-6 rounded-[2rem] text-center">
-                    <AlertOctagon size={24} className="text-orange-400 mx-auto mb-2" />
-                    <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Données insuffisantes</p>
-                    <p className="text-xs text-orange-800/60 font-medium">Ajoutez des films via la recherche TMDB pour voir la comparaison.</p>
-                    </div>
-                )}
-            </div>
-
-            {/* 🎭 NOTES PAR GENRE */}
-            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Tags size={18} /></div>
-                    <div>
-                        <h3 className="text-lg font-black text-charcoal leading-none">Notes par Genre</h3>
-                        <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Vos catégories favorites</p>
-                    </div>
+                    <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest mt-2 block">Heures de cinéma</span>
+                  </div>
                 </div>
+              </div>
+              <p className="text-[9px] font-medium text-stone-400 text-center mt-2 px-4">
+                ⏱️ Compteur disponible depuis la V0.75 (13 fév. 2025). Les films ajoutés avant cette date ne sont pas comptabilisés.
+              </p>
 
-                <div className="space-y-5">
-                    {stats.topGenres.map((genre) => (
-                        <div key={genre.name}>
-                            <div className="flex justify-between items-end mb-2">
-                                <span className="text-xs font-bold text-charcoal uppercase tracking-wide">{genre.name}</span>
-                                <span className="text-sm font-black text-forest">{genre.avg}</span>
-                            </div>
-                            <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-charcoal rounded-full transition-all duration-1000"
-                                    style={{ width: `${(genre.avg / 10) * 100}%` }}
-                                />
-                            </div>
-                        </div>
+              <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-10 shadow-sm">
+                <div>
+                  <div className="flex items-center gap-2 mb-6 opacity-30"><Clapperboard size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Réalisateurs</h4></div>
+                  <div className="space-y-4">
+                    {stats.tops.directors.map(([name, count], i) => (
+                      <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'director', value: name }); }} className="flex justify-between items-center group w-full text-left">
+                        <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
+                        <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
+                      </button>
                     ))}
-                    {stats.topGenres.length === 0 && (
-                        <p className="text-center text-xs text-stone-400 font-medium italic">Pas assez de données pour le moment.</p>
+                  </div>
+                </div>
+                <div className="h-px bg-stone-100" />
+                <div>
+                  <div className="flex items-center gap-2 mb-6 opacity-30"><User size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Casting</h4></div>
+                  <div className="space-y-4">
+                    {stats.tops.actors.map(([name, count], i) => (
+                      <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'actor', value: name }); }} className="flex justify-between items-center group w-full text-left">
+                        <div className="flex items-center gap-3"><span className="text-[10px] font-black text-stone-200 w-4">{i + 1}</span><span className="text-sm font-bold text-charcoal group-hover:text-forest transition-colors">{name}</span></div>
+                        <div className="flex items-center gap-2"><span className="text-[10px] font-black text-stone-300">{count} films</span><ChevronRight size={14} className="text-stone-200 group-hover:text-charcoal group-hover:translate-x-1 transition-all" /></div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="h-px bg-stone-100" />
+                <div>
+                  <div className="flex items-center gap-2 mb-6 opacity-30"><Tags size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Genres Favoris</h4></div>
+                  <div className="flex flex-wrap gap-2">
+                    {stats.tops.genres.map(([name, count]) => (
+                      <button key={name} onClick={() => { haptics.medium(); setActiveFilter({ type: 'genre', value: name }); }} className="bg-stone-50 border border-stone-100 px-4 py-2 rounded-xl flex items-center gap-3 hover:border-lime-400 hover:bg-white transition-all active:scale-95">
+                        <span className="text-xs font-bold text-charcoal">{name}</span>
+                        <span className="bg-charcoal text-white px-2 py-0.5 rounded text-[8px] font-black">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ONGLET 2: MES GOÛTS (Ex-Notes) */}
+          {activeTab === 'notes' && stats && (
+            <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
+                <div>
+                    <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mes<br/><span className="text-stone-300">Goûts</span></h2>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Comment vous jugez les films</p>
+                </div>
+
+                {/* Global & Details */}
+                <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
+                    <div className="flex items-start gap-8 mb-8">
+                        <div className="bg-lime-400 text-charcoal p-6 rounded-[1.8rem] flex flex-col items-center justify-center min-w-[100px] shadow-lg">
+                            <span className="text-4xl font-black tracking-tighter">{stats.ratingAverages.global}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-70">Global</span>
+                        </div>
+                        <div className="flex-1 space-y-3 pt-1">
+                            <RatingProgress label="Scénario" value={stats.ratingAverages.story} />
+                            <RatingProgress label="Visuel" value={stats.ratingAverages.visuals} />
+                            <RatingProgress label="Jeu" value={stats.ratingAverages.acting} />
+                            <RatingProgress label="Son" value={stats.ratingAverages.sound} />
+                        </div>
+                    </div>
+                    
+                    <div className="pt-6 border-t border-stone-100 flex items-center gap-4">
+                        <div className="p-3 bg-stone-50 rounded-2xl text-charcoal"><Award size={20} /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Votre point fort</p>
+                            <p className="text-lg font-black text-charcoal leading-none">
+                                {stats.strongestPoint.label} <span className="text-lime-500">({stats.strongestPoint.val})</span>
+                            </p>
+                            <p className="text-xs text-stone-400 font-medium mt-0.5">C'est le critère qui compte le plus pour vous.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* COMPARATIF SIMPLIFIÉ */}
+                <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Scale size={18} /></div>
+                        <div>
+                        <h3 className="text-lg font-black text-charcoal leading-none">Suis-je sévère ?</h3>
+                        <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Par rapport au grand public</p>
+                        </div>
+                    </div>
+                    {stats.comparative.tmdbAvg > 0 ? (
+                        <>
+                        {/* Jauge visuelle sévère ↔ généreux */}
+                        <div className="mb-6">
+                            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                            <span>Sévère</span>
+                            <span>Généreux</span>
+                            </div>
+                            <div className="h-3 bg-stone-100 rounded-full overflow-hidden relative">
+                            {/* Position du curseur : delta va de -3 à +3, on mappe sur 0-100% */}
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-charcoal border-2 border-bitter-lime shadow-lg transition-all duration-700"
+                                style={{ left: `clamp(10%, ${50 + (stats.comparative.delta * 16.6)}%, 90%)` }}
+                            />
+                            </div>
+                        </div>
+                        <div className="bg-stone-50 rounded-2xl p-5 flex items-center gap-4 border border-stone-100">
+                            <div className={`p-3 rounded-xl ${stats.comparative.delta > 0 ? 'bg-forest/10 text-forest' : 'bg-red-50 text-red-500'}`}>
+                            {React.createElement(stats.comparative.Icon, { size: 20, strokeWidth: 3 })}
+                            </div>
+                            <div>
+                            <p className={`text-sm font-black ${stats.comparative.color} uppercase tracking-wide leading-none mb-1`}>
+                                {stats.comparative.label}
+                            </p>
+                            <p className="text-[10px] font-medium text-stone-400 leading-tight">
+                                Vous : {stats.comparative.userAvg}/10 — Public : {stats.comparative.tmdbAvg}/10
+                            </p>
+                            </div>
+                        </div>
+                        </>
+                    ) : (
+                        <div className="bg-orange-50 border border-orange-100 p-6 rounded-[2rem] text-center">
+                        <AlertOctagon size={24} className="text-orange-400 mx-auto mb-2" />
+                        <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Données insuffisantes</p>
+                        <p className="text-xs text-orange-800/60 font-medium">Ajoutez des films via la recherche TMDB pour voir la comparaison.</p>
+                        </div>
                     )}
                 </div>
-            </div>
 
-            {/* Best & Worst */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-stone-50 border border-stone-100 p-6 rounded-[2.5rem] relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-6 opacity-10"><Trophy size={48} /></div>
-                    <div className="flex items-center gap-2 mb-4 text-forest">
-                        <Award size={18} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Le Meilleur</span>
+                {/* 🎭 NOTES PAR GENRE */}
+                <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Tags size={18} /></div>
+                        <div>
+                            <h3 className="text-lg font-black text-charcoal leading-none">Notes par Genre</h3>
+                            <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Vos catégories favorites</p>
+                        </div>
                     </div>
-                    <p className="text-xl font-black text-charcoal leading-tight line-clamp-2 mb-2">{stats.bestRated.title}</p>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg shadow-sm border border-stone-100">
-                        <Star size={10} fill="currentColor" className="text-lime-500" />
-                        <span className="text-xs font-black">{((stats.bestRated.ratings.story + stats.bestRated.ratings.visuals + stats.bestRated.ratings.acting + stats.bestRated.ratings.sound)/4).toFixed(1)}</span>
+
+                    <div className="space-y-5">
+                        {stats.topGenres.map((genre) => (
+                            <div key={genre.name}>
+                                <div className="flex justify-between items-end mb-2">
+                                    <span className="text-xs font-bold text-charcoal uppercase tracking-wide">{genre.name}</span>
+                                    <span className="text-sm font-black text-forest">{genre.avg}</span>
+                                </div>
+                                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-charcoal rounded-full transition-all duration-1000"
+                                        style={{ width: `${(genre.avg / 10) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                        {stats.topGenres.length === 0 && (
+                            <p className="text-center text-xs text-stone-400 font-medium italic">Pas assez de données pour le moment.</p>
+                        )}
                     </div>
                 </div>
 
-                <div className="bg-stone-50 border border-stone-100 p-6 rounded-[2.5rem] relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-6 opacity-10"><AlertOctagon size={48} /></div>
-                    <div className="flex items-center gap-2 mb-4 text-red-400">
-                        <AlertOctagon size={18} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Le Pire</span>
+                {/* Best & Worst */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-stone-50 border border-stone-100 p-6 rounded-[2.5rem] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-6 opacity-10"><Trophy size={48} /></div>
+                        <div className="flex items-center gap-2 mb-4 text-forest">
+                            <Award size={18} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Le Meilleur</span>
+                        </div>
+                        <p className="text-xl font-black text-charcoal leading-tight line-clamp-2 mb-2">{stats.bestRated.title}</p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg shadow-sm border border-stone-100">
+                            <Star size={10} fill="currentColor" className="text-lime-500" />
+                            <span className="text-xs font-black">{((stats.bestRated.ratings.story + stats.bestRated.ratings.visuals + stats.bestRated.ratings.acting + stats.bestRated.ratings.sound)/4).toFixed(1)}</span>
+                        </div>
                     </div>
-                    <p className="text-xl font-black text-charcoal leading-tight line-clamp-2 mb-2">{stats.worstRated.title}</p>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg shadow-sm border border-stone-100">
-                        <Star size={10} fill="currentColor" className="text-red-400" />
-                        <span className="text-xs font-black">{((stats.worstRated.ratings.story + stats.worstRated.ratings.visuals + stats.worstRated.ratings.acting + stats.worstRated.ratings.sound)/4).toFixed(1)}</span>
+
+                    <div className="bg-stone-50 border border-stone-100 p-6 rounded-[2.5rem] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-6 opacity-10"><AlertOctagon size={48} /></div>
+                        <div className="flex items-center gap-2 mb-4 text-red-400">
+                            <AlertOctagon size={18} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Le Pire</span>
+                        </div>
+                        <p className="text-xl font-black text-charcoal leading-tight line-clamp-2 mb-2">{stats.worstRated.title}</p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg shadow-sm border border-stone-100">
+                            <Star size={10} fill="currentColor" className="text-red-400" />
+                            <span className="text-xs font-black">{((stats.worstRated.ratings.story + stats.worstRated.ratings.visuals + stats.worstRated.ratings.acting + stats.worstRated.ratings.sound)/4).toFixed(1)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-      )}
+          )}
 
-      {/* ONGLET 3: MON ADN (Ex-Psycho) */}
-      {activeTab === 'psycho' && (
-        <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
-          <div>
-            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">ADN</span></h2>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Ce que vous recherchez dans un film</p>
-          </div>
+          {/* ONGLET 3: MON ADN (Ex-Psycho) */}
+          {activeTab === 'psycho' && stats && (
+            <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
+              <div>
+                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">ADN</span></h2>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Ce que vous recherchez dans un film</p>
+              </div>
 
-          {/* Encart Concentration */}
-          <div className={`p-6 rounded-[2rem] flex items-center gap-5 border ${
-            stats.averages.smartphone > 50
-                ? 'bg-red-50 border-red-100'
-                : stats.averages.smartphone > 25
-                ? 'bg-orange-50 border-orange-100'
-                : 'bg-green-50 border-green-100'
-            }`}>
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-                stats.averages.smartphone > 50 ? 'bg-red-400 text-white' : stats.averages.smartphone > 25 ? 'bg-orange-400 text-white' : 'bg-forest text-white'
-            }`}>
-                <Smartphone size={24} />
-            </div>
-            <div>
-                <p className="text-lg font-black text-charcoal leading-none mb-1">
-                {stats.averages.smartphone > 50 ? 'Distrait' : stats.averages.smartphone > 25 ? 'Moyen' : 'Concentré'}
-                </p>
-                <p className="text-xs font-medium text-stone-400">
-                {stats.averages.smartphone > 50
-                    ? 'Tu regardes souvent ton téléphone pendant les films'
+              {/* Encart Concentration */}
+              <div className={`p-6 rounded-[2rem] flex items-center gap-5 border ${
+                stats.averages.smartphone > 50
+                    ? 'bg-red-50 border-red-100'
                     : stats.averages.smartphone > 25
-                    ? 'Tu décroches parfois, mais ça va'
-                    : 'Tu es pleinement immergé dans tes films'}
-                </p>
-            </div>
-          </div>
+                    ? 'bg-orange-50 border-orange-100'
+                    : 'bg-green-50 border-green-100'
+                }`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                    stats.averages.smartphone > 50 ? 'bg-red-400 text-white' : stats.averages.smartphone > 25 ? 'bg-orange-400 text-white' : 'bg-forest text-white'
+                }`}>
+                    <Smartphone size={24} />
+                </div>
+                <div>
+                    <p className="text-lg font-black text-charcoal leading-none mb-1">
+                    {stats.averages.smartphone > 50 ? 'Distrait' : stats.averages.smartphone > 25 ? 'Moyen' : 'Concentré'}
+                    </p>
+                    <p className="text-xs font-medium text-stone-400">
+                    {stats.averages.smartphone > 50
+                        ? 'Tu regardes souvent ton téléphone pendant les films'
+                        : stats.averages.smartphone > 25
+                        ? 'Tu décroches parfois, mais ça va'
+                        : 'Tu es pleinement immergé dans tes films'}
+                    </p>
+                </div>
+              </div>
 
-          <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-8 shadow-sm">
-            <ADNBar label="Cérébral" value={stats.averages.cerebral} icon={<Brain size={16} />} />
-            <ADNBar label="Émotion" value={stats.averages.emotion} icon={<Heart size={16} />} />
-            <ADNBar label="Fun" value={stats.averages.fun} icon={<Smile size={16} />} />
-            <ADNBar label="Visuel" value={stats.averages.visuel} icon={<Aperture size={16} />} />
-            <ADNBar label="Tension" value={stats.averages.tension} icon={<Zap size={16} />} />
-          </div>
-        </div>
+              <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-8 shadow-sm">
+                <ADNBar label="Cérébral" value={stats.averages.cerebral} icon={<Brain size={16} />} />
+                <ADNBar label="Émotion" value={stats.averages.emotion} icon={<Heart size={16} />} />
+                <ADNBar label="Fun" value={stats.averages.fun} icon={<Smile size={16} />} />
+                <ADNBar label="Visuel" value={stats.averages.visuel} icon={<Aperture size={16} />} />
+                <ADNBar label="Tension" value={stats.averages.tension} icon={<Zap size={16} />} />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {activeFilter && (
@@ -640,11 +687,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         </div>
       )}
 
-      <div className="px-6 pt-4">
-        <button onClick={() => { haptics.medium(); onRecalibrate?.(); }} className="w-full py-4 rounded-2xl border-2 border-dashed border-stone-200 text-[9px] font-black uppercase tracking-[0.2em] text-stone-300 hover:text-charcoal hover:border-stone-300 transition-all flex items-center justify-center gap-2">
-          <Settings2 size={12} /> Refaire ma calibration psychologique
-        </button>
-      </div>
+      {!isLocked && (
+        <div className="px-6 pt-4">
+            <button onClick={() => { haptics.medium(); onRecalibrate?.(); }} className="w-full py-4 rounded-2xl border-2 border-dashed border-stone-200 text-[9px] font-black uppercase tracking-[0.2em] text-stone-300 hover:text-charcoal hover:border-stone-300 transition-all flex items-center justify-center gap-2">
+            <Settings2 size={12} /> Refaire ma calibration psychologique
+            </button>
+        </div>
+      )}
     </div>
   );
 };
