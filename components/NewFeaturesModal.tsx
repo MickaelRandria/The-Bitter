@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { ArrowRight, Tv, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff } from 'lucide-react';
+import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
@@ -35,30 +36,30 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col p-8 sm:p-10 pt-16 sm:pt-10">
           
-          {/* STEP 0: TV SERIES FOCUS */}
+          {/* STEP 0: ANALYTICS / MES NOTES FOCUS */}
           {step === 0 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Sparkles size={12} />
-                  Mise à jour v0.73
+                  <BarChart3 size={12} />
+                  Mise à jour v0.75
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  LES SÉRIES<br />
-                  <span className="text-[#a3e635]">DÉBARQUENT.</span>
+                  VOS NOTES<br />
+                  <span className="text-[#a3e635]">DÉCODÉES.</span>
                 </h2>
                 
                 {/* Visual Block */}
                 <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#a3e635]/20 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
                     <div className="w-20 h-20 bg-[#a3e635] rounded-3xl flex items-center justify-center text-black mb-6 mx-auto shadow-2xl shadow-[#a3e635]/30 rotate-3">
-                      <Tv size={40} strokeWidth={2.5} />
+                      <Scale size={40} strokeWidth={2.5} />
                     </div>
                     <p className="text-stone-300 text-sm font-medium leading-relaxed">
-                      The Bitter supporte enfin vos marathons. Retrouvez <b>Breaking Bad</b>, <b>The Bear</b> et toutes vos séries favorites.
+                      Le nouvel onglet <b>Mes Notes</b> compare votre sévérité à la moyenne mondiale (TMDB) et analyse vos biais cognitifs.
                     </p>
                     <p className="text-stone-500 text-xs font-bold uppercase tracking-widest mt-4">
-                      Notez les saisons • Suivez votre progression
+                      Comparatif Mondial • Corrélations
                     </p>
                 </div>
               </div>
@@ -74,7 +75,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 1: INSTAGRAM STORIES (NEW) */}
+          {/* STEP 1: INSTAGRAM STORIES */}
           {step === 1 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
