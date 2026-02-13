@@ -181,7 +181,9 @@ PROFIL DE ${userProfile.firstName.toUpperCase()} :
 15 DERNIERS FILMS VUS :
 ${watchedMovies.map((m, i) => {
   const avgRating = ((m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4).toFixed(1);
-  return `${i + 1}. "${m.title}" (${m.year}) - ${m.genre} - Note: ${avgRating}/10${m.review ? ` - "${m.review}"` : ''}`;
+  // Priority to personal comment, then review (synopsis/legacy comment)
+  const comment = m.comment || m.review;
+  return `${i + 1}. "${m.title}" (${m.year}) - ${m.genre} - Note: ${avgRating}/10${comment ? ` - "${comment}"` : ''}`;
 }).join('\n')}
 
 ${vibeStats ? `STATISTIQUES VIBES (moyennes) :

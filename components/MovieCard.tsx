@@ -1,3 +1,4 @@
+
 import React, { useState, memo } from 'react';
 import { Movie } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone } from 'lucide-react';
@@ -132,12 +133,33 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
             </div>
           )}
 
-          {movie.review && (
-            <div className={`mb-8 pl-5 border-l-2 transition-colors duration-200 ${hasPoster ? 'border-white/20' : 'border-stone-200'}`}>
-              <p className={`text-sm font-medium leading-relaxed italic ${hasPoster ? 'text-white/80' : 'text-stone-600'}`}>
-                "{movie.review}"
-              </p>
-            </div>
+          {/* New logic for Comment/Review separation */}
+          {movie.comment ? (
+            <>
+                {/* Synopsis (discret) if exists */}
+                {movie.review && (
+                    <div className="mb-3">
+                        <p className={`text-[11px] leading-relaxed line-clamp-2 ${hasPoster ? 'text-white/40' : 'text-stone-400'}`}>
+                            {movie.review}
+                        </p>
+                    </div>
+                )}
+                {/* Personal Comment (prominent) */}
+                <div className={`mb-8 pl-5 border-l-2 transition-colors duration-200 ${hasPoster ? 'border-white/20' : 'border-stone-200'}`}>
+                    <p className={`text-sm font-medium leading-relaxed italic ${hasPoster ? 'text-white/80' : 'text-stone-600'}`}>
+                        "{movie.comment}"
+                    </p>
+                </div>
+            </>
+          ) : (
+            /* Fallback Legacy: Review acts as comment if no specific comment exists */
+            movie.review && (
+                <div className={`mb-8 pl-5 border-l-2 transition-colors duration-200 ${hasPoster ? 'border-white/20' : 'border-stone-200'}`}>
+                    <p className={`text-sm font-medium leading-relaxed italic ${hasPoster ? 'text-white/80' : 'text-stone-600'}`}>
+                        "{movie.review}"
+                    </p>
+                </div>
+            )
           )}
 
           <div className="flex gap-3 mt-4 pb-4">

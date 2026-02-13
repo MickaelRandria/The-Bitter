@@ -46,6 +46,7 @@ export interface Movie {
   genre: string;
   ratings: RatingCriteria;
   review: string;
+  comment?: string;
   dateAdded: number;
   dateWatched?: number;
   theme: ThemeColor;

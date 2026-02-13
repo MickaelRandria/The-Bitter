@@ -33,6 +33,7 @@ const INITIAL_FORM_STATE: MovieFormData = {
   genre: GENRES[0],
   ratings: { story: 5, visuals: 5, acting: 5, sound: 5 },
   review: '',
+  comment: '',
   theme: 'black',
   posterUrl: '',
   status: 'watched',
@@ -43,7 +44,8 @@ const INITIAL_FORM_STATE: MovieFormData = {
   hype: 5,
   mediaType: 'movie',
   numberOfSeasons: 0,
-  tmdbRating: 0 // Initialize tmdbRating
+  tmdbRating: 0,
+  runtime: 0 // Initialize runtime
 };
 
 const RatingStepper: React.FC<{ label: string; value: number; onChange: (val: number) => void; isBitter?: boolean }> = ({ label, value, onChange, isBitter }) => {
@@ -122,7 +124,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     if (isOpen) {
       if (initialData) {
         skipSearchRef.current = true;
-        setFormData({ ...initialData });
+        setFormData({ ...initialData, comment: initialData.comment || '' });
         setMode(initialData.status || 'watched');
         setGlobalRating((initialData.ratings.story + initialData.ratings.visuals + initialData.ratings.acting + initialData.ratings.sound) / 4);
         setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
@@ -215,6 +217,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     haptics.medium();
     setIsSearching(true);
     setShowResults(false);
+    setSearchResults([]); // Ensure results are cleared to prevent popup
     skipSearchRef.current = true;
     
     // Explicitly narrow the union type to avoid "string" widening
@@ -248,14 +251,19 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         year: year,
         director: director,
         posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : '',
-        review: data.overview || '',
+        review: data.overview || '', // review keeps the synopsis
         genre: genre,
         mediaType: typeToUse,
         numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined,
-        tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0
+        tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
+        runtime: data.runtime || 0
       }));
     } catch (e) { console.error(e); }
+    
     setIsSearching(false);
+    // Double sécurité pour fermer les résultats
+    setSearchResults([]);
+    setShowResults(false);
   };
 
   const handleSubmit = async () => {
@@ -440,12 +448,31 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
            {/* Pour l'instant on garde tout, mais l'analyse Bitter ne sera pas sauvegardée dans shared_movies pour simplifier */}
            {!sharedSpace && mode === 'watched' && (
               <div className="space-y-8">
-                 <div onClick={() => { haptics.medium(); setIsBitterMode(!isBitterMode); }} className={`p-5 rounded-[2rem] border-2 transition-all cursor-pointer flex items-center justify-between ${isBitterMode ? 'bg-bitter-lime border-bitter-lime text-charcoal shadow-lg' : 'bg-white border-stone-100 text-stone-300'}`}>
-                    <div className="flex items-center gap-4">
-                        <FlaskConical size={20} strokeWidth={2.5} />
-                        <div><p className="font-black text-xs uppercase tracking-tight">Analyse Bitter</p><p className="text-[8px] font-bold opacity-60 uppercase tracking-widest">Évaluation Multi-Critères</p></div>
+                 <div 
+                    onClick={() => { haptics.medium(); setIsBitterMode(!isBitterMode); }} 
+                    className={`p-5 rounded-[2rem] border-2 transition-all duration-300 cursor-pointer flex items-center justify-between relative overflow-hidden shadow-lg
+                        ${isBitterMode 
+                            ? 'bg-bitter-lime border-bitter-lime text-charcoal scale-[1.02] shadow-[0_0_30px_rgba(217,255,0,0.4)]' 
+                            : 'bg-[#0c0c0c] border-bitter-lime text-white shadow-[0_0_20px_rgba(217,255,0,0.25)]'
+                        }
+                    `}
+                 >
+                    <div className="flex items-center gap-4 relative z-10">
+                        <FlaskConical 
+                            size={24} 
+                            strokeWidth={2.5} 
+                            className={`transition-colors duration-300 ${isBitterMode ? 'text-charcoal' : 'text-bitter-lime drop-shadow-[0_0_8px_rgba(217,255,0,0.8)]'}`} 
+                        />
+                        <div>
+                            <p className="font-black text-xs uppercase tracking-tight">Analyse Bitter</p>
+                            <p className={`text-[8px] font-bold uppercase tracking-widest transition-colors duration-300 ${isBitterMode ? 'text-charcoal/70' : 'text-stone-400'}`}>
+                                Évaluation Multi-Critères
+                            </p>
+                        </div>
                     </div>
-                    {isBitterMode ? <ToggleRight size={32} /> : <ToggleLeft size={32} className="opacity-30" />}
+                    <div className={`relative z-10 transition-colors duration-300 ${isBitterMode ? 'text-charcoal' : 'text-stone-600'}`}>
+                        {isBitterMode ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    </div>
                  </div>
 
                  {isBitterMode ? (
@@ -475,9 +502,23 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     <div className="py-4"><RatingStepper label="Note Globale" value={globalRating} onChange={setGlobalRating} isBitter={false} /></div>
                  )}
 
+                 {/* Synopsis Read-Only */}
+                 {formData.review && (
+                    <div className="bg-stone-50 border border-stone-100 rounded-2xl p-4 mb-2 animate-[fadeIn_0.3s_ease-out]">
+                       <span className="text-[9px] font-black uppercase tracking-widest text-stone-300 mb-2 block">Synopsis</span>
+                       <p className="text-xs text-stone-500 italic line-clamp-3 leading-relaxed">{formData.review}</p>
+                    </div>
+                 )}
+
+                 {/* Commentaire Perso */}
                  <div className="space-y-4">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 block ml-1">Notes de l'Analyste</label>
-                    <textarea className="w-full bg-white border border-stone-100 p-6 rounded-[2rem] font-medium text-sm outline-none focus:border-stone-200 transition-all min-h-[120px] resize-none shadow-sm leading-relaxed" placeholder="Qu'est-ce qui a retenu votre attention ?" value={formData.review} onChange={e => setFormData({...formData, review: e.target.value})} />
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 block ml-1">Mon Avis</label>
+                    <textarea 
+                        className="w-full bg-white border border-stone-100 p-6 rounded-[2rem] font-medium text-sm outline-none focus:border-stone-200 transition-all min-h-[120px] resize-none shadow-sm leading-relaxed" 
+                        placeholder="Votre verdict personnel..." 
+                        value={formData.comment || ''} 
+                        onChange={e => setFormData({...formData, comment: e.target.value})} 
+                    />
                  </div>
               </div>
            )}

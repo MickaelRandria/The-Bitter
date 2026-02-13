@@ -9,7 +9,6 @@ import {
   Heart, 
   Aperture, 
   Smile, 
-  PiggyBank, 
   Film, 
   ChevronRight,
   Settings2,
@@ -17,25 +16,16 @@ import {
   Clapperboard,
   User,
   Tags,
-  Calculator,
   X,
   Star,
   Award,
   AlertOctagon,
-  BarChart3,
-  PenTool,
-  Trophy,
-  Target,
-  Link2,
-  ArrowLeftRight,
-  Split,
-  GitCommit,
   Scale,
-  TrendingUp,
-  Percent,
   ArrowUp,
   ArrowDown,
-  Minus
+  Minus,
+  Clock,
+  Trophy
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
@@ -49,22 +39,36 @@ interface AnalyticsViewProps {
 type TabMode = 'overview' | 'notes' | 'psycho';
 type FilterType = 'actor' | 'director' | 'genre';
 
-// Helper statistique : Corrélation de Pearson
-const calculatePearson = (x: number[], y: number[]) => {
-  const n = x.length;
-  if (n === 0) return 0;
-  
-  const sumX = x.reduce((a, b) => a + b, 0);
-  const sumY = y.reduce((a, b) => a + b, 0);
-  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
-  const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
-  const sumY2 = y.reduce((sum, yi) => sum + yi * yi, 0);
-
-  const numerator = (n * sumXY) - (sumX * sumY);
-  const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-
-  if (denominator === 0) return 0;
-  return numerator / denominator;
+// Phrases contextuelles pour les vibes
+const getVibePhrase = (label: string, value: number) => {
+  if (value > 7) {
+    switch (label) {
+      case 'Cérébral': return "Tu aimes les films qui font réfléchir";
+      case 'Émotion': return "Les films te touchent en plein cœur";
+      case 'Fun': return "Le cinéma c'est d'abord du plaisir";
+      case 'Visuel': return "L'esthétique est essentielle pour toi";
+      case 'Tension': return "Tu adores la montée d'adrénaline";
+      default: return "";
+    }
+  } else if (value >= 4) {
+    switch (label) {
+      case 'Cérébral': return "Tu apprécies un bon scénario sans prise de tête";
+      case 'Émotion': return "Tu ressens, sans te laisser submerger";
+      case 'Fun': return "Un bon moment, avec du fond";
+      case 'Visuel': return "Tu remarques les beaux plans, sans plus";
+      case 'Tension': return "Un peu de suspense, ça ne fait pas de mal";
+      default: return "";
+    }
+  } else {
+    switch (label) {
+      case 'Cérébral': return "Tu préfères ne pas trop cogiter";
+      case 'Émotion': return "Tu gardes tes émotions pour toi";
+      case 'Fun': return "Le divertissement pur, c'est pas ton truc";
+      case 'Visuel': return "Le visuel passe au second plan";
+      case 'Tension': return "Tu préfères les films calmes";
+      default: return "";
+    }
+  }
 };
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate }) => {
@@ -153,68 +157,31 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     const getTop = (counts: Record<string, number>) => 
       Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3);
 
-    // --- 4. Insight Psycho ---
-    const vibeInsight = averages.cerebral > averages.fun + 2 
-      ? { label: "L'Intello", desc: "Cinéma = Énigme", tag: "CÉRÉBRAL", icon: <Brain size={24} /> }
-      : averages.fun > averages.cerebral + 2 
-        ? { label: "Popcorn", desc: "Plaisir immédiat", tag: "FUN", icon: <Smile size={24} /> }
-        : { label: "L'Équilibré", desc: "Le meilleur des deux", tag: "VERSATILE", icon: <History size={24} /> };
+    // --- 4. Insight Psycho & Heures ---
+    const totalMinutes = watched.reduce((acc, m) => acc + (m.runtime || 0), 0);
+    const totalHours = Math.floor(totalMinutes / 60);
 
-    const ticketPrice = 8.5;
-    const monthlyCost = 11.0; 
-    const savings = (count * ticketPrice) - monthlyCost;
-
-    // --- 5. CORRÉLATIONS ---
-    const dataStory = watched.map(m => m.ratings.story);
-    const dataVisuals = watched.map(m => m.ratings.visuals);
-    const dataActing = watched.map(m => m.ratings.acting);
-    const dataSound = watched.map(m => m.ratings.sound);
-
-    const correlations = [
-      { label: 'Script ↔ Jeu', val: calculatePearson(dataStory, dataActing), type: 'narratif' },
-      { label: 'Script ↔ Visuel', val: calculatePearson(dataStory, dataVisuals), type: 'visuel' },
-      { label: 'Visuel ↔ Son', val: calculatePearson(dataVisuals, dataSound), type: 'technique' },
-      { label: 'Jeu ↔ Son', val: calculatePearson(dataActing, dataSound), type: 'mixte' },
-    ];
-
-    const maxCorr = correlations.reduce((prev, curr) => Math.abs(curr.val) > Math.abs(prev.val) ? curr : prev);
-    
-    let correlationInsight = "";
-    if (Math.abs(maxCorr.val) < 0.3) {
-      correlationInsight = "Vos critères sont très indépendants. Vous jugez chaque aspect isolément.";
-    } else if (maxCorr.type === 'narratif') {
-      correlationInsight = "Quand l'histoire est bonne, vous avez tendance à mieux noter les acteurs (et inversement).";
-    } else if (maxCorr.type === 'technique') {
-      correlationInsight = "Pour vous, l'esthétique et l'ambiance sonore sont indissociables.";
+    // Logique enrichie des archétypes (V2)
+    let vibeInsight;
+    if (averages.tension > 7) {
+      vibeInsight = { label: "Le Frissonnant", desc: "Tu aimes quand ça fait monter la pression", tag: "TENSION", icon: <Zap size={24} /> };
+    } else if (averages.visuel > 7 && averages.cerebral < 5) {
+      vibeInsight = { label: "L'Esthète", desc: "L'image prime sur le reste", tag: "VISUEL", icon: <Aperture size={24} /> };
+    } else if (averages.emotion > 7) {
+      vibeInsight = { label: "Le Sensible", desc: "Tu cherches l'émotion avant tout", tag: "ÉMOTION", icon: <Heart size={24} /> };
+    } else if (averages.cerebral > averages.fun + 2) {
+      vibeInsight = { label: "L'Intello", desc: "Cinéma = Énigme à résoudre", tag: "CÉRÉBRAL", icon: <Brain size={24} /> };
+    } else if (averages.fun > averages.cerebral + 2) {
+      vibeInsight = { label: "Popcorn", desc: "Le plaisir immédiat avant tout", tag: "FUN", icon: <Smile size={24} /> };
     } else {
-      correlationInsight = `Il y a un lien fort entre ${maxCorr.label.replace('↔', 'et')}.`;
+      vibeInsight = { label: "L'Équilibré", desc: "Le meilleur des deux mondes", tag: "VERSATILE", icon: <History size={24} /> };
     }
 
-    // --- 6. FILMS POLARISANTS ---
-    const polarizingMovies = watched.map(m => {
-        const scores = [
-            { k: 'Story', v: m.ratings.story },
-            { k: 'Visuel', v: m.ratings.visuals },
-            { k: 'Jeu', v: m.ratings.acting },
-            { k: 'Son', v: m.ratings.sound }
-        ];
-        scores.sort((a, b) => a.v - b.v);
-        const min = scores[0];
-        const max = scores[3];
-        const gap = max.v - min.v;
-        return { ...m, gap, minCriteria: min, maxCriteria: max };
-    })
-    .filter(m => m.gap >= 3)
-    .sort((a, b) => b.gap - a.gap)
-    .slice(0, 2);
-
-    // --- 7. TABLEAU DE BORD COMPARATIF (NOUVEAU) ---
-    // A. Comparaison TMDB
+    // --- 5. COMPARATIF SIMPLIFIÉ ---
     const moviesWithTmdb = watched.filter(m => m.tmdbRating && m.tmdbRating > 0);
     const tmdbSum = moviesWithTmdb.reduce((acc, m) => acc + (m.tmdbRating || 0), 0);
     const tmdbAvg = moviesWithTmdb.length > 0 ? Number((tmdbSum / moviesWithTmdb.length).toFixed(1)) : 0;
     
-    // Note: On compare la moyenne de l'utilisateur *sur ces mêmes films* pour être précis, ou sa moyenne globale si dataset petit
     const userGlobalAvg = ratingAverages.global;
     const delta = Number((userGlobalAvg - tmdbAvg).toFixed(1));
     
@@ -227,27 +194,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     else if (delta <= -0.8) { comparisonLabel = "Intransigeant"; comparisonColor = "text-red-500"; ComparisonIcon = ArrowDown; }
     else if (delta <= -0.3) { comparisonLabel = "Exigeant"; comparisonColor = "text-orange-400"; ComparisonIcon = ArrowDown; }
 
-    // B. Écart-Type (Cohérence)
-    // Calcul de la variance
-    const variance = watched.reduce((acc, m) => {
-        const mAvg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-        return acc + Math.pow(mAvg - userGlobalAvg, 2);
-    }, 0) / count;
-    const stdDev = Number(Math.sqrt(variance).toFixed(1));
-    
-    // Standard "Typique" arbitraire ~1.5
-    const typicalStdDev = 1.8;
-    const consistencyLabel = stdDev < typicalStdDev ? "Cohérent" : "Imprévisible";
-
-    // C. % de films > 8 (Générosité)
-    const highRatedCount = watched.filter(m => {
-        const mAvg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-        return mAvg >= 8;
-    }).length;
-    const highRatedPercent = Math.round((highRatedCount / count) * 100);
-    const typicalHighPercent = 35; // Standard
-
-    // --- 8. NOTES PAR GENRE (NOUVEAU) ---
+    // --- 6. NOTES PAR GENRE ---
     const genreRatings: Record<string, { sum: number, count: number, avg: number }> = {};
 
     watched.forEach(m => {
@@ -266,7 +213,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
 
     const genreRatingsSorted = Object.entries(genreRatings)
         .map(([name, data]) => ({ name, ...data }))
-        .filter(g => g.count >= 1) // On peut filtrer pour ne garder que ceux avec au moins X films
+        .filter(g => g.count >= 1)
         .sort((a, b) => b.avg - a.avg);
 
     const topGenres = genreRatingsSorted.slice(0, 5);
@@ -277,18 +224,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       bestRated,
       worstRated,
       strongestPoint,
-      count, 
-      savings, 
+      count,
+      totalHours,
       vibeInsight,
       tops: {
         actors: getTop(actorCounts),
         directors: getTop(directorCounts),
         genres: getTop(genreCounts)
       },
-      correlations,
-      maxCorr,
-      correlationInsight,
-      polarizingMovies,
       comparative: {
           tmdbAvg,
           userAvg: userGlobalAvg,
@@ -296,11 +239,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
           label: comparisonLabel,
           color: comparisonColor,
           Icon: ComparisonIcon,
-          stdDev,
-          typicalStdDev,
-          consistencyLabel,
-          highRatedPercent,
-          typicalHighPercent
       },
       topGenres
     };
@@ -339,7 +277,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     );
   }
 
-  const ADNBar = ({ label, value, icon, percentage = false }: { label: string, value: number, icon: React.ReactNode, percentage?: boolean }) => (
+  const ADNBar = ({ label, value, icon }: { label: string, value: number, icon: React.ReactNode }) => (
     <div className="space-y-2">
       <div className="flex justify-between items-end">
         <div className="flex items-center gap-2">
@@ -347,15 +285,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal">{label}</span>
         </div>
         <span className="text-xl font-black text-charcoal tracking-tighter">
-          {value}{percentage ? <span className="text-[10px] ml-0.5">%</span> : <span className="text-[10px] text-stone-300 ml-0.5">/10</span>}
+          {value}<span className="text-[10px] text-stone-300 ml-0.5">/10</span>
         </span>
       </div>
       <div className="h-4 bg-stone-100 rounded-full p-[2px] border border-stone-200/50 overflow-hidden">
         <div 
           className="h-full bg-lime-400 rounded-full transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]" 
-          style={{ width: percentage ? `${value}%` : `${value * 10}%` }} 
+          style={{ width: `${value * 10}%` }} 
         />
       </div>
+      <p className="text-[10px] font-medium text-stone-400 mt-1 pl-6">{getVibePhrase(label, value)}</p>
     </div>
   );
 
@@ -376,43 +315,64 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       <div className="flex items-center justify-between pt-2 px-1">
         <div className="bg-stone-100 p-1 rounded-[1.2rem] flex flex-1 shadow-inner border border-stone-200/50 mx-auto overflow-x-auto no-scrollbar">
           <button onClick={() => { haptics.soft(); setActiveTab('overview'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'overview' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400'}`}>
-            <Calculator size={14} /> Vue d'ensemble
+            <User size={14} /> Mon Profil
           </button>
           <button onClick={() => { haptics.soft(); setActiveTab('notes'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'notes' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400'}`}>
-            <Star size={14} /> Mes Notes
+            <Star size={14} /> Mes Goûts
           </button>
           <button onClick={() => { haptics.soft(); setActiveTab('psycho'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'psycho' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400'}`}>
-            <ScanFace size={14} /> Analyse Psycho
+            <ScanFace size={14} /> Mon ADN
           </button>
         </div>
       </div>
       
-      {/* ONGLET 1: VUE D'ENSEMBLE (Old Audit) */}
+      {/* ONGLET 1: MON PROFIL (Ex-Overview) */}
       {activeTab === 'overview' && (
         <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
+          
           <div>
-            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Statistiques<br/><span className="text-stone-300">Comptables</span></h2>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Données brutes & Rentabilité</p>
+            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">Profil</span></h2>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Votre identité cinéphile</p>
           </div>
+
+          {/* Hero Archetype Card */}
+          <div className="bg-charcoal text-white p-8 rounded-[2.5rem] relative overflow-hidden shadow-xl">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-lime-400/10 blur-[60px] rounded-full -translate-y-1/4 translate-x-1/4" />
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-6">
+                <div className="w-16 h-16 bg-bitter-lime text-charcoal rounded-2xl flex items-center justify-center shadow-lg shadow-lime-400/20">
+                  {stats.vibeInsight.icon}
+                </div>
+                <span className="bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-white/80">
+                  {stats.vibeInsight.tag}
+                </span>
+              </div>
+              <h3 className="text-3xl font-black mb-2 tracking-tighter">{stats.vibeInsight.label}</h3>
+              <p className="text-white/60 font-medium leading-relaxed max-w-xs">{stats.vibeInsight.desc}</p>
+            </div>
+          </div>
+
+          {/* Metrics Grid */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-charcoal text-white p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-xl">
-              <Film size={24} className="text-white/20" />
+            <div className="bg-white border border-stone-200 p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-sm">
+              <Film size={24} className="text-stone-300" />
               <div>
-                <span className="text-6xl font-black tracking-tighter block leading-none">{stats.count}</span>
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest mt-2 block">Films Vus</span>
+                <span className="text-5xl font-black text-charcoal tracking-tighter block leading-none">{stats.count}</span>
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 block">Films Vus</span>
               </div>
             </div>
             <div className="bg-lime-400 text-charcoal p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] shadow-lg">
-              <PiggyBank size={24} className="text-charcoal/20" />
+              <Clock size={24} className="text-charcoal/20" />
               <div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-black tracking-tighter">{Math.round(stats.savings)}</span>
-                  <span className="text-xl font-bold">€</span>
+                  <span className="text-5xl font-black tracking-tighter">{stats.totalHours}</span>
+                  <span className="text-xl font-bold opacity-60">h</span>
                 </div>
-                <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest mt-2 block">Économies / Mois</span>
+                <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest mt-2 block">Heures de cinéma</span>
               </div>
             </div>
           </div>
+
           <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-10 shadow-sm">
             <div>
               <div className="flex items-center gap-2 mb-6 opacity-30"><Clapperboard size={14} /><h4 className="text-[10px] font-black uppercase tracking-widest">Top Réalisateurs</h4></div>
@@ -453,12 +413,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         </div>
       )}
 
-      {/* ONGLET 2: MES NOTES (New) */}
+      {/* ONGLET 2: MES GOÛTS (Ex-Notes) */}
       {activeTab === 'notes' && (
         <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
             <div>
-                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Moyennes<br/><span className="text-stone-300">Critiques</span></h2>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Distribution de vos évaluations</p>
+                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mes<br/><span className="text-stone-300">Goûts</span></h2>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Comment vous jugez les films</p>
             </div>
 
             {/* Global & Details */}
@@ -477,7 +437,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                 </div>
                 
                 <div className="pt-6 border-t border-stone-100 flex items-center gap-4">
-                    <div className="p-3 bg-stone-50 rounded-2xl text-charcoal"><Target size={20} /></div>
+                    <div className="p-3 bg-stone-50 rounded-2xl text-charcoal"><Award size={20} /></div>
                     <div>
                         <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Votre point fort</p>
                         <p className="text-lg font-black text-charcoal leading-none">
@@ -488,78 +448,55 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                 </div>
             </div>
 
-            {/* 🏆 TABLEAU DE BORD COMPARATIF (NOUVEAU) */}
-            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-5"><Scale size={64} /></div>
-                
-                <div className="flex items-center gap-3 mb-8">
+            {/* COMPARATIF SIMPLIFIÉ */}
+            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
                     <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Scale size={18} /></div>
                     <div>
-                        <h3 className="text-lg font-black text-charcoal leading-none">Comparatif Global</h3>
-                        <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Vs Monde Réel</p>
+                    <h3 className="text-lg font-black text-charcoal leading-none">Suis-je sévère ?</h3>
+                    <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Par rapport au grand public</p>
                     </div>
                 </div>
-
                 {stats.comparative.tmdbAvg > 0 ? (
                     <>
-                        <div className="grid grid-cols-2 gap-8 mb-8">
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Vous</p>
-                                <p className="text-3xl font-black text-charcoal">{stats.comparative.userAvg}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">TMDB (Public)</p>
-                                <p className="text-3xl font-black text-stone-300">{stats.comparative.tmdbAvg}</p>
-                            </div>
+                    {/* Jauge visuelle sévère ↔ généreux */}
+                    <div className="mb-6">
+                        <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                        <span>Sévère</span>
+                        <span>Généreux</span>
                         </div>
-
-                        <div className="bg-stone-50 rounded-2xl p-5 mb-8 flex items-center gap-4 border border-stone-100">
-                            <div className={`p-3 rounded-xl ${stats.comparative.delta > 0 ? 'bg-forest/10 text-forest' : 'bg-red-50 text-red-500'}`}>
-                                {React.createElement(stats.comparative.Icon, { size: 20, strokeWidth: 3 })}
-                            </div>
-                            <div>
-                                <p className={`text-sm font-black ${stats.comparative.color} uppercase tracking-wide leading-none mb-1`}>
-                                    {stats.comparative.label} ({stats.comparative.delta > 0 ? '+' : ''}{stats.comparative.delta})
-                                </p>
-                                <p className="text-[10px] font-medium text-stone-400 leading-tight">
-                                    Par rapport à la moyenne mondiale.
-                                </p>
-                            </div>
+                        <div className="h-3 bg-stone-100 rounded-full overflow-hidden relative">
+                        {/* Position du curseur : delta va de -3 à +3, on mappe sur 0-100% */}
+                        <div
+                            className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-charcoal border-2 border-bitter-lime shadow-lg transition-all duration-700"
+                            style={{ left: `clamp(10%, ${50 + (stats.comparative.delta * 16.6)}%, 90%)` }}
+                        />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-                                <div className="flex items-center gap-2 mb-2 text-stone-400">
-                                    <TrendingUp size={14} />
-                                    <span className="text-[8px] font-black uppercase tracking-widest">Cohérence</span>
-                                </div>
-                                <p className="text-xl font-black text-charcoal mb-1">{stats.comparative.stdDev}</p>
-                                <p className="text-[9px] font-medium text-stone-400">
-                                    Typique: {stats.comparative.typicalStdDev} ({stats.comparative.consistencyLabel})
-                                </p>
-                            </div>
-                            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-                                <div className="flex items-center gap-2 mb-2 text-stone-400">
-                                    <Percent size={14} />
-                                    <span className="text-[8px] font-black uppercase tracking-widest">Coups de cœur</span>
-                                </div>
-                                <p className="text-xl font-black text-charcoal mb-1">{stats.comparative.highRatedPercent}%</p>
-                                <p className="text-[9px] font-medium text-stone-400">
-                                    Films {'>'} 8/10 (Typique: {stats.comparative.typicalHighPercent}%)
-                                </p>
-                            </div>
+                    </div>
+                    <div className="bg-stone-50 rounded-2xl p-5 flex items-center gap-4 border border-stone-100">
+                        <div className={`p-3 rounded-xl ${stats.comparative.delta > 0 ? 'bg-forest/10 text-forest' : 'bg-red-50 text-red-500'}`}>
+                        {React.createElement(stats.comparative.Icon, { size: 20, strokeWidth: 3 })}
                         </div>
+                        <div>
+                        <p className={`text-sm font-black ${stats.comparative.color} uppercase tracking-wide leading-none mb-1`}>
+                            {stats.comparative.label}
+                        </p>
+                        <p className="text-[10px] font-medium text-stone-400 leading-tight">
+                            Vous : {stats.comparative.userAvg}/10 — Public : {stats.comparative.tmdbAvg}/10
+                        </p>
+                        </div>
+                    </div>
                     </>
                 ) : (
                     <div className="bg-orange-50 border border-orange-100 p-6 rounded-[2rem] text-center">
-                        <AlertOctagon size={24} className="text-orange-400 mx-auto mb-2" />
-                        <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Données insuffisantes</p>
-                        <p className="text-xs text-orange-800/60 font-medium">Ajoutez des films via la recherche TMDB pour voir la comparaison.</p>
+                    <AlertOctagon size={24} className="text-orange-400 mx-auto mb-2" />
+                    <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Données insuffisantes</p>
+                    <p className="text-xs text-orange-800/60 font-medium">Ajoutez des films via la recherche TMDB pour voir la comparaison.</p>
                     </div>
                 )}
             </div>
 
-            {/* 🎭 NOTES PAR GENRE (NOUVEAU) */}
+            {/* 🎭 NOTES PAR GENRE */}
             <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Tags size={18} /></div>
@@ -589,88 +526,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                     )}
                 </div>
             </div>
-
-            {/* 🔥 CORRÉLATIONS ENTRE CRITÈRES (AMÉLIORÉ) */}
-            <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-stone-100 text-charcoal rounded-xl"><Link2 size={18} /></div>
-                    <div>
-                        <h3 className="text-lg font-black text-charcoal leading-none">Corrélations</h3>
-                        <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">Liens logiques entre vos notes</p>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    {stats.correlations.map((corr, idx) => {
-                        const intensity = Math.abs(corr.val);
-                        // Labels textuels simplifiés
-                        const label = intensity > 0.7 ? 'Fort' : intensity > 0.4 ? 'Moyen' : 'Faible';
-                        const colorClass = intensity > 0.7 ? 'bg-forest' : intensity > 0.4 ? 'bg-orange-400' : 'bg-stone-300';
-                        
-                        return (
-                            <div key={idx} className="flex items-center justify-between gap-4">
-                                <span className="text-xs font-bold text-stone-500 w-28 shrink-0">{corr.label}</span>
-                                <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full transition-all duration-700 ${colorClass}`} style={{ width: `${intensity * 100}%` }} />
-                                </div>
-                                <span className="text-[9px] font-black uppercase tracking-wider text-charcoal w-12 text-right">
-                                    {label}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-stone-100 flex gap-4">
-                    <div className="text-stone-300 shrink-0"><GitCommit size={20} /></div>
-                    <p className="text-xs font-medium text-stone-500 leading-relaxed italic">
-                        "{stats.correlationInsight}"
-                    </p>
-                </div>
-            </div>
-
-            {/* 🎲 FILMS POLARISANTS (NOUVEAU) */}
-            {stats.polarizingMovies.length > 0 && (
-                <div className="bg-stone-50 border border-stone-100 rounded-[2.5rem] p-8 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-6 opacity-10"><Split size={64} /></div>
-                    
-                    <div className="flex items-center gap-3 mb-6 relative z-10">
-                        <div className="p-2.5 bg-white text-charcoal rounded-xl shadow-sm"><ArrowLeftRight size={18} /></div>
-                        <div>
-                            <h3 className="text-lg font-black text-charcoal leading-none">Films Polarisants</h3>
-                            <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Vos plus grands écarts</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4 relative z-10">
-                        {stats.polarizingMovies.map(movie => (
-                            <div key={movie.id} className="bg-white p-5 rounded-[1.8rem] shadow-sm border border-stone-100/50">
-                                <div className="flex justify-between items-start mb-3">
-                                    <h4 className="font-black text-charcoal text-sm uppercase tracking-tight">{movie.title}</h4>
-                                    <span className="text-[9px] font-black bg-stone-100 text-stone-500 px-2 py-1 rounded-lg">Écart: {movie.gap}pts</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs font-bold">
-                                    <div className="flex items-center gap-2 text-red-400">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                        {movie.minCriteria.k}: {movie.minCriteria.v}
-                                    </div>
-                                    <div className="h-px bg-stone-200 flex-1 mx-3" />
-                                    <div className="flex items-center gap-2 text-forest">
-                                        {movie.maxCriteria.k}: {movie.maxCriteria.v}
-                                        <div className="w-1.5 h-1.5 rounded-full bg-forest" />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    
-                    <div className="mt-6 text-center">
-                        <p className="text-[10px] font-medium text-stone-400 max-w-[200px] mx-auto leading-relaxed">
-                            Vous avez un jugement nuancé : capable d'aimer un aspect tout en détestant un autre.
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {/* Best & Worst */}
             <div className="grid grid-cols-2 gap-4">
@@ -703,32 +558,47 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         </div>
       )}
 
-      {/* ONGLET 3: ANALYSE PSYCHO (Old Miroir) */}
+      {/* ONGLET 3: MON ADN (Ex-Psycho) */}
       {activeTab === 'psycho' && (
-        <div className="space-y-12 animate-[slideUp_0.4s_ease-out]">
+        <div className="space-y-8 animate-[slideUp_0.4s_ease-out]">
           <div>
-            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Analyse<br/><span className="text-stone-300">Psychologique</span></h2>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Qui êtes-vous vraiment ?</p>
+            <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">Mon<br/><span className="text-stone-300">ADN</span></h2>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mt-3">Ce que vous recherchez dans un film</p>
           </div>
+
+          {/* Encart Concentration */}
+          <div className={`p-6 rounded-[2rem] flex items-center gap-5 border ${
+            stats.averages.smartphone > 50
+                ? 'bg-red-50 border-red-100'
+                : stats.averages.smartphone > 25
+                ? 'bg-orange-50 border-orange-100'
+                : 'bg-green-50 border-green-100'
+            }`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                stats.averages.smartphone > 50 ? 'bg-red-400 text-white' : stats.averages.smartphone > 25 ? 'bg-orange-400 text-white' : 'bg-forest text-white'
+            }`}>
+                <Smartphone size={24} />
+            </div>
+            <div>
+                <p className="text-lg font-black text-charcoal leading-none mb-1">
+                {stats.averages.smartphone > 50 ? 'Distrait' : stats.averages.smartphone > 25 ? 'Moyen' : 'Concentré'}
+                </p>
+                <p className="text-xs font-medium text-stone-400">
+                {stats.averages.smartphone > 50
+                    ? 'Tu regardes souvent ton téléphone pendant les films'
+                    : stats.averages.smartphone > 25
+                    ? 'Tu décroches parfois, mais ça va'
+                    : 'Tu es pleinement immergé dans tes films'}
+                </p>
+            </div>
+          </div>
+
           <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-8 shadow-sm">
-            <ADNBar label="Smartphone" value={stats.averages.smartphone} icon={<Smartphone size={16} />} percentage={true} />
             <ADNBar label="Cérébral" value={stats.averages.cerebral} icon={<Brain size={16} />} />
             <ADNBar label="Émotion" value={stats.averages.emotion} icon={<Heart size={16} />} />
             <ADNBar label="Fun" value={stats.averages.fun} icon={<Smile size={16} />} />
             <ADNBar label="Visuel" value={stats.averages.visuel} icon={<Aperture size={16} />} />
             <ADNBar label="Tension" value={stats.averages.tension} icon={<Zap size={16} />} />
-          </div>
-          <div className="bg-white border border-stone-100 p-6 rounded-[2rem] flex items-center gap-6 shadow-sm">
-            <div className="w-14 h-14 bg-charcoal text-lime-400 rounded-2xl flex items-center justify-center shrink-0">
-              {stats.vibeInsight.icon}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg font-black text-charcoal leading-none">{stats.vibeInsight.label}</span>
-                <span className="text-[8px] font-black bg-stone-100 px-2 py-0.5 rounded text-stone-400 uppercase tracking-widest">{stats.vibeInsight.tag}</span>
-              </div>
-              <p className="text-xs font-medium text-stone-500">{stats.vibeInsight.desc}</p>
-            </div>
           </div>
         </div>
       )}

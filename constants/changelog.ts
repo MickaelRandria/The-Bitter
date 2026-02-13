@@ -15,8 +15,20 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.75',
+    version: 'v0.75.5',
     date: 'Aujourd\'hui',
+    title: 'Restructuration Analytics',
+    changes: [
+      { type: 'style', text: '📑 Navigation Repensée : "Mon Profil" (ex-Overview), "Mes Goûts" (ex-Notes) et "Mon ADN" (ex-Psycho).' },
+      { type: 'feature', text: '👤 Profil Enrichi : L\'Archétype (6 nouveaux profils) devient la carte Hero. Ajout du compteur d\'heures visionnées (uniquement films).' },
+      { type: 'style', text: '⚖️ Jauge de Sévérité : Le comparatif TMDB est simplifié en un curseur "Sévère ↔ Généreux".' },
+      { type: 'feature', text: '🧬 ADN Contextuel : Phrases descriptives pour chaque jauge et encart "Concentration" dédié pour le Smartphone Factor.' },
+      { type: 'fix', text: '🧹 Nettoyage : Suppression des statistiques complexes (Corrélations, Écart-type) pour plus de lisibilité.' }
+    ]
+  },
+  {
+    version: 'v0.75',
+    date: '10 Février 2026',
     title: 'DataViz & Chronologie',
     changes: [
       { type: 'feature', text: '📊 Analytics Étendues : Nouvel onglet "Mes Notes" incluant l\'analyse des corrélations (ex: Scénario vs Jeu) et vos genres les mieux notés.' },
