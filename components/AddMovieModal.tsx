@@ -3,7 +3,7 @@
 // Fix for type narrowing of "movie" | "tv" union literals.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film } from 'lucide-react';
+import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film, Calendar } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { MovieFormData, Movie, MovieStatus, VibeCriteria, QualityMetrics } from '../types';
 import { haptics } from '../utils/haptics';
@@ -42,7 +42,8 @@ const INITIAL_FORM_STATE: MovieFormData = {
   qualityMetrics: INITIAL_QUALITY,
   hype: 5,
   mediaType: 'movie',
-  numberOfSeasons: 0
+  numberOfSeasons: 0,
+  tmdbRating: 0 // Initialize tmdbRating
 };
 
 const RatingStepper: React.FC<{ label: string; value: number; onChange: (val: number) => void; isBitter?: boolean }> = ({ label, value, onChange, isBitter }) => {
@@ -108,6 +109,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Date Picker State
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  
   // Nouveau state pour le type de recherche
   const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
   
@@ -124,6 +128,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
         // Fix for line 128: ensure literal type narrowing for "movie" | "tv" union
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
+        
+        // Init Date
+        if (initialData.dateWatched) {
+            setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
+        }
       } else if (tmdbIdToLoad) {
         // Important: Set searchType BEFORE loading to use correct endpoint
         // Fix for searchType assignment: ensure it receives exactly the literal union type allowed by state
@@ -131,6 +140,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSearchType(type);
         handleSelectTMDBMovie(tmdbIdToLoad, type);
         setMode(initialStatus);
+        setSelectedDate(new Date().toISOString().split('T')[0]);
       } else {
         skipSearchRef.current = false;
         setFormData({ ...INITIAL_FORM_STATE });
@@ -138,6 +148,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSearchResults([]);
         setShowResults(false);
         setSearchType('movie');
+        setSelectedDate(new Date().toISOString().split('T')[0]);
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
@@ -240,7 +251,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         review: data.overview || '',
         genre: genre,
         mediaType: typeToUse,
-        numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined
+        numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined,
+        tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0
       }));
     } catch (e) { console.error(e); }
     setIsSearching(false);
@@ -268,7 +280,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           : { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating }
         );
 
-    const finalDateWatched = isWatchlist ? undefined : formData.dateWatched;
+    // Use selected date for dateWatched
+    const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
     
     // --- MODE ESPACE PARTAGÉ ---
     if (sharedSpace) {
@@ -339,6 +352,26 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               <button onClick={() => { haptics.soft(); setMode('watched'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all ${mode === 'watched' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400'}`}><Eye size={16} strokeWidth={2.5} /> Vu</button>
               <button onClick={() => { haptics.soft(); setMode('watchlist'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all ${mode === 'watchlist' ? 'bg-white text-charcoal shadow-sm' : 'text-stone-400'}`}><Clock size={16} strokeWidth={2.5} /> À voir</button>
            </div>
+
+           {/* Date Picker - Only for Watched mode */}
+           {mode === 'watched' && (
+             <div className="bg-stone-50 border border-stone-100 rounded-3xl p-4 flex items-center justify-between animate-[fadeIn_0.3s_ease-out]">
+                <div className="flex items-center gap-3 text-stone-400">
+                    <div className="p-2 bg-white rounded-xl shadow-sm"><Calendar size={16} /></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Visionnage</span>
+                </div>
+                <input 
+                    type="date"
+                    value={selectedDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => {
+                        haptics.soft();
+                        setSelectedDate(e.target.value);
+                    }}
+                    className="bg-transparent font-black text-sm text-charcoal text-right focus:outline-none uppercase tracking-wide cursor-pointer"
+                />
+             </div>
+           )}
 
            <div className="space-y-6 relative">
               <div className="group">

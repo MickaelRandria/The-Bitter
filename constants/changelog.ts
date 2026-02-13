@@ -15,8 +15,19 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.74.5',
+    version: 'v0.75',
     date: 'Aujourd\'hui',
+    title: 'DataViz & Chronologie',
+    changes: [
+      { type: 'feature', text: '📊 Analytics Étendues : Nouvel onglet "Mes Notes" incluant l\'analyse des corrélations (ex: Scénario vs Jeu) et vos genres les mieux notés.' },
+      { type: 'fix', text: '📅 Maître du Temps : Le sélecteur de date est de retour ! Vous pouvez à nouveau spécifier le jour exact du visionnage lors de l\'ajout ou de l\'édition.' },
+      { type: 'feature', text: '🏆 Comparatif Mondial : Comparez votre sévérité par rapport à la moyenne globale TMDB. Êtes-vous plus généreux que le reste du monde ?' },
+      { type: 'style', text: '📉 Films Polarisants : Mise en lumière des œuvres qui divisent vos propres critères (ex: Visuel 10/10 mais Scénario 4/10).' }
+    ]
+  },
+  {
+    version: 'v0.74.5',
+    date: '09 Février 2026',
     title: 'Espaces : Consolidation',
     changes: [
       { type: 'feature', text: '👤 Fiches Profils : Cliquez sur un membre pour consulter sa carte d\'identité (Rôle, Bio, Statut) sans quitter l\'espace.' },
