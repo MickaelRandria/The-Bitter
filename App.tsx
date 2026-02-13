@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo, lazy, Suspense, memo } from 'react';
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe } from 'lucide-react';
+import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
@@ -12,6 +12,7 @@ import ConsentModal from './components/ConsentModal';
 import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
 // Removed problematic import: import { Session } from '@supabase/supabase-js';
 import AuthScreen from './components/AuthScreen';
+import TutorialOverlay from './components/TutorialOverlay';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -38,7 +39,10 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen }: {
 }) => {
     if (viewMode === 'SharedSpace') return null; // Hide bottom nav in shared space view for cleaner UI
     return (
-        <nav className="fixed bottom-8 left-6 right-6 z-50 max-w-sm mx-auto">
+        <nav 
+          className="fixed left-6 right-6 z-50 max-w-sm mx-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
+        >
             <div className="bg-white/95 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center" style={{ willChange: 'transform' }}>
             <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Feed' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><LayoutGrid size={22} /></button>
             <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Discover' ? 'bg-sand text-charcoal shadow-sm' : 'text-stone-300'}`}><Clapperboard size={22} /></button>
@@ -100,6 +104,11 @@ const App: React.FC = () => {
   // New Feature Announcement State
   const [showNewFeatures, setShowNewFeatures] = useState(false);
 
+  // Tutorial State
+  const TUTORIAL_DONE_KEY = 'the_bitter_tutorial_done';
+  const [showTutorial, setShowTutorial] = useState(false);
+  const pendingTutorialRef = useRef(false);
+
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
   // --- INITIAL LOAD EFFECT ---
@@ -152,6 +161,21 @@ const App: React.FC = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
     }
   }, [profiles]);
+
+  // Trigger Tutorial after Deck
+  useEffect(() => {
+    if (viewMode === 'Feed' && pendingTutorialRef.current) {
+        pendingTutorialRef.current = false;
+        // Petit délai pour laisser le temps au Feed de s'afficher
+        setTimeout(() => setShowTutorial(true), 500);
+    }
+  }, [viewMode]);
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
+    localStorage.setItem(TUTORIAL_DONE_KEY, 'true');
+    haptics.success();
+  };
 
   // Chargement du profil Supabase vers le state local
   const loadSupabaseProfile = async (userId: string) => {
@@ -311,6 +335,13 @@ const App: React.FC = () => {
     }));
     setShowCalibration(false);
     setViewMode('Deck');
+    
+    // Marquer qu'un tuto est en attente (se déclenchera quand le user quittera le Deck)
+    const tutorialDone = localStorage.getItem(TUTORIAL_DONE_KEY);
+    if (tutorialDone !== 'true') {
+        pendingTutorialRef.current = true;
+    }
+
     haptics.success();
   };
 
@@ -469,7 +500,10 @@ const App: React.FC = () => {
   return (
     <div className="min-h-[100dvh] flex flex-col text-charcoal font-sans relative overflow-x-hidden bg-cream">
       {viewMode !== 'SharedSpace' && (
-        <header className="pt-6 sm:pt-8 px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40">
+        <header 
+          className="px-6 sticky top-0 z-40 bg-cream/95 backdrop-blur-xl border-b border-sand/40"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)' }}
+        >
             <div className="flex items-center justify-between h-12 max-w-2xl mx-auto w-full" style={{ willChange: 'transform' }}>
             <div className="flex items-center gap-3">
                 {viewMode !== 'Feed' ? (
@@ -516,6 +550,20 @@ const App: React.FC = () => {
                     </div>
                 )}
                 </button>
+                
+                {/* Bouton pour réactiver le tuto */}
+                <button
+                  onClick={() => {
+                    haptics.soft();
+                    localStorage.removeItem(TUTORIAL_DONE_KEY);
+                    setShowTutorial(true);
+                  }}
+                  className="w-10 h-10 rounded-2xl bg-white border border-sand flex items-center justify-center shadow-soft active:scale-90 transition-transform duration-200 text-stone-400 hover:text-forest"
+                  title="Revoir le tutoriel"
+                >
+                  <Info size={20} />
+                </button>
+
                 <button 
                   onClick={() => { 
                     haptics.soft(); 
@@ -650,6 +698,162 @@ const App: React.FC = () => {
       )}
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
+        {showTutorial && (
+          <TutorialOverlay
+            steps={[
+              {
+                title: "Bienvenue 👋",
+                icon: <Film size={24} />,
+                desc: (
+                  <div className="space-y-3">
+                    <p>The Bitter, c'est ton journal de cinéma. Tu notes chaque film que tu vois et on te dit quel type de cinéphile tu es.</p>
+                    <p className="text-xs opacity-70">Voyons comment ça marche en 2 minutes.</p>
+                  </div>
+                )
+              },
+              {
+                title: "La Home",
+                icon: <LayoutGrid size={24} />,
+                highlight: true,
+                desc: (
+                  <div className="space-y-3">
+                    <p>Ta page d'accueil t'affiche :</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🎬</span>
+                        <span><strong>Ton dernier film vu</strong> en grand avec son affiche</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🔢</span>
+                        <span><strong>Tes compteurs :</strong> nombre de films vus et heures de cinéma</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">📋</span>
+                        <span><strong>Vu / À voir :</strong> bascule entre tes films déjà notés et ta watchlist</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                title: "Ajouter un film",
+                icon: <Plus size={24} />,
+                desc: (
+                  <div className="space-y-3">
+                    <p>Appuie sur le <strong>bouton vert +</strong> au centre de la barre du bas pour ajouter un film.</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🔍</span>
+                        <span><strong>Tape le titre</strong> — on cherche automatiquement dans la base TMDB</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">📝</span>
+                        <span><strong>Sélectionne un résultat</strong> — l'affiche, le réalisateur et le synopsis sont remplis pour toi</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                title: "L'Analyse Bitter 🧪",
+                icon: <FlaskConical size={24} />,
+                highlight: true,
+                desc: (
+                  <div className="space-y-3">
+                    <p>C'est le cœur de l'app ! Active le toggle <strong>"Analyse Bitter"</strong> pour noter un film en profondeur :</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">✍️</span>
+                        <span><strong>4 critères qualité</strong> — Écriture, Interprétation, Esthétique, Univers Sonore</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">📱</span>
+                        <span><strong>Indice de Distraction</strong> — Combien de temps sur ton tel pendant le film ?</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🎭</span>
+                        <span><strong>4 vibes</strong> — Émotion, Tension, Divertissement, Cérébral</span>
+                      </div>
+                    </div>
+                    <p className="text-xs opacity-70">C'est grâce à ces notes qu'on construit ton profil cinéphile.</p>
+                  </div>
+                )
+              },
+              {
+                title: "Découvrir",
+                icon: <Clapperboard size={24} />,
+                desc: (
+                  <div className="space-y-3">
+                    <p>L'onglet <strong>Découvrir</strong> (2ème icône en bas) te propose :</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🔥</span>
+                        <span><strong>Les tendances</strong> — Films populaires du moment</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🎲</span>
+                        <span><strong>Des recommandations</strong> — Basées sur tes genres favoris</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">👆</span>
+                        <span>Appuie sur un film pour voir sa fiche, puis <strong>ajoute-le</strong> à ta collection ou watchlist</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                title: "Ton Analyse 📊",
+                icon: <PieChart size={24} />,
+                highlight: true,
+                desc: (
+                  <div className="space-y-3">
+                    <p>L'onglet <strong>Analytics</strong> (4ème icône) révèle ton profil cinéphile avec 3 sous-pages :</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🪪</span>
+                        <span><strong>Mon Profil</strong> — Ton archétype (Intello, Popcorn, Esthète...) + tops réalisateurs/acteurs</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">⭐</span>
+                        <span><strong>Mes Goûts</strong> — Tes moyennes par critère, si tu notes sévèrement ou non</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="font-black text-base">🧬</span>
+                        <span><strong>Mon ADN</strong> — Ce que tu recherches vraiment dans un film</span>
+                      </div>
+                    </div>
+                    <p className="text-xs opacity-70">Plus tu notes de films, plus c'est précis !</p>
+                  </div>
+                )
+              },
+              {
+                title: "Calendrier",
+                icon: <CalendarDays size={24} />,
+                desc: (
+                  <div className="space-y-3">
+                    <p>Le <strong>Calendrier</strong> (dernière icône) te montre mois par mois quand tu as regardé chaque film.</p>
+                    <p className="text-sm">📅 Chaque point représente un film vu ce jour-là. Appuie dessus pour voir lequel.</p>
+                  </div>
+                )
+              },
+              {
+                title: "L'assistant IA ✨",
+                icon: <Sparkles size={24} />,
+                highlight: true,
+                desc: (
+                  <div className="space-y-3">
+                    <p>Tu vois le <strong>bouton vert flottant</strong> en bas à droite avec l'étiquette "AI" ?</p>
+                    <p>C'est ton <strong>CinéAssistant</strong> : pose-lui une question, demande une recommandation, ou discute de tes goûts. Il connaît toute ta collection !</p>
+                    <p className="text-xs opacity-70">Tu peux relancer ce tutoriel à tout moment via le bouton ℹ️ dans le header.</p>
+                  </div>
+                )
+              }
+            ]}
+            onComplete={handleTutorialComplete}
+          />
+        )}
+
         {showNewFeatures && (
             <NewFeaturesModal 
                 onClose={() => setShowNewFeatures(false)} 

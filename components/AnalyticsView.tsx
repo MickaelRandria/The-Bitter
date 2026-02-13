@@ -372,6 +372,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
               </div>
             </div>
           </div>
+          <p className="text-[9px] font-medium text-stone-400 text-center mt-2 px-4">
+            ⏱️ Compteur disponible depuis la V0.75 (13 fév. 2025). Les films ajoutés avant cette date ne sont pas comptabilisés.
+          </p>
 
           <div className="bg-white border border-stone-200 rounded-[2.5rem] p-8 space-y-10 shadow-sm">
             <div>
