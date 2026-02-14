@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
@@ -13,6 +12,7 @@ import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
 // Removed problematic import: import { Session } from '@supabase/supabase-js';
 import AuthScreen from './components/AuthScreen';
 import TutorialOverlay from './components/TutorialOverlay';
+import { syncMovies, saveMovieToSupabase, deleteMovieFromSupabase } from './services/movieSync';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -64,7 +64,7 @@ const App: React.FC = () => {
   // STORAGE KEYS
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
-  const NEVER_SHOW_V0_73_KEY = 'never_show_v0.73';
+  const NEVER_SHOW_V0_73_KEY = 'the_bitter_never_show_v076';
 
   // SUPABASE SESSION STATE
   // Fixed: Use any for session state to avoid missing Session type error
@@ -204,6 +204,7 @@ const App: React.FC = () => {
     console.log('📥 Tentative de chargement du profil Supabase:', userId);
     
     try {
+      // 1. Fetch Profile Metadata
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -217,12 +218,27 @@ const App: React.FC = () => {
       
       if (data) {
         console.log('✅ Profil Supabase chargé pour:', data.first_name);
+
+        // 2. SYNC MOVIES
+        // Lecture directe du localStorage pour éviter les problèmes de fermeture de state
+        const savedProfilesStr = localStorage.getItem(STORAGE_KEY);
+        let localMovies: Movie[] = [];
+        if (savedProfilesStr) {
+            try {
+                const savedProfiles = JSON.parse(savedProfilesStr);
+                const p = savedProfiles.find((p: any) => p.id === userId);
+                if (p) localMovies = p.movies || [];
+            } catch(e) {}
+        }
+        
+        // Sync avec Supabase (migration si nécessaire)
+        const syncedMovies = await syncMovies(userId, localMovies);
         
         setProfiles(prev => {
           const existing = prev.find(p => p.id === data.id);
           
           if (existing) {
-            console.log('🔄 Mise à jour du profil existant');
+            console.log('🔄 Mise à jour du profil existant + Films Synced');
             return prev.map(p => p.id === data.id ? {
               ...p,
               firstName: data.first_name,
@@ -232,15 +248,16 @@ const App: React.FC = () => {
               favoriteGenres: data.favorite_genres || p.favoriteGenres,
               role: data.role || p.role,
               isOnboarded: data.is_onboarded || p.isOnboarded,
-              joinedSpaceIds: p.joinedSpaceIds
+              joinedSpaceIds: p.joinedSpaceIds,
+              movies: syncedMovies // Utilisation des films synchronisés
             } : p);
           } else {
-            console.log('➕ Ajout d\'un nouveau profil mail');
+            console.log('➕ Ajout d\'un nouveau profil mail + Films Synced');
             return [...prev, {
               id: data.id,
               firstName: data.first_name,
               lastName: data.last_name || '',
-              movies: [],
+              movies: syncedMovies, // Utilisation des films synchronisés
               createdAt: new Date(data.created_at).getTime(),
               severityIndex: data.severity_index || 5,
               patienceLevel: data.patience_level || 5,
@@ -260,21 +277,14 @@ const App: React.FC = () => {
         setActiveProfileId(current => {
           console.log('🔍 Profil actuellement en mémoire (React):', current);
           
-          // 1. Si un profil est déjà actif (chargé par le useEffect initial), on ne change RIEN
           if (current) {
-            console.log('✅ Profil déjà actif, on conserve la session en cours.');
             return current;
           }
           
-          // 2. Si pas de profil actif en mémoire, mais un lastProfileId existe dans le storage
           if (lastProfileId) {
-            console.log('✅ Utilisation de lastProfileId comme fallback prioritaire.');
             return lastProfileId;
           }
           
-          // 3. SEULEMENT si aucun profil n'est actif ET aucun lastProfileId n'existe
-          // Alors on active le profil lié au mail par défaut.
-          console.log('🆕 Aucun profil trouvé, activation du profil mail par défaut.');
           return data.id;
         });
       }
@@ -367,36 +377,56 @@ const App: React.FC = () => {
 
   const handleSaveMovie = (data: MovieFormData) => {
     if (!activeProfileId) return;
+
+    const hasRatings = data.ratings && (
+      data.ratings.story > 0 || 
+      data.ratings.visuals > 0 || 
+      data.ratings.acting > 0 || 
+      data.ratings.sound > 0
+    );
+
+    const determinedStatus: MovieStatus = hasRatings ? 'watched' : (data.status || 'watchlist');
+    
+    // Création de l'objet final AVANT mise à jour du state pour l'envoyer à Supabase
+    let finalMovie: Movie;
+
+    // Générer l'ID une seule fois (utilisé pour localStorage ET Supabase)
+    const newMovieId = crypto.randomUUID();
+    const newMovieTimestamp = Date.now();
+
+    if (editingMovie) {
+        finalMovie = { ...editingMovie, ...data, status: determinedStatus };
+    } else {
+        finalMovie = { 
+          ...data, 
+          id: newMovieId, 
+          dateAdded: newMovieTimestamp,
+          status: determinedStatus
+        };
+    }
+
     setProfiles(prev => prev.map(p => {
       if (p.id !== activeProfileId) return p;
       let updatedMovies = [...p.movies];
       
-      const hasRatings = data.ratings && (
-        data.ratings.story > 0 || 
-        data.ratings.visuals > 0 || 
-        data.ratings.acting > 0 || 
-        data.ratings.sound > 0
-      );
-
-      const determinedStatus: MovieStatus = hasRatings ? 'watched' : (data.status || 'watchlist');
-
       if (editingMovie) {
         updatedMovies = updatedMovies.map(m => 
-          m.id === editingMovie.id 
-            ? { ...m, ...data, status: determinedStatus } 
-            : m
+          m.id === finalMovie.id ? finalMovie : m
         );
       } else {
-        const newMovie: Movie = { 
-          ...data, 
-          id: crypto.randomUUID(), 
-          dateAdded: Date.now(),
-          status: determinedStatus
-        };
-        updatedMovies = [newMovie, ...updatedMovies];
+        updatedMovies = [finalMovie, ...updatedMovies];
       }
       return { ...p, movies: updatedMovies };
     }));
+
+    // SAUVEGARDE DB SI CONNECTÉ
+    if (session?.user?.id === activeProfileId) {
+        const movieForSupabase: Movie = editingMovie 
+            ? { ...editingMovie, ...data, status: determinedStatus }
+            : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
+        
+        saveMovieToSupabase(movieForSupabase, activeProfileId);
+    }
 
     // Toast de confirmation
     if (editingMovie) {
@@ -412,6 +442,19 @@ const App: React.FC = () => {
     setIsModalOpen(false);
     if (viewMode === 'Deck') {
       setDeckAdvanceTrigger(prev => prev + 1);
+    }
+  };
+
+  const handleDeleteMovie = (id: string) => {
+    if (!activeProfileId) return;
+    
+    setProfiles(prev => prev.map(p => 
+      p.id === activeProfileId ? {...p, movies: p.movies.filter(m => m.id !== id)} : p
+    ));
+
+    // SUPPRESSION DB SI CONNECTÉ
+    if (session?.user?.id === activeProfileId) {
+        deleteMovieFromSupabase(id);
     }
   };
 
@@ -837,7 +880,7 @@ const App: React.FC = () => {
                               key={movie.id} 
                               movie={movie} 
                               index={index} 
-                              onDelete={id => setProfiles(prev => prev.map(p => p.id === activeProfileId ? {...p, movies: p.movies.filter(m => m.id !== id)} : p))} 
+                              onDelete={handleDeleteMovie} 
                               onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }}
                             />
                         ))}

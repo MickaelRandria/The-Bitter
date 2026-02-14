@@ -1,4 +1,3 @@
-
 export type ChangeType = 'feature' | 'fix' | 'style';
 
 export interface ChangeEntry {
@@ -14,6 +13,24 @@ export interface Release {
 }
 
 export const RELEASE_HISTORY: Release[] = [
+  {
+    version: 'v0.76',
+    date: '14 Février 2026',
+    title: 'Cloud & Expérience',
+    changes: [
+      { type: 'feature', text: 'Sauvegarde Cloud : Tes films et notes sont maintenant synchronisés en ligne. Change de téléphone sans rien perdre.' },
+      { type: 'feature', text: 'Migration Automatique : À la première connexion, ta collection locale est transférée vers ton compte en ligne.' },
+      { type: 'feature', text: 'Watchlist Améliorée : Filtre par genre et bouton "Ce soir ?" pour choisir un film au hasard dans ta liste.' },
+      { type: 'feature', text: 'Swipe Actions : Glisse vers la gauche pour supprimer, vers la droite pour éditer une carte film.' },
+      { type: 'feature', text: 'Archétypes V3 : 13 profils cinéphiles enrichis basés sur tes vibes, tes notes et tes habitudes.' },
+      { type: 'feature', text: 'Édition Rapide : Modifie un film sans repasser par la recherche TMDB.' },
+      { type: 'style', text: 'Cache Discover : Les résultats sont mémorisés 5 minutes pour une navigation instantanée.' },
+      { type: 'style', text: 'Toast de Confirmation : Un message visuel apparaît après chaque ajout ou modification.' },
+      { type: 'style', text: 'Seuil Analytics : Un minimum de 5 films est requis pour afficher les statistiques détaillées.' },
+      { type: 'fix', text: 'Sécurisation API : Les clés sensibles ne sont plus exposées côté navigateur.' },
+      { type: 'fix', text: 'Bouton + : Respecte maintenant l\'onglet actif (Vu ou À voir) pour le statut par défaut.' }
+    ]
+  },
   {
     version: 'v0.75.5',
     date: 'Aujourd\'hui',

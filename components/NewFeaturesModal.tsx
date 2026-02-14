@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3 } from 'lucide-react';
+import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3, Cloud, Shield, WifiOff } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
@@ -36,13 +35,67 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col p-8 sm:p-10 pt-16 sm:pt-10">
           
-          {/* STEP 0: ANALYTICS / MES NOTES FOCUS */}
+          {/* STEP 0: SAUVEGARDE CLOUD */}
           {step === 0 && (
+            <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-sky-400/30 bg-sky-400/10 text-sky-400 text-[9px] font-black uppercase tracking-widest mb-6">
+                  <Cloud size={12} />
+                  Mise à jour v0.76
+                </div>
+                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
+                  TES FILMS<br />
+                  <span className="text-sky-400">SAUVEGARDÉS.</span>
+                </h2>
+                
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-sky-400/20 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="w-20 h-20 bg-sky-400 rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl shadow-sky-400/30 rotate-[-3deg]">
+                    <Shield size={40} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-stone-200 text-sm font-medium leading-relaxed text-center">
+                    Ta collection est maintenant <b>sauvegardée en ligne</b>. Passe de ton téléphone à ton ordinateur, vide ton cache — tes films et tes notes te suivent partout.
+                  </p>
+                </div>
+                <div className="space-y-3 mt-2">
+                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5">
+                    <div className="w-8 h-8 bg-sky-400/20 rounded-xl flex items-center justify-center shrink-0">
+                      <Cloud size={16} className="text-sky-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-black text-sm">Plus jamais de perte</h4>
+                      <p className="text-stone-400 text-xs font-medium mt-0.5">Tes données sont synchronisées dès que tu es connecté.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5">
+                    <div className="w-8 h-8 bg-emerald-400/20 rounded-xl flex items-center justify-center shrink-0">
+                      <WifiOff size={16} className="text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-black text-sm">Mode hors-ligne préservé</h4>
+                      <p className="text-stone-400 text-xs font-medium mt-0.5">Pas de wifi ? L'app fonctionne exactement comme avant, sans interruption.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6">
+                <button 
+                  onClick={handleNext}
+                  className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
+                >
+                  Suivant <ArrowRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1: ANALYTICS / MES NOTES FOCUS */}
+          {step === 1 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
                   <BarChart3 size={12} />
-                  Mise à jour v0.75
+                  Mise à jour v0.76
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
                   VOS NOTES<br />
@@ -75,8 +128,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 1: INSTAGRAM STORIES */}
-          {step === 1 && (
+          {/* STEP 2: INSTAGRAM STORIES */}
+          {step === 2 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
@@ -113,8 +166,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 2: ESPACES (TUTO) */}
-          {step === 2 && (
+          {/* STEP 3: ESPACES (TUTO) */}
+          {step === 3 && (
             <div className="flex flex-col h-full justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-stone-300 text-[9px] font-black uppercase tracking-widest mb-6">
@@ -177,9 +230,10 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
           <div className="mt-8 flex flex-col items-center gap-6 pb-4 sm:pb-0">
             {/* Dots Indicator */}
             <div className="flex justify-center gap-2">
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-sky-400 w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 3 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
             </div>
 
             {/* Opt-out discrete button */}
