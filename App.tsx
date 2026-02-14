@@ -219,26 +219,11 @@ const App: React.FC = () => {
       if (data) {
         console.log('✅ Profil Supabase chargé pour:', data.first_name);
 
-        // 2. SYNC MOVIES
-        // Lecture directe du localStorage pour éviter les problèmes de fermeture de state
-        const savedProfilesStr = localStorage.getItem(STORAGE_KEY);
-        let localMovies: Movie[] = [];
-        if (savedProfilesStr) {
-            try {
-                const savedProfiles = JSON.parse(savedProfilesStr);
-                const p = savedProfiles.find((p: any) => p.id === userId);
-                if (p) localMovies = p.movies || [];
-            } catch(e) {}
-        }
-        
-        // Sync avec Supabase (migration si nécessaire)
-        const syncedMovies = await syncMovies(userId, localMovies);
-        
         setProfiles(prev => {
           const existing = prev.find(p => p.id === data.id);
           
           if (existing) {
-            console.log('🔄 Mise à jour du profil existant + Films Synced');
+            console.log('🔄 Mise à jour du profil existant');
             return prev.map(p => p.id === data.id ? {
               ...p,
               firstName: data.first_name,
@@ -249,15 +234,15 @@ const App: React.FC = () => {
               role: data.role || p.role,
               isOnboarded: data.is_onboarded || p.isOnboarded,
               joinedSpaceIds: p.joinedSpaceIds,
-              movies: syncedMovies // Utilisation des films synchronisés
+              movies: p.movies // On garde les films locaux pour l'instant, sync après
             } : p);
           } else {
-            console.log('➕ Ajout d\'un nouveau profil mail + Films Synced');
+            console.log('➕ Ajout d\'un nouveau profil mail');
             return [...prev, {
               id: data.id,
               firstName: data.first_name,
               lastName: data.last_name || '',
-              movies: syncedMovies, // Utilisation des films synchronisés
+              movies: [], // On initialise vide, sync après
               createdAt: new Date(data.created_at).getTime(),
               severityIndex: data.severity_index || 5,
               patienceLevel: data.patience_level || 5,
@@ -275,18 +260,30 @@ const App: React.FC = () => {
         console.log('🔍 Recherche de cohérence. Dernier ID stocké:', lastProfileId);
 
         setActiveProfileId(current => {
-          console.log('🔍 Profil actuellement en mémoire (React):', current);
-          
-          if (current) {
-            return current;
-          }
-          
-          if (lastProfileId) {
-            return lastProfileId;
-          }
-          
+          if (current) return current;
+          if (lastProfileId) return lastProfileId;
           return data.id;
         });
+
+        // 🔄 Sync films avec Supabase (après login)
+        setTimeout(async () => {
+          try {
+            // Lecture directe pour avoir la version la plus fraîche
+            const currentProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const currentProfile = currentProfiles.find((p: any) => p.id === data.id);
+            const localMovies = currentProfile?.movies || [];
+            
+            const syncedMovies = await syncMovies(data.id, localMovies);
+            
+            setProfiles(prev => prev.map(p => 
+              p.id === data.id ? { ...p, movies: syncedMovies } : p
+            ));
+            
+            console.log(`✅ Sync complète : ${syncedMovies.length} films chargés`);
+          } catch (err) {
+            console.error('❌ Erreur sync films:', err);
+          }
+        }, 500);
       }
     } catch (err) {
       console.error("Exception loading profile", err);
@@ -387,12 +384,12 @@ const App: React.FC = () => {
 
     const determinedStatus: MovieStatus = hasRatings ? 'watched' : (data.status || 'watchlist');
     
-    // Création de l'objet final AVANT mise à jour du state pour l'envoyer à Supabase
-    let finalMovie: Movie;
-
     // Générer l'ID une seule fois (utilisé pour localStorage ET Supabase)
     const newMovieId = crypto.randomUUID();
     const newMovieTimestamp = Date.now();
+
+    // Création de l'objet final AVANT mise à jour du state pour l'envoyer à Supabase
+    let finalMovie: Movie;
 
     if (editingMovie) {
         finalMovie = { ...editingMovie, ...data, status: determinedStatus };
@@ -421,11 +418,9 @@ const App: React.FC = () => {
 
     // SAUVEGARDE DB SI CONNECTÉ
     if (session?.user?.id === activeProfileId) {
-        const movieForSupabase: Movie = editingMovie 
-            ? { ...editingMovie, ...data, status: determinedStatus }
-            : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
-        
-        saveMovieToSupabase(movieForSupabase, activeProfileId);
+        saveMovieToSupabase(finalMovie, activeProfileId).catch(err => 
+            console.error('❌ Erreur save Supabase:', err)
+        );
     }
 
     // Toast de confirmation
