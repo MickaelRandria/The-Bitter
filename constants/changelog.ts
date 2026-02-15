@@ -16,10 +16,8 @@ export const RELEASE_HISTORY: Release[] = [
   {
     version: 'v0.76',
     date: '14 Février 2026',
-    title: 'Cloud & Expérience',
+    title: 'Améliorations & Expérience',
     changes: [
-      { type: 'feature', text: 'Sauvegarde Cloud : Tes films et notes sont maintenant synchronisés en ligne. Change de téléphone sans rien perdre.' },
-      { type: 'feature', text: 'Migration Automatique : À la première connexion, ta collection locale est transférée vers ton compte en ligne.' },
       { type: 'feature', text: 'Watchlist Améliorée : Filtre par genre et bouton "Ce soir ?" pour choisir un film au hasard dans ta liste.' },
       { type: 'feature', text: 'Swipe Actions : Glisse vers la gauche pour supprimer, vers la droite pour éditer une carte film.' },
       { type: 'feature', text: 'Archétypes V3 : 13 profils cinéphiles enrichis basés sur tes vibes, tes notes et tes habitudes.' },
