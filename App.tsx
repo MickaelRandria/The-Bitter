@@ -26,6 +26,7 @@ const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
+const ProfileModal = lazy(() => import('./components/ProfileModal'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
@@ -99,6 +100,7 @@ const App: React.FC = () => {
   const [showTutorial, setShowTutorial] = useState(false);
   const pendingTutorialRef = useRef(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -333,7 +335,7 @@ const App: React.FC = () => {
   const handleSignOut = async () => {
     if (!window.confirm("Se déconnecter ? Vos profils locaux resteront sur cet appareil.")) return;
     if (session) await (supabase?.auth as any).signOut();
-    setIsGuestMode(false); setActiveProfileId(null); setSession(null); setShowWelcome(true); setViewMode('Feed'); setActiveSharedSpace(null);
+    setIsGuestMode(false); setActiveProfileId(null); setSession(null); setShowWelcome(true); setViewMode('Feed'); setActiveSharedSpace(null); setShowProfile(false);
     localStorage.removeItem(LAST_PROFILE_ID_KEY);
   };
 
@@ -396,9 +398,12 @@ const App: React.FC = () => {
                 <Users size={20} />
                 {mySpaces.length > 0 && <div className="absolute -top-1 -right-1 w-5 h-5 bg-forest text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm">{mySpaces.length}</div>}
                 </button>
-                <button onClick={() => { localStorage.removeItem(TUTORIAL_DONE_KEY); setShowTutorial(true); }} className="w-10 h-10 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all text-stone-400 dark:text-stone-500 hover:text-forest"><Info size={20} /></button>
-                <button onClick={() => { setActiveProfileId(null); localStorage.removeItem(LAST_PROFILE_ID_KEY); setShowWelcome(true); setViewMode('Feed'); }} className="w-10 h-10 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all text-charcoal dark:text-white"><User size={20} /></button>
-                <button onClick={handleSignOut} className="w-10 h-10 rounded-2xl bg-stone-100 dark:bg-stone-900 border border-sand dark:border-white/10 flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all text-stone-400 dark:text-stone-600"><LogOut size={20} /></button>
+                <button 
+                  onClick={() => { haptics.soft(); setShowProfile(true); }}
+                  className="w-10 h-10 rounded-full bg-forest text-white flex items-center justify-center font-black text-sm shadow-md active:scale-90 transition-all shadow-forest/20"
+                >
+                  {activeProfile?.firstName?.[0]?.toUpperCase() ?? '?'}
+                </button>
             </div>
             </div>
         </header>
@@ -483,7 +488,74 @@ const App: React.FC = () => {
       )}
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
-        {showTutorial && <TutorialOverlay steps={[{ title: "Bienvenue 👋", icon: <Film size={24} />, desc: "The Bitter, c'est ton journal de cinéma personnel." }, { title: "Ajouter", icon: <Plus size={24} />, desc: "Utilise le bouton + pour noter tes films." }]} onComplete={handleTutorialComplete} />}
+        {showTutorial && <TutorialOverlay steps={[
+          {
+            title: "Bienvenue sur The Bitter",
+            icon: <Film size={24} />,
+            desc: "Ton journal de cinéma personnel. Note chaque film que tu regardes, suis tes tendances et découvre ton profil de cinéphile. Tout se passe ici.",
+          },
+          {
+            title: "Ta Collection",
+            icon: <LayoutGrid size={24} />,
+            desc: (
+              <span>
+                L'onglet <strong>Vu</strong> liste tes films notés, l'onglet <strong>À voir</strong> ta watchlist. Glisse une carte vers la gauche pour la supprimer, vers la droite pour l'éditer rapidement.
+              </span>
+            ),
+          },
+          {
+            title: "Ajouter un Film",
+            icon: <Plus size={24} />,
+            highlight: true,
+            desc: (
+              <span>
+                Le bouton <strong>+</strong> au centre de la barre ouvre le formulaire. Cherche ton film, il se remplit automatiquement via TMDB. Active l'<strong>Analyse Bitter</strong> pour noter les vibes et les critères détaillés — c'est ça qui alimente tes stats.
+              </span>
+            ),
+          },
+          {
+            title: "Explore & Découvre",
+            icon: <Clapperboard size={24} />,
+            desc: (
+              <span>
+                La vue <strong>Explorateur</strong> te permet de parcourir les sorties par période et par plateforme de streaming. Appuie sur une affiche pour voir la fiche complète avant de l'ajouter.
+              </span>
+            ),
+          },
+          {
+            title: "Tes Statistiques",
+            icon: <PieChart size={24} />,
+            desc: (
+              <span>
+                Après <strong>5 films notés</strong>, l'onglet Analytics se déverrouille. Tu y trouveras ton archétype cinéphile, tes genres dominants, ton palmarès personnel et ta sévérité comparée au reste du monde.
+              </span>
+            ),
+          },
+          {
+            title: "Ton Calendrier",
+            icon: <CalendarDays size={24} />,
+            desc: "Visualise ton historique de visionnage mois par mois. Chaque point sur le calendrier correspond à un film vu ce jour-là. Clique sur une date pour voir le détail de ta séance.",
+          },
+          {
+            title: "Ton Profil",
+            icon: <User size={24} />,
+            desc: (
+              <span>
+                L'<strong>avatar en haut à droite</strong> ouvre ta page profil. Tu y retrouves ton archétype (provisoire ou confirmé), tes stats clés, tes genres favoris et tes indices de calibration. C'est aussi là que tu peux recalibrer ton profil ou changer de compte.
+              </span>
+            ),
+          },
+          {
+            title: "L'Assistant IA",
+            icon: <Sparkles size={24} />,
+            highlight: true,
+            desc: (
+              <span>
+                Le bouton <strong>✦</strong> en bas à droite de l'écran ouvre le CineAssistant. Il connaît tes goûts et peut te recommander des films sur mesure, directement ajoutables à ta watchlist.
+              </span>
+            ),
+          },
+        ]} onComplete={handleTutorialComplete} />}
         {showNewFeatures && <NewFeaturesModal onClose={() => setShowNewFeatures(false)} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(NEVER_SHOW_V0_73_KEY, 'true'); }} />}
         {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} />}
         {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} />}
@@ -491,6 +563,30 @@ const App: React.FC = () => {
         {showSharedSpaces && activeProfile && <SharedSpacesModal isOpen={showSharedSpaces} onClose={() => setShowSharedSpaces(false)} userId={session?.user?.id || activeProfile.id} onSelectSpace={(space) => { setActiveSharedSpace(space); setShowSharedSpaces(false); setViewMode('SharedSpace'); haptics.medium(); }} />}
         {showCineAssistant && activeProfile && <CineAssistant isOpen={showCineAssistant} onClose={() => setShowCineAssistant(false)} userProfile={activeProfile} onAddToWatchlist={(id) => { setTmdbIdToLoad(id); setInitialStatusForAdd('watchlist'); setIsModalOpen(true); setShowCineAssistant(false); }} />}
         {showCalibration && activeProfile && <OnboardingModal initialName={activeProfile.firstName} userId={session?.user?.id || activeProfile.id} onComplete={handleCompleteCalibration} />}
+        {showProfile && activeProfile && (
+          <ProfileModal
+            profile={activeProfile}
+            session={session}
+            onClose={() => setShowProfile(false)}
+            onSwitchProfile={() => {
+              setShowProfile(false);
+              setActiveProfileId(null);
+              localStorage.removeItem(LAST_PROFILE_ID_KEY);
+              setShowWelcome(true);
+              setViewMode('Feed');
+            }}
+            onRecalibrate={() => {
+              setShowProfile(false);
+              setShowCalibration(true);
+            }}
+            onShowTutorial={() => {
+              setShowProfile(false);
+              localStorage.removeItem(TUTORIAL_DONE_KEY);
+              setShowTutorial(true);
+            }}
+            onSignOut={handleSignOut}
+          />
+        )}
       </Suspense>
     </div>
   );

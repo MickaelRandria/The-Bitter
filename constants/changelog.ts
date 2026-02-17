@@ -14,6 +14,18 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.76.5',
+    date: 'Aujourd\'hui',
+    title: 'Ton Profil, Enfin',
+    changes: [
+      { type: 'feature', text: 'Page Profil : Accède à ton identité complète depuis l\'avatar en haut à droite — archétype, stats clés, genres favoris et indices de calibration.' },
+      { type: 'feature', text: 'Archétype Contextuel : Le profil affiche si ton archétype est encore Provisoire (< 10 films) ou Confirmé, avec l\'icône et la description associées.' },
+      { type: 'feature', text: 'Stats Synthétiques : Films vus, heures de cinéma, note moyenne personnelle et genre dominant regroupés en un coup d\'œil.' },
+      { type: 'style', text: 'Header Épuré : Le header passe à 3 actions — Thème, Espaces, Profil. Les options secondaires (tutoriel, déconnexion) vivent désormais dans la page Profil.' },
+      { type: 'style', text: 'Avatar Initiales : Le bouton profil affiche maintenant ta première initiale pour un repère visuel immédiat.' }
+    ]
+  },
+  {
     version: 'v0.76.2',
     date: 'Aujourd\'hui',
     title: 'Obscurité & Identité',
