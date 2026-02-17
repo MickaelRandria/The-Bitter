@@ -166,64 +166,127 @@ const App: React.FC = () => {
     haptics.success();
   };
 
-  const loadSupabaseProfile = async (userId: string) => {
+  const loadOrCreateProfile = async (user: any) => {
     if (!supabase) return;
+    
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (error) return;
-      if (data) {
+      // Tenter de charger le profil existant
+      const { data: existingProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+  
+      if (existingProfile) {
+        // Profil trouvé → charger normalement
         setProfiles(prev => {
-          const existing = prev.find(p => p.id === data.id);
-          if (existing) {
-            return prev.map(p => p.id === data.id ? {
+          const exists = prev.find(p => p.id === existingProfile.id);
+          if (exists) {
+            return prev.map(p => p.id === existingProfile.id ? {
               ...p,
-              firstName: data.first_name,
-              lastName: data.last_name || p.lastName,
-              severityIndex: data.severity_index || p.severityIndex,
-              patienceLevel: data.patience_level || p.patienceLevel,
-              favoriteGenres: data.favorite_genres || p.favoriteGenres,
-              role: data.role || p.role,
-              isOnboarded: data.is_onboarded || p.isOnboarded,
+              firstName: existingProfile.first_name,
+              lastName: existingProfile.last_name || p.lastName,
+              severityIndex: existingProfile.severity_index || p.severityIndex,
+              patienceLevel: existingProfile.patience_level || p.patienceLevel,
+              favoriteGenres: existingProfile.favorite_genres || p.favoriteGenres,
+              role: existingProfile.role || p.role,
+              isOnboarded: existingProfile.is_onboarded || p.isOnboarded,
               movies: p.movies 
             } : p);
           } else {
             return [...prev, {
-              id: data.id,
-              firstName: data.first_name,
-              lastName: data.last_name || '',
-              movies: [], 
-              createdAt: new Date(data.created_at).getTime(),
-              severityIndex: data.severity_index || 5,
-              patienceLevel: data.patience_level || 5,
-              favoriteGenres: data.favorite_genres || [],
-              role: data.role,
-              isOnboarded: data.is_onboarded || false,
+              id: existingProfile.id,
+              firstName: existingProfile.first_name || user.user_metadata?.first_name || 'Utilisateur',
+              lastName: existingProfile.last_name || '',
+              movies: [],
+              createdAt: new Date(existingProfile.created_at).getTime(),
+              severityIndex: existingProfile.severity_index || 5,
+              patienceLevel: existingProfile.patience_level || 5,
+              favoriteGenres: existingProfile.favorite_genres || [],
+              role: existingProfile.role,
+              isOnboarded: existingProfile.is_onboarded || false,
               gender: 'h',
               age: 25
             }];
           }
         });
-        const lastProfileId = localStorage.getItem(LAST_PROFILE_ID_KEY);
-        setActiveProfileId(current => current || lastProfileId || data.id);
+        setActiveProfileId(user.id);
+        setShowWelcome(false);
+      } else {
+        // Profil introuvable → le créer (cas post-signup avec email vérifié)
+        const firstName = user.user_metadata?.first_name || 'Utilisateur';
+        
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: user.id,
+            first_name: firstName,
+            email: user.email,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]);
+        
+        if (!insertError) {
+          // Profil créé → charger
+          setProfiles(prev => [...prev, {
+            id: user.id,
+            firstName,
+            lastName: '',
+            movies: [],
+            createdAt: Date.now(),
+            severityIndex: 5,
+            patienceLevel: 5,
+            favoriteGenres: [],
+            isOnboarded: false,
+            gender: 'h',
+            age: 25
+          }]);
+          setActiveProfileId(user.id);
+          setShowWelcome(false);
+        }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error('loadOrCreateProfile error:', err);
+    }
   };
 
   useEffect(() => {
-    if (supabase) {
-      (supabase.auth as any).getSession().then(({ data: { session } }: any) => {
-        setSession(session);
-        setAuthLoading(false);
-        if (session?.user) loadSupabaseProfile(session.user.id);
-      });
-      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange((_event: any, session: any) => {
-        setSession(session);
-        if (session?.user) loadSupabaseProfile(session.user.id);
-      });
-      return () => subscription.unsubscribe();
-    } else {
-        setAuthLoading(false);
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
     }
+  
+    // Vérifier la session existante
+    (supabase.auth as any).getSession().then(({ data: { session } }: any) => {
+      setSession(session);
+      setAuthLoading(false);
+      if (session?.user) {
+        loadOrCreateProfile(session.user);
+      }
+    });
+  
+    // Écouter les changements d'état
+    const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(
+      async (event: string, session: any) => {
+        setSession(session);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          await loadOrCreateProfile(session.user);
+        }
+        
+        if (event === 'SIGNED_OUT') {
+          setActiveProfileId(null);
+          setIsGuestMode(false);
+        }
+        
+        if (event === 'PASSWORD_RECOVERY') {
+          // Gérer le reset de mot de passe si nécessaire
+          console.log('Password recovery event');
+        }
+      }
+    );
+  
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {

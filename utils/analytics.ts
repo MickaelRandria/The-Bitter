@@ -10,16 +10,17 @@ import posthog from 'posthog-js';
  */
 export const initAnalytics = () => {
   // 1. Google Analytics 4
-  // Fixed: Replaced import.meta.env with process.env to resolve TypeScript errors
-  const GA_ID = (process.env as any).VITE_GA_MEASUREMENT_ID;
+  // @ts-ignore
+  const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
   if (GA_ID && !ReactGA.isInitialized) {
     ReactGA.initialize(GA_ID);
   }
 
   // 2. PostHog
-  // Fixed: Replaced import.meta.env with process.env to resolve TypeScript errors
-  const POSTHOG_KEY = (process.env as any).VITE_POSTHOG_KEY;
-  const POSTHOG_HOST = (process.env as any).VITE_POSTHOG_HOST;
+  // @ts-ignore
+  const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY;
+  // @ts-ignore
+  const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST;
 
   if (POSTHOG_KEY) {
     // Vérifie si PostHog n'est pas déjà chargé

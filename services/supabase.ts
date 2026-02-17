@@ -1,10 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // 🔑 Access environment variables safely
-// Fixed: Replaced import.meta.env with process.env to resolve TypeScript errors
-const supabaseUrl = (process.env as any).VITE_SUPABASE_URL;
-const supabaseAnonKey = (process.env as any).VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = "https://tnvnmsevddvcklkitnpa.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRudm5tc2V2ZGR2Y2xraXRucGEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc3MDQwODAxMywiZXhwIjoyMDg1OTg0MDEzfQ.cQi9F7ECVNOk8h8JYoCWATqV3XUwjL4qE_8FQeisHXk";
 
 // On initialise le client seulement si les clés sont présentes pour éviter les erreurs au build
 export const supabase = (supabaseUrl && supabaseAnonKey) 
@@ -222,29 +220,6 @@ export async function addMovieToSpace(
   userId: string
 ): Promise<SharedMovie | null> {
   if (!supabase) return null;
-
-  // --- DEBUG LOGS START ---
-  try {
-    console.log("DEBUG: about to add movie");
-    console.log("DEBUG: space_id (a) =", spaceId);
-    console.log("DEBUG: added_by (i) =", userId);
-    console.log("DEBUG: movie object (e) =", movieData);
-    
-    // Supabase v2 uses getSession, v1 uses user()
-    if (supabase.auth && typeof (supabase.auth as any).getSession === 'function') {
-      (supabase.auth as any).getSession().then(({ data }: any) => {
-        console.log("DEBUG: Supabase Session =", data.session);
-        console.log("DEBUG: Session User ID =", data.session?.user?.id);
-      }).catch((err: any) => console.error("DEBUG: error getting session", err));
-    } else if (supabase.auth && (supabase.auth as any).user) {
-      const user = (supabase.auth as any).user();
-      console.log("DEBUG: Supabase User =", user);
-      console.log("DEBUG: User ID =", user?.id);
-    }
-  } catch (err) {
-    console.error("DEBUG: error in logging", err);
-  }
-  // --- DEBUG LOGS END ---
 
   const { data, error } = await supabase
     .from('shared_movies')
