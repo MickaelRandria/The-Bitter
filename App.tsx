@@ -1,4 +1,4 @@
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
@@ -101,6 +101,8 @@ const App: React.FC = () => {
   const pendingTutorialRef = useRef(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; timeoutId: ReturnType<typeof setTimeout> } | null>(null);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -277,7 +279,42 @@ const App: React.FC = () => {
 
   const handleDeleteMovie = (id: string) => {
     if (!activeProfileId) return;
-    setProfiles(prev => prev.map(p => p.id === activeProfileId ? {...p, movies: p.movies.filter(m => id !== m.id)} : p));
+    haptics.medium();
+
+    // Si une suppression est déjà en attente, l'exécuter immédiatement avant d'en créer une nouvelle
+    if (pendingDelete) {
+      clearTimeout(pendingDelete.timeoutId);
+      setProfiles(prev => prev.map(p => p.id === activeProfileId
+        ? { ...p, movies: p.movies.filter(m => m.id !== pendingDelete.id) }
+        : p
+      ));
+    }
+
+    const movieTitle = activeProfile?.movies.find(m => m.id === id)?.title ?? 'Film';
+
+    const timeoutId = setTimeout(() => {
+      setProfiles(prev => prev.map(p => p.id === activeProfileId
+        ? { ...p, movies: p.movies.filter(m => m.id !== id) }
+        : p
+      ));
+      setPendingDelete(null);
+    }, 4500);
+
+    setPendingDelete({ id, title: movieTitle, timeoutId });
+  };
+
+  const handleUndoDelete = () => {
+    if (!pendingDelete) return;
+    haptics.soft();
+    clearTimeout(pendingDelete.timeoutId);
+    setPendingDelete(null);
+  };
+
+  const handleMarkAsWatched = (movie: Movie) => {
+    haptics.medium();
+    // Pré-remplir le film avec status 'watched' pour forcer l'onglet "Vu"
+    setEditingMovie({ ...movie, status: 'watched' });
+    setIsModalOpen(true);
   };
 
   const watchlistGenres = useMemo(() => {
@@ -332,10 +369,22 @@ const App: React.FC = () => {
     setViewMode('Feed');
   };
 
-  const handleSignOut = async () => {
-    if (!window.confirm("Se déconnecter ? Vos profils locaux resteront sur cet appareil.")) return;
+  const handleSignOut = () => {
+    setShowProfile(false);
+    setShowSignOutConfirm(true);
+  };
+
+  const handleSignOutConfirmed = async () => {
+    haptics.medium();
+    setShowSignOutConfirm(false);
     if (session) await (supabase?.auth as any).signOut();
-    setIsGuestMode(false); setActiveProfileId(null); setSession(null); setShowWelcome(true); setViewMode('Feed'); setActiveSharedSpace(null); setShowProfile(false);
+    setIsGuestMode(false); 
+    setActiveProfileId(null); 
+    setSession(null); 
+    setShowWelcome(true); 
+    setViewMode('Feed'); 
+    setActiveSharedSpace(null); 
+    setShowProfile(false);
     localStorage.removeItem(LAST_PROFILE_ID_KEY);
   };
 
@@ -464,7 +513,7 @@ const App: React.FC = () => {
                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">{feedTab === 'history' ? 'Films Vus' : 'À Voir'} ({filteredAndSortedMovies.length})</h2>
                        <div className="flex items-center gap-2"><SlidersHorizontal size={12} className="text-stone-300" /><select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-[10px] font-black uppercase text-charcoal dark:text-white outline-none cursor-pointer tracking-widest"><option value="Date">Récents</option>{feedTab === 'history' && <option value="Rating">Note</option>}<option value="Year">Année</option><option value="Title">A-Z</option></select></div>
                     </div>
-                    <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} />))}</div>
+                    <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} />))}</div>
                  </div>
               )}
             </div>
@@ -481,9 +530,29 @@ const App: React.FC = () => {
         </button>
       )}
 
-      {toastMessage && (
+      {pendingDelete && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-          <div className="bg-charcoal dark:bg-forest text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-white/10"><Check size={12} strokeWidth={3} /><span className="text-sm font-bold tracking-tight">{toastMessage}</span></div>
+          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white pl-5 pr-3 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10">
+            <Trash2 size={14} className="text-stone-400 shrink-0" />
+            <span className="text-sm font-bold tracking-tight truncate max-w-[140px]">
+              {pendingDelete.title}
+            </span>
+            <button
+              onClick={handleUndoDelete}
+              className="ml-2 px-4 py-2 bg-bitter-lime text-charcoal rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shrink-0"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {toastMessage && !pendingDelete && (
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+          <div className="bg-charcoal dark:bg-forest text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-white/10">
+            <Check size={12} strokeWidth={3} />
+            <span className="text-sm font-bold tracking-tight">{toastMessage}</span>
+          </div>
         </div>
       )}
 
@@ -588,6 +657,50 @@ const App: React.FC = () => {
           />
         )}
       </Suspense>
+
+      {showSignOutConfirm && (
+        <div
+          className="fixed inset-0 z-[500] flex flex-col justify-end"
+          onClick={() => setShowSignOutConfirm(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" />
+
+          {/* Sheet */}
+          <div
+            className="relative bg-white dark:bg-[#1a1a1a] rounded-t-[2.5rem] p-8 pb-12 shadow-2xl animate-[slideUp_0.35s_cubic-bezier(0.16,1,0.3,1)] border-t border-stone-100 dark:border-white/10"
+            onClick={(e) => e.stopPropagation()}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
+          >
+            {/* Drag indicator */}
+            <div className="w-12 h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full mx-auto mb-8" />
+
+            <div className="mb-8">
+              <h3 className="text-2xl font-black tracking-tighter text-charcoal dark:text-white mb-2">
+                Se déconnecter ?
+              </h3>
+              <p className="text-sm font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+                Tes films et ta collection restent sauvegardés sur cet appareil.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleSignOutConfirmed}
+                className="w-full py-5 rounded-[1.8rem] font-black text-sm uppercase tracking-widest bg-red-500 text-white shadow-xl shadow-red-500/20 active:scale-[0.98] transition-all"
+              >
+                Confirmer la déconnexion
+              </button>
+              <button
+                onClick={() => { haptics.soft(); setShowSignOutConfirm(false); }}
+                className="w-full py-5 rounded-[1.8rem] font-black text-sm uppercase tracking-widest bg-stone-100 dark:bg-[#202020] text-charcoal dark:text-white active:scale-[0.98] transition-all"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

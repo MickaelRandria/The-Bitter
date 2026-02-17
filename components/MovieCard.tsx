@@ -8,6 +8,7 @@ interface MovieCardProps {
   index: number;
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
+  onMarkAsWatched: (movie: Movie) => void;
 }
 
 const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, value: number, hasPoster: boolean, isExpanded: boolean }) => {
@@ -33,7 +34,7 @@ const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, val
   );
 };
 
-const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit }) => {
+const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit, onMarkAsWatched }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Swipe State
@@ -198,9 +199,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
                </div>
              </div>
           ) : (
-            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-lg border border-sand dark:border-white/10 active:scale-90 transition-all">
-               <Play size={14} fill="currentColor" className="ml-0.5" />
-            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onMarkAsWatched(movie); }}
+              className="w-10 h-10 rounded-full flex items-center justify-center bg-forest text-white shadow-lg shadow-forest/20 active:scale-90 transition-all border border-forest/20"
+            >
+              <Play size={14} fill="currentColor" className="ml-0.5" />
+            </button>
           )}
         </div>
 
@@ -274,6 +278,15 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
 
             <div className="flex gap-3 mt-4 pb-4">
                {!isWatchlist && <ShareStoryButtonSimple movie={movie} />}
+
+               {isWatchlist && (
+                 <button
+                    onClick={(e) => { e.stopPropagation(); onMarkAsWatched(movie); }}
+                    className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-forest text-white active:scale-95 transition-all shadow-lg shadow-forest/20"
+                 >
+                    <Play size={14} fill="currentColor" /> J'ai vu ça
+                 </button>
+               )}
 
                <button 
                   onClick={(e) => { e.stopPropagation(); onEdit(movie); }}

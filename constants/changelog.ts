@@ -14,8 +14,18 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.76.5',
+    version: 'v0.77',
     date: 'Aujourd\'hui',
+    title: 'Fluidité & Sécurité',
+    changes: [
+      { type: 'feature', text: 'Suppression Annulable : Une erreur de manipulation ? Vous avez maintenant 4 secondes pour annuler la suppression d\'un film via le toast.' },
+      { type: 'feature', text: 'Flux Watchlist : Passez un film de "À voir" à "Vu" en un clic via le bouton Play sur la carte ou l\'action rapide "J\'ai vu ça".' },
+      { type: 'style', text: 'Déconnexion Immersive : Adieu l\'alerte système native, place à une bottom sheet élégante pour confirmer la sortie.' }
+    ]
+  },
+  {
+    version: 'v0.76.5',
+    date: '15 Février 2026',
     title: 'Ton Profil, Enfin',
     changes: [
       { type: 'feature', text: 'Page Profil : Accède à ton identité complète depuis l\'avatar en haut à droite — archétype, stats clés, genres favoris et indices de calibration.' },
@@ -27,7 +37,7 @@ export const RELEASE_HISTORY: Release[] = [
   },
   {
     version: 'v0.76.2',
-    date: 'Aujourd\'hui',
+    date: '14 Février 2026',
     title: 'Obscurité & Identité',
     changes: [
       { type: 'style', text: 'Mode Sombre : Activez le thème sombre directement depuis le header pour vos séances nocturnes.' },
