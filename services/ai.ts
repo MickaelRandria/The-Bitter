@@ -9,25 +9,6 @@ export interface AISearchResult {
 }
 
 /**
- * 🔑 Récupère la clé API de façon robuste (dev + prod)
- */
-const getGoogleAIKey = (): string => {
-  // 1. Essaie import.meta.env (Vite standard)
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_AI_KEY) {
-    return import.meta.env.VITE_GOOGLE_AI_KEY;
-  }
-  
-  // 2. Essaie process.env (fallback Node)
-  if (typeof process !== 'undefined' && process.env && process.env.VITE_GOOGLE_AI_KEY) {
-    return process.env.VITE_GOOGLE_AI_KEY;
-  }
-
-  // 3. Fallback Hardcoded (Provided in .env)
-  // Essential for environments where env vars injection fails
-  return 'AIzaSyC_djBFDJBClBvhjfYnqNciWxUGCHhgdYE';
-};
-
-/**
  * ✅ Nettoyage SIMPLE : garde tout sauf les astérisques
  */
 const cleanAIResponse = (text: string): string => {
@@ -87,8 +68,8 @@ const getSimilarMovies = async (tmdbId: number, limit: number = 5): Promise<any[
  */
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    const apiKey = getGoogleAIKey();
-    const ai = new GoogleGenAI({ apiKey });
+    // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -121,8 +102,8 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant', content: string }[]
 ): Promise<string> => {
   try {
-    const apiKey = getGoogleAIKey();
-    const ai = new GoogleGenAI({ apiKey });
+    // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Contexte utilisateur enrichi
     const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 15);
@@ -247,7 +228,7 @@ ${userContext}`;
     console.error("Error stack:", error.stack);
     
     if (error.message.includes("API key")) {
-      return "🔑 **Erreur de configuration**\n\nLa clé API Google AI n'est pas accessible. Vérifie que VITE_GOOGLE_AI_KEY est bien configurée dans les variables d'environnement Vercel avec les 3 environnements cochés (Production + Preview + Development).";
+      return "🔑 **Erreur de configuration**\n\nLa clé API Google AI n'est pas accessible. Vérifie que process.env.API_KEY est bien configurée.";
     }
     
     return `Ma pellicule a brûlé... 🎬\n\n**Erreur technique:** ${error.message}\n\nRéessaye dans quelques secondes ou contacte le support si le problème persiste.`;

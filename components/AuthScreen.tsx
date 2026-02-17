@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Film, Heart, ArrowRight, Loader2, Mail, Lock, AlertTriangle, Sparkles, Ghost, User } from 'lucide-react';
+import { Film, Heart, ArrowRight, Loader2, Mail, Lock, AlertTriangle, Sparkles, Ghost, User, Smartphone, Globe, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 
@@ -16,7 +16,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Nouveau state pour la vérification d'email
+  // Nouveau state pour la confirmation (sans email)
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
 
@@ -69,7 +69,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 console.error("Erreur création profil:", profileError);
             }
             
-            // ✅ SUCCÈS : Afficher l'écran de vérification
+            // ✅ SUCCÈS : Afficher l'écran de confirmation immédiate
             setRegisteredEmail(email);
             setShowEmailVerification(true);
             haptics.success();
@@ -98,64 +98,55 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
       <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand rounded-full blur-[140px] opacity-30 animate-blob" />
       <div className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 rounded-full blur-[120px] opacity-50 animate-blob" style={{ animationDelay: '-5s' }} />
 
-      {/* ✅ NOUVEAU : Écran de Vérification Email */}
+      {/* ✅ MODIFIÉ : Écran de Confirmation Immédiate */}
       {showEmailVerification ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-md mx-auto">
             
             {/* Icône Success */}
             <div className="mb-8 relative inline-block">
             <div className="w-24 h-24 bg-forest rounded-[2rem] flex items-center justify-center shadow-2xl animate-[scaleIn_0.5s_ease-out]">
-                <Mail size={40} className="text-white" strokeWidth={2} />
+                <CheckCircle2 size={40} className="text-white" strokeWidth={2} />
             </div>
             <div className="absolute -top-2 -right-2 w-8 h-8 bg-white border-4 border-cream rounded-full flex items-center justify-center animate-bounce">
-                <div className="w-2 h-2 bg-forest rounded-full"></div>
+                <Sparkles size={14} className="text-forest" fill="currentColor" />
             </div>
             </div>
 
             {/* Titre */}
             <h2 className="text-3xl font-black text-charcoal tracking-tight mb-3 text-center">
-            Vérifiez votre email
+            Compte créé !
             </h2>
 
             {/* Instructions */}
-            <div className="bg-white border-2 border-sand rounded-[2rem] p-6 mb-6 text-center">
-            <p className="text-sm font-semibold text-charcoal mb-4 leading-relaxed">
-                Un email de confirmation a été envoyé à :
-            </p>
-            <div className="bg-cream px-4 py-3 rounded-xl mb-4">
-                <p className="text-sm font-black text-forest break-all">
-                {registeredEmail}
+            <div className="bg-white border-2 border-sand rounded-[2rem] p-6 mb-6 text-center w-full shadow-sm">
+                <p className="text-sm font-semibold text-charcoal mb-4 leading-relaxed">
+                    Vous pouvez vous connecter directement avec :
                 </p>
-            </div>
-            
-            <div className="space-y-3 text-left">
-                <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-forest/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-black text-forest">1</span>
-                </div>
-                <p className="text-xs text-stone-600 font-medium leading-relaxed">
-                    Ouvrez votre boîte mail et trouvez l'email de <span className="font-bold">Supabase</span>
-                </p>
+                <div className="bg-cream px-4 py-3 rounded-xl mb-6 border border-sand">
+                    <p className="text-sm font-black text-forest break-all">
+                    {registeredEmail}
+                    </p>
                 </div>
                 
-                <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-forest/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-black text-forest">2</span>
+                <div className="space-y-3 text-left bg-stone-50 p-4 rounded-xl border border-stone-100">
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0 border border-sand text-charcoal shadow-sm">
+                            <Smartphone size={16} />
+                        </div>
+                        <p className="text-[10px] text-stone-500 font-medium leading-relaxed pt-1">
+                            <strong className="text-charcoal">Stockage Hybride :</strong> Même connecté, vos données sont sauvegardées localement sur ce téléphone.
+                        </p>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0 border border-sand text-charcoal shadow-sm">
+                            <Globe size={16} />
+                        </div>
+                        <p className="text-[10px] text-stone-500 font-medium leading-relaxed pt-1">
+                            <strong className="text-charcoal">Espaces Partagés :</strong> Le compte est requis uniquement pour rejoindre ou créer des groupes.
+                        </p>
+                    </div>
                 </div>
-                <p className="text-xs text-stone-600 font-medium leading-relaxed">
-                    Cliquez sur le lien de confirmation dans l'email
-                </p>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-forest/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-black text-forest">3</span>
-                </div>
-                <p className="text-xs text-stone-600 font-medium leading-relaxed">
-                    Revenez sur cette page et connectez-vous avec votre email
-                </p>
-                </div>
-            </div>
             </div>
 
             {/* Boutons */}
@@ -169,27 +160,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 setFirstName('');
                 haptics.soft();
                 }}
-                className="w-full bg-charcoal text-white py-5 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                className="w-full bg-charcoal text-white py-5 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all hover:bg-forest"
             >
-                J'ai vérifié mon email, me connecter
-            </button>
-            
-            <button
-                onClick={() => {
-                setShowEmailVerification(false);
-                haptics.soft();
-                }}
-                className="w-full bg-white text-stone-500 border-2 border-sand py-4 rounded-[2rem] font-bold text-[10px] uppercase tracking-wider active:scale-95 transition-all"
-            >
-                Retour
+                Me connecter maintenant
             </button>
             </div>
-
-            {/* Aide */}
-            <p className="mt-6 text-[10px] text-stone-400 text-center max-w-xs leading-relaxed">
-            <strong>Vous ne trouvez pas l'email ?</strong><br/>
-            Vérifiez vos spams ou contactez le support.
-            </p>
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-md mx-auto">
@@ -334,7 +309,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
       )}
 
       <div className="p-8 text-center relative z-10 mt-auto">
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">Heritage Edition</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">The Bitter</p>
       </div>
     </div>
   );

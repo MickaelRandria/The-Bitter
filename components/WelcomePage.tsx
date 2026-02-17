@@ -314,7 +314,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ existingProfiles, onSelectPro
       </div>
 
       <div className="p-8 text-center relative z-10 mt-auto">
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">The Bitter — Edition Heritage</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">The Bitter</p>
       </div>
 
       {profileToDelete && (

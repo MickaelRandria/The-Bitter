@@ -46,7 +46,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
         {/* Header */}
         <header className="flex justify-between items-center py-6">
           <div className="flex flex-col">
-            <span className="text-stone-500 text-xs font-bold uppercase tracking-[0.2em]">Bienvenue</span>
+            <span className="text-stone-500 dark:text-stone-400 text-xs font-bold uppercase tracking-[0.2em]">Bienvenue</span>
             <span className="text-2xl font-black tracking-tight">{userName}</span>
           </div>
           <div className="w-12 h-12 rounded-full bg-[#141414] border border-white/5 flex items-center justify-center">
@@ -62,7 +62,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
                 <h1 className="text-6xl font-black tracking-tighter leading-[0.9] mb-4">
                   Start<br /><span className="text-lime-400">Tracking.</span>
                 </h1>
-                <p className="text-stone-400 font-medium max-w-xs leading-relaxed">
+                <p className="text-stone-400 dark:text-stone-500 font-medium max-w-xs leading-relaxed">
                   Votre collection est vide. Ajoutez votre premier film pour initialiser l'analyseur.
                 </p>
             </div>
@@ -71,7 +71,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
             <div className="aspect-square bg-[#141414] rounded-[2.5rem] flex flex-col items-center justify-center border border-white/5 relative overflow-hidden">
                 <span className="text-[8rem] font-black text-white/5 leading-none absolute scale-150 select-none">0</span>
                 <span className="text-6xl font-black text-lime-400 relative z-10">0</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-stone-500 mt-2 relative z-10">Films</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400 mt-2 relative z-10">Films</span>
             </div>
 
             {/* Block C: Call to Action */}
@@ -138,7 +138,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
                 <h2 className="text-5xl sm:text-6xl font-black tracking-tighter leading-[0.9] text-white break-words line-clamp-3 mb-2">
                     {lastMovie.title}
                 </h2>
-                <p className="text-stone-400 font-bold text-xs uppercase tracking-wider line-clamp-1">
+                <p className="text-stone-400 dark:text-stone-400 font-bold text-xs uppercase tracking-wider line-clamp-1">
                     {lastMovie.director} • {lastMovie.year}
                 </p>
             </div>
@@ -153,7 +153,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
                 <span className="block text-7xl sm:text-8xl font-black text-lime-400 tracking-tighter leading-none -ml-1">
                     {movies.length}
                 </span>
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">Films Vus</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">Films Vus</span>
             </div>
         </div>
 
@@ -181,7 +181,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
                 <h3 className="text-lg font-black tracking-tight">Récemment</h3>
                 <button 
                     onClick={() => onNavigate('Feed')} 
-                    className="text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-white transition-colors"
+                    className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400 hover:text-white transition-colors"
                 >
                     Voir tout
                 </button>
@@ -197,7 +197,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
                         </div>
                         <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-white leading-tight truncate">{movie.title}</h4>
-                            <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wide mt-0.5">{movie.director}</p>
+                            <p className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mt-0.5">{movie.director}</p>
                         </div>
                         <div className="text-right">
                             <span className="text-sm font-black text-lime-400">

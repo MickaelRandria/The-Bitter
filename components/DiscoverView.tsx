@@ -10,20 +10,21 @@ import {
   Calendar, 
   ArrowUpAZ, 
   Brain,
-  Zap,
-  Smile,
-  Heart,
-  Aperture,
-  Smartphone,
-  Check,
-  Sparkles,
-  ExternalLink,
-  Globe,
-  Film,
-  Ticket,
-  Tv,
-  Clock,
-  History
+  Zap, 
+  Smile, 
+  Heart, 
+  Aperture, 
+  Smartphone, 
+  Check, 
+  Sparkles, 
+  ExternalLink, 
+  Globe, 
+  Film, 
+  Ticket, 
+  Tv, 
+  Clock, 
+  History,
+  Layers
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -77,15 +78,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>('popularity');
   const [streamingFilter, setStreamingFilter] = useState<'all' | 'netflix' | 'prime' | 'disney' | 'canal' | 'cinema'>('all');
   const [mediaType, setMediaType] = useState<MediaType>('movie');
-  
-  // Filtre temporel par défaut sur 'all_time'
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
-  
-  // AI Deep Search State
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
 
@@ -95,23 +91,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    
     switch (timePeriod) {
       case 'this_month':
         const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-        return {
-          gte: `${year}-${month}-01`,
-          lte: `${year}-${month}-${lastDay}`
-        };
-        
-      case 'this_year':
-        return {
-          gte: `${year}-01-01`,
-          lte: `${year}-12-31`
-        };
-        
-      case 'all_time':
-        return null;
+        return { gte: `${year}-${month}-01`, lte: `${year}-${month}-${lastDay}` };
+      case 'this_year': return { gte: `${year}-01-01`, lte: `${year}-12-31` };
+      case 'all_time': return null;
     }
   };
 
@@ -120,251 +105,107 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
     try {
       let url = "";
       const dateRange = getDateRange();
-      
       const dateFieldGte = mediaType === 'movie' ? 'primary_release_date.gte' : 'first_air_date.gte';
       const dateFieldLte = mediaType === 'movie' ? 'primary_release_date.lte' : 'first_air_date.lte';
       const sortDate = mediaType === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc';
 
       if (isSearchActive) {
-        // MODE RECHERCHE
         url = `${TMDB_BASE_URL}/search/${mediaType}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&query=${encodeURIComponent(searchQuery)}&page=1&include_adult=false`;
-        
-        // On n'applique pas les filtres de date sur une recherche par texte pour éviter les résultats vides inattendus, 
-        // à moins que l'utilisateur n'ait explicitement choisi une période
-        if (dateRange) {
-          url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
-        }
       } else {
-        // MODE DÉCOUVERTE
         const endpoint = mediaType === 'movie' ? 'discover/movie' : 'discover/tv';
-        
-        // Gérer le cas "Cinéma" (movies only)
         if (streamingFilter === 'cinema' && mediaType === 'movie') {
           const today = new Date();
           const twoMonthsAgo = new Date();
           twoMonthsAgo.setMonth(today.getMonth() - 2);
-          const releaseStart = twoMonthsAgo.toISOString().split('T')[0];
-          const releaseEnd = today.toISOString().split('T')[0];
-          
-          url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&${dateFieldGte}=${releaseStart}&${dateFieldLte}=${releaseEnd}&with_release_type=2|3&sort_by=popularity.desc&page=1`;
+          url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&${dateFieldGte}=${twoMonthsAgo.toISOString().split('T')[0]}&${dateFieldLte}=${today.toISOString().split('T')[0]}&with_release_type=2|3&sort_by=popularity.desc&page=1`;
         } else {
-          // Découverte standard
           url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR`;
-          
-          // Ajouter filtre temporel si actif
-          if (dateRange) {
-            url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
-          }
-          
-          // Ajouter filtre streaming
-          if (streamingFilter !== 'all' && streamingFilter !== 'cinema') {
-            url += `&with_watch_providers=${streamingFilter}`;
-          }
-          
-          // Ajouter filtre vibe
+          if (dateRange) url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
+          if (streamingFilter !== 'all' && streamingFilter !== 'cinema') url += `&with_watch_providers=${streamingFilter}`;
           if (activeVibe) {
             const vibe = VIBES.find(v => v.id === activeVibe);
             if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
           }
-          
-          // Ajouter tri
-          const sortParam = sortBy === 'popularity' ? 'popularity.desc' 
-                          : sortBy === 'date' ? sortDate
-                          : (mediaType === 'movie' ? 'title.asc' : 'name.asc');
+          const sortParam = sortBy === 'popularity' ? 'popularity.desc' : sortBy === 'date' ? sortDate : (mediaType === 'movie' ? 'title.asc' : 'name.asc');
           url += `&sort_by=${sortParam}&page=1`;
         }
       }
-
       const res = await fetch(url);
       const data = await res.json();
-      
-      if (data.results) {
-        let results = data.results.filter((m: any) => m.poster_path);
-        setItems(results);
-      }
-    } catch (error) {
-      console.error("Discovery error", error);
-    } finally {
-      setLoading(false);
-    }
+      if (data.results) setItems(data.results.filter((m: any) => m.poster_path));
+    } catch (error) { console.error("Discovery error", error); } finally { setLoading(false); }
   };
 
   useEffect(() => {
     const timer = setTimeout(() => { fetchItems(); }, isSearchActive ? 500 : 0);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeVibe, selectedMonthIndex, sortBy, streamingFilter, mediaType, timePeriod]);
+  }, [searchQuery, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);
 
   const handleDeepSearch = async () => {
     if (!searchQuery) return;
     haptics.medium();
     setIsAiSearching(true);
     setAiResult(null);
-    const result = await deepMovieSearch(searchQuery);
-    setAiResult(result);
+    setAiResult(await deepMovieSearch(searchQuery));
     setIsAiSearching(false);
   };
 
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
-      
-      {/* 0. MEDIA TYPE TOGGLE */}
-      <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200/50 w-full shadow-inner">
-         <button 
-            onClick={() => { haptics.soft(); setMediaType('movie'); }} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-charcoal text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
-         >
-            <Film size={14} /> FILMS
-         </button>
-         <button 
-            onClick={() => { haptics.soft(); setMediaType('tv'); }} 
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'tv' ? 'bg-charcoal text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
-         >
-            <Tv size={14} /> SÉRIES
-         </button>
+      {/* MEDIA TOGGLE */}
+      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
+         <button onClick={() => { haptics.soft(); setMediaType('movie'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}><Film size={14} /> FILMS</button>
+         <button onClick={() => { haptics.soft(); setMediaType('tv'); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'tv' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}><Tv size={14} /> SÉRIES</button>
       </div>
 
-      {/* 1. SEARCH BAR */}
+      {/* SEARCH BAR */}
       <div className="relative group">
-        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 group-focus-within:text-charcoal transition-colors">
+        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 dark:text-stone-700 group-focus-within:text-charcoal dark:group-focus-within:text-white transition-colors">
             <Search size={20} strokeWidth={3} />
         </div>
-        <input 
-            type="text" 
-            placeholder={`Rechercher ${mediaType === 'movie' ? 'un film' : 'une série'}...`}
-            className="w-full bg-stone-100/50 hover:bg-stone-100 focus:bg-white border-2 border-transparent focus:border-stone-200 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 text-charcoal"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        <input type="text" placeholder={`Rechercher...`} className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         <div className="absolute inset-y-0 right-2 flex items-center gap-2">
-            {isSearchActive && (
-                <button 
-                  onClick={handleDeepSearch}
-                  className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform"
-                >
-                    {isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-                    Deep Info
-                </button>
-            )}
-            {isSearchActive && !isAiSearching && (
-                <button onClick={() => { haptics.soft(); setSearchQuery(''); setAiResult(null); }} className="p-2 text-stone-300 hover:text-charcoal">
-                    <X size={20} strokeWidth={3} />
-                </button>
-            )}
+            {isSearchActive && <button onClick={handleDeepSearch} className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform">{isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />} Deep Info</button>}
+            {isSearchActive && !isAiSearching && <button onClick={() => { haptics.soft(); setSearchQuery(''); setAiResult(null); }} className="p-2 text-stone-300 dark:text-stone-700 hover:text-charcoal dark:hover:text-white"><X size={20} strokeWidth={3} /></button>}
         </div>
       </div>
 
-      {/* AI RESULT DISPLAY */}
+      {/* AI RESULT */}
       {aiResult && (
         <div className="bg-stone-900 text-white rounded-[2.5rem] p-8 space-y-6 animate-[slideUp_0.4s_ease-out] border border-bitter-lime/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="flex items-center gap-3">
-                <div className="p-2 bg-bitter-lime text-charcoal rounded-lg">
-                    <Sparkles size={16} fill="currentColor" />
-                </div>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">Gemini Insight</h3>
-            </div>
-            <p 
-                className="text-sm font-medium leading-relaxed text-stone-300"
-                dangerouslySetInnerHTML={{ __html: aiResult.text }}
-            />
-            {aiResult.sources.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500">Sources vérifiées</p>
-                    <div className="flex flex-wrap gap-2">
-                        {aiResult.sources.map((source, i) => (
-                            <a 
-                                key={i} 
-                                href={source.uri} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-stone-300 transition-colors"
-                            >
-                                {source.title}
-                                <ExternalLink size={10} />
-                            </a>
-                        ))}
-                    </div>
-                </div>
-            )}
+            <div className="flex items-center gap-3"><div className="p-2 bg-bitter-lime text-charcoal rounded-lg"><Sparkles size={16} fill="currentColor" /></div><h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">Gemini Insight</h3></div>
+            <p className="text-sm font-medium leading-relaxed text-stone-300" dangerouslySetInnerHTML={{ __html: aiResult.text }} />
         </div>
       )}
 
-      {/* 2. FILTERS & SORTING */}
+      {/* FILTERS */}
       {!aiResult && (
-        <div className="animate-[fadeIn_0.5s_ease-out] space-y-8">
-            {/* FILTRE PÉRIODE (POLISHED) */}
+        <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
             <div>
-              <div className="flex items-center justify-between px-1 mb-4">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 flex items-center gap-2">
-                  <Clock size={12} /> Période d'exploration
-                </h3>
-              </div>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2"><Clock size={12} /> Période</h3>
               <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => { haptics.soft(); setTimePeriod('this_month'); }}
-                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
-                    timePeriod === 'this_month'
-                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
-                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
-                  }`}
-                >
-                  <Calendar size={18} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Mois en cours</span>
-                </button>
-                <button
-                  onClick={() => { haptics.soft(); setTimePeriod('this_year'); }}
-                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
-                    timePeriod === 'this_year'
-                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
-                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
-                  }`}
-                >
-                  <Zap size={18} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Sorties {new Date().getFullYear()}</span>
-                </button>
-                <button
-                  onClick={() => { haptics.soft(); setTimePeriod('all_time'); }}
-                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${
-                    timePeriod === 'all_time'
-                      ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10'
-                      : 'bg-white text-stone-400 border-stone-100 hover:border-stone-200'
-                  }`}
-                >
-                  <History size={18} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Patrimoine</span>
-                </button>
+                {[
+                    {id:'this_month', l:'Mois', i:<Calendar size={18}/>},
+                    {id:'this_year', l:new Date().getFullYear().toString(), i:<Zap size={18}/>},
+                    {id:'all_time', l:'Catalogue', i:<Layers size={18}/>}
+                ].map(p => (
+                    <button key={p.id} onClick={() => { haptics.soft(); setTimePeriod(p.id as TimePeriod); }} className={`flex flex-col items-center justify-center gap-1.5 px-3 py-4 rounded-[1.8rem] transition-all border-2 ${timePeriod === p.id ? 'bg-forest border-forest text-white shadow-xl shadow-forest/10' : 'bg-white dark:bg-[#202020] text-stone-400 dark:text-stone-600 border-stone-100 dark:border-white/5 hover:border-stone-200 dark:hover:border-white/10'}`}>
+                        {p.i}<span className="text-[9px] font-black uppercase tracking-widest">{p.l}</span>
+                    </button>
+                ))}
               </div>
             </div>
 
-            {/* Streaming Filters */}
             <div>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 mb-4 px-1">
-                    Plateforme
-                </h3>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1">Plateforme</h3>
                 <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                     {PROVIDERS.map((provider) => {
-                        // Hide 'Cinéma' filter for TV Shows
                         if (mediaType === 'tv' && provider.id === 'cinema') return null;
-                        
+                        const isActive = streamingFilter === provider.id;
                         return (
-                            <button
-                                key={provider.id}
-                                onClick={() => {
-                                    haptics.soft();
-                                    setStreamingFilter(provider.id as any);
-                                }}
-                                className={`flex-shrink-0 px-4 py-3 rounded-2xl font-bold text-xs transition-all border flex items-center gap-2 ${
-                                    streamingFilter === provider.id
-                                    ? 'bg-charcoal text-white border-charcoal shadow-lg scale-105'
-                                    : 'bg-white text-stone-600 border-sand hover:border-stone-300 shadow-sm'
-                                }`}
-                            >
-                                {/* @ts-ignore */}
-                                {provider.isEmoji ? (
-                                    <span className="text-lg leading-none">{provider.logo}</span>
-                                ) : provider.logo ? (
-                                    <img src={provider.logo} alt={provider.name} className="w-5 h-5 object-contain" />
-                                ) : null}
+                            <button key={provider.id} onClick={() => { haptics.soft(); setStreamingFilter(provider.id as any); }} className={`flex-shrink-0 px-4 py-3 rounded-2xl font-bold text-xs transition-all border flex items-center gap-2 ${isActive ? 'bg-charcoal dark:bg-[#202020] text-white border-charcoal dark:border-forest/50 shadow-lg scale-105' : 'bg-white dark:bg-[#202020] text-stone-600 dark:text-stone-500 border-sand dark:border-white/5 hover:border-stone-300 dark:hover:border-white/10 shadow-sm'}`}>
+                                {provider.isEmoji ? <span className="text-lg leading-none">{provider.logo}</span> : provider.logo ? <img src={provider.logo} alt="" className="w-5 h-5 object-contain" /> : null}
                                 {provider.name}
                             </button>
                         );
@@ -372,20 +213,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
                 </div>
             </div>
 
-            {/* Sort Logic */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">Trier par</span>
-                </div>
-                <div className="flex p-1.5 bg-stone-100 rounded-2xl border border-stone-200/50 w-full shadow-inner">
+                <div className="flex p-1.5 bg-stone-100 dark:bg-[#161616] rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
                 {(['popularity', 'date', 'alpha'] as SortOption[]).map((opt) => (
-                    <button 
-                    key={opt}
-                    onClick={() => { haptics.soft(); setSortBy(opt); }} 
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === opt ? 'bg-white text-forest shadow-sm' : 'text-stone-400'}`}
-                    >
+                    <button key={opt} onClick={() => { haptics.soft(); setSortBy(opt); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sortBy === opt ? 'bg-white dark:bg-[#202020] text-forest dark:text-bitter-lime shadow-sm dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}>
                     {opt === 'popularity' ? <Flame size={14} /> : opt === 'date' ? <Calendar size={14} /> : <ArrowUpAZ size={14} />} 
-                    {opt === 'popularity' ? 'Popularité' : opt === 'date' ? 'Date' : 'Titre'}
+                    {opt === 'popularity' ? 'Pop' : opt === 'date' ? 'Date' : 'A-Z'}
                     </button>
                 ))}
                 </div>
@@ -393,95 +226,26 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
         </div>
       )}
 
-      {/* 3. GRID RESULTS */}
+      {/* RESULTS GRID */}
       <div className="space-y-6">
         {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4">
-                <Loader2 size={40} className="animate-spin text-charcoal opacity-20" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-300">
-                    Synchronisation {mediaType === 'movie' ? 'TMDB' : 'Séries'}...
-                </p>
-            </div>
+            <div className="py-20 flex flex-col items-center justify-center gap-4"><Loader2 size={40} className="animate-spin text-charcoal dark:text-white opacity-20" /><p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-300 dark:text-stone-700">Synchronisation...</p></div>
         ) : items.length === 0 ? (
-            <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white rounded-[3rem] border border-stone-100 shadow-sm animate-[scaleIn_0.5s_ease-out]">
-              <div className="w-16 h-16 bg-stone-50 rounded-full flex items-center justify-center text-stone-300 mb-6">
-                 <Search size={24} />
-              </div>
-              <h3 className="font-black text-charcoal text-base mb-2">Aucun résultat</h3>
-              <p className="text-xs text-stone-500 max-w-[200px] leading-relaxed">
-                Essaye de modifier la période ou d'élargir tes critères de recherche.
-              </p>
-              <button 
-                onClick={() => { setTimePeriod('all_time'); setStreamingFilter('all'); setSearchQuery(''); }}
-                className="mt-8 text-[10px] font-black uppercase tracking-widest text-forest border-b-2 border-forest pb-1 active:scale-95 transition-transform"
-              >
-                Réinitialiser tout
-              </button>
-            </div>
+            <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all"><div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6"><Search size={24} /></div><h3 className="font-black text-charcoal dark:text-white text-base mb-2">Aucun résultat</h3><p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">Essaye d'élargir tes critères.</p></div>
         ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-                {items.map(item => {
-                    const title = item.title || item.name || 'Titre inconnu';
-                    const dateStr = item.release_date || item.first_air_date;
-                    
-                    return (
-                        <div key={item.id} onClick={() => { haptics.medium(); onPreview(item.id, mediaType); }} className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer">
-                            <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl group-hover:-translate-y-1 transition-all duration-500 bg-stone-100">
-                                {item.poster_path ? (
-                                    <img src={`${TMDB_IMAGE_URL}${item.poster_path}`} className="w-full h-full object-cover" alt={title} loading="lazy" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-stone-200 text-stone-400">
-                                        <Film size={24} />
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                
-                                {/* Badge Intelligent */}
-                                <div className="absolute top-3 left-3 z-10">
-                                    <StreamingBadge 
-                                        mediaId={item.id} 
-                                        mediaType={mediaType} 
-                                        releaseDate={dateStr} 
-                                    />
-                                </div>
-
-                                {/* Action Button (visible on hover) */}
-                                <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            haptics.medium();
-                                            onSelectMovie(item.id, mediaType);
-                                        }}
-                                        className="w-10 h-10 bg-forest text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
-                                    >
-                                        <Plus size={20} strokeWidth={3} />
-                                    </button>
-                                </div>
-
-                                {item.vote_average > 0 && (
-                                    <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1">
-                                        <Star size={10} fill="currentColor" className="text-white" />
-                                        <span className="text-[10px] font-black text-white">{item.vote_average.toFixed(1)}</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="px-1">
-                                <h4 className="text-sm font-black text-charcoal leading-tight line-clamp-2 mb-1 group-hover:text-forest transition-colors">{title}</h4>
-                                <p className="text-xs text-stone-500 mb-1 font-semibold">
-                                    {dateStr 
-                                        ? new Date(dateStr).toLocaleDateString('fr-FR', { 
-                                            day: '2-digit', 
-                                            month: 'short', 
-                                            year: 'numeric' 
-                                        })
-                                        : 'Prochainement'
-                                    }
-                                </p>
-                            </div>
+                {items.map(item => (
+                    <div key={item.id} onClick={() => { haptics.medium(); onPreview(item.id, mediaType); }} className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer">
+                        <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-black/20 group-hover:shadow-xl dark:group-hover:shadow-black/40 group-hover:-translate-y-1 transition-all duration-500 bg-stone-100 dark:bg-[#161616]">
+                            <img src={`${TMDB_IMAGE_URL}${item.poster_path}`} className="w-full h-full object-cover" alt="" loading="lazy" />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="absolute top-3 left-3 z-10"><StreamingBadge mediaId={item.id} mediaType={mediaType} releaseDate={item.release_date || item.first_air_date} /></div>
+                            <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0"><button onClick={(e) => { e.stopPropagation(); haptics.medium(); onSelectMovie(item.id, mediaType); }} className="w-10 h-10 bg-forest dark:bg-lime-500 text-white dark:text-black rounded-full flex items-center justify-center shadow-lg"><Plus size={20} strokeWidth={3} /></button></div>
+                            {item.vote_average > 0 && <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-[10px] font-black text-white"><Star size={10} fill="currentColor" /> {item.vote_average.toFixed(1)}</div>}
                         </div>
-                    );
-                })}
+                        <div className="px-1"><h4 className="text-sm font-black text-charcoal dark:text-white leading-tight line-clamp-2 mb-1 group-hover:text-forest dark:group-hover:text-lime-500 transition-colors">{item.title || item.name}</h4><p className="text-xs text-stone-500 dark:text-stone-600 font-semibold">{(item.release_date || item.first_air_date)?.split('-')[0]}</p></div>
+                    </div>
+                ))}
             </div>
         )}
       </div>

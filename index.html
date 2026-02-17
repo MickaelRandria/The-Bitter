@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
   <head>
@@ -24,6 +23,7 @@
     
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -40,6 +40,9 @@
             borderRadius: {
               '4xl': '2.5rem',
               '5xl': '3.5rem',
+            },
+            boxShadow: {
+              'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
             }
           }
         }
@@ -58,6 +61,12 @@
         font-family: 'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      
+      html.dark body {
+        background-color: #0c0c0c;
+        color: #FFFFFF;
       }
       
       .grain-overlay {
@@ -67,7 +76,7 @@
         pointer-events: none;
         z-index: 100;
         will-change: auto;
-        transform: translateZ(0); /* Force GPU layer */
+        transform: translateZ(0);
       }
 
       .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -87,11 +96,17 @@
         border: 2px solid #D9FF00;
         margin-top: -8px;
       }
+      .dark input[type="range"]::-webkit-slider-thumb {
+        background: #FFFFFF;
+      }
       input[type="range"]::-webkit-slider-runnable-track {
         width: 100%;
         height: 8px;
         background: rgba(0,0,0,0.05);
         border-radius: 10px;
+      }
+      .dark input[type="range"]::-webkit-slider-runnable-track {
+        background: rgba(255,255,255,0.1);
       }
 
       @keyframes slideUp {

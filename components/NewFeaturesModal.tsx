@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3 } from 'lucide-react';
+import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3, Moon, Sun } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
@@ -35,31 +35,34 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-10">
           
-          {/* STEP 0: ANALYTICS / MES NOTES FOCUS */}
+          {/* STEP 0: DARK MODE */}
           {step === 0 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
-                  <BarChart3 size={12} />
-                  Mise à jour v0.76
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
+                  <Moon size={12} />
+                  Mise à jour v0.76.2
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  VOS NOTES<br />
-                  <span className="text-[#a3e635]">DÉCODÉES.</span>
+                  MODE<br />
+                  <span className="text-stone-500">SOMBRE.</span>
                 </h2>
                 
                 {/* Visual Block */}
-                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#a3e635]/20 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                    <div className="w-20 h-20 bg-[#a3e635] rounded-3xl flex items-center justify-center text-black mb-6 mx-auto shadow-2xl shadow-[#a3e635]/30 rotate-3">
-                      <Scale size={40} strokeWidth={2.5} />
+                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl relative">
+                      <Moon size={32} strokeWidth={2} />
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-forest rounded-full border-2 border-[#0c0c0c]" />
                     </div>
                     <p className="text-stone-300 text-sm font-medium leading-relaxed">
-                      Le nouvel onglet <b>Mes Notes</b> compare votre sévérité à la moyenne mondiale (TMDB) et analyse vos biais cognitifs.
+                      L'interface s'adapte à votre environnement. Activez le mode sombre directement depuis le <b>Header</b> en haut à droite.
                     </p>
-                    <p className="text-stone-500 text-xs font-bold uppercase tracking-widest mt-4">
-                      Comparatif Mondial • Corrélations
-                    </p>
+                    <div className="flex justify-center gap-2 mt-6 opacity-60">
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black shadow-lg"><Sun size={14} /></div>
+                        <ArrowRight size={14} className="text-stone-600 self-center" />
+                        <div className="w-8 h-8 rounded-full bg-black border border-white/20 flex items-center justify-center text-white shadow-lg"><Moon size={14} /></div>
+                    </div>
                 </div>
               </div>
 

@@ -131,7 +131,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                   </div>
                   <div className="flex-1 pt-2">
                      <h2 className="text-2xl font-black text-charcoal leading-tight mb-1 line-clamp-2">{title}</h2>
-                     <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
+                     <p className="text-xs font-bold text-stone-400 dark:text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
                         {year} • {director}
                      </p>
                      <div className="flex items-center gap-2 flex-wrap">
@@ -140,13 +140,13 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                            {movie.vote_average.toFixed(1)}
                         </div>
                         {runtime ? (
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 border border-stone-200">
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
                                 <Clock size={8} />
                                 {runtime} min
                             </div>
                         ) : null}
                         {mediaType === 'tv' && movie.number_of_seasons && (
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 border border-stone-200">
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
                                 <Tv size={8} />
                                 {movie.number_of_seasons} S
                             </div>
@@ -158,7 +158,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                {/* Providers */}
                {providers.length > 0 && (
                  <div className="mb-8">
-                   <h3 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-3">Disponible sur</h3>
+                   <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">Disponible sur</h3>
                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                      {providers.map(p => (
                        <div key={p.provider_name} className="flex items-center gap-2 bg-white border border-stone-100 pr-3 rounded-xl p-1 shadow-sm">
@@ -172,15 +172,15 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
 
                {/* Synopsis */}
                <div className="mb-8">
-                 <h3 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-3">Synopsis</h3>
-                 <p className="text-sm font-medium text-stone-600 leading-relaxed">
+                 <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">Synopsis</h3>
+                 <p className="text-sm font-medium text-stone-600 dark:text-stone-300 leading-relaxed">
                    {movie.overview || "Aucun résumé disponible."}
                  </p>
                </div>
 
                {/* Cast */}
                <div className="mb-8">
-                 <h3 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-3">Distribution</h3>
+                 <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">Distribution</h3>
                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
                     {cast.map(person => (
                       <div key={person.name} className="w-16 shrink-0 flex flex-col gap-1">
@@ -192,7 +192,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                             )}
                          </div>
                          <p className="text-[9px] font-bold text-charcoal leading-tight truncate">{person.name}</p>
-                         <p className="text-[8px] font-medium text-stone-400 truncate">{person.character}</p>
+                         <p className="text-[8px] font-medium text-stone-400 dark:text-stone-500 truncate">{person.character}</p>
                       </div>
                     ))}
                  </div>

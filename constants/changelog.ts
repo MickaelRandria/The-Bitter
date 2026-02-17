@@ -14,6 +14,15 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.76.2',
+    date: 'Aujourd\'hui',
+    title: 'Obscurité & Identité',
+    changes: [
+      { type: 'style', text: 'Mode Sombre : Activez le thème sombre directement depuis le header pour vos séances nocturnes.' },
+      { type: 'feature', text: 'Archétypes Dynamiques : Le système a été retravaillé pour accorder à chacun son profil précisément en fonction des notes et ressentis.' }
+    ]
+  },
+  {
     version: 'v0.76',
     date: '14 Février 2026',
     title: 'Améliorations & Expérience',
@@ -31,7 +40,7 @@ export const RELEASE_HISTORY: Release[] = [
   },
   {
     version: 'v0.75.5',
-    date: 'Aujourd\'hui',
+    date: '12 Février 2026',
     title: 'Restructuration Analytics',
     changes: [
       { type: 'style', text: '📑 Navigation Repensée : "Mon Profil" (ex-Overview), "Mes Goûts" (ex-Notes) et "Mon ADN" (ex-Psycho).' },

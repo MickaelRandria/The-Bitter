@@ -78,8 +78,9 @@ export interface UserProfile {
   createdAt: number;
   seenTutorials?: string[];
   severityIndex?: number;
-  patienceLevel?: number;
+  patienceLevel?: number; // Used as Rhythm Index in V2 Logic
   favoriteGenres?: string[];
+  depthIndex?: number; // Optional: inferred from genres
   isOnboarded?: boolean;
   role?: string;
   joinedSpaceIds?: string[];
