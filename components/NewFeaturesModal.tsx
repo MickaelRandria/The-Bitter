@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3, Moon, Sun } from 'lucide-react';
+import { ArrowRight, Globe, Users, Merge, Sparkles, Instagram, Share2, EyeOff, Scale, BarChart3, Moon, Sun, Radar } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface NewFeaturesModalProps {
@@ -35,33 +35,45 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-10">
           
-          {/* STEP 0: DARK MODE */}
+          {/* STEP 0: ANALYTICS V0.78 */}
           {step === 0 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Moon size={12} />
-                  Mise à jour v0.76.2
+                  <BarChart3 size={12} />
+                  Mise à jour v0.78
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  MODE<br />
-                  <span className="text-stone-500">SOMBRE.</span>
+                  ANALYSE<br />
+                  <span className="text-bitter-lime">VISUELLE.</span>
                 </h2>
                 
                 {/* Visual Block */}
                 <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                    <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl relative">
-                      <Moon size={32} strokeWidth={2} />
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-forest rounded-full border-2 border-[#0c0c0c]" />
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-6 mx-auto shadow-2xl relative">
+                      <Radar size={32} strokeWidth={2} />
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-bitter-lime rounded-full border-2 border-[#0c0c0c]" />
                     </div>
                     <p className="text-stone-300 text-sm font-medium leading-relaxed">
-                      L'interface s'adapte à votre environnement. Activez le mode sombre directement depuis le <b>Header</b> en haut à droite.
+                      Découvrez votre <b>Radar ADN</b> et la <b>Distribution</b> de vos notes. Une vision macro de votre identité de cinéphile.
                     </p>
-                    <div className="flex justify-center gap-2 mt-6 opacity-60">
-                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black shadow-lg"><Sun size={14} /></div>
-                        <ArrowRight size={14} className="text-stone-600 self-center" />
-                        <div className="w-8 h-8 rounded-full bg-black border border-white/20 flex items-center justify-center text-white shadow-lg"><Moon size={14} /></div>
+                    <div className="flex justify-center gap-3 mt-6">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="w-12 h-8 bg-white/5 rounded-lg flex items-end justify-center gap-0.5 p-1 border border-white/10">
+                            <div className="w-1.5 h-2 bg-orange-400 rounded-t-sm" />
+                            <div className="w-1.5 h-4 bg-stone-500 rounded-t-sm" />
+                            <div className="w-1.5 h-6 bg-bitter-lime rounded-t-sm" />
+                          </div>
+                          <span className="text-[7px] font-black uppercase text-stone-500">Distribution</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 self-center" />
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="w-12 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10">
+                            <Radar size={14} className="text-bitter-lime" />
+                          </div>
+                          <span className="text-[7px] font-black uppercase text-stone-500">Radar ADN</span>
+                        </div>
                     </div>
                 </div>
               </div>
@@ -179,9 +191,9 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
           <div className="mt-8 shrink-0 flex flex-col items-center gap-6 pb-4 sm:pb-0">
             {/* Dots Indicator */}
             <div className="flex justify-center gap-2">
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-bitter-lime w-6' : 'bg-white/20'}`} />
               <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-pink-500 w-6' : 'bg-white/20'}`} />
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-[#a3e635] w-6' : 'bg-white/20'}`} />
+              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-bitter-lime w-6' : 'bg-white/20'}`} />
             </div>
 
             {/* Opt-out discrete button */}

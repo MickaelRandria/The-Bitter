@@ -14,6 +14,16 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.78',
+    date: 'Aujourd\'hui',
+    title: 'Visualisation & ADN',
+    changes: [
+      { type: 'feature', text: 'Distribution des Notes : Nouvel histogramme de tes moyennes globales par film, coloré par sévérité (orange ≤ 3 · gris 4-7 · vert ≥ 8).' },
+      { type: 'feature', text: 'Radar Chart ADN : Tes vibes (Cérébral, Tension, Fun, Visuel, Émotion) sont désormais visualisées via un graphique en toile d\'araignée (pentagone) pour un profil psychologique immédiat.' },
+      { type: 'style', text: 'Résumé de Sévérité : Comptage rapide Sévère / Moyen / Généreux ajouté en pied de bloc Distribution.' }
+    ]
+  },
+  {
     version: 'v0.77',
     date: 'Aujourd\'hui',
     title: 'Fluidité & Sécurité',
