@@ -159,7 +159,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         if (searchType === 'tv') return { ...item, title: item.name, release_date: item.first_air_date };
         return item;
       });
-      setSearchResults(normalizedResults.slice(0, 5));
+      
+      // Deduplicate results by ID
+      const uniqueResults = Array.from(new Map(normalizedResults.map((m: any) => [m.id, m])).values());
+      setSearchResults(uniqueResults.slice(0, 5));
     } catch (e) { console.error(e); setSearchResults([]); } finally { setIsSearching(false); }
   };
 
@@ -244,8 +247,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md rounded-t-[3.5rem] sm:rounded-[3.5rem] shadow-2xl dark:shadow-black/60 relative z-10 max-h-[92vh] flex flex-col animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t dark:border-white/10 sm:border dark:border-white/10 transition-colors">
+      <div className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300" onClick={onClose} />
+      <div className="bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md rounded-t-[3.5rem] sm:rounded-[3.5rem] shadow-2xl dark:shadow-black/60 relative z-10 max-h-[92vh] flex flex-col animate-[springSlideUp_0.5s_cubic-bezier(0.175,0.885,0.32,1.1)] border-t dark:border-white/10 sm:border dark:border-white/10 transition-colors will-change-transform">
+        <style>{`
+          @keyframes springSlideUp {
+            0% { transform: translateY(100%) scale(0.95); opacity: 0; }
+            50% { transform: translateY(-2%) scale(1.02); opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+          }
+        `}</style>
         
         <div className="flex justify-between items-center p-8 border-b border-black/5 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shrink-0 transition-colors">
           <div className="min-w-0">

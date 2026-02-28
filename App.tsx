@@ -10,8 +10,9 @@ import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
 import AuthScreen from './components/AuthScreen';
-import TutorialOverlay from './components/TutorialOverlay';
 import ThemeToggle from './components/ThemeToggle';
+import { ContextualTooltip } from './components/ContextualTooltip';
+import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -32,29 +33,31 @@ type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
 
-const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen, feedTab, setInitialStatusForAdd }: { 
+const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen, feedTab, setInitialStatusForAdd, movieCount }: { 
   viewMode: ViewMode, 
   setViewMode: (v: ViewMode) => void,
   setIsModalOpen: (o: boolean) => void,
   feedTab: FeedTab,
-  setInitialStatusForAdd: (s: MovieStatus) => void
+  setInitialStatusForAdd: (s: MovieStatus) => void,
+  movieCount: number
 }) => {
-    if (viewMode === 'SharedSpace') return null;
+    const navItemClass = (isActive: boolean) => `p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm opacity-100 scale-105' : 'text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100'}`;
+
     return (
-        <nav 
+        <nav
           className="fixed left-6 right-6 z-50 max-w-sm mx-auto"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
         >
             <div className="bg-white/95 dark:bg-black/95 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center transition-colors" style={{ willChange: 'transform' }}>
-            <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Feed' ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm' : 'text-stone-300 dark:text-stone-600'}`}><LayoutGrid size={22} /></button>
-            <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Discover' ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm' : 'text-stone-300 dark:text-stone-600'}`}><Clapperboard size={22} /></button>
-            <button onClick={() => { 
-              haptics.medium(); 
+            <button onClick={() => { haptics.soft(); setViewMode('Feed'); }} className={navItemClass(viewMode === 'Feed')}><LayoutGrid size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Discover'); }} className={navItemClass(viewMode === 'Discover')}><Clapperboard size={22} /></button>
+            <button onClick={() => {
+              haptics.medium();
               setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
-              setIsModalOpen(true); 
-            }} className="bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150"><Plus size={24} strokeWidth={3} /></button>
-            <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Analytics' ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm' : 'text-stone-300 dark:text-stone-600'}`}><PieChart size={22} /></button>
-            <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={`p-3 rounded-full transition-colors duration-200 ${viewMode === 'Calendar' ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm' : 'text-stone-300 dark:text-stone-600'}`}><CalendarDays size={22} /></button>
+              setIsModalOpen(true);
+            }} className={`bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}><Plus size={24} strokeWidth={3} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Analytics'); }} className={navItemClass(viewMode === 'Analytics')}><PieChart size={22} /></button>
+            <button onClick={() => { haptics.soft(); setViewMode('Calendar'); }} className={navItemClass(viewMode === 'Calendar')}><CalendarDays size={22} /></button>
             </div>
         </nav>
     );
@@ -63,7 +66,8 @@ const BottomNav = memo(({ viewMode, setViewMode, setIsModalOpen, feedTab, setIni
 const App: React.FC = () => {
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
-  const NEVER_SHOW_V0_73_KEY = 'the_bitter_never_show_v076';
+  const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';
+  const SEEN_TOOLTIPS_KEY = 'the_bitter_seen_tooltips';
 
   const [session, setSession] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -96,13 +100,12 @@ const App: React.FC = () => {
   const [showCineAssistant, setShowCineAssistant] = useState(false);
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
   const [showNewFeatures, setShowNewFeatures] = useState(false);
-  const TUTORIAL_DONE_KEY = 'the_bitter_tutorial_done';
-  const [showTutorial, setShowTutorial] = useState(false);
-  const pendingTutorialRef = useRef(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; timeoutId: ReturnType<typeof setTimeout> } | null>(null);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
+  const [activeTooltip, setActiveTooltip] = useState<{id: string, title: string, content: React.ReactNode} | null>(null);
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
 
@@ -128,9 +131,18 @@ const App: React.FC = () => {
         localStorage.removeItem(LAST_PROFILE_ID_KEY);
       }
     }
-    const neverShowAgain = localStorage.getItem(NEVER_SHOW_V0_73_KEY);
-    if (neverShowAgain !== 'true') {
+    const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+    if (lastSeenVersion !== RELEASE_HISTORY[0].version) {
         setShowNewFeatures(true);
+    }
+    
+    const savedTooltips = localStorage.getItem(SEEN_TOOLTIPS_KEY);
+    if (savedTooltips) {
+      try {
+        setSeenTooltips(JSON.parse(savedTooltips));
+      } catch (e) {
+        console.error("Error loading tooltips", e);
+      }
     }
   }, []);
 
@@ -147,11 +159,8 @@ const App: React.FC = () => {
   }, [profiles]);
 
   useEffect(() => {
-    if (viewMode === 'Feed' && pendingTutorialRef.current) {
-        pendingTutorialRef.current = false;
-        setTimeout(() => setShowTutorial(true), 500);
-    }
-  }, [viewMode]);
+    localStorage.setItem(SEEN_TOOLTIPS_KEY, JSON.stringify(seenTooltips));
+  }, [seenTooltips]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -160,11 +169,38 @@ const App: React.FC = () => {
     }
   }, [toastMessage]);
 
-  const handleTutorialComplete = () => {
-    setShowTutorial(false);
-    localStorage.setItem(TUTORIAL_DONE_KEY, 'true');
-    haptics.success();
+  // Tooltip Logic
+  const showTooltip = (id: string, title: string, content: React.ReactNode) => {
+    if (!seenTooltips.includes(id)) {
+      setActiveTooltip({ id, title, content });
+    }
   };
+
+  const dismissTooltip = () => {
+    if (activeTooltip) {
+      setSeenTooltips(prev => [...prev, activeTooltip.id]);
+      setActiveTooltip(null);
+    }
+  };
+
+  // Trigger tooltips based on viewMode
+  useEffect(() => {
+    if (!activeProfile) return;
+
+    if (viewMode === 'Analytics' && !seenTooltips.includes('analytics_intro')) {
+      showTooltip('analytics_intro', 'Statistiques', 'Découvre ton archétype cinéphile, tes genres favoris et ta sévérité comparée au reste du monde.');
+    } else if (viewMode === 'Calendar' && !seenTooltips.includes('calendar_intro')) {
+      showTooltip('calendar_intro', 'Calendrier', 'Visualise ton historique de visionnage mois par mois. Chaque point correspond à un film vu.');
+    } else if (viewMode === 'Discover' && !seenTooltips.includes('discover_intro')) {
+      showTooltip('discover_intro', 'Explorateur', 'Parcours les sorties par période et plateforme. Appuie sur une affiche pour voir les détails.');
+    } else if (viewMode === 'Feed' && activeProfile.movies.length > 0 && !seenTooltips.includes('feed_intro')) {
+      // Delay feed intro slightly
+      const timer = setTimeout(() => {
+        showTooltip('feed_intro', 'Ta Collection', 'Glisse une carte vers la gauche pour supprimer, vers la droite pour éditer. Utilise le bouton + pour ajouter.');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode, activeProfile, seenTooltips]);
 
   const loadOrCreateProfile = async (user: any) => {
     if (!supabase) return;
@@ -305,19 +341,11 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  useEffect(() => {
-    if (activeProfile && !showWelcome && !activeProfile.isOnboarded) {
-      setShowCalibration(true);
-    }
-  }, [activeProfile, showWelcome]);
-
   const handleCompleteCalibration = (data: { name: string; severityIndex: number; patienceLevel: number; favoriteGenres: string[]; role: string }) => {
     if (!activeProfileId) return;
     setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, firstName: data.name, severityIndex: data.severityIndex, patienceLevel: data.patienceLevel, favoriteGenres: data.favoriteGenres, role: data.role, isOnboarded: true } : p));
     setShowCalibration(false);
     setViewMode('Deck');
-    const tutorialDone = localStorage.getItem(TUTORIAL_DONE_KEY);
-    if (tutorialDone !== 'true') pendingTutorialRef.current = true;
     haptics.success();
   };
 
@@ -385,10 +413,16 @@ const App: React.FC = () => {
     return [...new Set(activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').map(m => m.genre).filter(Boolean))];
   }, [activeProfile]);
 
+  const uniqueMovies = useMemo(() => {
+    if (!activeProfile) return [];
+    return Array.from(new Map(activeProfile.movies.map(m => [m.id, m])).values());
+  }, [activeProfile]);
+
   const filteredAndSortedMovies = useMemo(() => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
-    return activeProfile.movies
+    
+    return uniqueMovies
       .filter(m => {
         if ((m.status || 'watched') !== targetStatus) return false;
         if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter) return false;
@@ -407,7 +441,7 @@ const App: React.FC = () => {
         }
         return 0;
       });
-  }, [activeProfile, sortBy, debouncedSearch, feedTab, watchlistGenreFilter]);
+  }, [uniqueMovies, sortBy, debouncedSearch, feedTab, watchlistGenreFilter]);
 
   const handleTonightPick = () => {
     if (!activeProfile) return;
@@ -499,11 +533,16 @@ const App: React.FC = () => {
                 <button onClick={() => { haptics.soft(); setShowChangelog(true); }} className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-forest transition-colors text-left mt-1.5">{RELEASE_HISTORY[0].version} • Notes</button>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
+                {isGuestMode && (
+                  <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-stone-100 dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-white/5">
+                    Invité
+                  </span>
+                )}
                 <ThemeToggle />
-                <button 
-                onClick={() => { 
-                    if (!session) { alert("Compte requis."); return; }
-                    setShowSharedSpaces(true); 
+                <button
+                onClick={() => {
+                    if (!session) { setToastMessage("Connecte-toi pour accéder aux espaces partagés"); return; }
+                    setShowSharedSpaces(true);
                 }} 
                 className={`relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all ${!session ? 'bg-stone-50 dark:bg-stone-900 border-stone-100 dark:border-stone-800 text-stone-300' : 'bg-white dark:bg-[#1a1a1a] border-sand dark:border-white/10 text-charcoal dark:text-white'}`}
                 >
@@ -526,28 +565,52 @@ const App: React.FC = () => {
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
                 <SharedSpaceView space={activeSharedSpace} currentUserId={session?.user?.id || activeProfile?.id || ''} onBack={handleBackToFeed} onAddMovie={() => setIsModalOpen(true)} refreshTrigger={sharedSpaceRefreshTrigger} />
           ) : viewMode === 'Analytics' ? (
-            <AnalyticsView movies={activeProfile?.movies.filter(m => m.status === 'watched') || []} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
+            <AnalyticsView movies={uniqueMovies.filter(m => m.status === 'watched')} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
           ) : viewMode === 'Discover' ? (
             <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} userProfile={activeProfile} />
           ) : viewMode === 'Calendar' ? (
-            <CalendarView movies={activeProfile?.movies || []} />
+            <CalendarView movies={uniqueMovies} />
           ) : viewMode === 'Deck' ? (
             <MovieDeck onRate={(id) => { setTmdbIdToLoad(id); setMediaTypeToLoad('movie'); setIsModalOpen(true); }} onClose={() => setViewMode('Feed')} favoriteGenres={activeProfile?.favoriteGenres} advanceTrigger={deckAdvanceTrigger} />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {(!activeProfile || activeProfile.movies.length === 0) ? (
-                 <div className="flex flex-col items-center justify-center py-24 text-center">
-                      <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all"><Film size={40} /></div>
+                 <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce"><Film size={40} /></div>
                       <h2 className="text-2xl font-black mb-3 tracking-tighter">Démarrez votre collection</h2>
                       <p className="text-stone-400 dark:text-stone-500 font-medium mb-10 max-w-xs mx-auto text-sm leading-relaxed">Ajoutez des films pour voir vos statistiques d'analyste.</p>
-                      <button onClick={() => setViewMode('Discover')} className="bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center gap-3 active:scale-95 transition-all"><Plus size={18} strokeWidth={3} /> Explorer</button>
+
+                      <div className="flex flex-col gap-3 w-full max-w-xs">
+                        <button onClick={() => setIsModalOpen(true)} className="bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"><Plus size={18} strokeWidth={3} /> Ajouter un film</button>
+                        <button onClick={() => setViewMode('Discover')} className="bg-stone-100 dark:bg-[#1a1a1a] text-charcoal dark:text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest border border-stone-200 dark:border-white/5 flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"><Clapperboard size={18} /> Explorer</button>
+                      </div>
                  </div>
               ) : (
                  <div className="space-y-10">
-                    <div className="flex justify-center w-full">
-                      <div className="bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
-                          <button onClick={() => { haptics.soft(); setFeedTab('history'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'history' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md scale-[1.02]' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}>Vu</button>
-                          <button onClick={() => { haptics.soft(); setFeedTab('queue'); }} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${feedTab === 'queue' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md scale-[1.02]' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}>À voir</button>
+                    {activeProfile && (
+                      <ProfileCompletionWidget 
+                        profile={activeProfile} 
+                        onCompleteProfile={() => setShowCalibration(true)} 
+                      />
+                    )}
+                    <div className="flex justify-center w-full mb-2">
+                      <div className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
+                        <div 
+                          className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-[#2a2a2a] rounded-full shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                          style={{ transform: feedTab === 'history' ? 'translateX(0)' : 'translateX(100%)' }}
+                        />
+                        <button 
+                          onClick={() => { haptics.soft(); setFeedTab('history'); }} 
+                          className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'history' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
+                        >
+                          Vu
+                        </button>
+                        <button 
+                          onClick={() => { haptics.soft(); setFeedTab('queue'); }} 
+                          className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'queue' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
+                        >
+                          À voir
+                        </button>
                       </div>
                     </div>
                     {feedTab === 'queue' && activeProfile && activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').length > 0 && (
@@ -568,13 +631,37 @@ const App: React.FC = () => {
                         )}
                       </div>
                     )}
-                    <div className="relative group">
-                      <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 dark:text-stone-700 group-focus-within:text-charcoal dark:group-focus-within:text-white transition-colors" />
-                      <input type="text" placeholder="Rechercher..." className="w-full bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/5 p-5 pl-14 rounded-2xl font-black text-sm outline-none focus:border-stone-200 shadow-sm transition-all text-charcoal dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                    </div>
-                    <div className="flex items-center justify-between border-b border-sand dark:border-white/5 pb-4">
-                       <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">{feedTab === 'history' ? 'Films Vus' : 'À Voir'} ({filteredAndSortedMovies.length})</h2>
-                       <div className="flex items-center gap-2"><SlidersHorizontal size={12} className="text-stone-300" /><select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-[10px] font-black uppercase text-charcoal dark:text-white outline-none cursor-pointer tracking-widest"><option value="Date">Récents</option>{feedTab === 'history' && <option value="Rating">Note</option>}<option value="Year">Année</option><option value="Title">A-Z</option></select></div>
+                    
+                    <div className="space-y-3 border-b border-sand dark:border-white/5 pb-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
+                          {feedTab === 'history' ? 'Films Vus' : 'À Voir'} ({filteredAndSortedMovies.length})
+                        </h2>
+                        <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-[#1a1a1a] px-3 py-2 rounded-full shrink-0">
+                          <SlidersHorizontal size={12} className="text-stone-400" />
+                          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent text-[10px] font-bold uppercase text-charcoal dark:text-white outline-none cursor-pointer tracking-widest appearance-none pr-1">
+                            <option value="Date">Récents</option>
+                            {feedTab === 'history' && <option value="Rating">Note</option>}
+                            <option value="Year">Année</option>
+                            <option value="Title">A-Z</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                        <input
+                          type="text"
+                          placeholder="Rechercher un film, un réalisateur..."
+                          className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-2.5 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-charcoal dark:hover:text-white">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} />))}</div>
                  </div>
@@ -584,7 +671,7 @@ const App: React.FC = () => {
         </Suspense>
       </main>
 
-      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} feedTab={feedTab} setInitialStatusForAdd={setInitialStatusForAdd} />
+      <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} feedTab={feedTab} setInitialStatusForAdd={setInitialStatusForAdd} movieCount={activeProfile?.movies.length || 0} />
 
       {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
         <button onClick={() => setShowCineAssistant(true)} className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group overflow-hidden">
@@ -610,8 +697,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {toastMessage && !pendingDelete && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+      {toastMessage && (
+        <div className={`fixed left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] ${pendingDelete ? 'bottom-44' : 'bottom-28'}`}>
           <div className="bg-charcoal dark:bg-forest text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-white/10">
             <Check size={12} strokeWidth={3} />
             <span className="text-sm font-bold tracking-tight">{toastMessage}</span>
@@ -620,75 +707,15 @@ const App: React.FC = () => {
       )}
 
       <Suspense fallback={<div className="fixed inset-0 z-[200] bg-charcoal/20 backdrop-blur-sm flex items-center justify-center"><Loader2 className="animate-spin text-white" size={48} /></div>}>
-        {showTutorial && <TutorialOverlay steps={[
-          {
-            title: "Bienvenue sur The Bitter",
-            icon: <Film size={24} />,
-            desc: "Ton journal de cinéma personnel. Note chaque film que tu regardes, suis tes tendances et découvre ton profil de cinéphile. Tout se passe ici.",
-          },
-          {
-            title: "Ta Collection",
-            icon: <LayoutGrid size={24} />,
-            desc: (
-              <span>
-                L'onglet <strong>Vu</strong> liste tes films notés, l'onglet <strong>À voir</strong> ta watchlist. Glisse une carte vers la gauche pour la supprimer, vers la droite pour l'éditer rapidement.
-              </span>
-            ),
-          },
-          {
-            title: "Ajouter un Film",
-            icon: <Plus size={24} />,
-            highlight: true,
-            desc: (
-              <span>
-                Le bouton <strong>+</strong> au centre de la barre ouvre le formulaire. Cherche ton film, il se remplit automatiquement via TMDB. Active l'<strong>Analyse Bitter</strong> pour noter les vibes et les critères détaillés — c'est ça qui alimente tes stats.
-              </span>
-            ),
-          },
-          {
-            title: "Explore & Découvre",
-            icon: <Clapperboard size={24} />,
-            desc: (
-              <span>
-                La vue <strong>Explorateur</strong> te permet de parcourir les sorties par période et par plateforme de streaming. Appuie sur une affiche pour voir la fiche complète avant de l'ajouter.
-              </span>
-            ),
-          },
-          {
-            title: "Tes Statistiques",
-            icon: <PieChart size={24} />,
-            desc: (
-              <span>
-                Après <strong>5 films notés</strong>, l'onglet Analytics se déverrouille. Tu y trouveras ton archétype cinéphile, tes genres dominants, ton palmarès personnel et ta sévérité comparée au reste du monde.
-              </span>
-            ),
-          },
-          {
-            title: "Ton Calendrier",
-            icon: <CalendarDays size={24} />,
-            desc: "Visualise ton historique de visionnage mois par mois. Chaque point sur le calendrier correspond à un film vu ce jour-là. Clique sur une date pour voir le détail de ta séance.",
-          },
-          {
-            title: "Ton Profil",
-            icon: <User size={24} />,
-            desc: (
-              <span>
-                L'<strong>avatar en haut à droite</strong> ouvre ta page profil. Tu y retrouves ton archétype (provisoire ou confirmé), tes stats clés, tes genres favoris et tes indices de calibration. C'est aussi là que tu peux recalibrer ton profil ou changer de compte.
-              </span>
-            ),
-          },
-          {
-            title: "L'Assistant IA",
-            icon: <Sparkles size={24} />,
-            highlight: true,
-            desc: (
-              <span>
-                Le bouton <strong>✦</strong> en bas à droite de l'écran ouvre le CineAssistant. Il connaît tes goûts et peut te recommander des films sur mesure, directement ajoutables à ta watchlist.
-              </span>
-            ),
-          },
-        ]} onComplete={handleTutorialComplete} />}
-        {showNewFeatures && <NewFeaturesModal onClose={() => setShowNewFeatures(false)} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(NEVER_SHOW_V0_73_KEY, 'true'); }} />}
+        {activeTooltip && (
+          <ContextualTooltip
+            id={activeTooltip.id}
+            title={activeTooltip.title}
+            content={activeTooltip.content}
+            onDismiss={dismissTooltip}
+          />
+        )}
+        {showNewFeatures && <NewFeaturesModal onClose={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} />}
         {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} />}
         {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} />}
         {showChangelog && <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />}
@@ -710,11 +737,6 @@ const App: React.FC = () => {
             onRecalibrate={() => {
               setShowProfile(false);
               setShowCalibration(true);
-            }}
-            onShowTutorial={() => {
-              setShowProfile(false);
-              localStorage.removeItem(TUTORIAL_DONE_KEY);
-              setShowTutorial(true);
             }}
             onSignOut={handleSignOut}
           />

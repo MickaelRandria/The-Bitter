@@ -132,7 +132,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
       }
       const res = await fetch(url);
       const data = await res.json();
-      if (data.results) setItems(data.results.filter((m: any) => m.poster_path));
+      if (data.results) {
+        // Deduplicate results by ID
+        const uniqueResults = Array.from(new Map(data.results.map((m: any) => [m.id, m])).values());
+        setItems(uniqueResults.filter((m: any) => m.poster_path) as TMDBItem[]);
+      }
     } catch (error) { console.error("Discovery error", error); } finally { setLoading(false); }
   };
 

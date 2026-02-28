@@ -94,8 +94,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       getSpaceMembers(space.id),
       getSpaceMovieVotes(space.id)
     ]);
-    setMovies(moviesData);
-    setMembers(membersData);
+    
+    // Deduplicate movies and members
+    const uniqueMovies = Array.from(new Map(moviesData.map(m => [m.id, m])).values());
+    const uniqueMembers = Array.from(new Map(membersData.map(m => [m.id, m])).values());
+
+    setMovies(uniqueMovies);
+    setMembers(uniqueMembers);
     setVotes(votesData);
     setLoading(false);
   };

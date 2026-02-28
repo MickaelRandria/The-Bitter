@@ -44,6 +44,8 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  if (!movie?.ratings) return null;
+
   const globalRatingRaw = (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
   const globalRating = globalRatingRaw.toFixed(1);
   const hasPoster = !!movie.posterUrl;
@@ -83,7 +85,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
     if (!touchStartRef.current) return;
     
     if (swipeX < -SWIPE_THRESHOLD) {
-      setSwipeX(-SWIPE_THRESHOLD);
+      setSwipeX(-SWIPE_THRESHOLD - 20); // slight over-pull for spring effect
       setShowDeleteConfirm(true);
     } else if (swipeX > SWIPE_THRESHOLD) {
       setSwipeX(0);
@@ -111,6 +113,9 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
     setIsSwiping(false);
   };
 
+  const deleteProgress = Math.min(1, Math.max(0, -swipeX / SWIPE_THRESHOLD));
+  const editProgress = Math.min(1, Math.max(0, swipeX / SWIPE_THRESHOLD));
+
   const cardClasses = `
     relative rounded-[2.5rem] p-8 flex flex-col transition-[transform,box-shadow,height,background-color] duration-300 w-full overflow-hidden cursor-pointer group/card
     ${isExpanded ? 'shadow-2xl z-20 scale-[1.01] h-auto' : `shadow-lg hover:shadow-xl hover:-translate-y-2 ${baseHeight}`}
@@ -121,25 +126,29 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
     <div className="relative overflow-hidden rounded-[2.5rem]" ref={cardRef}>
       
       {/* Actions révélées */}
-      <div className="absolute inset-0 flex bg-stone-100 dark:bg-[#161616] rounded-[2.5rem] transition-colors">
+      <div className="absolute inset-0 flex rounded-[2.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616]">
+        {/* Edit Action (Left) */}
         <div 
-          className="flex items-center justify-center bg-white dark:bg-[#202020] border-r border-stone-100 dark:border-white/5"
-          style={{ width: SWIPE_THRESHOLD }}
+          className="absolute left-0 top-0 bottom-0 flex items-center justify-center bg-white dark:bg-[#202020] border-r border-stone-100 dark:border-white/5"
+          style={{ width: SWIPE_THRESHOLD, opacity: editProgress }}
         >
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1" style={{ transform: `scale(${0.5 + editProgress * 0.5})` }}>
             <Pencil size={20} className="text-charcoal dark:text-white" />
             <span className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">Éditer</span>
           </div>
         </div>
         
-        <div className="flex-1" />
-        
+        {/* Delete Action (Right) */}
         <div 
-          className={`flex items-center justify-center transition-colors ${showDeleteConfirm ? 'bg-red-600' : 'bg-red-500'}`}
-          style={{ width: SWIPE_THRESHOLD }}
+          className="absolute right-0 top-0 bottom-0 flex items-center justify-center transition-colors"
+          style={{ 
+            width: SWIPE_THRESHOLD + 20, // Match the over-pull
+            backgroundColor: showDeleteConfirm ? '#dc2626' : `rgba(239, 68, 68, ${deleteProgress})`,
+            opacity: deleteProgress > 0 ? 1 : 0
+          }}
           onClick={showDeleteConfirm ? handleConfirmDelete : undefined}
         >
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1" style={{ transform: `scale(${0.5 + deleteProgress * 0.5})` }}>
             <Trash2 size={20} className="text-white" />
             <span className="text-[8px] font-black uppercase tracking-widest text-white">
               {showDeleteConfirm ? 'Confirmer' : 'Supprimer'}
@@ -168,7 +177,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           transform: `translateX(${swipeX}px)`,
-          transition: isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: isSwiping ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1)', // Spring animation
           willChange: 'transform'
         }}
       >
@@ -308,6 +317,18 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
         {!isExpanded && (
           <div className="absolute bottom-8 right-8 opacity-20 dark:opacity-40 group-hover:translate-y-1 transition-all duration-300">
              <ChevronDown size={24} />
+          </div>
+        )}
+
+        {/* Swipe hint — visible uniquement si la carte n'a pas encore été swipée */}
+        {!isExpanded && swipeX === 0 && !showDeleteConfirm && (
+          <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${hasPoster ? 'bg-white/10 text-white/40' : 'bg-stone-100 dark:bg-white/5 text-stone-300 dark:text-stone-700'}`}>
+              <Pencil size={9} /> Éditer
+            </div>
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${hasPoster ? 'bg-red-500/20 text-red-400' : 'bg-red-50 dark:bg-red-500/10 text-red-300 dark:text-red-700'}`}>
+              Sup. <Trash2 size={9} />
+            </div>
           </div>
         )}
       </div>

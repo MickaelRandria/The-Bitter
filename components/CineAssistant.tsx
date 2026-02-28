@@ -79,7 +79,14 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-6">
       <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
       
-      <div className="relative bg-cream w-full sm:max-w-xl sm:rounded-[2.5rem] rounded-t-[3rem] shadow-2xl flex flex-col h-[85vh] sm:h-[650px] animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-white/20">
+      <div className="relative bg-cream w-full sm:max-w-xl sm:rounded-[2.5rem] rounded-t-[3rem] shadow-2xl flex flex-col h-[85vh] sm:h-[650px] animate-[springSlideUp_0.5s_cubic-bezier(0.175,0.885,0.32,1.1)] overflow-hidden border border-white/20 will-change-transform">
+        <style>{`
+          @keyframes springSlideUp {
+            0% { transform: translateY(100%) scale(0.95); opacity: 0; }
+            50% { transform: translateY(-2%) scale(1.02); opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+          }
+        `}</style>
         
         {/* Header */}
         <div className="p-6 border-b border-sand bg-white/80 backdrop-blur-md flex items-center justify-between shrink-0">
