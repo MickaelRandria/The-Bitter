@@ -16,227 +16,290 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   const globalRating = ((movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4).toFixed(1);
 
   const generateStoryImage = async (): Promise<string> => {
-    // Créer un canvas HTML5 natif
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) throw new Error('Canvas non supporté');
+  // --- CONSTANTES DE DESIGN ---
+  const CANVAS_W = 1080;
+  const CANVAS_H = 1920;
+  const MARGIN_X = 60;
+  const COLOR_PRIMARY = '#D9FF00';
+  const COLOR_TEXT = '#ffffff';
+  const COLOR_BG = '#000000';
 
-    // 1. FOND NOIR
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 1080, 1920);
+  // Créer un canvas HTML5 natif
+  const canvas = document.createElement('canvas');
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) throw new Error('Canvas non supporté');
 
-    // 2. CHARGER L'AFFICHE
-    if (movie.posterUrl) {
-      try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous'; 
+  // 1. FOND NOIR
+  ctx.fillStyle = COLOR_BG;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // 2. CHARGER L'AFFICHE
+  if (movie.posterUrl) {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous'; 
+      
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => {
+          console.warn('Affiche non chargée');
+          resolve();
+        };
+        const posterUrl = movie.posterUrl?.replace('w780', 'original');
+        if (posterUrl) img.src = posterUrl;
+        else resolve();
+      });
+
+      if (img.complete && img.naturalWidth > 0) {
+        const imgRatio = img.width / img.height;
+        const canvasRatio = CANVAS_W / CANVAS_H;
+        let drawWidth, drawHeight, offsetX, offsetY;
         
-        await new Promise<void>((resolve) => {
-          img.onload = () => resolve();
-          img.onerror = () => {
-            console.warn('Affiche non chargée');
-            resolve();
-          };
-          const posterUrl = movie.posterUrl?.replace('w780', 'original');
-          if (posterUrl) img.src = posterUrl;
-          else resolve();
-        });
-
-        if (img.complete && img.naturalWidth > 0) {
-          const imgRatio = img.width / img.height;
-          const canvasRatio = 1080 / 1920;
-          let drawWidth, drawHeight, offsetX, offsetY;
-          
-          if (imgRatio > canvasRatio) {
-            drawHeight = 1920;
-            drawWidth = img.width * (1920 / img.height);
-            offsetX = (1080 - drawWidth) / 2;
-            offsetY = 0;
-          } else {
-            drawWidth = 1080;
-            drawHeight = img.height * (1080 / img.width);
-            offsetX = 0;
-            offsetY = (1920 - drawHeight) / 2;
-          }
-          ctx.globalAlpha = 0.85;
-          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-          ctx.globalAlpha = 1.0;
+        if (imgRatio > canvasRatio) {
+          drawHeight = CANVAS_H;
+          drawWidth = img.width * (CANVAS_H / img.height);
+          offsetX = (CANVAS_W - drawWidth) / 2;
+          offsetY = 0;
+        } else {
+          drawWidth = CANVAS_W;
+          drawHeight = img.height * (CANVAS_W / img.width);
+          offsetX = 0;
+          offsetY = (CANVAS_H - drawHeight) / 2;
         }
-      } catch (err) {
-        console.warn('Erreur affiche:', err);
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+        ctx.globalAlpha = 1.0;
       }
+    } catch (err) {
+      console.warn('Erreur affiche:', err);
     }
+  }
 
-    // 3. GRADIENT OVERLAY
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.6)');
-    gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.2)');
-    gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.5)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
+  // 3. GRADIENT OVERLAY (Pour que le texte reste lisible)
+  const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.6)');
+  gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.2)');
+  gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.6)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // 4. CONFIGURATION TEXTE DE BASE
-    ctx.textBaseline = 'top';
+  // 4. CONFIGURATION TEXTE DE BASE
+  ctx.textBaseline = 'top';
 
-    // 5. TITRE DU FILM
-    ctx.fillStyle = '#ffffff';
-    let fontSize = 90;
-    const maxWidth = 960;
+  // 5. TITRE DU FILM
+  ctx.fillStyle = COLOR_TEXT;
+  let fontSize = 90;
+  const maxTextWidth = CANVAS_W - (MARGIN_X * 2);
+  ctx.font = `900 ${fontSize}px "Inter", sans-serif`;
+  
+  const words = movie.title.toUpperCase().split(' ');
+  let lines: string[] = [];
+  let currentLine = '';
+  
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxTextWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  
+  if (lines.length > 3) {
+    fontSize = 70;
     ctx.font = `900 ${fontSize}px "Inter", sans-serif`;
-    
-    const words = movie.title.toUpperCase().split(' ');
-    let lines: string[] = [];
-    let currentLine = '';
-    
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word;
-      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine = testLine;
-      }
-    }
-    if (currentLine) lines.push(currentLine);
-    
-    if (lines.length > 3) {
-      fontSize = 70;
-      ctx.font = `900 ${fontSize}px "Inter", sans-serif`;
-      lines = lines.slice(0, 3);
-      lines[2] = lines[2] + '...';
-    }
-    
-    const titleY = 1000; 
-    lines.forEach((line, i) => {
-      ctx.fillText(line, 60, titleY + (i * (fontSize + 10)));
-    });
+    lines = lines.slice(0, 3);
+    lines[2] = lines[2] + '...';
+  }
+  
+// --- NOUVEAU CALCUL DYNAMIQUE POUR TITLE Y ---
+  // On calcule la hauteur totale que va prendre le bloc (titre + marges + notes = environ 390px fixes)
+  const totalBlockHeight = (lines.length * (fontSize + 10)) + 390;
+  
+  // On part de la position du footer (CANVAS_H - 250 = 1670)
+  // On soustrait la hauteur du bloc, et on enlève 90px pour laisser une belle marge propre au-dessus du footer
+  const titleY = (CANVAS_H - 250) - totalBlockHeight - 90; 
 
-    // 6. BADGE GENRE
-    const genreY = titleY + (lines.length * (fontSize + 10)) + 20;
-    const genreText = movie.genre.toUpperCase();
-    
-    ctx.font = '800 24px "Inter", sans-serif';
-    const genreWidth = ctx.measureText(genreText).width;
-    const badgeWidth = genreWidth + 60;
-    const badgeHeight = 54;
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    // @ts-ignore
-    if (ctx.roundRect) ctx.roundRect(60, genreY, badgeWidth, badgeHeight, 27);
-    else ctx.fillRect(60, genreY, badgeWidth, badgeHeight);
-    ctx.fill();
-    
-    ctx.strokeStyle = 'rgba(217, 255, 0, 0.6)';
-    ctx.lineWidth = 3;
-    // @ts-ignore
-    if (ctx.roundRect) ctx.roundRect(60, genreY, badgeWidth, badgeHeight, 27);
-    ctx.stroke();
-    
-    ctx.fillStyle = '#D9FF00';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(genreText, 90, genreY + 27);
-    ctx.textBaseline = 'top';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, MARGIN_X, titleY + (i * (fontSize + 10)));
+  });
 
-    // 7. NOTE GLOBALE (GAUCHE)
-    const noteY = genreY + 40; 
-    ctx.fillStyle = '#D9FF00';
-    ctx.font = '900 320px "Inter", sans-serif';
-    
-    ctx.shadowColor = 'rgba(217, 255, 0, 0.4)';
-    ctx.shadowBlur = 60;
-    ctx.fillText(globalRating, 40, noteY);
-    ctx.shadowBlur = 0;
+  // 6. BADGE GENRE
+  const genreY = titleY + (lines.length * (fontSize + 10)) + 25;
+  const genreText = movie.genre.toUpperCase();
+  
+  ctx.font = '800 24px "Inter", sans-serif';
+  const genreWidth = ctx.measureText(genreText).width;
+  const badgeWidth = genreWidth + 60;
+  const badgeHeight = 54;
+  
+  // Fond du badge
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  // @ts-ignore
+  if (ctx.roundRect) ctx.roundRect(MARGIN_X, genreY, badgeWidth, badgeHeight, 27);
+  else ctx.fillRect(MARGIN_X, genreY, badgeWidth, badgeHeight);
+  ctx.fill();
+  
+  // Bordure du badge
+  ctx.strokeStyle = 'rgba(217, 255, 0, 0.6)';
+  ctx.lineWidth = 3;
+  // @ts-ignore
+  if (ctx.roundRect) ctx.roundRect(MARGIN_X, genreY, badgeWidth, badgeHeight, 27);
+  ctx.stroke();
+  
+  // Texte du badge
+  ctx.fillStyle = COLOR_PRIMARY;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(genreText, MARGIN_X + 30, genreY + 27);
+  ctx.textBaseline = 'top';
 
-    // 8. TECHNICAL SPECS (JAUGES FILAIRES À DROITE)
-    const baselineY = noteY + 265; 
-    const blockX = 580; // Début du bloc à droite de la note
-    const blockWidth = 440; // Largeur fixe
-    const gapY = 55; // Espace entre les jauges
+// 7. LABEL "MON VERDICT"
+  const verdictY = genreY + 85;
+  ctx.fillStyle = COLOR_TEXT;
+  ctx.font = '800 24px "Inter", sans-serif';
+  ctx.letterSpacing = "2px"; // <-- Ajout de l'espacement
+  ctx.fillText('MON VERDICT CRITIQUE', MARGIN_X, verdictY);
+  ctx.letterSpacing = "0px"; // <-- Reset obligatoire
 
-    const specs = [
-      { label: 'SCRIPT', val: movie.ratings.story },
-      { label: 'ACTING', val: movie.ratings.acting },
-      { label: 'VISUEL', val: movie.ratings.visuals },
-      { label: 'SON', val: movie.ratings.sound }
-    ];
+  // 8. NOTE GLOBALE (GAUCHE)
+  const noteY = verdictY + 30;
+  ctx.fillStyle = COLOR_PRIMARY;
 
-    // On part du bas pour aligner sur la ligne de base
-    specs.reverse().forEach((spec, i) => {
-      const itemY = baselineY - (i * gapY) - 35; // 35px pour laisser de la place à la barre elle-même
+  const blockX = 630; 
+  let noteSize = 250; 
+  ctx.font = `900 ${noteSize}px "Inter", sans-serif`;
 
-      // LABEL (Gauche, Blanc)
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '700 18px "Inter", sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(spec.label, blockX, itemY);
+  // Réduit la taille si la note (ex: "10.0") est trop large
+  while (ctx.measureText(globalRating).width > (blockX - MARGIN_X - 40) && noteSize > 150) {
+    noteSize -= 5;
+    ctx.font = `900 ${noteSize}px "Inter", sans-serif`;
+  }
 
-      // NOTE (Droite, Lime, Monospace)
-      ctx.fillStyle = '#D9FF00';
-      ctx.font = '900 20px "Courier New", monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(spec.val.toFixed(1), blockX + blockWidth, itemY);
+  ctx.shadowColor = 'rgba(217, 255, 0, 0.4)';
+  ctx.shadowBlur = 60;
+  // Décalage léger à gauche (-5) car la police crée un vide naturel
+  ctx.fillText(globalRating, MARGIN_X - 5, noteY); 
+  ctx.shadowBlur = 0; // On désactive l'ombre pour la suite
 
-      // BARRE (Juste en dessous du texte)
-      const barY = itemY + 30;
-      const barHeight = 4;
-      
-      // Track (Gris transparent)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.fillRect(blockX, barY, blockWidth, barHeight);
-      
-      // Fill (Lime)
-      ctx.fillStyle = '#D9FF00';
-      const fillWidth = (spec.val / 10) * blockWidth;
-      ctx.fillRect(blockX, barY, fillWidth, barHeight);
-    });
+  // 9. TECHNICAL SPECS (JAUGES AVEC DÉGRADÉ À DROITE)
+  const specsY = noteY + 15;
+  const blockWidth = CANVAS_W - blockX - MARGIN_X; // Prend l'espace restant jusqu'à la marge droite
+  const gapY = 60; 
 
-    // Reset alignement
-    ctx.textAlign = 'left';
+  const specs = [
+    { label: 'SCRIPT', val: movie.ratings.story },
+    { label: 'ACTING', val: movie.ratings.acting },
+    { label: 'VISUEL', val: movie.ratings.visuals },
+    { label: 'SON', val: movie.ratings.sound }
+  ];
 
-    // 9. LABEL "MON VERDICT"
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '800 24px "Inter", sans-serif';
-    ctx.fillText('MON VERDICT CRITIQUE', 65, noteY + 295);
+  specs.forEach((spec, i) => {
+    const itemY = specsY + (i * gapY);
 
-    // 10. FOOTER MAGAZINE
-    const footerHeight = 250; 
-    const footerY = 1920 - footerHeight;
+// Dans la boucle specs.forEach...
+  ctx.fillStyle = COLOR_TEXT;
+  ctx.font = '700 18px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.letterSpacing = "1.5px"; // <-- Ajout
+  ctx.fillText(spec.label, blockX, itemY);
+  ctx.letterSpacing = "0px"; // <-- Reset
 
-    ctx.fillStyle = '#0c0c0c';
-    ctx.fillRect(0, footerY, 1080, footerHeight);
-
-    // GAUCHE : Logo "THE BITTER"
-    ctx.fillStyle = '#D9FF00';
-    ctx.font = '900 68px "Inter", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('THE BITTER', 60, footerY + 65);
-
-    // Sous-titre
-    ctx.fillStyle = '#666666';
-    ctx.font = '700 18px "Inter", sans-serif';
-    ctx.fillText('AVAILABLE ON IOS & ANDROID', 60, footerY + 155);
-
-    // DROITE : Slogan
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 48px "Inter", sans-serif';
+    ctx.fillStyle = COLOR_PRIMARY;
+    ctx.font = '900 20px "Courier New", monospace';
     ctx.textAlign = 'right';
+    ctx.fillText(spec.val.toFixed(1), blockX + blockWidth, itemY);
 
-    const sloganX = 1020;
-    ctx.fillText('JUDGE.', sloganX, footerY + 45);
-    ctx.fillText('RATE.', sloganX, footerY + 105);
-    ctx.fillText('HATE.', sloganX, footerY + 165);
+    // Track de la barre
+    const barY = itemY + 30;
+    const barHeight = 6;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.fillRect(blockX, barY, blockWidth, barHeight);
+    
+    // Remplissage avec dégradé et volume
+    const fillWidth = (spec.val / 10) * blockWidth;
+    const barGradient = ctx.createLinearGradient(blockX, barY, blockX + fillWidth, barY);
+    barGradient.addColorStop(0, 'rgba(217, 255, 0, 0.2)');
+    barGradient.addColorStop(1, COLOR_PRIMARY);
+    
+    ctx.fillStyle = barGradient;
+    ctx.shadowColor = 'rgba(217, 255, 0, 0.6)';
+    ctx.shadowBlur = 12;
+    ctx.fillRect(blockX, barY, fillWidth, barHeight);
+    ctx.shadowBlur = 0; // Reset
+  });
 
-    // Reset final
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
 
-    return canvas.toDataURL('image/png', 1.0);
-  };
+  // 10. FOOTER MAGAZINE
+  const footerHeight = 250; 
+  const footerY = CANVAS_H - footerHeight;
+
+  ctx.fillStyle = '#0c0c0c';
+  ctx.fillRect(0, footerY, CANVAS_W, footerHeight);
+
+  // GAUCHE : Logo "THE BITTER"
+  ctx.fillStyle = COLOR_PRIMARY;
+  ctx.font = '900 68px "Inter", sans-serif';
+  ctx.fillText('THE BITTER', MARGIN_X, footerY + 65);
+
+// Sous-titre
+  ctx.fillStyle = '#666666';
+  ctx.font = '700 18px "Inter", sans-serif';
+  ctx.letterSpacing = "3px"; // <-- Un peu plus large ici pour faire premium
+  ctx.fillText('AVAILABLE ON IOS & ANDROID', MARGIN_X, footerY + 155);
+  ctx.letterSpacing = "0px"; // <-- Reset
+
+  // DROITE : Slogan
+  ctx.fillStyle = COLOR_TEXT;
+  ctx.font = '900 48px "Inter", sans-serif';
+  ctx.textAlign = 'right';
+
+  const sloganX = CANVAS_W - MARGIN_X;
+  ctx.fillText('JUDGE.', sloganX, footerY + 45);
+  ctx.fillText('RATE.', sloganX, footerY + 105);
+  ctx.fillText('HATE.', sloganX, footerY + 165);
+
+  // 11. EFFET GRAIN PREMIUM (FILM NOISE)
+  // On crée un mini-canvas en mémoire pour le motif
+  const patternCanvas = document.createElement('canvas');
+  const patternSize = 100;
+  patternCanvas.width = patternSize;
+  patternCanvas.height = patternSize;
+  const pCtx = patternCanvas.getContext('2d');
+  
+  if (pCtx) {
+    const imgData = pCtx.createImageData(patternSize, patternSize);
+    const data = imgData.data;
+    
+    // Génération du bruit (points noirs et gris)
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = Math.random() * 255;
+      data[i] = noise;     // Rouge
+      data[i + 1] = noise; // Vert
+      data[i + 2] = noise; // Bleu
+      data[i + 3] = 12;    // Alpha (Opacité très faible : 12 sur 255)
+    }
+    pCtx.putImageData(imgData, 0, 0);
+    
+    // On l'applique sur toute l'affiche principale
+    const pattern = ctx.createPattern(patternCanvas, 'repeat');
+    if (pattern) {
+      ctx.fillStyle = pattern;
+      // Le mode 'overlay' permet au grain de bien se fondre avec les couleurs en dessous
+      ctx.globalCompositeOperation = 'overlay'; 
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      ctx.globalCompositeOperation = 'source-over'; // Reset du mode de fusion
+    }
+  }
+
+  return canvas.toDataURL('image/png', 1.0);
+};
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
