@@ -1,7 +1,8 @@
 import React, { useState, memo, useRef } from 'react';
 import { Movie } from '../types';
-import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone } from 'lucide-react';
+import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info } from 'lucide-react';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
+import { haptics } from '../utils/haptics';
 
 interface MovieCardProps {
   movie: Movie;
@@ -9,6 +10,8 @@ interface MovieCardProps {
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
   onMarkAsWatched: (movie: Movie) => void;
+  onViewDetails?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
+  onViewDirector?: (name: string, id?: number) => void;
 }
 
 const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, value: number, hasPoster: boolean, isExpanded: boolean }) => {
@@ -34,7 +37,7 @@ const RatingBar = ({ label, value, hasPoster, isExpanded }: { label: string, val
   );
 };
 
-const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit, onMarkAsWatched }) => {
+const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEdit, onMarkAsWatched, onViewDetails, onViewDirector }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Swipe State
@@ -191,30 +194,40 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
               {movie.genre}
           </span>
           
-          {!isWatchlist ? (
-             <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-white/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50 dark:bg-[#161616] border-stone-100 dark:border-white/5'}`}>
-               {movie.tmdbRating && (
-                 <>
-                   <div className="flex items-center gap-1.5">
-                     <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300 dark:text-stone-700'}`}>TMDB</span>
-                     <span className="text-xs font-black text-white dark:text-stone-100">{movie.tmdbRating}</span>
-                   </div>
-                   <div className={`w-px h-3 ${hasPoster ? 'bg-white/20' : 'bg-stone-200 dark:bg-white/10'}`} />
-                 </>
-               )}
-               <div className="flex items-center gap-1.5">
-                 <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
-                 <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
+          <div className="flex items-center gap-2">
+            {movie.tmdbId && onViewDetails && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onViewDetails(movie.tmdbId!, movie.mediaType || 'movie'); }}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${hasPoster ? 'bg-black/60 text-white/70 hover:text-white' : 'bg-stone-100 dark:bg-white/5 text-stone-400 dark:text-stone-600'}`}
+              >
+                <Info size={14} />
+              </button>
+            )}
+            {!isWatchlist ? (
+               <div className={`flex items-center gap-3 px-4 py-2 rounded-full border border-white/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50 dark:bg-[#161616] border-stone-100 dark:border-white/5'}`}>
+                 {movie.tmdbRating && (
+                   <>
+                     <div className="flex items-center gap-1.5">
+                       <span className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300 dark:text-stone-700'}`}>TMDB</span>
+                       <span className="text-xs font-black text-white dark:text-stone-100">{movie.tmdbRating}</span>
+                     </div>
+                     <div className={`w-px h-3 ${hasPoster ? 'bg-white/20' : 'bg-stone-200 dark:bg-white/10'}`} />
+                   </>
+                 )}
+                 <div className="flex items-center gap-1.5">
+                   <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+                   <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
+                 </div>
                </div>
-             </div>
-          ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); onMarkAsWatched(movie); }}
-              className="w-10 h-10 rounded-full flex items-center justify-center bg-forest text-white shadow-lg shadow-forest/20 active:scale-90 transition-all border border-forest/20"
-            >
-              <Play size={14} fill="currentColor" className="ml-0.5" />
-            </button>
-          )}
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); onMarkAsWatched(movie); }}
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-forest text-white shadow-lg shadow-forest/20 active:scale-90 transition-all border border-forest/20"
+              >
+                <Play size={14} fill="currentColor" className="ml-0.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`relative z-10 transition-[margin,transform] duration-300 ${isExpanded ? 'mb-6' : 'mt-auto'}`}>
@@ -235,7 +248,18 @@ const MovieCard: React.FC<MovieCardProps> = memo(({ movie, index, onDelete, onEd
                   </>
               )}
               <span className="w-1 h-1 rounded-full bg-current opacity-40"></span>
-              <span className="truncate max-w-[140px]">{movie.director}</span>
+              <span 
+                className={`truncate max-w-[140px] transition-colors duration-200 ${onViewDirector ? 'hover:text-bitter-lime cursor-pointer underline decoration-bitter-lime/30 underline-offset-4' : ''}`}
+                onClick={(e) => {
+                  if (onViewDirector) {
+                    e.stopPropagation();
+                    haptics.soft();
+                    onViewDirector(movie.director, movie.directorId);
+                  }
+                }}
+              >
+                {movie.director}
+              </span>
           </div>
         </div>
 

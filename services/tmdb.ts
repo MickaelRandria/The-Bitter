@@ -20,6 +20,31 @@ export const getRecommendations = async (tmdbId: number): Promise<TMDBRecommenda
   }
 };
 
+export const getDirectorMovies = async (directorId: number): Promise<any[]> => {
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/person/${directorId}/movie_credits?api_key=${TMDB_API_KEY}&language=fr-FR`);
+    const data = await res.json();
+    const directed = data.crew?.filter((m: any) => m.job === 'Director') || [];
+    return directed
+      .sort((a: any, b: any) => (b.vote_average * b.vote_count) - (a.vote_average * a.vote_count) || b.popularity - a.popularity)
+      .slice(0, 10);
+  } catch (error) {
+    console.error("Error fetching director movies:", error);
+    return [];
+  }
+};
+
+export const searchPerson = async (query: string): Promise<number | null> => {
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=fr-FR`);
+    const data = await res.json();
+    return data.results?.[0]?.id || null;
+  } catch (error) {
+    console.error("Error searching person:", error);
+    return null;
+  }
+};
+
 export const getMovieDetailsForAdd = async (tmdbId: number): Promise<MovieFormData | null> => {
   try {
     const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`);

@@ -32,6 +32,7 @@ interface AnalyticsViewProps {
   userProfile: UserProfile | null;
   onNavigateToCalendar?: () => void;
   onRecalibrate?: () => void;
+  onViewDirector?: (name: string, id?: number) => void;
 }
 
 type TabMode = 'overview' | 'notes' | 'psycho';
@@ -110,7 +111,7 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
   );
 };
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate, onViewDirector }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
 
   const watchedCount = useMemo(() => movies.filter(m => m.status === 'watched').length, [movies]);
@@ -636,7 +637,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                     : <User size={24} className="text-stone-300 dark:text-stone-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-black text-charcoal dark:text-white text-lg leading-tight truncate">{favoriteDirector.name}</h4>
+                  <h4 
+                    className={`font-black text-charcoal dark:text-white text-lg leading-tight truncate transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 underline-offset-4' : ''}`}
+                    onClick={() => {
+                      if (onViewDirector) {
+                        haptics.soft();
+                        onViewDirector(favoriteDirector.name);
+                      }
+                    }}
+                  >
+                    {favoriteDirector.name}
+                  </h4>
                   <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mt-0.5">{favoriteDirector.count} films vus</p>
                 </div>
                 <div className="bg-charcoal dark:bg-[#161616] text-white w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shadow-lg shrink-0">

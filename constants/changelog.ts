@@ -14,6 +14,16 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.79',
+    date: 'Aujourd\'hui',
+    title: 'Focus Réalisateurs',
+    changes: [
+      { type: 'feature', text: 'Navigation Réalisateur : Cliquez sur le nom d\'un réalisateur pour explorer ses 10 meilleurs films (triés par note et popularité).' },
+      { type: 'feature', text: 'Modal Brutaliste : Une nouvelle interface sombre et typographique pour découvrir la filmographie des créateurs.' },
+      { type: 'style', text: 'Exploration Fluide : Accès direct aux films du réalisateur depuis les cartes, les détails ou les statistiques favorites.' }
+    ]
+  },
+  {
     version: 'v0.78',
     date: 'Aujourd\'hui',
     title: 'Visualisation & ADN',

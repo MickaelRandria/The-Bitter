@@ -10,6 +10,7 @@ interface MovieDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAction: (id: number, status: MovieStatus) => void;
+  onViewDirector?: (name: string, id?: number) => void;
   mediaType?: 'movie' | 'tv';
 }
 
@@ -41,9 +42,16 @@ interface MovieDetail {
       };
     };
   };
+  videos?: {
+    results: {
+      key: string;
+      site: string;
+      type: string;
+    }[];
+  };
 }
 
-const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, mediaType = 'movie' }) => {
+const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, onViewDirector, mediaType = 'movie' }) => {
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -52,7 +60,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
       const fetchDetails = async () => {
         setLoading(true);
         try {
-          const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers`);
+          const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos`);
           const data = await res.json();
           setMovie(data);
         } catch (e) {
@@ -90,6 +98,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
 
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const providers = movie?.['watch/providers']?.results?.FR?.flatrate || [];
+  const trailer = movie?.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center pointer-events-none">
@@ -114,6 +123,15 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                  alt={title}
                />
                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-cream" />
+
+               {trailer && (
+                 <button 
+                   onClick={() => window.open(`https://www.youtube.com/watch?v=${trailer.key}`, '_blank')}
+                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-forest text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform z-20 group"
+                 >
+                   <Play size={24} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+                 </button>
+               )}
                <button 
                  onClick={onClose} 
                  className="absolute top-6 right-6 w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center active:scale-90 transition-transform z-20 border border-white/20"
@@ -132,13 +150,30 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                   <div className="flex-1 pt-2">
                      <h2 className="text-2xl font-black text-charcoal leading-tight mb-1 line-clamp-2">{title}</h2>
                      <p className="text-xs font-bold text-stone-400 dark:text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
-                        {year} • {director}
+                        {year} • <span 
+                          className={`transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 underline-offset-4' : ''}`}
+                          onClick={(e) => {
+                            if (onViewDirector && director !== 'Inconnu') {
+                              e.stopPropagation();
+                              haptics.soft();
+                              // If multiple directors, we just take the first one or the whole string
+                              onViewDirector(director);
+                            }
+                          }}
+                        >
+                          {director}
+                        </span>
                      </p>
                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1 bg-charcoal text-white px-2 py-0.5 rounded-md text-[10px] font-black">
                            <Star size={8} fill="currentColor" className="text-bitter-lime" />
                            {movie.vote_average.toFixed(1)}
                         </div>
+                        {movie.genres && movie.genres.length > 0 && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-forest dark:text-lime-500 border border-forest/20 dark:border-lime-500/20 bg-forest/5">
+                             {movie.genres[0].name}
+                          </div>
+                        )}
                         {runtime ? (
                             <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-stone-400 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
                                 <Clock size={8} />

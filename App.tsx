@@ -13,6 +13,7 @@ import AuthScreen from './components/AuthScreen';
 import ThemeToggle from './components/ThemeToggle';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
+import DirectorMoviesModal from './components/DirectorMoviesModal';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -90,6 +91,7 @@ const App: React.FC = () => {
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
   const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
+  const [previewDirector, setPreviewDirector] = useState<{ name: string; id?: number } | null>(null);
   const [showSharedSpaces, setShowSharedSpaces] = useState(false);
   const [activeSharedSpace, setActiveSharedSpace] = useState<SharedSpace | null>(null);
   const [sharedSpaceRefreshTrigger, setSharedSpaceRefreshTrigger] = useState(0);
@@ -565,7 +567,7 @@ const App: React.FC = () => {
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
                 <SharedSpaceView space={activeSharedSpace} currentUserId={session?.user?.id || activeProfile?.id || ''} onBack={handleBackToFeed} onAddMovie={() => setIsModalOpen(true)} refreshTrigger={sharedSpaceRefreshTrigger} />
           ) : viewMode === 'Analytics' ? (
-            <AnalyticsView movies={uniqueMovies.filter(m => m.status === 'watched')} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} />
+            <AnalyticsView movies={uniqueMovies.filter(m => m.status === 'watched')} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />
           ) : viewMode === 'Discover' ? (
             <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} userProfile={activeProfile} />
           ) : viewMode === 'Calendar' ? (
@@ -586,7 +588,7 @@ const App: React.FC = () => {
                       </div>
                  </div>
               ) : (
-                 <div className="space-y-10">
+                 <div className="space-y-12">
                     {activeProfile && (
                       <ProfileCompletionWidget 
                         profile={activeProfile} 
@@ -632,7 +634,7 @@ const App: React.FC = () => {
                       </div>
                     )}
                     
-                    <div className="space-y-3 border-b border-sand dark:border-white/5 pb-4">
+                    <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
                       <div className="flex items-center justify-between">
                         <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
                           {feedTab === 'history' ? 'Films Vus' : 'À Voir'} ({filteredAndSortedMovies.length})
@@ -663,7 +665,7 @@ const App: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} />))}</div>
+                    <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} onViewDetails={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />))}</div>
                  </div>
               )}
             </div>
@@ -673,12 +675,7 @@ const App: React.FC = () => {
 
       <BottomNav viewMode={viewMode} setViewMode={setViewMode} setIsModalOpen={() => { setEditingMovie(null); setTmdbIdToLoad(null); setIsModalOpen(true); }} feedTab={feedTab} setInitialStatusForAdd={setInitialStatusForAdd} movieCount={activeProfile?.movies.length || 0} />
 
-      {!showWelcome && activeProfile && viewMode !== 'SharedSpace' && (
-        <button onClick={() => setShowCineAssistant(true)} className="fixed bottom-32 right-6 z-50 w-16 h-16 bg-forest text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group overflow-hidden">
-          <Sparkles size={24} fill="currentColor" className="group-hover:rotate-12 transition-transform" />
-          <div className="absolute -top-1 -right-1 bg-bitter-lime text-charcoal text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white dark:border-[#0c0c0c] shadow-sm">AI</div>
-        </button>
-      )}
+      {/* Cine Assistant Button removed for now */}
 
       {pendingDelete && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
@@ -717,7 +714,19 @@ const App: React.FC = () => {
         )}
         {showNewFeatures && <NewFeaturesModal onClose={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} />}
         {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} />}
-        {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} />}
+        {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />}
+        {previewDirector && (
+          <DirectorMoviesModal 
+            directorName={previewDirector.name}
+            directorId={previewDirector.id}
+            onClose={() => setPreviewDirector(null)}
+            onSelectMovie={(tmdbId) => {
+              setPreviewTmdbId(tmdbId);
+              setPreviewMediaType('movie');
+              setPreviewDirector(null);
+            }}
+          />
+        )}
         {showChangelog && <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />}
         {showSharedSpaces && activeProfile && <SharedSpacesModal isOpen={showSharedSpaces} onClose={() => setShowSharedSpaces(false)} userId={session?.user?.id || activeProfile.id} onSelectSpace={(space) => { setActiveSharedSpace(space); setShowSharedSpaces(false); setViewMode('SharedSpace'); haptics.medium(); }} />}
         {showCineAssistant && activeProfile && <CineAssistant isOpen={showCineAssistant} onClose={() => setShowCineAssistant(false)} userProfile={activeProfile} onAddToWatchlist={(id) => { setTmdbIdToLoad(id); setInitialStatusForAdd('watchlist'); setIsModalOpen(true); setShowCineAssistant(false); }} />}

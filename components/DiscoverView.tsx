@@ -233,7 +233,23 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
       {/* RESULTS GRID */}
       <div className="space-y-6">
         {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4"><Loader2 size={40} className="animate-spin text-charcoal dark:text-white opacity-20" /><p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-300 dark:text-stone-700">Synchronisation...</p></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+                {[...Array(8)].map((_, i) => (
+                    <div key={i} className="flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out]">
+                        <div className="relative aspect-[2/3] rounded-[2.5rem] bg-stone-100 dark:bg-[#161616] overflow-hidden">
+                            <div className="absolute inset-0 shimmer" />
+                        </div>
+                        <div className="px-1 space-y-2">
+                            <div className="h-4 bg-stone-100 dark:bg-[#161616] rounded-lg w-3/4 relative overflow-hidden">
+                                <div className="absolute inset-0 shimmer" />
+                            </div>
+                            <div className="h-3 bg-stone-100 dark:bg-[#161616] rounded-lg w-1/2 relative overflow-hidden">
+                                <div className="absolute inset-0 shimmer" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
         ) : items.length === 0 ? (
             <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all"><div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6"><Search size={24} /></div><h3 className="font-black text-charcoal dark:text-white text-base mb-2">Aucun résultat</h3><p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">Essaye d'élargir tes critères.</p></div>
         ) : (
