@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Check, Activity, Scale, Timer, Layers, Loader2, Fingerprint, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Activity, Scale, Timer, Layers, Loader2, Fingerprint, Sparkles } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getArchetypeFromOnboarding, inferDepthFromGenres } from '../utils/archetypes';
 import { supabase } from '../services/supabase';
@@ -156,8 +156,13 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
         )}
 
         {step <= totalSteps && (
-            <div className="mt-10 flex justify-end">
-            <button onClick={handleNext} className="flex items-center gap-3 bg-charcoal dark:bg-forest text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all">{step === totalSteps ? 'Finaliser' : 'Suivant'} <ArrowRight size={16} strokeWidth={3} /></button>
+            <div className="mt-10 flex justify-between items-center">
+              {step > 1 ? (
+                <button onClick={() => { haptics.soft(); setStep(step - 1); }} className="flex items-center gap-2 text-stone-400 dark:text-stone-500 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:text-charcoal dark:hover:text-white transition-colors active:scale-95"><ArrowLeft size={14} strokeWidth={3} /> Retour</button>
+              ) : (
+                <div />
+              )}
+              <button onClick={handleNext} className="flex items-center gap-3 bg-charcoal dark:bg-forest text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all">{step === totalSteps ? 'Finaliser' : 'Suivant'} <ArrowRight size={16} strokeWidth={3} /></button>
             </div>
         )}
       </div>

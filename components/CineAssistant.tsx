@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { Sparkles, Send, Loader2, X, BrainCircuit } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -116,7 +117,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
                     ? 'bg-charcoal text-white rounded-tr-none shadow-xl' 
                     : 'bg-white border border-sand text-charcoal rounded-tl-none shadow-sm'
                 }`}
-                dangerouslySetInnerHTML={{ __html: msg.content }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
               />
             </div>
           ))}

@@ -274,6 +274,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       };
     }
 
+    // --- 12 DERNIERS MOIS ---
+    const now = new Date();
+    const last12Months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      return {
+        label: d.toLocaleDateString('fr-FR', { month: 'short' }),
+        count: monthCounts[key] || 0,
+      };
+    });
+
     // --- PAR DÉCENNIE ---
     const decadeMap: Record<string, { sum: number; count: number }> = {};
     watched.forEach(m => {
@@ -325,6 +336,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       biggestSurprise,
       biggestDisappointment,
       mostActiveMonth,
+      last12Months,
       decadeData,
       ratingDist,
       maxRatingCount,
@@ -384,6 +396,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     biggestSurprise,
     biggestDisappointment,
     mostActiveMonth,
+    last12Months,
     decadeData,
     ratingDist,
     maxRatingCount,
@@ -452,6 +465,39 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
               </div>
             </div>
           </div>
+
+          {/* Graphique 12 derniers mois */}
+          {last12Months.some(m => m.count > 0) && (() => {
+            const maxCount = Math.max(...last12Months.map(m => m.count), 1);
+            return (
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-stone-50 dark:bg-[#161616] rounded-xl text-stone-400 dark:text-stone-500"><BarChart2 size={18} /></div>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">Activité · 12 mois</h3>
+                </div>
+                <div className="flex items-end gap-1.5 h-20">
+                  {last12Months.map((m, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-t-md transition-all duration-700"
+                        style={{
+                          height: `${(m.count / maxCount) * 64}px`,
+                          minHeight: m.count > 0 ? '4px' : '0',
+                          backgroundColor: m.count > 0 ? '#3E5238' : 'transparent',
+                          opacity: m.count > 0 ? 0.4 + (m.count / maxCount) * 0.6 : 1,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-1.5 mt-2">
+                  {last12Months.map((m, i) => (
+                    <div key={i} className="flex-1 text-center text-[7px] font-bold text-stone-300 dark:text-stone-600 uppercase">{m.label.slice(0,1)}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

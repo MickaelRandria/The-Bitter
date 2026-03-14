@@ -12,10 +12,11 @@ interface AddMovieModalProps {
   initialData: Movie | null;
   tmdbIdToLoad?: number | null;
   initialStatus?: MovieStatus;
-  sharedSpace?: SharedSpace | null; 
-  currentUserId?: string; 
+  sharedSpace?: SharedSpace | null;
+  currentUserId?: string;
   onSharedMovieAdded?: () => void;
   initialMediaType?: 'movie' | 'tv';
+  onToast?: (message: string) => void;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -95,7 +96,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     sharedSpace,
     currentUserId,
     onSharedMovieAdded,
-    initialMediaType = 'movie'
+    initialMediaType = 'movie',
+    onToast
 }) => {
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
@@ -163,7 +165,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       // Deduplicate results by ID
       const uniqueResults = Array.from(new Map(normalizedResults.map((m: any) => [m.id, m])).values());
       setSearchResults(uniqueResults.slice(0, 5));
-    } catch (e) { console.error(e); setSearchResults([]); } finally { setIsSearching(false); }
+    } catch (e) { console.error(e); setSearchResults([]); onToast?.('Erreur de recherche, vérifie ta connexion'); } finally { setIsSearching(false); }
   };
 
   const handleSelectTMDBMovie = async (id: number, explicitType?: 'movie' | 'tv') => {
@@ -235,7 +237,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 onSharedMovieAdded?.();
                 onClose(); 
             }
-        } catch (err) { haptics.error(); } finally { setIsSaving(false); }
+        } catch (err) { haptics.error(); onToast?.("Impossible d'ajouter le film à l'espace"); } finally { setIsSaving(false); }
         return;
     }
     onSave({ ...formData, status: mode, ratings: finalRatings, dateWatched: finalDateWatched });

@@ -14,6 +14,23 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.80',
+    date: '14 Mars 2026',
+    title: 'Parcours Client',
+    changes: [
+      { type: 'fix', text: 'Sécurité : Les réponses de l\'IA sont désormais sanitisées avant affichage (protection XSS via DOMPurify).' },
+      { type: 'fix', text: 'Erreurs visibles : TMDB indisponible, ajout collab échoué ou Discover vide — l\'app t\'informe maintenant via un toast au lieu de rester silencieuse.' },
+      { type: 'feature', text: 'Empty states : Watchlist vide et feed filtré à 0 résultat affichent désormais un message clair avec un bouton pour effacer les filtres.' },
+      { type: 'fix', text: 'Onboarding : Bouton "Retour" ajouté entre chaque étape du calibrage — plus de blocage si tu veux corriger une réponse.' },
+      { type: 'style', text: 'Mode Collab : Les confirmations (quitter un espace, supprimer un film, marquer comme vu) utilisent désormais des modales cohérentes avec le design de l\'app.' },
+      { type: 'feature', text: 'Connexion : Le champ mot de passe dispose maintenant d\'un bouton pour afficher / masquer la saisie.' },
+      { type: 'feature', text: 'Profil : Le widget de complétion détaille exactement les champs manquants (ex : "Manque : Genres · Archétype").' },
+      { type: 'fix', text: 'Thème : L\'app détecte automatiquement la préférence dark/light de ton système au premier lancement.' },
+      { type: 'feature', text: 'Analytics : Nouveau graphique d\'activité sur les 12 derniers mois dans l\'onglet Profil.' },
+      { type: 'feature', text: 'Export : Bouton "Exporter mes données" dans ton profil pour sauvegarder ta collection en JSON.' }
+    ]
+  },
+  {
     version: 'v0.79',
     date: 'Aujourd\'hui',
     title: 'Focus Réalisateurs',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Film, Heart, ArrowRight, Loader2, Mail, Lock, AlertTriangle, Sparkles, Ghost, User, Smartphone, Globe, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { Film, Heart, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, AlertTriangle, Sparkles, Ghost, User, Smartphone, Globe, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 
@@ -14,6 +14,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState(''); // Nouveau champ Prénom
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -302,14 +303,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-charcoal transition-colors">
                                     <Lock size={20} strokeWidth={2.5} />
                                 </div>
-                                <input 
-                                    required 
-                                    type="password" 
-                                    placeholder="Mot de passe" 
+                                <input
+                                    required
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="Mot de passe"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-5 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300" 
+                                    className="w-full bg-white border-2 border-sand rounded-[1.5rem] py-5 pl-14 pr-14 font-black text-base outline-none focus:border-forest/40 transition-all shadow-sm text-charcoal placeholder:text-stone-300"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(p => !p)}
+                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-stone-300 hover:text-charcoal transition-colors"
+                                >
+                                    {showPassword ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
+                                </button>
                             </div>
                         )}
                     </div>

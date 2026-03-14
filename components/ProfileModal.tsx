@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, LogOut, User, Info, SlidersHorizontal, Repeat, Calendar, Scale, Timer, Fingerprint, Mail, Film, Clock, Star, Zap, PieChart } from 'lucide-react';
+import { X, LogOut, User, Info, SlidersHorizontal, Repeat, Calendar, Scale, Timer, Fingerprint, Mail, Film, Clock, Star, Zap, PieChart, Download } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { RELEASE_HISTORY } from '../constants/changelog';
@@ -40,6 +40,38 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
   const joinDate = new Date(profile.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const email = session?.user?.email;
+
+  const handleExport = () => {
+    haptics.success();
+    const data = {
+      profile: {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        role: profile.role,
+        severityIndex: profile.severityIndex,
+        patienceLevel: profile.patienceLevel,
+        favoriteGenres: profile.favoriteGenres,
+        createdAt: new Date(profile.createdAt).toISOString(),
+      },
+      movies: profile.movies.map(m => ({
+        title: m.title,
+        director: m.director,
+        year: m.year,
+        genre: m.genre,
+        status: m.status,
+        ratings: m.ratings,
+        dateWatched: m.dateWatched ? new Date(m.dateWatched).toISOString() : null,
+      })),
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `the-bitter-${profile.firstName?.toLowerCase() || 'export'}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Calcul des statistiques en temps réel
   const stats = useMemo(() => {
@@ -229,6 +261,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform"><Info size={14} /></div>
                     <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">Revoir le tutoriel</span>
+                </div>
+            </button>
+
+            <button onClick={handleExport} className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group">
+                <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform"><Download size={14} /></div>
+                    <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">Exporter mes données</span>
                 </div>
             </button>
 

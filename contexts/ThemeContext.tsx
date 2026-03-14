@@ -10,10 +10,11 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Lire le thème depuis localStorage au démarrage
+  // Lire le thème depuis localStorage, ou détecter la préférence système si aucun thème sauvegardé
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('the-bitter-theme');
-    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
   useEffect(() => {

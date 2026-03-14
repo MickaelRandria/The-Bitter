@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { 
   Loader2, 
@@ -39,6 +40,7 @@ interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
   onPreview: (tmdbId: number, mediaType: MediaType) => void;
   userProfile: UserProfile | null;
+  onToast?: (message: string) => void;
 }
 
 interface TMDBItem {
@@ -73,7 +75,7 @@ const VIBES = [
   { id: 'distraction', label: 'Distraction', icon: <Smartphone size={14} />, genres: [10751, 10402, 10770] },
 ];
 
-const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, userProfile }) => {
+const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, userProfile, onToast }) => {
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,7 +139,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
         const uniqueResults = Array.from(new Map(data.results.map((m: any) => [m.id, m])).values());
         setItems(uniqueResults.filter((m: any) => m.poster_path) as TMDBItem[]);
       }
-    } catch (error) { console.error("Discovery error", error); } finally { setLoading(false); }
+    } catch (error) { console.error("Discovery error", error); onToast?.('Erreur de chargement, vérifie ta connexion'); } finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -179,7 +181,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
         <div className="bg-stone-900 text-white rounded-[2.5rem] p-8 space-y-6 animate-[slideUp_0.4s_ease-out] border border-bitter-lime/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="flex items-center gap-3"><div className="p-2 bg-bitter-lime text-charcoal rounded-lg"><Sparkles size={16} fill="currentColor" /></div><h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">Gemini Insight</h3></div>
-            <p className="text-sm font-medium leading-relaxed text-stone-300" dangerouslySetInnerHTML={{ __html: aiResult.text }} />
+            <p className="text-sm font-medium leading-relaxed text-stone-300" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aiResult.text) }} />
         </div>
       )}
 

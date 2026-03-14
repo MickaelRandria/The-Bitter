@@ -579,7 +579,7 @@ const App: React.FC = () => {
           ) : viewMode === 'Analytics' ? (
             <AnalyticsView movies={uniqueMovies.filter(m => m.status === 'watched')} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />
           ) : viewMode === 'Discover' ? (
-            <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} userProfile={activeProfile} />
+            <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} userProfile={activeProfile} onToast={setToastMessage} />
           ) : viewMode === 'Calendar' ? (
             <CalendarView movies={uniqueMovies} />
           ) : viewMode === 'Deck' ? (
@@ -625,6 +625,14 @@ const App: React.FC = () => {
                         </button>
                       </div>
                     </div>
+                    {feedTab === 'queue' && activeProfile && activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
+                        <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors"><Clock size={28} /></div>
+                        <h3 className="text-base font-black tracking-tight mb-2">Ta liste est vide</h3>
+                        <p className="text-stone-400 dark:text-stone-500 font-medium text-sm max-w-xs mx-auto leading-relaxed mb-6">Ajoute des films à ta watchlist pour les retrouver ici.</p>
+                        <button onClick={() => setViewMode('Discover')} className="bg-stone-100 dark:bg-[#1a1a1a] text-charcoal dark:text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest border border-stone-200 dark:border-white/5 active:scale-95 transition-all">Explorer</button>
+                      </div>
+                    )}
                     {feedTab === 'queue' && activeProfile && activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').length > 0 && (
                       <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
                         <button onClick={handleTonightPick} className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3"><Shuffle size={18} strokeWidth={2.5} /> Ce soir ?</button>
@@ -675,7 +683,16 @@ const App: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} onViewDetails={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />))}</div>
+                    {filteredAndSortedMovies.length === 0 && (searchQuery || watchlistGenreFilter !== 'all') ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
+                        <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors"><Search size={28} /></div>
+                        <h3 className="text-base font-black tracking-tight mb-2">Aucun résultat</h3>
+                        <p className="text-stone-400 dark:text-stone-500 font-medium text-sm max-w-xs mx-auto leading-relaxed mb-4">Aucun film ne correspond à ta recherche.</p>
+                        <button onClick={() => { setSearchQuery(''); setWatchlistGenreFilter('all'); }} className="text-xs font-black uppercase tracking-widest text-forest dark:text-bitter-lime underline underline-offset-4 active:scale-95 transition-all">Effacer les filtres</button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} onViewDetails={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />))}</div>
+                    )}
                  </div>
               )}
             </div>
@@ -723,7 +740,7 @@ const App: React.FC = () => {
           />
         )}
         {showNewFeatures && <NewFeaturesModal onClose={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} />}
-        {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} />}
+        {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} onToast={setToastMessage} />}
         {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />}
         {previewDirector && (
           <DirectorMoviesModal 

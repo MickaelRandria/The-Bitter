@@ -72,7 +72,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
   const [copiedCode, setCopiedCode] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
-  
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
   const [selectedMember, setSelectedMember] = useState<SpaceMember | null>(null);
 
   const [ratingMovie, setRatingMovie] = useState<SharedMovie | null>(null);
@@ -129,26 +130,24 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     }
   };
 
-  const handleLeaveSpace = async () => {
-    if (confirm(`Voulez-vous vraiment quitter l'espace "${space.name}" ?`)) {
+  const handleLeaveSpace = () => {
+    setConfirmAction({
+      message: `Quitter l'espace "${space.name}" ?`,
+      onConfirm: async () => {
         setIsLeaving(true);
         haptics.medium();
         try {
-            const success = await leaveSharedSpace(space.id, currentUserId);
-            if (success) {
-                haptics.success();
-                onBack();
-            } else {
-                throw new Error("Erreur lors de la sortie");
-            }
+          const success = await leaveSharedSpace(space.id, currentUserId);
+          if (success) { haptics.success(); onBack(); }
+          else throw new Error();
         } catch (e) {
-            console.error(e);
-            haptics.error();
-            alert("Impossible de quitter l'espace — réessayez.");
+          console.error(e);
+          haptics.error();
         } finally {
-            setIsLeaving(false);
+          setIsLeaving(false);
         }
-    }
+      }
+    });
   };
 
   const handleToggleVote = async (e: React.MouseEvent, movieId: string) => {
@@ -159,24 +158,30 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       setVotes(newVotes);
   };
 
-  const handleMarkAsWatched = async (e: React.MouseEvent, movieId: string) => {
+  const handleMarkAsWatched = (e: React.MouseEvent, movieId: string) => {
       e.stopPropagation();
-      if (confirm('Marquer ce film comme regardé par le groupe ?')) {
+      setConfirmAction({
+        message: 'Marquer ce film comme regardé par le groupe ?',
+        onConfirm: async () => {
           haptics.success();
           await markMovieAsWatched(movieId);
           loadData();
           setActiveTab('feed');
-      }
+        }
+      });
   };
 
-  const handleDeleteMovie = async (e: React.MouseEvent, movieId: string) => {
+  const handleDeleteMovie = (e: React.MouseEvent, movieId: string) => {
       e.stopPropagation();
-      if (confirm('Supprimer définitivement ce film ?')) {
+      setConfirmAction({
+        message: 'Supprimer définitivement ce film ?',
+        onConfirm: async () => {
           haptics.error();
           setMovies(prev => prev.filter(m => m.id !== movieId));
           const success = await deleteSharedMovie(movieId);
           if (!success) loadData();
-      }
+        }
+      });
   };
 
   const handleSubmitRating = async () => {
@@ -631,6 +636,22 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     </button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Modale de confirmation custom (remplace window.confirm) */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center p-6 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
+          <div className="w-full max-w-sm bg-white dark:bg-[#1a1a1a] rounded-[2rem] p-6 shadow-2xl border border-stone-100 dark:border-white/10 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center justify-center shrink-0"><AlertTriangle size={18} className="text-red-500" /></div>
+              <p className="font-bold text-charcoal dark:text-white text-sm leading-relaxed pt-1">{confirmAction.message}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-stone-100 dark:bg-[#202020] text-stone-500 dark:text-stone-400 active:scale-95 transition-all">Annuler</button>
+              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} className="flex-1 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-red-500 text-white shadow-lg active:scale-95 transition-all">Confirmer</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
