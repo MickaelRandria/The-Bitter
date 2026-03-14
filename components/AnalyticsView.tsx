@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Movie, UserProfile } from '../types';
 import {
   Smartphone,
@@ -22,10 +22,12 @@ import {
   User,
   CalendarDays,
   BarChart2,
+  Share2,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getAdvancedArchetype } from '../utils/archetypes';
 import { supabase } from '../services/supabase';
+import { toPng } from 'html-to-image';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -113,6 +115,40 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate, onViewDirector }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
+  const [isSharing, setIsSharing] = useState(false);
+  const shareCardRef = useRef<HTMLDivElement>(null);
+
+  const handleShareArchetype = async () => {
+    if (!shareCardRef.current || !stats) return;
+    setIsSharing(true);
+    const el = shareCardRef.current;
+    // Make visible in viewport so browser paints it, then capture
+    el.style.opacity = '1';
+    el.style.zIndex = '9999';
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    try {
+      const opts = { pixelRatio: 2, backgroundColor: '#1A1A1A' };
+      await toPng(el, opts); // warm-up: loads fonts/resources into cache
+      const dataUrl = await toPng(el, opts);
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'mon-archetype-the-bitter.png', { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Mon archétype : ${stats.advancedArchetype.title}` });
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'mon-archetype-the-bitter.png';
+        a.click();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      el.style.opacity = '0';
+      el.style.zIndex = '-1';
+      setIsSharing(false);
+    }
+  };
 
   const watchedCount = useMemo(() => movies.filter(m => m.status === 'watched').length, [movies]);
   const isLocked = watchedCount < MIN_MOVIES_FOR_ANALYTICS;
@@ -315,6 +351,49 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     });
     const maxRatingCount = Math.max(...Object.values(ratingDist), 1);
 
+    // --- TENDANCE HEBDOMADAIRE (26 dernières semaines) ---
+    const getWeekStart = (d: Date): number => {
+      const copy = new Date(d);
+      const day = copy.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      copy.setHours(0, 0, 0, 0);
+      copy.setDate(copy.getDate() + diff);
+      return copy.getTime();
+    };
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const thisWeekStart = getWeekStart(now);
+    const weeklyMap: Record<number, { sum: number; count: number }> = {};
+    watched.forEach(m => {
+      if (!m.dateWatched) return;
+      const ws = getWeekStart(new Date(m.dateWatched));
+      if (!weeklyMap[ws]) weeklyMap[ws] = { sum: 0, count: 0 };
+      const mAvg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+      weeklyMap[ws].sum += mAvg;
+      weeklyMap[ws].count += 1;
+    });
+    const weeklyTrend = Array.from({ length: 26 }, (_, i) => {
+      const ws = thisWeekStart - (25 - i) * WEEK_MS;
+      const data = weeklyMap[ws];
+      const d = new Date(ws);
+      const prevD = i > 0 ? new Date(thisWeekStart - (25 - (i - 1)) * WEEK_MS) : null;
+      return {
+        weekIndex: i,
+        weekStart: d,
+        avg: data ? Number((data.sum / data.count).toFixed(1)) : null,
+        count: data?.count || 0,
+        monthLabel: d.toLocaleDateString('fr-FR', { month: 'short' }),
+        isFirstOfMonth: !prevD || prevD.getMonth() !== d.getMonth(),
+      };
+    });
+    const firstHalf = weeklyTrend.slice(0, 13).filter(w => w.avg !== null);
+    const secondHalf = weeklyTrend.slice(13).filter(w => w.avg !== null);
+    const firstHalfAvg = firstHalf.length > 0 ? firstHalf.reduce((s, w) => s + w.avg!, 0) / firstHalf.length : null;
+    const secondHalfAvg = secondHalf.length > 0 ? secondHalf.reduce((s, w) => s + w.avg!, 0) / secondHalf.length : null;
+    const weeklyTrendDelta = firstHalfAvg !== null && secondHalfAvg !== null
+      ? Number((secondHalfAvg - firstHalfAvg).toFixed(1))
+      : null;
+    const hasWeeklyData = weeklyTrend.some(w => w.count > 0);
+
     return {
       averages,
       ratingAverages,
@@ -340,6 +419,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       decadeData,
       ratingDist,
       maxRatingCount,
+      weeklyTrend,
+      weeklyTrendDelta,
+      hasWeeklyData,
     };
   }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel]);
 
@@ -400,6 +482,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     decadeData,
     ratingDist,
     maxRatingCount,
+    weeklyTrend,
+    weeklyTrendDelta,
+    hasWeeklyData,
   } = stats;
 
   const maxDecadeCount = Math.max(...decadeData.map(d => d.count), 1);
@@ -442,6 +527,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                   </p>
                 </div>
               )}
+              <div className="mt-6">
+                <button
+                  onClick={() => { haptics.soft(); handleShareArchetype(); }}
+                  disabled={isSharing}
+                  className="flex items-center gap-2 mx-auto px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <Share2 size={12} />
+                  {isSharing ? 'Génération…' : 'Partager mon archétype'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -576,6 +671,85 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
               ))}
             </div>
           </div>
+
+          {/* TENDANCE HEBDOMADAIRE */}
+          {hasWeeklyData && (() => {
+            const SVG_W = 280, SVG_H = 70;
+            const PAD_L = 8, PAD_R = 8, PAD_T = 8, PAD_B = 20;
+            const plotW = SVG_W - PAD_L - PAD_R;
+            const plotH = SVG_H - PAD_T - PAD_B;
+            const xOf = (i: number) => PAD_L + (i / 25) * plotW;
+            const yOf = (v: number) => PAD_T + plotH - (v / 10) * plotH;
+
+            // Build polyline segments (split on gaps)
+            const segments: string[][] = [];
+            let current: string[] = [];
+            weeklyTrend.forEach((w, i) => {
+              if (w.avg !== null) {
+                current.push(`${xOf(i).toFixed(1)},${yOf(w.avg).toFixed(1)}`);
+              } else {
+                if (current.length > 0) { segments.push(current); current = []; }
+              }
+            });
+            if (current.length > 0) segments.push(current);
+
+            // Month labels at first-of-month transitions
+            const monthLabels = weeklyTrend.filter(w => w.isFirstOfMonth);
+
+            return (
+              <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
+                      <TrendingUp size={18} />
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Tendance · 26 sem</h3>
+                  </div>
+                  {weeklyTrendDelta !== null && (
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${weeklyTrendDelta > 0 ? 'bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400' : weeklyTrendDelta < 0 ? 'bg-orange-400/10 text-orange-400' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`}>
+                      {weeklyTrendDelta > 0 ? <TrendingUp size={10} /> : weeklyTrendDelta < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
+                      {weeklyTrendDelta > 0 ? '+' : ''}{weeklyTrendDelta}
+                    </div>
+                  )}
+                </div>
+                <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full overflow-visible">
+                  {/* Grid lines at 2.5, 5, 7.5, 10 */}
+                  {[2.5, 5, 7.5, 10].map(v => (
+                    <line key={v}
+                      x1={PAD_L} y1={yOf(v).toFixed(1)}
+                      x2={SVG_W - PAD_R} y2={yOf(v).toFixed(1)}
+                      stroke="currentColor" strokeWidth={0.5} strokeDasharray="2 3"
+                      className="text-stone-200 dark:text-stone-700"
+                    />
+                  ))}
+                  {/* Polyline segments */}
+                  {segments.map((pts, si) => (
+                    <polyline key={si} points={pts.join(' ')}
+                      fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+                      className="text-forest dark:text-lime-500"
+                    />
+                  ))}
+                  {/* Dots on active weeks */}
+                  {weeklyTrend.filter(w => w.avg !== null).map(w => (
+                    <circle key={w.weekIndex}
+                      cx={xOf(w.weekIndex).toFixed(1)} cy={yOf(w.avg!).toFixed(1)}
+                      r={2.5} fill="currentColor" className="text-forest dark:text-lime-500"
+                    />
+                  ))}
+                  {/* Month labels */}
+                  {monthLabels.map(w => (
+                    <text key={w.weekIndex}
+                      x={xOf(w.weekIndex).toFixed(1)} y={SVG_H - 4}
+                      textAnchor="middle" fontSize={6} fontWeight="800" fill="currentColor"
+                      className="text-stone-400 dark:text-stone-600 uppercase"
+                    >
+                      {w.monthLabel.slice(0, 3)}
+                    </text>
+                  ))}
+                </svg>
+              </div>
+            );
+          })()}
 
           {/* LE PALMARÈS */}
           <div className="space-y-3">
@@ -869,6 +1043,37 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
         >
           Recalibrer mon profil
         </button>
+      </div>
+
+      {/* Share card — in viewport but invisible so browser paints it */}
+      <div
+        ref={shareCardRef}
+        style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -1, width: '320px', background: '#1A1A1A', borderRadius: '24px', padding: '32px', fontFamily: 'Inter, sans-serif', color: '#fff' }}
+      >
+        <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#6b7280', marginBottom: '12px' }}>The Bitter</div>
+        <div style={{ fontSize: '48px', marginBottom: '12px' }}>{advancedArchetype.icon}</div>
+        <div style={{ display: 'inline-block', background: '#3E5238', color: '#fff', padding: '3px 10px', borderRadius: '999px', fontSize: '9px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '10px' }}>
+          {advancedArchetype.tag}
+        </div>
+        <div style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: '6px' }}>{advancedArchetype.title}</div>
+        <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '24px', lineHeight: 1.5 }}>{advancedArchetype.description}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          {[
+            { label: 'Films', value: watchedCount },
+            { label: 'Heures', value: `${totalHours}h` },
+            { label: 'Moyenne', value: stats.ratingAverages.global },
+          ].map(s => (
+            <div key={s.label} style={{ background: '#252525', borderRadius: '12px', padding: '10px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>{s.value}</div>
+              <div style={{ fontSize: '8px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {stats.genreRatingsSorted[0] && (
+          <div style={{ marginTop: '16px', fontSize: '9px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+            Genre favori · {stats.genreRatingsSorted[0].name}
+          </div>
+        )}
       </div>
     </div>
   );
