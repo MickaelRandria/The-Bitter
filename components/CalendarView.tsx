@@ -148,7 +148,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
 
   const heatmapColor = (count: number) => {
     if (count === 0) return 'bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-600';
-    if (count <= 2) return 'bg-lime-200 dark:bg-lime-900 text-lime-700 dark:text-lime-300';
+    if (count <= 2) return 'bg-lime-100 dark:bg-lime-950 text-lime-600 dark:text-lime-400';
+    if (count <= 4) return 'bg-lime-300 dark:bg-lime-800 text-lime-800 dark:text-lime-200';
     return 'bg-forest dark:bg-bitter-lime text-white dark:text-charcoal';
   };
 

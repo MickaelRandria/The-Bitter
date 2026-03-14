@@ -674,24 +674,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
 
           {/* TENDANCE HEBDOMADAIRE */}
           {hasWeeklyData && (() => {
-            const SVG_W = 280, SVG_H = 70;
-            const PAD_L = 8, PAD_R = 8, PAD_T = 8, PAD_B = 20;
+            const Y_LABELS = [0, 2, 4, 6, 8, 10];
+            const SVG_W = 280, SVG_H = 80;
+            const PAD_L = 18, PAD_R = 8, PAD_T = 8, PAD_B = 20;
             const plotW = SVG_W - PAD_L - PAD_R;
             const plotH = SVG_H - PAD_T - PAD_B;
             const xOf = (i: number) => PAD_L + (i / 25) * plotW;
             const yOf = (v: number) => PAD_T + plotH - (v / 10) * plotH;
 
-            // Build polyline segments (split on gaps)
-            const segments: string[][] = [];
-            let current: string[] = [];
-            weeklyTrend.forEach((w, i) => {
-              if (w.avg !== null) {
-                current.push(`${xOf(i).toFixed(1)},${yOf(w.avg).toFixed(1)}`);
-              } else {
-                if (current.length > 0) { segments.push(current); current = []; }
-              }
-            });
-            if (current.length > 0) segments.push(current);
+            // Single polyline through all weeks with data (connected even across gaps)
+            const activePoints = weeklyTrend
+              .filter(w => w.avg !== null)
+              .map(w => `${xOf(w.weekIndex).toFixed(1)},${yOf(w.avg!).toFixed(1)}`);
 
             // Month labels at first-of-month transitions
             const monthLabels = weeklyTrend.filter(w => w.isFirstOfMonth);
@@ -713,22 +707,32 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
                   )}
                 </div>
                 <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full overflow-visible">
-                  {/* Grid lines at 2.5, 5, 7.5, 10 */}
-                  {[2.5, 5, 7.5, 10].map(v => (
-                    <line key={v}
-                      x1={PAD_L} y1={yOf(v).toFixed(1)}
-                      x2={SVG_W - PAD_R} y2={yOf(v).toFixed(1)}
-                      stroke="currentColor" strokeWidth={0.5} strokeDasharray="2 3"
-                      className="text-stone-200 dark:text-stone-700"
-                    />
+                  {/* Y-axis labels + grid lines */}
+                  {Y_LABELS.map(v => (
+                    <g key={v}>
+                      <line
+                        x1={PAD_L} y1={yOf(v).toFixed(1)}
+                        x2={SVG_W - PAD_R} y2={yOf(v).toFixed(1)}
+                        stroke="currentColor" strokeWidth={0.5} strokeDasharray="2 3"
+                        className="text-stone-200 dark:text-stone-700"
+                      />
+                      <text
+                        x={PAD_L - 3} y={yOf(v).toFixed(1)}
+                        textAnchor="end" dominantBaseline="middle"
+                        fontSize={5.5} fontWeight="800" fill="currentColor"
+                        className="text-stone-300 dark:text-stone-600"
+                      >
+                        {v}
+                      </text>
+                    </g>
                   ))}
-                  {/* Polyline segments */}
-                  {segments.map((pts, si) => (
-                    <polyline key={si} points={pts.join(' ')}
+                  {/* Single polyline connecting all data points */}
+                  {activePoints.length > 1 && (
+                    <polyline points={activePoints.join(' ')}
                       fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
                       className="text-forest dark:text-lime-500"
                     />
-                  ))}
+                  )}
                   {/* Dots on active weeks */}
                   {weeklyTrend.filter(w => w.avg !== null).map(w => (
                     <circle key={w.weekIndex}
