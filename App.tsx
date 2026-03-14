@@ -206,7 +206,11 @@ const App: React.FC = () => {
 
   const loadOrCreateProfile = async (user: any) => {
     if (!supabase) return;
-    
+
+    // Lire localStorage AVANT les awaits — source de vérité fiable (pas de stale closure React)
+    // activeProfileId peut encore être null dans cette closure async même si Effect 1 l'a déjà restauré
+    const existingLocalProfileId = localStorage.getItem(LAST_PROFILE_ID_KEY);
+
     try {
       // Tenter de charger le profil existant
       const { data: existingProfile, error } = await supabase
@@ -248,8 +252,11 @@ const App: React.FC = () => {
             }];
           }
         });
-        setActiveProfileId(user.id);
-        setShowWelcome(false);
+        // Ne switcher que si aucun profil local n'était déjà actif
+        if (!existingLocalProfileId) {
+          setActiveProfileId(user.id);
+          setShowWelcome(false);
+        }
       } else {
         // Profil introuvable → le créer (cas post-signup avec email vérifié)
         const firstName = user.user_metadata?.first_name || 'Utilisateur';
@@ -279,8 +286,11 @@ const App: React.FC = () => {
             gender: 'h',
             age: 25
           }]);
-          setActiveProfileId(user.id);
-          setShowWelcome(false);
+          // Ne switcher que si aucun profil local n'était déjà actif
+          if (!existingLocalProfileId) {
+            setActiveProfileId(user.id);
+            setShowWelcome(false);
+          }
         }
       }
     } catch (err) {
