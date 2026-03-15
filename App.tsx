@@ -1,4 +1,4 @@
-import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle, Trash2 } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, ChevronRight, MessageSquareText, Users, Globe, Info, Check, Shuffle, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
@@ -79,6 +79,7 @@ const App: React.FC = () => {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
+  const [showFeedStats, setShowFeedStats] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('Date');
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,8 +91,7 @@ const App: React.FC = () => {
   const [tonightPick, setTonightPick] = useState<Movie | null>(null);
   const [isPickAnimating, setIsPickAnimating] = useState(false);
   const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
-  const [surprisePick, setSurprisePick] = useState<Movie | null>(null);
-  const [isSurpriseAnimating, setIsSurpriseAnimating] = useState(false);
+
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
   const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
@@ -384,6 +384,13 @@ const App: React.FC = () => {
     if (viewMode === 'Deck') setDeckAdvanceTrigger(prev => prev + 1);
   };
 
+  const handleUpdateTmdbRating = (movieId: string, newRating: number) => {
+    setProfiles(prev => prev.map(p => p.id !== activeProfileId ? p : {
+      ...p,
+      movies: p.movies.map(m => m.id === movieId ? { ...m, tmdbRating: newRating } : m)
+    }));
+  };
+
   const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!activeProfileId) return;
     try {
@@ -535,22 +542,6 @@ const App: React.FC = () => {
     }, 120);
   };
 
-  const handleSurprisePick = () => {
-    if (!activeProfile) return;
-    const watched = uniqueMovies.filter(m => (m.status || 'watched') === 'watched');
-    if (watched.length < 2) return;
-    haptics.medium();
-    setIsSurpriseAnimating(true);
-    let count = 0, maxCycles = 12;
-    const interval = setInterval(() => {
-      setSurprisePick(watched[Math.floor(Math.random() * watched.length)]);
-      if (++count >= maxCycles) {
-        clearInterval(interval);
-        setSurprisePick(watched[Math.floor(Math.random() * watched.length)]);
-        setTimeout(() => setIsSurpriseAnimating(false), 300);
-      }
-    }, 120);
-  };
 
   const handleBackToFeed = () => {
     haptics.soft();
@@ -686,24 +677,44 @@ const App: React.FC = () => {
                       />
                     )}
                     {feedStats && (
-                      <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-600">Ta collection</p>
-                      <div className="flex justify-center items-center gap-6 py-3 px-5 bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/5">
-                        <div className="text-center">
-                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.watchedCount}</p>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">films</p>
+                      <div className="flex flex-col items-center">
+                        <button
+                          onClick={() => { haptics.soft(); setShowFeedStats(s => !s); }}
+                          className="flex items-center gap-1.5 py-1 px-3 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
+                        >
+                          <span className="text-[9px] font-black uppercase tracking-widest">Mes stats</span>
+                          <svg
+                            width="10" height="10" viewBox="0 0 10 10" fill="none"
+                            className={`transition-transform duration-300 ${showFeedStats ? 'rotate-180' : ''}`}
+                          >
+                            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        <div className={`w-full overflow-hidden transition-all duration-300 ease-in-out ${showFeedStats ? 'max-h-32 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                          <div className="flex justify-center items-center gap-6 py-3 px-5 bg-stone-50 dark:bg-[#161616] rounded-t-2xl border border-b-0 border-stone-100 dark:border-white/5">
+                            <div className="text-center">
+                              <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.watchedCount}</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">films</p>
+                            </div>
+                            <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                            <div className="text-center">
+                              <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.avgRating.toFixed(1)}</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">moy.</p>
+                            </div>
+                            <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                            <div className="text-center">
+                              <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.totalHours}h</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">vues</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { haptics.soft(); setViewMode('Analytics'); }}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 px-5 bg-stone-100 dark:bg-[#111] rounded-b-2xl border border-stone-100 dark:border-white/5 text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
+                          >
+                            Voir mes statistiques complètes
+                            <ChevronRight size={10} strokeWidth={3} />
+                          </button>
                         </div>
-                        <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
-                        <div className="text-center">
-                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.avgRating.toFixed(1)}</p>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">moy.</p>
-                        </div>
-                        <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
-                        <div className="text-center">
-                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.totalHours}h</p>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">vues</p>
-                        </div>
-                      </div>
                       </div>
                     )}
                     <div className="flex justify-center w-full mb-2">
@@ -753,22 +764,10 @@ const App: React.FC = () => {
                       </div>
                     )}
                     
-                    {feedTab === 'history' && feedStats && feedStats.watchedCount >= 2 && (
-                      <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
-                        <button onClick={handleSurprisePick} className="w-full bg-charcoal dark:bg-[#1a1a1a] text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 border border-white/5"><Shuffle size={18} strokeWidth={2.5} /> Surprise ?</button>
-                        {surprisePick && !isSurpriseAnimating && (
-                          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-                            {surprisePick.posterUrl && <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg"><img src={surprisePick.posterUrl} alt={surprisePick.title} className="w-full h-full object-cover" /></div>}
-                            <div className="flex-1 min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">🎲 Revois ce film</p><h4 className="font-black text-lg tracking-tight truncate">{surprisePick.title}</h4><p className="text-[10px] text-stone-400 font-bold mt-1">{surprisePick.director} • {surprisePick.year}</p></div>
-                            <button onClick={() => setSurprisePick(null)} className="p-2 text-stone-500 hover:text-white transition-colors"><X size={16} /></button>
-                          </div>
-                        )}
-                        {historyGenres.length > 1 && (
-                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                            <button onClick={() => setHistoryGenreFilter('all')} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>Tous</button>
-                            {historyGenres.map(genre => (<button key={genre} onClick={() => setHistoryGenreFilter(genre)} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === genre ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>{genre}</button>))}
-                          </div>
-                        )}
+                    {feedTab === 'history' && historyGenres.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 animate-[fadeIn_0.3s_ease-out]">
+                        <button onClick={() => setHistoryGenreFilter('all')} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>Tous</button>
+                        {historyGenres.map(genre => (<button key={genre} onClick={() => setHistoryGenreFilter(genre)} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === genre ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>{genre}</button>))}
                       </div>
                     )}
                     <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
@@ -860,7 +859,7 @@ const App: React.FC = () => {
         )}
         {showNewFeatures && <NewFeaturesModal onClose={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} onNeverShowAgain={() => { setShowNewFeatures(false); localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version); }} />}
         {isModalOpen && <AddMovieModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null); }} onSave={handleSaveMovie} initialData={editingMovie} tmdbIdToLoad={tmdbIdToLoad} initialMediaType={mediaTypeToLoad} initialStatus={initialStatusForAdd} sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null} currentUserId={session?.user?.id || activeProfile?.id} onSharedMovieAdded={() => setSharedSpaceRefreshTrigger(prev => prev + 1)} onToast={setToastMessage} />}
-        {previewTmdbId && <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />}
+        {previewTmdbId && (() => { const collectionMovie = uniqueMovies.find(m => m.tmdbId === previewTmdbId); return <MovieDetailModal tmdbId={previewTmdbId} mediaType={previewMediaType} isOpen={!!previewTmdbId} onClose={() => setPreviewTmdbId(null)} onAction={(id, status) => { setPreviewTmdbId(null); setTmdbIdToLoad(id); setMediaTypeToLoad(previewMediaType); setInitialStatusForAdd(status); setTimeout(() => setIsModalOpen(true), 100); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} collectionMovieId={collectionMovie?.id} collectionTmdbRating={collectionMovie?.tmdbRating} onUpdateTmdbRating={handleUpdateTmdbRating} />; })()}
         {previewDirector && (
           <DirectorMoviesModal 
             directorName={previewDirector.name}

@@ -12,6 +12,9 @@ interface MovieDetailModalProps {
   onAction: (id: number, status: MovieStatus) => void;
   onViewDirector?: (name: string, id?: number) => void;
   mediaType?: 'movie' | 'tv';
+  collectionMovieId?: string;
+  collectionTmdbRating?: number;
+  onUpdateTmdbRating?: (movieId: string, newRating: number) => void;
 }
 
 interface MovieDetail {
@@ -51,7 +54,7 @@ interface MovieDetail {
   };
 }
 
-const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, onViewDirector, mediaType = 'movie' }) => {
+const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, onViewDirector, mediaType = 'movie', collectionMovieId, collectionTmdbRating, onUpdateTmdbRating }) => {
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +66,12 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
           const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos`);
           const data = await res.json();
           setMovie(data);
+          if (collectionMovieId && onUpdateTmdbRating && data.vote_average) {
+            const freshRating = Number(data.vote_average.toFixed(1));
+            if (collectionTmdbRating !== freshRating) {
+              onUpdateTmdbRating(collectionMovieId, freshRating);
+            }
+          }
         } catch (e) {
           console.error(e);
         } finally {
