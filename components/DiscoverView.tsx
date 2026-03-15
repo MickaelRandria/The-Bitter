@@ -25,9 +25,10 @@ import {
   Tv, 
   Clock, 
   History,
-  Layers
+  Layers,
+  Bookmark,
 } from 'lucide-react';
-import { UserProfile } from '../types';
+import { UserProfile, Movie } from '../types';
 import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
 import StreamingBadge from './StreamingBadge';
@@ -39,7 +40,9 @@ type TimePeriod = 'this_month' | 'this_year' | 'all_time';
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
   onPreview: (tmdbId: number, mediaType: MediaType) => void;
+  onQuickWatchlist?: (tmdbId: number, mediaType: MediaType) => Promise<void>;
   userProfile: UserProfile | null;
+  movies?: Movie[];
   onToast?: (message: string) => void;
 }
 
@@ -75,7 +78,9 @@ const VIBES = [
   { id: 'distraction', label: 'Distraction', icon: <Smartphone size={14} />, genres: [10751, 10402, 10770] },
 ];
 
-const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, userProfile, onToast }) => {
+const RECENT_KEY = 'bitter-recent-searches';
+
+const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, onQuickWatchlist, userProfile, movies, onToast }) => {
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,8 +91,47 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
+  const [quickAddingId, setQuickAddingId] = useState<number | null>(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+  });
 
   const isSearchActive = searchQuery.length > 0;
+
+  // Collection sets for badge detection
+  const { watchedIds, watchlistIds } = useMemo(() => {
+    const watched = new Set<number>();
+    const watchlist = new Set<number>();
+    (movies || []).forEach(m => {
+      if (m.tmdbId == null) return;
+      if (m.status === 'watched') watched.add(m.tmdbId);
+      else if (m.status === 'watchlist') watchlist.add(m.tmdbId);
+    });
+    return { watchedIds: watched, watchlistIds: watchlist };
+  }, [movies]);
+
+  const saveRecentSearch = (query: string) => {
+    if (query.length < 2) return;
+    setRecentSearches(prev => {
+      const updated = [query, ...prev.filter(s => s !== query)].slice(0, 5);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const removeRecentSearch = (s: string) => {
+    setRecentSearches(prev => {
+      const updated = prev.filter(x => x !== s);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem(RECENT_KEY);
+  };
 
   const getDateRange = () => {
     const now = new Date();
@@ -143,7 +187,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => { fetchItems(); }, isSearchActive ? 500 : 0);
+    const timer = setTimeout(() => {
+      fetchItems();
+      if (searchQuery.length >= 2) saveRecentSearch(searchQuery);
+    }, isSearchActive ? 500 : 0);
     return () => clearTimeout(timer);
   }, [searchQuery, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);
 
@@ -165,15 +212,45 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
       </div>
 
       {/* SEARCH BAR */}
-      <div className="relative group">
-        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 dark:text-stone-700 group-focus-within:text-charcoal dark:group-focus-within:text-white transition-colors">
-            <Search size={20} strokeWidth={3} />
+      <div className="space-y-3">
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 dark:text-stone-700 group-focus-within:text-charcoal dark:group-focus-within:text-white transition-colors">
+              <Search size={20} strokeWidth={3} />
+          </div>
+          <input
+            type="text"
+            placeholder="Rechercher..."
+            className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
+          />
+          <div className="absolute inset-y-0 right-2 flex items-center gap-2">
+              {isSearchActive && <button onClick={handleDeepSearch} className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform">{isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />} Deep Info</button>}
+              {isSearchActive && !isAiSearching && <button onClick={() => { haptics.soft(); setSearchQuery(''); setAiResult(null); }} className="p-2 text-stone-300 dark:text-stone-700 hover:text-charcoal dark:hover:text-white"><X size={20} strokeWidth={3} /></button>}
+          </div>
         </div>
-        <input type="text" placeholder={`Rechercher...`} className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-        <div className="absolute inset-y-0 right-2 flex items-center gap-2">
-            {isSearchActive && <button onClick={handleDeepSearch} className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform">{isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />} Deep Info</button>}
-            {isSearchActive && !isAiSearching && <button onClick={() => { haptics.soft(); setSearchQuery(''); setAiResult(null); }} className="p-2 text-stone-300 dark:text-stone-700 hover:text-charcoal dark:hover:text-white"><X size={20} strokeWidth={3} /></button>}
-        </div>
+
+        {/* RECENT SEARCHES */}
+        {isSearchFocused && !isSearchActive && recentSearches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-1 animate-[fadeIn_0.2s_ease-out]">
+            <span className="text-[9px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-700">Récent</span>
+            {recentSearches.map((s, i) => (
+              <div key={i} className="flex items-center gap-1 bg-stone-100 dark:bg-[#202020] rounded-full pl-2.5 pr-1.5 py-1.5 border border-stone-200/50 dark:border-white/5">
+                <button onMouseDown={(e) => { e.preventDefault(); setSearchQuery(s); setIsSearchFocused(false); }} className="text-[10px] font-bold text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
+                  <History size={9} className="text-stone-300 dark:text-stone-600" />{s}
+                </button>
+                <button onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); removeRecentSearch(s); }} className="w-4 h-4 flex items-center justify-center text-stone-300 dark:text-stone-600 hover:text-charcoal dark:hover:text-white transition-colors">
+                  <X size={9} strokeWidth={3} />
+                </button>
+              </div>
+            ))}
+            <button onMouseDown={(e) => { e.preventDefault(); clearRecentSearches(); }} className="text-[9px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-600 hover:text-stone-400 transition-colors">
+              Effacer
+            </button>
+          </div>
+        )}
       </div>
 
       {/* AI RESULT */}
@@ -256,18 +333,37 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, u
             <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all"><div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6"><Search size={24} /></div><h3 className="font-black text-charcoal dark:text-white text-base mb-2">Aucun résultat</h3><p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">Essaye d'élargir tes critères.</p></div>
         ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-                {items.map(item => (
+                {items.map(item => {
+                    const isWatched = watchedIds.has(item.id);
+                    const isInWatchlist = watchlistIds.has(item.id);
+                    const isInCollection = isWatched || isInWatchlist;
+                    return (
                     <div key={item.id} onClick={() => { haptics.medium(); onPreview(item.id, mediaType); }} className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer">
                         <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-black/20 group-hover:shadow-xl dark:group-hover:shadow-black/40 group-hover:-translate-y-1 transition-all duration-500 bg-stone-100 dark:bg-[#161616]">
-                            <img src={`${TMDB_IMAGE_URL}${item.poster_path}`} className="w-full h-full object-cover" alt="" loading="lazy" />
+                            <img src={`${TMDB_IMAGE_URL}${item.poster_path}`} className={`w-full h-full object-cover ${isInCollection ? 'opacity-80' : ''}`} alt="" loading="lazy" />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                             <div className="absolute top-3 left-3 z-10"><StreamingBadge mediaId={item.id} mediaType={mediaType} releaseDate={item.release_date || item.first_air_date} /></div>
-                            <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0"><button onClick={(e) => { e.stopPropagation(); haptics.medium(); onSelectMovie(item.id, mediaType); }} className="w-10 h-10 bg-forest dark:bg-lime-500 text-white dark:text-black rounded-full flex items-center justify-center shadow-lg"><Plus size={20} strokeWidth={3} /></button></div>
-                            {item.vote_average > 0 && <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-[10px] font-black text-white"><Star size={10} fill="currentColor" /> {item.vote_average.toFixed(1)}</div>}
+                            {/* TMDB rating */}
+                            {item.vote_average > 0 && <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-[10px] font-black text-white z-10"><Star size={10} fill="currentColor" /> {item.vote_average.toFixed(1)}</div>}
+                            {/* Collection badge */}
+                            {isWatched && <div className="absolute bottom-3 left-3 z-20 bg-forest/90 text-white px-2 py-1 rounded-full flex items-center gap-1 text-[9px] font-black backdrop-blur-sm shadow"><Check size={9} strokeWidth={3} /> Vu</div>}
+                            {isInWatchlist && !isWatched && <div className="absolute bottom-3 left-3 z-20 bg-orange-400/90 text-white px-2 py-1 rounded-full flex items-center gap-1 text-[9px] font-black backdrop-blur-sm shadow"><Bookmark size={9} fill="currentColor" /> Watchlist</div>}
+                            {/* Action buttons */}
+                            {!isInCollection && (
+                              <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 flex gap-2 z-20">
+                                {onQuickWatchlist && (
+                                  <button onClick={(e) => { e.stopPropagation(); haptics.soft(); setQuickAddingId(item.id); onQuickWatchlist(item.id, mediaType).finally(() => setQuickAddingId(null)); }} disabled={quickAddingId === item.id} className="w-10 h-10 bg-white/90 dark:bg-[#1a1a1a]/90 text-charcoal dark:text-white rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm active:scale-95 transition-transform">
+                                    {quickAddingId === item.id ? <Loader2 size={15} className="animate-spin" /> : <Bookmark size={16} />}
+                                  </button>
+                                )}
+                                <button onClick={(e) => { e.stopPropagation(); haptics.medium(); onSelectMovie(item.id, mediaType); }} className="w-10 h-10 bg-forest dark:bg-lime-500 text-white dark:text-black rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"><Plus size={20} strokeWidth={3} /></button>
+                              </div>
+                            )}
                         </div>
                         <div className="px-1"><h4 className="text-sm font-black text-charcoal dark:text-white leading-tight line-clamp-2 mb-1 group-hover:text-forest dark:group-hover:text-lime-500 transition-colors">{item.title || item.name}</h4><p className="text-xs text-stone-500 dark:text-stone-600 font-semibold">{(item.release_date || item.first_air_date)?.split('-')[0]}</p></div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         )}
       </div>

@@ -92,7 +92,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
     }
 
     // Best streak: sort all unique week starts and find longest consecutive run
-    const sortedWeeks = Array.from(weekSet).sort((a, b) => a - b);
+    const sortedWeeks = (Array.from(weekSet) as number[]).sort((a, b) => a - b);
     let bestStreak = 0;
     let runStreak = sortedWeeks.length > 0 ? 1 : 0;
     for (let i = 1; i < sortedWeeks.length; i++) {

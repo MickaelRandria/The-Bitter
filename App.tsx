@@ -1,6 +1,7 @@
 import { Plus, Search, SlidersHorizontal, X, LayoutGrid, PieChart, Clock, CheckCircle2, Sparkles, PiggyBank, Radar, Activity, Heart, User, LogOut, Clapperboard, Wand2, CalendarDays, BarChart3, Hourglass, ArrowDown, Film, FlaskConical, Target, Instagram, Loader2, Star, Tags, ChevronLeft, MessageSquareText, Users, Globe, Info, Check, Shuffle, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
+import { getMovieDetailsForAdd } from './services/tmdb';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
@@ -380,6 +381,49 @@ const App: React.FC = () => {
     if (viewMode === 'Deck') setDeckAdvanceTrigger(prev => prev + 1);
   };
 
+  const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
+    if (!activeProfileId) return;
+    try {
+      let formData: MovieFormData | null = null;
+      if (mediaType === 'movie') {
+        formData = await getMovieDetailsForAdd(tmdbId);
+      } else {
+        const res = await fetch(`${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`);
+        const data = await res.json();
+        const creator = data.created_by?.[0] || data.credits?.crew?.find((p: any) => p.job === 'Director');
+        const actors = data.credits?.cast?.slice(0, 3) || [];
+        formData = {
+          title: data.name || '',
+          tmdbId: data.id,
+          director: creator?.name || 'Inconnu',
+          directorId: creator?.id,
+          actors: actors.map((p: any) => p.name).join(', '),
+          actorIds: actors.map((p: any) => ({ id: p.id, name: p.name })),
+          year: data.first_air_date ? parseInt(data.first_air_date) : new Date().getFullYear(),
+          releaseDate: data.first_air_date || '',
+          runtime: data.episode_run_time?.[0] || 0,
+          genre: GENRES[0],
+          ratings: { story: 0, visuals: 0, acting: 0, sound: 0 },
+          review: data.overview || '',
+          theme: 'black',
+          posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : '',
+          status: 'watchlist',
+          dateWatched: Date.now(),
+          tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
+          rewatch: false,
+          tags: [],
+          smartphoneFactor: 0,
+          hype: 5,
+          mediaType: 'tv',
+        };
+      }
+      if (!formData) throw new Error('fetch failed');
+      handleSaveMovie({ ...formData, status: 'watchlist' });
+    } catch {
+      setToastMessage("Impossible d'ajouter à la watchlist");
+    }
+  };
+
   const handleDeleteMovie = (id: string) => {
     if (!activeProfileId) return;
     haptics.medium();
@@ -579,7 +623,7 @@ const App: React.FC = () => {
           ) : viewMode === 'Analytics' ? (
             <AnalyticsView movies={uniqueMovies.filter(m => m.status === 'watched')} userProfile={activeProfile} onNavigateToCalendar={() => setViewMode('Calendar')} onRecalibrate={() => setShowCalibration(true)} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />
           ) : viewMode === 'Discover' ? (
-            <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} userProfile={activeProfile} onToast={setToastMessage} />
+            <DiscoverView onSelectMovie={(id, type) => { setTmdbIdToLoad(id); setMediaTypeToLoad(type); setIsModalOpen(true); }} onPreview={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} onQuickWatchlist={handleQuickWatchlist} userProfile={activeProfile} movies={uniqueMovies} onToast={setToastMessage} />
           ) : viewMode === 'Calendar' ? (
             <CalendarView movies={uniqueMovies} />
           ) : viewMode === 'Deck' ? (
