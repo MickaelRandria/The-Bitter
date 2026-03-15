@@ -53,6 +53,7 @@ interface TMDBItem {
   poster_path: string;
   backdrop_path: string;
   vote_average: number;
+  vote_count?: number;
   release_date?: string;
   first_air_date?: string; // For TV
   popularity: number;
@@ -360,7 +361,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({ onSelectMovie, onPreview, o
                               </div>
                             )}
                         </div>
-                        <div className="px-1"><h4 className="text-sm font-black text-charcoal dark:text-white leading-tight line-clamp-2 mb-1 group-hover:text-forest dark:group-hover:text-lime-500 transition-colors">{item.title || item.name}</h4><p className="text-xs text-stone-500 dark:text-stone-600 font-semibold">{(item.release_date || item.first_air_date)?.split('-')[0]}</p></div>
+                        <div className="px-1"><h4 className="text-sm font-black text-charcoal dark:text-white leading-tight line-clamp-2 mb-1 group-hover:text-forest dark:group-hover:text-lime-500 transition-colors">{item.title || item.name}</h4><p className="text-xs text-stone-500 dark:text-stone-600 font-semibold">{(item.release_date || item.first_air_date)?.split('-')[0]}{item.vote_count && item.vote_count > 0 ? <span className="ml-2 text-[9px] font-bold text-stone-400">💬 {item.vote_count >= 1000 ? `${(item.vote_count / 1000).toFixed(1)}k` : item.vote_count} avis</span> : null}</p></div>
                     </div>
                     );
                 })}

@@ -14,7 +14,16 @@ interface MovieDetailModalProps {
   mediaType?: 'movie' | 'tv';
   collectionMovieId?: string;
   collectionTmdbRating?: number;
+  collectionUserRating?: number;
   onUpdateTmdbRating?: (movieId: string, newRating: number) => void;
+}
+
+interface TMDBReview {
+  id: string;
+  author: string;
+  author_details: { rating: number | null; avatar_path: string | null };
+  content: string;
+  created_at: string;
 }
 
 interface MovieDetail {
@@ -52,10 +61,14 @@ interface MovieDetail {
       type: string;
     }[];
   };
+  reviews?: { results: TMDBReview[] };
 }
 
-const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, onViewDirector, mediaType = 'movie', collectionMovieId, collectionTmdbRating, onUpdateTmdbRating }) => {
+const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onClose, onAction, onViewDirector, mediaType = 'movie', collectionMovieId, collectionTmdbRating, collectionUserRating, onUpdateTmdbRating }) => {
   const [movie, setMovie] = useState<MovieDetail | null>(null);
+  const [reviews, setReviews] = useState<TMDBReview[]>([]);
+  const [reviewFilter, setReviewFilter] = useState<'good' | 'bad' | 'matching'>('good');
+  const [expandedReview, setExpandedReview] = useState<TMDBReview | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -63,7 +76,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
       const fetchDetails = async () => {
         setLoading(true);
         try {
-          const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos`);
+          const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos,reviews`);
           const data = await res.json();
           setMovie(data);
           if (collectionMovieId && onUpdateTmdbRating && data.vote_average) {
@@ -72,6 +85,55 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
               onUpdateTmdbRating(collectionMovieId, freshRating);
             }
           }
+          // Reviews: FR p1 (append) + FR p2-3 + EN p1-22 = 25 parallel requests → ~500 reviews
+          const frP1: TMDBReview[] = data.reviews?.results ?? [];
+          const [frP2, frP3,
+            p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
+            p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22,
+          ] = await Promise.all([
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&language=fr-FR&page=2`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&language=fr-FR&page=3`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=1`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=2`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=3`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=4`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=5`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=6`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=7`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=8`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=9`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=10`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=11`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=12`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=13`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=14`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=15`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=16`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=17`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=18`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=19`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=20`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=21`).then(r => r.json()),
+            fetch(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_API_KEY}&page=22`).then(r => r.json()),
+          ]);
+          const seen = new Set(frP1.map(r => r.id));
+          const allFr: TMDBReview[] = [
+            ...frP1,
+            ...(frP2.results ?? []).filter((r: TMDBReview) => !seen.has(r.id)),
+            ...(frP3.results ?? []).filter((r: TMDBReview) => !seen.has(r.id)),
+          ];
+          allFr.forEach(r => seen.add(r.id));
+          const enReviews: TMDBReview[] = [
+            ...(p1.results ?? []), ...(p2.results ?? []), ...(p3.results ?? []),
+            ...(p4.results ?? []), ...(p5.results ?? []), ...(p6.results ?? []),
+            ...(p7.results ?? []), ...(p8.results ?? []), ...(p9.results ?? []),
+            ...(p10.results ?? []), ...(p11.results ?? []), ...(p12.results ?? []),
+            ...(p13.results ?? []), ...(p14.results ?? []), ...(p15.results ?? []),
+            ...(p16.results ?? []), ...(p17.results ?? []), ...(p18.results ?? []),
+            ...(p19.results ?? []), ...(p20.results ?? []), ...(p21.results ?? []),
+            ...(p22.results ?? []),
+          ].filter((r: TMDBReview) => !seen.has(r.id));
+          setReviews([...allFr, ...enReviews]);
         } catch (e) {
           console.error(e);
         } finally {
@@ -81,6 +143,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
       fetchDetails();
     } else {
       setMovie(null);
+      setReviews([]);
+      setExpandedReview(null);
     }
   }, [isOpen, tmdbId, mediaType]);
 
@@ -108,6 +172,35 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const providers = movie?.['watch/providers']?.results?.FR?.flatrate || [];
   const trailer = movie?.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+
+  // Review categories — thresholds: ≥7 positive, ≤4 negative, closest to user rating
+  const ratedReviews = reviews.filter(r => r.author_details.rating != null);
+  const goodReviews = [...ratedReviews]
+    .filter(r => (r.author_details.rating ?? 0) >= 7)
+    .sort((a, b) => (b.author_details.rating ?? 0) - (a.author_details.rating ?? 0))
+    .slice(0, 5);
+  const badReviews = [...ratedReviews]
+    .filter(r => (r.author_details.rating ?? 10) <= 4)
+    .sort((a, b) => (a.author_details.rating ?? 10) - (b.author_details.rating ?? 10))
+    .slice(0, 5);
+  const matchingReviews = collectionUserRating != null
+    ? [...ratedReviews]
+        .filter(r => Math.abs((r.author_details.rating ?? -99) - collectionUserRating) <= 0.5)
+        .sort((a, b) =>
+          Math.abs((a.author_details.rating ?? 5) - collectionUserRating) -
+          Math.abs((b.author_details.rating ?? 5) - collectionUserRating)
+        )
+        .slice(0, 5)
+    : [];
+  const hasReviews = ratedReviews.length > 0;
+  const displayedReviews = reviewFilter === 'good' ? goodReviews : reviewFilter === 'bad' ? badReviews : matchingReviews;
+
+  const getAvatarUrl = (r: TMDBReview) => {
+    if (!r.author_details.avatar_path) return null;
+    return r.author_details.avatar_path.startsWith('/https')
+      ? r.author_details.avatar_path.slice(1)
+      : `${TMDB_IMAGE_URL}${r.author_details.avatar_path}`;
+  };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center pointer-events-none">
@@ -222,6 +315,73 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                  </p>
                </div>
 
+               {/* Reviews */}
+               {hasReviews && (
+                 <div className="mb-8">
+                   <h3 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-3">Avis</h3>
+                   {/* Filter CTAs */}
+                   <div className="flex gap-2 mb-3 flex-wrap">
+                     {goodReviews.length > 0 && (
+                       <button
+                         onClick={() => { haptics.soft(); setReviewFilter('good'); }}
+                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'good' ? 'bg-forest text-white border-forest shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                       >
+                         👍 Les + enthousiastes
+                       </button>
+                     )}
+                     {badReviews.length > 0 && (
+                       <button
+                         onClick={() => { haptics.soft(); setReviewFilter('bad'); }}
+                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'bad' ? 'bg-charcoal text-white border-charcoal shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                       >
+                         👎 Les + critiques
+                       </button>
+                     )}
+                     {matchingReviews.length > 0 && (
+                       <button
+                         onClick={() => { haptics.soft(); setReviewFilter('matching'); }}
+                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'matching' ? 'bg-bitter-lime text-charcoal border-bitter-lime shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                       >
+                         🎯 Comme moi ({matchingReviews.length})
+                       </button>
+                     )}
+                   </div>
+                   {/* Cards */}
+                   {displayedReviews.length > 0 ? (
+                     <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
+                       {displayedReviews.map(r => {
+                         const avatarUrl = getAvatarUrl(r);
+                         const monthYear = new Date(r.created_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+                         return (
+                           <button
+                             key={r.id}
+                             onClick={() => { haptics.soft(); setExpandedReview(r); }}
+                             className="min-w-[240px] max-w-[260px] shrink-0 bg-stone-50 rounded-2xl border border-stone-100 p-4 flex flex-col gap-2 text-left active:scale-[0.98] transition-transform"
+                           >
+                             <div className="flex items-center gap-2">
+                               <div className="w-7 h-7 rounded-full overflow-hidden bg-stone-200 shrink-0 flex items-center justify-center text-[11px] font-black text-stone-500">
+                                 {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : r.author.charAt(0).toUpperCase()}
+                               </div>
+                               <span className="text-[11px] font-black text-charcoal truncate flex-1">{r.author}</span>
+                               {r.author_details.rating != null && (
+                                 <div className="flex items-center gap-0.5 shrink-0">
+                                   <Star size={9} fill="currentColor" className="text-bitter-lime" />
+                                   <span className="text-[10px] font-black text-stone-500">{r.author_details.rating.toFixed(1)}</span>
+                                 </div>
+                               )}
+                             </div>
+                             <p className="text-[11px] font-medium text-stone-600 leading-relaxed line-clamp-4 flex-1">{r.content}</p>
+                             <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">{monthYear} · Lire la suite →</p>
+                           </button>
+                         );
+                       })}
+                     </div>
+                   ) : (
+                     <p className="text-xs text-stone-400 font-medium">Aucun avis dans cette catégorie.</p>
+                   )}
+                 </div>
+               )}
+
                {/* Cast */}
                <div className="mb-8">
                  <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">Distribution</h3>
@@ -242,6 +402,43 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({ tmdbId, isOpen, onC
                  </div>
                </div>
             </div>
+
+            {/* Full review popup */}
+            {expandedReview && (
+              <div
+                className="absolute inset-0 z-40 bg-charcoal/70 backdrop-blur-sm flex items-center justify-center p-4"
+                onClick={() => setExpandedReview(null)}
+              >
+                <div
+                  className="bg-cream w-full sm:max-w-md max-h-[70vh] rounded-3xl shadow-2xl flex flex-col animate-[slideUp_0.25s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-3 p-5 border-b border-sand shrink-0">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-200 shrink-0 flex items-center justify-center text-[12px] font-black text-stone-500">
+                      {getAvatarUrl(expandedReview)
+                        ? <img src={getAvatarUrl(expandedReview)!} className="w-full h-full object-cover" alt="" />
+                        : expandedReview.author.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-black text-charcoal truncate">{expandedReview.author}</p>
+                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest">
+                        {new Date(expandedReview.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {expandedReview.author_details.rating != null && ` · ⭐ ${expandedReview.author_details.rating.toFixed(1)}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setExpandedReview(null)}
+                      className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 active:scale-90 transition-transform shrink-0"
+                    >
+                      <X size={14} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto p-5 no-scrollbar">
+                    <p className="text-sm font-medium text-stone-600 leading-relaxed whitespace-pre-wrap">{expandedReview.content}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Sticky Actions */}
             <div className="absolute bottom-0 left-0 right-0 p-6 bg-cream border-t border-sand flex gap-3 z-30">
