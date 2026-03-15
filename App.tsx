@@ -89,6 +89,9 @@ const App: React.FC = () => {
   const [watchlistGenreFilter, setWatchlistGenreFilter] = useState<string>('all');
   const [tonightPick, setTonightPick] = useState<Movie | null>(null);
   const [isPickAnimating, setIsPickAnimating] = useState(false);
+  const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
+  const [surprisePick, setSurprisePick] = useState<Movie | null>(null);
+  const [isSurpriseAnimating, setIsSurpriseAnimating] = useState(false);
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
   const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
@@ -474,6 +477,21 @@ const App: React.FC = () => {
     return Array.from(new Map(activeProfile.movies.map(m => [m.id, m])).values());
   }, [activeProfile]);
 
+  const historyGenres = useMemo(() => {
+    return [...new Set(uniqueMovies.filter(m => (m.status || 'watched') === 'watched').map(m => m.genre).filter(Boolean))];
+  }, [uniqueMovies]);
+
+  const feedStats = useMemo(() => {
+    if (!activeProfile) return null;
+    const watched = uniqueMovies.filter(m => (m.status || 'watched') === 'watched');
+    const watchedCount = watched.length;
+    if (watchedCount === 0) return null;
+    const avgRating = watched.reduce((acc, m) => acc + (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4, 0) / watchedCount;
+    const totalHours = Math.round(watched.reduce((acc, m) => acc + (m.runtime || 0), 0) / 60);
+    const queueCount = uniqueMovies.filter(m => (m.status || 'watched') === 'watchlist').length;
+    return { watchedCount, avgRating, totalHours, queueCount };
+  }, [uniqueMovies, activeProfile]);
+
   const filteredAndSortedMovies = useMemo(() => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
@@ -482,6 +500,7 @@ const App: React.FC = () => {
       .filter(m => {
         if ((m.status || 'watched') !== targetStatus) return false;
         if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter) return false;
+        if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter) return false;
         if (!debouncedSearch) return true;
         const q = debouncedSearch.toLowerCase();
         return m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q);
@@ -497,7 +516,7 @@ const App: React.FC = () => {
         }
         return 0;
       });
-  }, [uniqueMovies, sortBy, debouncedSearch, feedTab, watchlistGenreFilter]);
+  }, [uniqueMovies, sortBy, debouncedSearch, feedTab, watchlistGenreFilter, historyGenreFilter]);
 
   const handleTonightPick = () => {
     if (!activeProfile) return;
@@ -512,6 +531,23 @@ const App: React.FC = () => {
         clearInterval(interval);
         setTonightPick(watchlist[Math.floor(Math.random() * watchlist.length)]);
         setTimeout(() => setIsPickAnimating(false), 300);
+      }
+    }, 120);
+  };
+
+  const handleSurprisePick = () => {
+    if (!activeProfile) return;
+    const watched = uniqueMovies.filter(m => (m.status || 'watched') === 'watched');
+    if (watched.length < 2) return;
+    haptics.medium();
+    setIsSurpriseAnimating(true);
+    let count = 0, maxCycles = 12;
+    const interval = setInterval(() => {
+      setSurprisePick(watched[Math.floor(Math.random() * watched.length)]);
+      if (++count >= maxCycles) {
+        clearInterval(interval);
+        setSurprisePick(watched[Math.floor(Math.random() * watched.length)]);
+        setTimeout(() => setIsSurpriseAnimating(false), 300);
       }
     }, 120);
   };
@@ -649,23 +685,44 @@ const App: React.FC = () => {
                         onCompleteProfile={() => setShowCalibration(true)} 
                       />
                     )}
+                    {feedStats && (
+                      <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-600">Ta collection</p>
+                      <div className="flex justify-center items-center gap-6 py-3 px-5 bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/5">
+                        <div className="text-center">
+                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.watchedCount}</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">films</p>
+                        </div>
+                        <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                        <div className="text-center">
+                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.avgRating.toFixed(1)}</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">moy.</p>
+                        </div>
+                        <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                        <div className="text-center">
+                          <p className="text-base font-black tracking-tight text-charcoal dark:text-white">{feedStats.totalHours}h</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">vues</p>
+                        </div>
+                      </div>
+                      </div>
+                    )}
                     <div className="flex justify-center w-full mb-2">
                       <div className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
-                        <div 
+                        <div
                           className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-[#2a2a2a] rounded-full shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
                           style={{ transform: feedTab === 'history' ? 'translateX(0)' : 'translateX(100%)' }}
                         />
-                        <button 
-                          onClick={() => { haptics.soft(); setFeedTab('history'); }} 
+                        <button
+                          onClick={() => { haptics.soft(); setFeedTab('history'); setHistoryGenreFilter('all'); }}
                           className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'history' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                         >
-                          Vu
+                          Vu {feedStats ? `(${feedStats.watchedCount})` : ''}
                         </button>
-                        <button 
-                          onClick={() => { haptics.soft(); setFeedTab('queue'); }} 
+                        <button
+                          onClick={() => { haptics.soft(); setFeedTab('queue'); setWatchlistGenreFilter('all'); }}
                           className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'queue' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                         >
-                          À voir
+                          À voir {feedStats ? `(${feedStats.queueCount})` : ''}
                         </button>
                       </div>
                     </div>
@@ -696,6 +753,24 @@ const App: React.FC = () => {
                       </div>
                     )}
                     
+                    {feedTab === 'history' && feedStats && feedStats.watchedCount >= 2 && (
+                      <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
+                        <button onClick={handleSurprisePick} className="w-full bg-charcoal dark:bg-[#1a1a1a] text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 border border-white/5"><Shuffle size={18} strokeWidth={2.5} /> Surprise ?</button>
+                        {surprisePick && !isSurpriseAnimating && (
+                          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+                            {surprisePick.posterUrl && <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg"><img src={surprisePick.posterUrl} alt={surprisePick.title} className="w-full h-full object-cover" /></div>}
+                            <div className="flex-1 min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">🎲 Revois ce film</p><h4 className="font-black text-lg tracking-tight truncate">{surprisePick.title}</h4><p className="text-[10px] text-stone-400 font-bold mt-1">{surprisePick.director} • {surprisePick.year}</p></div>
+                            <button onClick={() => setSurprisePick(null)} className="p-2 text-stone-500 hover:text-white transition-colors"><X size={16} /></button>
+                          </div>
+                        )}
+                        {historyGenres.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button onClick={() => setHistoryGenreFilter('all')} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>Tous</button>
+                            {historyGenres.map(genre => (<button key={genre} onClick={() => setHistoryGenreFilter(genre)} className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === genre ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}>{genre}</button>))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
                       <div className="flex items-center justify-between">
                         <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
@@ -727,12 +802,12 @@ const App: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    {filteredAndSortedMovies.length === 0 && (searchQuery || watchlistGenreFilter !== 'all') ? (
+                    {filteredAndSortedMovies.length === 0 && (searchQuery || watchlistGenreFilter !== 'all' || historyGenreFilter !== 'all') ? (
                       <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
                         <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors"><Search size={28} /></div>
                         <h3 className="text-base font-black tracking-tight mb-2">Aucun résultat</h3>
                         <p className="text-stone-400 dark:text-stone-500 font-medium text-sm max-w-xs mx-auto leading-relaxed mb-4">Aucun film ne correspond à ta recherche.</p>
-                        <button onClick={() => { setSearchQuery(''); setWatchlistGenreFilter('all'); }} className="text-xs font-black uppercase tracking-widest text-forest dark:text-bitter-lime underline underline-offset-4 active:scale-95 transition-all">Effacer les filtres</button>
+                        <button onClick={() => { setSearchQuery(''); setWatchlistGenreFilter('all'); setHistoryGenreFilter('all'); }} className="text-xs font-black uppercase tracking-widest text-forest dark:text-bitter-lime underline underline-offset-4 active:scale-95 transition-all">Effacer les filtres</button>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-8">{filteredAndSortedMovies.map((movie, index) => (<MovieCard key={movie.id} movie={movie} index={index} onDelete={handleDeleteMovie} onEdit={m => { setEditingMovie(m); setIsModalOpen(true); }} onMarkAsWatched={handleMarkAsWatched} onViewDetails={(id, type) => { setPreviewTmdbId(id); setPreviewMediaType(type); }} onViewDirector={(name, id) => setPreviewDirector({ name, id })} />))}</div>

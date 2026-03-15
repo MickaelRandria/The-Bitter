@@ -15,14 +15,18 @@ export interface Release {
 export const RELEASE_HISTORY: Release[] = [
   {
     version: 'v0.81',
-    date: '14 Mars 2026',
-    title: 'Calendrier & Analytics',
+    date: '15 Mars 2026',
+    title: 'Calendrier, Analytics & Feed',
     changes: [
       { type: 'feature', text: 'Calendrier : Streak hebdomadaire — un compteur de semaines consécutives avec au moins 1 film vu, et ton record personnel.' },
       { type: 'feature', text: 'Calendrier : Vue annuelle (heatmap) — bascule entre la grille mensuelle et une vue 12 mois colorée par intensité (clic sur un mois pour y revenir).' },
       { type: 'feature', text: 'Calendrier : Filtre par genre — chips scrollables pour n\'afficher que les jours d\'un genre précis dans le mois courant.' },
       { type: 'feature', text: 'Analytics : Partage de ton archétype — bouton "Partager" dans l\'onglet Profil pour générer une carte image (PNG) à envoyer sur Instagram ou à télécharger.' },
       { type: 'feature', text: 'Analytics : Tendance des notes semaine par semaine — courbe SVG sur 26 semaines glissantes dans l\'onglet Goûts, avec indicateur de progression (hausse / baisse).' },
+      { type: 'feature', text: 'Feed : Bandeau "Ta collection" — films vus, note moyenne et heures totales en un coup d\'œil au-dessus des onglets.' },
+      { type: 'feature', text: 'Feed : Compteurs dans les onglets — le nombre de films s\'affiche directement dans Vu (n) et À voir (n).' },
+      { type: 'feature', text: 'Feed : Filtre par genre sur l\'onglet Vu — chips scrollables identiques à celles de la watchlist.' },
+      { type: 'feature', text: 'Feed : Bouton "Surprise ?" sur l\'onglet Vu — tire un film au hasard dans ta collection pour une séance de redécouverte.' },
     ]
   },
   {
