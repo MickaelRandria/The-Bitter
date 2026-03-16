@@ -25,11 +25,10 @@ import {
   Share2,
   Target,
   Route,
-  ChevronDown,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getAdvancedArchetype } from '../utils/archetypes';
-import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils/insights';
+import { computeHypeReality, computePacingInsight, computeArchetypeEvolution, getAvgRating } from '../utils/insights';
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 
@@ -120,8 +119,6 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRecalibrate, onViewDirector }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   const [isSharing, setIsSharing] = useState(false);
-  const [expandedGroup, setExpandedGroup] = useState<string | null>('notes');
-  const toggleGroup = (key: string) => { haptics.soft(); setExpandedGroup(prev => prev === key ? null : key); };
   const shareCardRef = useRef<HTMLDivElement>(null);
 
   const handleShareArchetype = async () => {
@@ -402,6 +399,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
 
     const hypeReality = computeHypeReality(watched);
     const pacingInsight = computePacingInsight(watched);
+    const archetypeEvolution = computeArchetypeEvolution(watched, userProfile);
 
     return {
       averages,
@@ -433,6 +431,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       hasWeeklyData,
       hypeReality,
       pacingInsight,
+      archetypeEvolution,
     };
   }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel]);
 
@@ -498,6 +497,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     hasWeeklyData,
     hypeReality,
     pacingInsight,
+    archetypeEvolution,
   } = stats;
 
   const maxDecadeCount = Math.max(...decadeData.map(d => d.count), 1);
@@ -611,494 +611,557 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
 
       {/* ─── TAB : GOÛTS ─── */}
       {activeTab === 'notes' && (
-        <div className="space-y-3 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+        <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
 
-          {/* ── HERO : Notes & Sévérité ── */}
-          <div
-            onClick={() => toggleGroup('notes')}
-            className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm cursor-pointer select-none active:scale-[0.99] transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-1">Notes & Sévérité</p>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-4xl font-black text-charcoal dark:text-white tracking-tighter">{userGlobalAvg}</span>
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black ${comparisonColor} border-current/20`}>
-                    <ComparisonIcon size={10} />
-                    {comparisonLabel}
-                  </div>
-                </div>
-                {tmdbAvg > 0 && <p className="text-[9px] font-bold text-stone-400 mt-1">vs monde · {tmdbAvg}</p>}
-              </div>
-              <ChevronDown size={16} className={`text-stone-400 transition-transform duration-300 shrink-0 ${expandedGroup === 'notes' ? 'rotate-180' : ''}`} />
+          {/* SÉVÉRITÉ — reformatée */}
+          <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white"><Scale size={18} /></div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Sévérité</h3>
             </div>
-
-            {expandedGroup === 'notes' && (
-              <div onClick={e => e.stopPropagation()} className="mt-5 pt-5 border-t border-stone-100 dark:border-white/5 space-y-6 animate-[fadeIn_0.2s_ease-out]">
-
-                {/* Sévérité */}
-                <div>
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white"><Scale size={18} /></div>
-                    <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Sévérité</h3>
-                  </div>
-                  <div className="flex items-end justify-between mb-4">
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Ta moyenne</p>
-                      <p className="text-4xl font-black text-charcoal dark:text-white tracking-tighter">{userGlobalAvg}</p>
-                    </div>
-                    <div className="text-center px-4">
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-black ${comparisonColor} border-current/20`}>
-                        <ComparisonIcon size={14} />
-                        {comparisonLabel}
-                      </div>
-                      <p className="text-[9px] font-bold text-stone-400 mt-1">{delta > 0 ? '+' : ''}{delta} pts</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Monde</p>
-                      {tmdbAvg > 0
-                        ? <p className="text-4xl font-black text-stone-300 dark:text-stone-600 tracking-tighter">{tmdbAvg}</p>
-                        : <p className="text-sm font-bold text-stone-300 dark:text-stone-600">N/A</p>
-                      }
-                    </div>
-                  </div>
-                  <div className="relative h-1.5 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-stone-300 dark:bg-stone-700 z-10" />
-                    <div
-                      className={`absolute top-0 bottom-0 transition-all duration-1000 ${delta > 0 ? 'bg-forest' : 'bg-orange-400'}`}
-                      style={{ left: delta > 0 ? '50%' : `${50 - Math.min(Math.abs(delta) * 15, 50)}%`, width: `${Math.min(Math.abs(delta) * 15, 50)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Distribution */}
-                <div>
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white"><BarChart2 size={18} /></div>
-                    <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Distribution</h3>
-                  </div>
-                  <div className="flex items-end gap-1 h-14 mb-2">
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map(rating => {
-                      const count = ratingDist[rating] || 0;
-                      const barH = Math.round((count / maxRatingCount) * 48);
-                      const barColor = rating >= 8 ? 'bg-forest dark:bg-lime-500' : rating <= 3 ? 'bg-orange-400' : 'bg-stone-300 dark:bg-stone-600';
-                      return (
-                        <div key={rating} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                          <div className={`w-full rounded-t-sm transition-all duration-700 ${barColor}`} style={{ height: `${barH}px` }} />
-                          <span className="text-[7px] font-bold text-stone-400 dark:text-stone-600">{rating}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-between mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
-                    {[
-                      { label: 'Sévère', range: '≤ 3', count: [1,2,3].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-orange-400' },
-                      { label: 'Moyen', range: '4–7', count: [4,5,6,7].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-stone-400' },
-                      { label: 'Généreux', range: '≥ 8', count: [8,9,10].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-forest dark:text-lime-500' },
-                    ].map(({ label, range, count, color }) => (
-                      <div key={label} className="text-center">
-                        <p className={`text-lg font-black ${color}`}>{count}</p>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">{label}</p>
-                        <p className="text-[7px] font-bold text-stone-300 dark:text-stone-600">{range}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tendance hebdomadaire */}
-                {hasWeeklyData && (() => {
-                  const Y_LABELS = [0, 2, 4, 6, 8, 10];
-                  const SVG_W = 280, SVG_H = 80;
-                  const PAD_L = 18, PAD_R = 8, PAD_T = 8, PAD_B = 20;
-                  const plotW = SVG_W - PAD_L - PAD_R;
-                  const plotH = SVG_H - PAD_T - PAD_B;
-                  const xOf = (i: number) => PAD_L + (i / 25) * plotW;
-                  const yOf = (v: number) => PAD_T + plotH - (v / 10) * plotH;
-                  const activePoints = weeklyTrend.filter(w => w.avg !== null).map(w => `${xOf(w.weekIndex).toFixed(1)},${yOf(w.avg!).toFixed(1)}`);
-                  const monthLabels = weeklyTrend.filter(w => w.isFirstOfMonth);
-                  return (
-                    <div>
-                      <div className="flex items-center justify-between mb-5">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white"><TrendingUp size={18} /></div>
-                          <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Tendance · 26 sem</h3>
-                        </div>
-                        {weeklyTrendDelta !== null && (
-                          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${weeklyTrendDelta > 0 ? 'bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400' : weeklyTrendDelta < 0 ? 'bg-orange-400/10 text-orange-400' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`}>
-                            {weeklyTrendDelta > 0 ? <TrendingUp size={10} /> : weeklyTrendDelta < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
-                            {weeklyTrendDelta > 0 ? '+' : ''}{weeklyTrendDelta}
-                          </div>
-                        )}
-                      </div>
-                      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full overflow-visible">
-                        {Y_LABELS.map(v => (
-                          <g key={v}>
-                            <line x1={PAD_L} y1={yOf(v).toFixed(1)} x2={SVG_W - PAD_R} y2={yOf(v).toFixed(1)} stroke="currentColor" strokeWidth={0.5} strokeDasharray="2 3" className="text-stone-200 dark:text-stone-700" />
-                            <text x={PAD_L - 3} y={yOf(v).toFixed(1)} textAnchor="end" dominantBaseline="middle" fontSize={5.5} fontWeight="800" fill="currentColor" className="text-stone-300 dark:text-stone-600">{v}</text>
-                          </g>
-                        ))}
-                        {activePoints.length > 1 && <polyline points={activePoints.join(' ')} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="text-forest dark:text-lime-500" />}
-                        {weeklyTrend.filter(w => w.avg !== null).map(w => <circle key={w.weekIndex} cx={xOf(w.weekIndex).toFixed(1)} cy={yOf(w.avg!).toFixed(1)} r={2.5} fill="currentColor" className="text-forest dark:text-lime-500" />)}
-                        {monthLabels.map(w => <text key={w.weekIndex} x={xOf(w.weekIndex).toFixed(1)} y={SVG_H - 4} textAnchor="middle" fontSize={6} fontWeight="800" fill="currentColor" className="text-stone-400 dark:text-stone-600 uppercase">{w.monthLabel.slice(0, 3)}</text>)}
-                      </svg>
-                    </div>
-                  );
-                })()}
-
+            <div className="flex items-end justify-between mb-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Ta moyenne</p>
+                <p className="text-4xl font-black text-charcoal dark:text-white tracking-tighter">{userGlobalAvg}</p>
               </div>
-            )}
+              <div className="text-center px-4">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-black ${comparisonColor} border-current/20`}>
+                  <ComparisonIcon size={14} />
+                  {comparisonLabel}
+                </div>
+                <p className="text-[9px] font-bold text-stone-400 mt-1">{delta > 0 ? '+' : ''}{delta} pts</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Monde</p>
+                {tmdbAvg > 0
+                  ? <p className="text-4xl font-black text-stone-300 dark:text-stone-600 tracking-tighter">{tmdbAvg}</p>
+                  : <p className="text-sm font-bold text-stone-300 dark:text-stone-600">N/A</p>
+                }
+              </div>
+            </div>
+            <div className="relative h-1.5 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
+              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-stone-300 dark:bg-stone-700 z-10" />
+              <div
+                className={`absolute top-0 bottom-0 transition-all duration-1000 ${delta > 0 ? 'bg-forest' : 'bg-orange-400'}`}
+                style={{
+                  left: delta > 0 ? '50%' : `${50 - Math.min(Math.abs(delta) * 15, 50)}%`,
+                  width: `${Math.min(Math.abs(delta) * 15, 50)}%`
+                }}
+              />
+            </div>
           </div>
 
-          {/* ── GRID 2×2 ── */}
-          <div className="grid grid-cols-2 gap-3">
-
-            {/* Palmarès */}
-            <div
-              onClick={() => toggleGroup('palmares')}
-              className={`bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-4 shadow-sm cursor-pointer select-none active:scale-[0.99] transition-all ${expandedGroup === 'palmares' ? 'col-span-2' : ''}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Palmarès</p>
-                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-300 shrink-0 ${expandedGroup === 'palmares' ? 'rotate-180' : ''}`} />
-              </div>
-              {expandedGroup !== 'palmares' ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-14 rounded-xl overflow-hidden bg-forest shrink-0 shadow-sm">
-                    {bestRated?.posterUrl
-                      ? <img src={bestRated.posterUrl} className="w-full h-full object-cover" alt="" />
-                      : <div className="w-full h-full flex items-center justify-center text-white/20"><Film size={12} /></div>}
+          {/* DISTRIBUTION DES NOTES */}
+          <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white"><BarChart2 size={18} /></div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Distribution</h3>
+            </div>
+            <div className="flex items-end gap-1 h-14 mb-2">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(rating => {
+                const count = ratingDist[rating] || 0;
+                const barH = Math.round((count / maxRatingCount) * 48);
+                const barColor = rating >= 8 ? 'bg-forest dark:bg-lime-500' : rating <= 3 ? 'bg-orange-400' : 'bg-stone-300 dark:bg-stone-600';
+                return (
+                  <div key={rating} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                    <div className={`w-full rounded-t-sm transition-all duration-700 ${barColor}`} style={{ height: `${barH}px` }} />
+                    <span className="text-[7px] font-bold text-stone-400 dark:text-stone-600">{rating}</span>
                   </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
+              {[
+                { label: 'Sévère', range: '≤ 3', count: [1,2,3].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-orange-400' },
+                { label: 'Moyen', range: '4–7', count: [4,5,6,7].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-stone-400' },
+                { label: 'Généreux', range: '≥ 8', count: [8,9,10].reduce((s,k) => s + (ratingDist[k]||0), 0), color: 'text-forest dark:text-lime-500' },
+              ].map(({ label, range, count, color }) => (
+                <div key={label} className="text-center">
+                  <p className={`text-lg font-black ${color}`}>{count}</p>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">{label}</p>
+                  <p className="text-[7px] font-bold text-stone-300 dark:text-stone-600">{range}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* TENDANCE HEBDOMADAIRE */}
+          {hasWeeklyData && (() => {
+            const Y_LABELS = [0, 2, 4, 6, 8, 10];
+            const SVG_W = 280, SVG_H = 80;
+            const PAD_L = 18, PAD_R = 8, PAD_T = 8, PAD_B = 20;
+            const plotW = SVG_W - PAD_L - PAD_R;
+            const plotH = SVG_H - PAD_T - PAD_B;
+            const xOf = (i: number) => PAD_L + (i / 25) * plotW;
+            const yOf = (v: number) => PAD_T + plotH - (v / 10) * plotH;
+
+            // Single polyline through all weeks with data (connected even across gaps)
+            const activePoints = weeklyTrend
+              .filter(w => w.avg !== null)
+              .map(w => `${xOf(w.weekIndex).toFixed(1)},${yOf(w.avg!).toFixed(1)}`);
+
+            // Month labels at first-of-month transitions
+            const monthLabels = weeklyTrend.filter(w => w.isFirstOfMonth);
+
+            return (
+              <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
+                      <TrendingUp size={18} />
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">Tendance · 26 sem</h3>
+                  </div>
+                  {weeklyTrendDelta !== null && (
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${weeklyTrendDelta > 0 ? 'bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400' : weeklyTrendDelta < 0 ? 'bg-orange-400/10 text-orange-400' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`}>
+                      {weeklyTrendDelta > 0 ? <TrendingUp size={10} /> : weeklyTrendDelta < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
+                      {weeklyTrendDelta > 0 ? '+' : ''}{weeklyTrendDelta}
+                    </div>
+                  )}
+                </div>
+                <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full overflow-visible">
+                  {/* Y-axis labels + grid lines */}
+                  {Y_LABELS.map(v => (
+                    <g key={v}>
+                      <line
+                        x1={PAD_L} y1={yOf(v).toFixed(1)}
+                        x2={SVG_W - PAD_R} y2={yOf(v).toFixed(1)}
+                        stroke="currentColor" strokeWidth={0.5} strokeDasharray="2 3"
+                        className="text-stone-200 dark:text-stone-700"
+                      />
+                      <text
+                        x={PAD_L - 3} y={yOf(v).toFixed(1)}
+                        textAnchor="end" dominantBaseline="middle"
+                        fontSize={5.5} fontWeight="800" fill="currentColor"
+                        className="text-stone-300 dark:text-stone-600"
+                      >
+                        {v}
+                      </text>
+                    </g>
+                  ))}
+                  {/* Single polyline connecting all data points */}
+                  {activePoints.length > 1 && (
+                    <polyline points={activePoints.join(' ')}
+                      fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+                      className="text-forest dark:text-lime-500"
+                    />
+                  )}
+                  {/* Dots on active weeks */}
+                  {weeklyTrend.filter(w => w.avg !== null).map(w => (
+                    <circle key={w.weekIndex}
+                      cx={xOf(w.weekIndex).toFixed(1)} cy={yOf(w.avg!).toFixed(1)}
+                      r={2.5} fill="currentColor" className="text-forest dark:text-lime-500"
+                    />
+                  ))}
+                  {/* Month labels */}
+                  {monthLabels.map(w => (
+                    <text key={w.weekIndex}
+                      x={xOf(w.weekIndex).toFixed(1)} y={SVG_H - 4}
+                      textAnchor="middle" fontSize={6} fontWeight="800" fill="currentColor"
+                      className="text-stone-400 dark:text-stone-600 uppercase"
+                    >
+                      {w.monthLabel.slice(0, 3)}
+                    </text>
+                  ))}
+                </svg>
+              </div>
+            );
+          })()}
+
+          {/* LE PALMARÈS */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">Le Palmarès</h3>
+
+            <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
+              <div className="w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
+                {bestRated?.posterUrl
+                  ? <img src={bestRated.posterUrl} className="w-full h-full object-cover" alt="" />
+                  : <div className="w-full h-full flex items-center justify-center text-white/20"><Film size={20} /></div>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 text-forest dark:text-lime-500">
+                  <ThumbsUp size={12} fill="currentColor" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Coup de cœur</span>
+                </div>
+                <h4 className="font-black text-charcoal dark:text-white truncate leading-tight">{bestRated?.title}</h4>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{bestRated?.director} · {bestRated?.year}</p>
+              </div>
+              <div className="bg-forest dark:bg-lime-500 text-white dark:text-black w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-lg">
+                {((bestRated.ratings.story + bestRated.ratings.visuals + bestRated.ratings.acting + bestRated.ratings.sound) / 4).toFixed(1)}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
+              <div className="w-16 aspect-[2/3] bg-stone-100 dark:bg-[#161616] rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
+                {worstRated?.posterUrl
+                  ? <img src={worstRated.posterUrl} className="w-full h-full object-cover opacity-50 grayscale" alt="" />
+                  : <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-700"><Film size={20} /></div>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 text-orange-400">
+                  <ThumbsDown size={12} fill="currentColor" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Douleur Visuelle</span>
+                </div>
+                <h4 className="font-black text-stone-500 dark:text-stone-400 truncate leading-tight">{worstRated?.title}</h4>
+                <p className="text-[10px] font-bold text-stone-300 dark:text-stone-500 uppercase mt-0.5">{worstRated?.director} · {worstRated?.year}</p>
+              </div>
+              <div className="bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border border-stone-200 dark:border-white/5">
+                {((worstRated.ratings.story + worstRated.ratings.visuals + worstRated.ratings.acting + worstRated.ratings.sound) / 4).toFixed(1)}
+              </div>
+            </div>
+          </div>
+
+          {/* SURPRISE & DÉCEPTION */}
+          {(biggestSurprise || biggestDisappointment) && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">Contre-courant</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {biggestSurprise && (
+                  <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-4 rounded-[2rem] shadow-sm dark:shadow-black/20 flex flex-col gap-3 transition-all">
+                    <div className="flex items-center gap-2 text-forest dark:text-lime-500">
+                      <TrendingUp size={14} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Ta surprise</span>
+                    </div>
+                    <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                      {biggestSurprise.posterUrl
+                        ? <img src={biggestSurprise.posterUrl} className="w-full h-full object-cover" alt="" />
+                        : <div className="w-full h-full flex items-center justify-center text-stone-300"><Film size={16} /></div>}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-charcoal dark:text-white text-sm leading-tight line-clamp-2">{biggestSurprise.title}</h4>
+                      <p className="text-[9px] font-bold text-stone-400 mt-1">{biggestSurprise.year}</p>
+                      <div className="mt-2 inline-flex items-center gap-1 bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400 px-2 py-0.5 rounded-full">
+                        <span className="text-[9px] font-black">+{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '—'} vs TMDB</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {biggestDisappointment && biggestDisappointment.id !== biggestSurprise?.id && (
+                  <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-4 rounded-[2rem] shadow-sm dark:shadow-black/20 flex flex-col gap-3 transition-all">
+                    <div className="flex items-center gap-2 text-orange-400">
+                      <TrendingDown size={14} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Ta déception</span>
+                    </div>
+                    <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                      {biggestDisappointment.posterUrl
+                        ? <img src={biggestDisappointment.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" />
+                        : <div className="w-full h-full flex items-center justify-center text-stone-300"><Film size={16} /></div>}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-charcoal dark:text-white text-sm leading-tight line-clamp-2">{biggestDisappointment.title}</h4>
+                      <p className="text-[9px] font-bold text-stone-400 mt-1">{biggestDisappointment.year}</p>
+                      <div className="mt-2 inline-flex items-center gap-1 bg-orange-400/10 text-orange-400 px-2 py-0.5 rounded-full">
+                        <span className="text-[9px] font-black">{biggestDisappointment.userVsTmdb} vs TMDB</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* RÉALISATEUR PRÉFÉRÉ */}
+          {favoriteDirector && (
+            <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 transition-all">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-stone-400 dark:text-stone-500"><User size={16} /></div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400">Ton réalisateur</h3>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-stone-100 dark:bg-[#161616] flex items-center justify-center overflow-hidden shrink-0">
+                  {favoriteDirector.posterUrl
+                    ? <img src={favoriteDirector.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" />
+                    : <User size={24} className="text-stone-300 dark:text-stone-600" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 
+                    className={`font-black text-charcoal dark:text-white text-lg leading-tight truncate transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 underline-offset-4' : ''}`}
+                    onClick={() => {
+                      if (onViewDirector) {
+                        haptics.soft();
+                        onViewDirector(favoriteDirector.name);
+                      }
+                    }}
+                  >
+                    {favoriteDirector.name}
+                  </h4>
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mt-0.5">{favoriteDirector.count} films vus</p>
+                </div>
+                <div className="bg-charcoal dark:bg-[#161616] text-white w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shadow-lg shrink-0">
+                  {favoriteDirector.avg}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CRITÈRES avec dominant & point aveugle */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">Ton Regard</h3>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl p-3">
+                <p className="text-[8px] font-black uppercase tracking-widest text-red-400 mb-1">Plus exigeant sur</p>
+                <p className="text-sm font-black text-charcoal dark:text-white">{dominantCriterion.label}</p>
+                <p className="text-[10px] font-bold text-red-400">{dominantCriterion.val} / 10</p>
+              </div>
+              <div className="bg-forest/5 dark:bg-lime-500/10 border border-forest/10 dark:border-lime-500/20 rounded-2xl p-3">
+                <p className="text-[8px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mb-1">Plus généreux sur</p>
+                <p className="text-sm font-black text-charcoal dark:text-white">{blindSpotCriterion.label}</p>
+                <p className="text-[10px] font-bold text-forest dark:text-lime-400">{blindSpotCriterion.val} / 10</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-50 dark:bg-[#161616] rounded-[2rem] p-5 border border-stone-100 dark:border-white/5 space-y-4">
+              {criteriaScores.map(c => {
+                const isDominant = c.id === dominantCriterion.id;
+                const isBlind = c.id === blindSpotCriterion.id;
+                return (
+                  <div key={c.id} className="flex items-center gap-3">
+                    <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest w-20 shrink-0">{c.label}</span>
+                    <div className="flex-1 h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${isDominant ? 'bg-red-400' : isBlind ? 'bg-forest dark:bg-lime-500' : 'bg-charcoal dark:bg-white'}`}
+                        style={{ width: `${c.val * 10}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-black w-6 text-right ${isDominant ? 'text-red-400' : isBlind ? 'text-forest dark:text-lime-400' : 'text-charcoal dark:text-white'}`}>
+                      {c.val}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* TOP GENRES avec count */}
+          <div className="bg-stone-50 dark:bg-[#161616] rounded-[2.5rem] p-6 border border-stone-100 dark:border-white/5 transition-all">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
+              <Star size={12} /> Top Genres
+            </h3>
+            <div className="space-y-3.5">
+              {genreRatingsSorted.slice(0, 6).map((g, i) => (
+                <div key={g.name} className="flex items-center gap-3">
+                  <span className="text-[9px] font-black text-stone-300 dark:text-stone-600 w-4 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black text-charcoal dark:text-white truncate leading-tight">{bestRated?.title}</p>
-                    <p className="text-[9px] font-bold text-stone-400 mt-0.5">{bestRated?.year}</p>
+                    <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="text-xs font-bold text-charcoal dark:text-white truncate">{g.name}</span>
+                      <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600 shrink-0">{g.count} film{g.count > 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
+                      <div className="h-full bg-forest dark:bg-lime-500 rounded-full transition-all duration-700" style={{ width: `${g.avg * 10}%` }} />
+                    </div>
                   </div>
-                  <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">{getAvgRating(bestRated).toFixed(1)}</span>
+                  <span className="text-[10px] font-black text-charcoal dark:text-white w-7 text-right shrink-0">{g.avg}</span>
                 </div>
-              ) : (
-                <div onClick={e => e.stopPropagation()} className="space-y-4 animate-[fadeIn_0.2s_ease-out]">
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 flex gap-4 items-center border border-stone-100 dark:border-white/5">
-                    <div className="w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0">
-                      {bestRated?.posterUrl ? <img src={bestRated.posterUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-white/20"><Film size={20} /></div>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 text-forest dark:text-lime-500"><ThumbsUp size={12} fill="currentColor" /><span className="text-[9px] font-black uppercase tracking-widest">Coup de cœur</span></div>
-                      <h4 className="font-black text-charcoal dark:text-white truncate leading-tight">{bestRated?.title}</h4>
-                      <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{bestRated?.director} · {bestRated?.year}</p>
-                    </div>
-                    <div className="bg-forest dark:bg-lime-500 text-white dark:text-black w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-lg shrink-0">{getAvgRating(bestRated).toFixed(1)}</div>
-                  </div>
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 flex gap-4 items-center border border-stone-100 dark:border-white/5">
-                    <div className="w-16 aspect-[2/3] bg-stone-100 dark:bg-[#202020] rounded-xl overflow-hidden shadow-md shrink-0">
-                      {worstRated?.posterUrl ? <img src={worstRated.posterUrl} className="w-full h-full object-cover opacity-50 grayscale" alt="" /> : <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-700"><Film size={20} /></div>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 text-orange-400"><ThumbsDown size={12} fill="currentColor" /><span className="text-[9px] font-black uppercase tracking-widest">Douleur Visuelle</span></div>
-                      <h4 className="font-black text-stone-500 dark:text-stone-400 truncate leading-tight">{worstRated?.title}</h4>
-                      <p className="text-[10px] font-bold text-stone-300 dark:text-stone-500 uppercase mt-0.5">{worstRated?.director} · {worstRated?.year}</p>
-                    </div>
-                    <div className="bg-stone-100 dark:bg-stone-800 text-stone-400 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border border-stone-200 dark:border-white/5 shrink-0">{getAvgRating(worstRated).toFixed(1)}</div>
-                  </div>
-                  {(biggestSurprise || biggestDisappointment) && (
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-3">Contre-courant</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {biggestSurprise && (
-                          <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 p-3 rounded-2xl flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5 text-forest dark:text-lime-500"><TrendingUp size={12} /><span className="text-[9px] font-black uppercase tracking-widest">Surprise</span></div>
-                            <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-200 dark:bg-[#202020]">
-                              {biggestSurprise.posterUrl ? <img src={biggestSurprise.posterUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-stone-300"><Film size={14} /></div>}
-                            </div>
-                            <div>
-                              <p className="font-black text-charcoal dark:text-white text-xs leading-tight line-clamp-2">{biggestSurprise.title}</p>
-                              <div className="mt-1.5 inline-flex items-center bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400 px-1.5 py-0.5 rounded-full"><span className="text-[9px] font-black">+{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '—'} vs TMDB</span></div>
-                            </div>
-                          </div>
-                        )}
-                        {biggestDisappointment && biggestDisappointment.id !== biggestSurprise?.id && (
-                          <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 p-3 rounded-2xl flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5 text-orange-400"><TrendingDown size={12} /><span className="text-[9px] font-black uppercase tracking-widest">Déception</span></div>
-                            <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-200 dark:bg-[#202020]">
-                              {biggestDisappointment.posterUrl ? <img src={biggestDisappointment.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" /> : <div className="w-full h-full flex items-center justify-center text-stone-300"><Film size={14} /></div>}
-                            </div>
-                            <div>
-                              <p className="font-black text-charcoal dark:text-white text-xs leading-tight line-clamp-2">{biggestDisappointment.title}</p>
-                              <div className="mt-1.5 inline-flex items-center bg-orange-400/10 text-orange-400 px-1.5 py-0.5 rounded-full"><span className="text-[9px] font-black">{biggestDisappointment.userVsTmdb} vs TMDB</span></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {favoriteDirector && (
-                    <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-3">Ton réalisateur</p>
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-stone-200 dark:bg-[#202020] flex items-center justify-center overflow-hidden shrink-0">
-                          {favoriteDirector.posterUrl ? <img src={favoriteDirector.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" /> : <User size={20} className="text-stone-300 dark:text-stone-600" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4
-                            className={`font-black text-charcoal dark:text-white leading-tight truncate ${onViewDirector ? 'cursor-pointer hover:text-forest dark:hover:text-lime-500 underline decoration-current/20 underline-offset-4' : ''}`}
-                            onClick={() => { if (onViewDirector) { haptics.soft(); onViewDirector(favoriteDirector.name); } }}
-                          >{favoriteDirector.name}</h4>
-                          <p className="text-[9px] font-bold text-stone-400 mt-0.5">{favoriteDirector.count} films vus</p>
-                        </div>
-                        <div className="bg-charcoal dark:bg-[#202020] text-white w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0">{favoriteDirector.avg}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              ))}
             </div>
+          </div>
 
-            {/* Goûts & Ères */}
-            <div
-              onClick={() => toggleGroup('gouts')}
-              className={`bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-4 shadow-sm cursor-pointer select-none active:scale-[0.99] transition-all ${expandedGroup === 'gouts' ? 'col-span-2' : ''}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Goûts & Ères</p>
-                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-300 shrink-0 ${expandedGroup === 'gouts' ? 'rotate-180' : ''}`} />
+          {/* PAR DÉCENNIE */}
+          {decadeData.length > 1 && (
+            <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2.5rem] p-6 shadow-sm dark:shadow-black/20 transition-all">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-5">Par décennie</h3>
+              <div className="space-y-3">
+                {decadeData.map(d => (
+                  <div key={d.decade} className="flex items-center gap-3">
+                    <span className="text-[9px] font-black text-stone-400 dark:text-stone-500 w-12 shrink-0">{d.decade}</span>
+                    <div className="flex-1 relative h-6 flex items-center">
+                      <div className="absolute inset-y-0 left-0 right-0 bg-stone-50 dark:bg-[#161616] rounded-full" />
+                      <div
+                        className="absolute inset-y-0 left-0 bg-charcoal/10 dark:bg-white/10 rounded-full transition-all duration-700"
+                        style={{ width: `${(d.count / maxDecadeCount) * 100}%` }}
+                      />
+                      <span className="relative z-10 text-[9px] font-black text-stone-400 pl-3">{d.count} film{d.count > 1 ? 's' : ''}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-charcoal dark:text-white w-7 text-right shrink-0">{d.avg}</span>
+                  </div>
+                ))}
               </div>
-              {expandedGroup !== 'gouts' ? (
+            </div>
+          )}
+
+          {/* MOIS LE PLUS ACTIF */}
+          {mostActiveMonth && (
+            <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-5 flex items-center justify-between shadow-xl dark:shadow-black/40 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center">
+                  <CalendarDays size={18} />
+                </div>
                 <div>
-                  {genreRatingsSorted[0] && (
-                    <>
-                      <p className="text-sm font-black text-charcoal dark:text-white truncate">{genreRatingsSorted[0].name}</p>
-                      <p className="text-[9px] font-bold text-stone-400 mt-0.5">{genreRatingsSorted.length} genres explorés</p>
-                    </>
-                  )}
+                  <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">Mois le plus actif</p>
+                  <p className="font-black text-white capitalize">{mostActiveMonth.label}</p>
                 </div>
-              ) : (
-                <div onClick={e => e.stopPropagation()} className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2"><Star size={12} /> Top Genres</p>
-                    <div className="space-y-3.5">
-                      {genreRatingsSorted.slice(0, 6).map((g, i) => (
-                        <div key={g.name} className="flex items-center gap-3">
-                          <span className="text-[9px] font-black text-stone-300 dark:text-stone-600 w-4 shrink-0">{i + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-1.5 mb-1">
-                              <span className="text-xs font-bold text-charcoal dark:text-white truncate">{g.name}</span>
-                              <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600 shrink-0">{g.count} film{g.count > 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="h-1.5 bg-stone-200 dark:bg-[#161616] rounded-full overflow-hidden">
-                              <div className="h-full bg-forest dark:bg-lime-500 rounded-full transition-all duration-700" style={{ width: `${g.avg * 10}%` }} />
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-black text-charcoal dark:text-white w-7 text-right shrink-0">{g.avg}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {decadeData.length > 1 && (
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4">Par décennie</p>
-                      <div className="space-y-3">
-                        {decadeData.map(d => (
-                          <div key={d.decade} className="flex items-center gap-3">
-                            <span className="text-[9px] font-black text-stone-400 dark:text-stone-500 w-12 shrink-0">{d.decade}</span>
-                            <div className="flex-1 relative h-6 flex items-center">
-                              <div className="absolute inset-y-0 left-0 right-0 bg-stone-50 dark:bg-[#161616] rounded-full" />
-                              <div className="absolute inset-y-0 left-0 bg-charcoal/10 dark:bg-white/10 rounded-full transition-all duration-700" style={{ width: `${(d.count / maxDecadeCount) * 100}%` }} />
-                              <span className="relative z-10 text-[9px] font-black text-stone-400 pl-3">{d.count} film{d.count > 1 ? 's' : ''}</span>
-                            </div>
-                            <span className="text-[10px] font-black text-charcoal dark:text-white w-7 text-right shrink-0">{d.avg}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {mostActiveMonth && (
-                    <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-2xl p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center"><CalendarDays size={16} /></div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">Mois le plus actif</p>
-                          <p className="font-black text-white capitalize text-sm">{mostActiveMonth.label}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-bitter-lime">{mostActiveMonth.count}</p>
-                        <p className="text-[9px] font-black uppercase tracking-wider text-stone-400">films</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Ton Regard */}
-            <div
-              onClick={() => toggleGroup('regard')}
-              className={`bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-4 shadow-sm cursor-pointer select-none active:scale-[0.99] transition-all ${expandedGroup === 'regard' ? 'col-span-2' : (!(hypeReality || pacingInsight) ? 'col-span-2' : '')}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Ton Regard</p>
-                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-300 shrink-0 ${expandedGroup === 'regard' ? 'rotate-180' : ''}`} />
               </div>
-              {expandedGroup !== 'regard' ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                    <p className="text-[9px] font-bold text-stone-500 dark:text-stone-400">Exigeant · <span className="font-black text-charcoal dark:text-white">{dominantCriterion.label}</span></p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-forest dark:bg-lime-500 shrink-0" />
-                    <p className="text-[9px] font-bold text-stone-500 dark:text-stone-400">Généreux · <span className="font-black text-charcoal dark:text-white">{blindSpotCriterion.label}</span></p>
-                  </div>
-                </div>
-              ) : (
-                <div onClick={e => e.stopPropagation()} className="space-y-4 animate-[fadeIn_0.2s_ease-out]">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl p-3">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-red-400 mb-1">Plus exigeant sur</p>
-                      <p className="text-sm font-black text-charcoal dark:text-white">{dominantCriterion.label}</p>
-                      <p className="text-[10px] font-bold text-red-400">{dominantCriterion.val} / 10</p>
-                    </div>
-                    <div className="bg-forest/5 dark:bg-lime-500/10 border border-forest/10 dark:border-lime-500/20 rounded-2xl p-3">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mb-1">Plus généreux sur</p>
-                      <p className="text-sm font-black text-charcoal dark:text-white">{blindSpotCriterion.label}</p>
-                      <p className="text-[10px] font-bold text-forest dark:text-lime-400">{blindSpotCriterion.val} / 10</p>
-                    </div>
-                  </div>
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5 space-y-4">
-                    {criteriaScores.map(c => {
-                      const isDominant = c.id === dominantCriterion.id;
-                      const isBlind = c.id === blindSpotCriterion.id;
-                      return (
-                        <div key={c.id} className="flex items-center gap-3">
-                          <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest w-20 shrink-0">{c.label}</span>
-                          <div className="flex-1 h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-700 ${isDominant ? 'bg-red-400' : isBlind ? 'bg-forest dark:bg-lime-500' : 'bg-charcoal dark:bg-white'}`} style={{ width: `${c.val * 10}%` }} />
-                          </div>
-                          <span className={`text-xs font-black w-6 text-right ${isDominant ? 'text-red-400' : isBlind ? 'text-forest dark:text-lime-400' : 'text-charcoal dark:text-white'}`}>{c.val}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="text-right">
+                <p className="text-2xl font-black text-bitter-lime">{mostActiveMonth.count}</p>
+                <p className="text-[9px] font-black uppercase tracking-wider text-stone-400">films</p>
+              </div>
             </div>
+          )}
 
-            {/* Hype & Rythme */}
-            {(hypeReality || pacingInsight) && (
-              <div
-                onClick={() => toggleGroup('hype')}
-                className={`bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-4 shadow-sm cursor-pointer select-none active:scale-[0.99] transition-all ${expandedGroup === 'hype' ? 'col-span-2' : ''}`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Hype & Rythme</p>
-                  <ChevronDown size={14} className={`text-stone-400 transition-transform duration-300 shrink-0 ${expandedGroup === 'hype' ? 'rotate-180' : ''}`} />
-                </div>
-                {expandedGroup !== 'hype' ? (
-                  <div>
-                    {hypeReality ? (
-                      <>
-                        <p className="text-xs font-black text-charcoal dark:text-white">{hypeReality.profileLabel}</p>
-                        <p className={`text-lg font-black mt-0.5 ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
-                          {hypeReality.globalDelta > 0 ? '+' : ''}{hypeReality.globalDelta}
-                        </p>
-                      </>
-                    ) : pacingInsight ? (
-                      <>
-                        <p className="text-lg">{pacingInsight.emoji}</p>
-                        <p className="text-xs font-black text-charcoal dark:text-white mt-0.5">{pacingInsight.label}</p>
-                      </>
-                    ) : null}
+          {/* HYPE VS RÉALITÉ */}
+          {hypeReality && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1 flex items-center gap-2">
+                <Target size={12} /> Hype vs Réalité
+              </h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{hypeReality.profileLabel}</p>
+                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{hypeReality.description}</p>
                   </div>
-                ) : (
-                  <div onClick={e => e.stopPropagation()} className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
-                    {hypeReality && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3"><Target size={12} className="text-stone-400" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Hype vs Réalité</p></div>
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0 pr-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{hypeReality.profileLabel}</p>
-                            <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{hypeReality.description}</p>
-                          </div>
-                          <div className={`text-3xl font-black shrink-0 ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
-                            {hypeReality.globalDelta > 0 ? '+' : ''}{hypeReality.globalDelta}
-                          </div>
-                        </div>
-                        {(hypeReality.highHypeAvgDelta !== null || hypeReality.lowHypeAvgDelta !== null) && (
-                          <div className="grid grid-cols-2 gap-2 mb-4">
-                            {hypeReality.highHypeAvgDelta !== null && (
-                              <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Hypes forts</p>
-                                <p className={`text-lg font-black ${hypeReality.highHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>{hypeReality.highHypeAvgDelta > 0 ? '+' : ''}{hypeReality.highHypeAvgDelta}</p>
-                              </div>
-                            )}
-                            {hypeReality.lowHypeAvgDelta !== null && (
-                              <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Hypes faibles</p>
-                                <p className={`text-lg font-black ${hypeReality.lowHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>{hypeReality.lowHypeAvgDelta > 0 ? '+' : ''}{hypeReality.lowHypeAvgDelta}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {hypeReality.topSurprises.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-1">Surprises</p>
-                            {hypeReality.topSurprises.map(({ movie: m, delta }) => (
-                              <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
-                                <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">{m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover" alt="" />}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
-                                  <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → {getAvgRating(m).toFixed(1)}</p>
-                                </div>
-                                <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">+{delta}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {hypeReality.topDisappointments.length > 0 && (
-                          <div className="space-y-2 mt-3">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-1">Déceptions</p>
-                            {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
-                              <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
-                                <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">{m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" />}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
-                                  <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → {getAvgRating(m).toFixed(1)}</p>
-                                </div>
-                                <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                  <div className={`text-3xl font-black shrink-0 ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                    {hypeReality.globalDelta > 0 ? '+' : ''}{hypeReality.globalDelta}
+                  </div>
+                </div>
+
+                {(hypeReality.highHypeAvgDelta !== null || hypeReality.lowHypeAvgDelta !== null) && (
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    {hypeReality.highHypeAvgDelta !== null && (
+                      <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Quand tu hypes fort</p>
+                        <p className={`text-lg font-black ${hypeReality.highHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                          {hypeReality.highHypeAvgDelta > 0 ? '+' : ''}{hypeReality.highHypeAvgDelta}
+                        </p>
                       </div>
                     )}
-                    {pacingInsight && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3"><Route size={12} className="text-stone-400" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Ton Rythme Idéal</p></div>
-                        <div className="mb-4">
-                          <p className="text-xl font-black text-charcoal dark:text-white">{pacingInsight.emoji} {pacingInsight.label}</p>
-                          <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{pacingInsight.description}</p>
-                        </div>
-                        <div className="space-y-2.5">
-                          {pacingInsight.groups.map(g => {
-                            const isIdeal = g.pacing === pacingInsight.idealPacing;
-                            return (
-                              <div key={g.pacing} className="flex items-center gap-3">
-                                <span className="text-[9px] font-black uppercase text-stone-400 w-20 shrink-0">{g.label}</span>
-                                <div className="flex-1 h-2 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all duration-700 ${isIdeal ? 'bg-purple-500' : 'bg-stone-300 dark:bg-stone-600'}`} style={{ width: `${g.avg * 10}%` }} />
-                                </div>
-                                <span className={`text-xs font-black w-7 text-right shrink-0 ${isIdeal ? 'text-purple-500' : 'text-stone-400'}`}>{g.avg}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {pacingInsight.spread >= 0.5 && <p className="mt-3 text-[10px] font-bold text-stone-400 leading-snug">Écart de {pacingInsight.spread} pts entre ton rythme idéal et le moins apprécié.</p>}
+                    {hypeReality.lowHypeAvgDelta !== null && (
+                      <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Quand tu hypes peu</p>
+                        <p className={`text-lg font-black ${hypeReality.lowHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                          {hypeReality.lowHypeAvgDelta > 0 ? '+' : ''}{hypeReality.lowHypeAvgDelta}
+                        </p>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
-            )}
 
-          </div>
+                {hypeReality.topSurprises.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-2">Top surprises</p>
+                    {hypeReality.topSurprises.map(({ movie: m, delta }) => (
+                      <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
+                        <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
+                          {m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover" alt="" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
+                          <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → Note {getAvgRating(m).toFixed(1)}</p>
+                        </div>
+                        <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">+{delta}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {hypeReality.topDisappointments.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-2">Déceptions</p>
+                    {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
+                      <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
+                        <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
+                          {m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
+                          <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → Note {getAvgRating(m).toFixed(1)}</p>
+                        </div>
+                        <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* PACING IDÉAL */}
+          {pacingInsight && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1 flex items-center gap-2">
+                <Route size={12} /> Ton Rythme Idéal
+              </h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-xl font-black text-charcoal dark:text-white">{pacingInsight.emoji} {pacingInsight.label}</p>
+                  <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{pacingInsight.description}</p>
+                </div>
+                <div className="space-y-2.5">
+                  {pacingInsight.groups.map(g => {
+                    const isIdeal = g.pacing === pacingInsight.idealPacing;
+                    return (
+                      <div key={g.pacing} className="flex items-center gap-3">
+                        <span className="text-[9px] font-black uppercase text-stone-400 w-20 shrink-0">{g.label}</span>
+                        <div className="flex-1 h-2 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${isIdeal ? 'bg-purple-500' : 'bg-stone-300 dark:bg-stone-600'}`}
+                            style={{ width: `${g.avg * 10}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-black w-7 text-right shrink-0 ${isIdeal ? 'text-purple-500' : 'text-stone-400'}`}>{g.avg}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pacingInsight.spread >= 0.5 && (
+                  <p className="mt-4 text-[10px] font-bold text-stone-400 dark:text-stone-500 leading-snug">
+                    Écart de {pacingInsight.spread} pts entre ton rythme idéal et le moins apprécié.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ÉVOLUTION ARCHÉTYPE */}
+          {archetypeEvolution && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">Parcours Cinéphile</h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                {archetypeEvolution.transitionMessage && (
+                  <div className="bg-bitter-lime/10 rounded-xl p-3 mb-4 border border-bitter-lime/20">
+                    <p className="text-[10px] font-black text-charcoal dark:text-white">{archetypeEvolution.transitionMessage}</p>
+                  </div>
+                )}
+                {!archetypeEvolution.hasEvolved && (
+                  <p className="text-[10px] font-bold text-stone-400 mb-4">Ton profil est stable depuis le début ✓</p>
+                )}
+                <div className="relative">
+                  {archetypeEvolution.snapshots.map((snap, i) => {
+                    const prev = i > 0 ? archetypeEvolution.snapshots[i - 1] : null;
+                    const isChanged = prev ? snap.title !== prev.title : false;
+                    const dotColor = snap.isCurrent
+                      ? 'bg-forest dark:bg-lime-500'
+                      : isChanged
+                      ? 'bg-bitter-lime'
+                      : 'bg-stone-200 dark:bg-stone-700';
+                    return (
+                      <div key={i} className="flex items-start gap-3 relative">
+                        {i < archetypeEvolution.snapshots.length - 1 && (
+                          <div className="absolute left-3.5 top-7 bottom-0 w-0.5 bg-stone-100 dark:bg-white/5" />
+                        )}
+                        <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-sm ${dotColor} mt-0.5`}>
+                          {snap.icon}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-xs font-black text-charcoal dark:text-white">{snap.title}</p>
+                            {isChanged && (
+                              <span className="bg-bitter-lime text-charcoal text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full">Nouveau</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] font-bold text-stone-400 mt-0.5">
+                            {snap.isCurrent ? `Maintenant · ${snap.movieCount} films` : `À ${snap.movieCount} films`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
