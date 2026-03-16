@@ -5,7 +5,7 @@ import { getMovieDetailsForAdd } from './services/tmdb';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
-import { getSmartTonightPick, filterByMoodPreset, sortByVibeAxis, MoodPreset, VibeAxis } from './utils/tonightPick';
+import { getSmartTonightPick, filterByMoodPreset, sortByVibeAxis, MoodPreset, VibeAxis, MOOD_PRESETS } from './utils/tonightPick';
 import MoodPicker from './components/MoodPicker';
 import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
