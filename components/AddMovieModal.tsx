@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film, Calendar } from 'lucide-react';
+import { X, Eye, Clock, Smartphone, FlaskConical, Zap, BrainCircuit, Smile, Heart, ToggleLeft, ToggleRight, Minus, Plus, Search, Loader2, Info, Tv, Film, Calendar, Gauge } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { MovieFormData, Movie, MovieStatus, VibeCriteria, QualityMetrics } from '../types';
 import { haptics } from '../utils/haptics';
@@ -39,6 +39,7 @@ const INITIAL_FORM_STATE: MovieFormData = {
   vibe: INITIAL_VIBE,
   qualityMetrics: INITIAL_QUALITY,
   hype: 5,
+  pacing: undefined,
   mediaType: 'movie',
   numberOfSeasons: 0,
   tmdbRating: 0,
@@ -356,6 +357,62 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                             </div>
                             <input type="range" min="0" max="100" step="10" value={formData.smartphoneFactor || 0} onChange={e => { haptics.soft(); setFormData({...formData, smartphoneFactor: Number(e.target.value)}); }} className="w-full h-2 bg-white/10 rounded-full appearance-none slider mt-4" />
                         </div>
+
+                        {/* Hype */}
+                        <div className="bg-white dark:bg-[#202020] rounded-[2rem] p-5 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl"><Zap size={16} className="text-amber-400" /></div>
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Hype</p>
+                                <p className="text-[9px] font-bold text-stone-300 dark:text-stone-600">Tes attentes avant de voir le film</p>
+                              </div>
+                            </div>
+                            <span className="text-2xl font-black text-charcoal dark:text-white">{formData.hype ?? 5}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="1"
+                            value={formData.hype ?? 5}
+                            onChange={e => { haptics.soft(); setFormData({ ...formData, hype: Number(e.target.value) }); }}
+                            className="w-full h-2 bg-stone-100 dark:bg-white/10 rounded-full appearance-none slider"
+                          />
+                          <div className="flex justify-between mt-2">
+                            <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600">Aucune attente</span>
+                            <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600">Méga hype</span>
+                          </div>
+                        </div>
+
+                        {/* Pacing */}
+                        <div className="bg-white dark:bg-[#202020] rounded-[2rem] p-5 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-purple-50 dark:bg-purple-500/10 rounded-xl"><Gauge size={16} className="text-purple-500" /></div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Rythme</p>
+                              <p className="text-[9px] font-bold text-stone-300 dark:text-stone-600">Comment tu as ressenti le tempo</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {([['slow', '🐌', 'Lent'], ['perfect', '⚖️', 'Parfait'], ['fast', '⚡', 'Rapide']] as const).map(([val, emoji, label]) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => { haptics.soft(); setFormData({ ...formData, pacing: val }); }}
+                                className={`py-3 rounded-xl text-center transition-all ${
+                                  formData.pacing === val
+                                    ? 'bg-charcoal text-white dark:bg-purple-500/20 dark:text-purple-300'
+                                    : 'bg-stone-50 dark:bg-[#161616] text-stone-400 border border-stone-100 dark:border-white/5'
+                                }`}
+                              >
+                                <div className="text-lg leading-none">{emoji}</div>
+                                <div className="text-[9px] font-black uppercase tracking-wider mt-1">{label}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3">
                             <VibeBox icon={<Heart size={14} />} label="Émotion" value={formData.vibe?.emotion || 5} onChange={v => setFormData({...formData, vibe: {...formData.vibe!, emotion: v}})} />
                             <VibeBox icon={<Zap size={14} />} label="Tension" value={formData.vibe?.tension || 5} onChange={v => setFormData({...formData, vibe: {...formData.vibe!, tension: v}})} />

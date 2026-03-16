@@ -23,9 +23,12 @@ import {
   CalendarDays,
   BarChart2,
   Share2,
+  Target,
+  Route,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getAdvancedArchetype } from '../utils/archetypes';
+import { computeHypeReality, computePacingInsight, computeArchetypeEvolution, getAvgRating } from '../utils/insights';
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 
@@ -394,6 +397,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       : null;
     const hasWeeklyData = weeklyTrend.some(w => w.count > 0);
 
+    const hypeReality = computeHypeReality(watched);
+    const pacingInsight = computePacingInsight(watched);
+    const archetypeEvolution = computeArchetypeEvolution(watched, userProfile);
+
     return {
       averages,
       ratingAverages,
@@ -422,6 +429,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
       weeklyTrend,
       weeklyTrendDelta,
       hasWeeklyData,
+      hypeReality,
+      pacingInsight,
+      archetypeEvolution,
     };
   }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel]);
 
@@ -485,6 +495,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
     weeklyTrend,
     weeklyTrendDelta,
     hasWeeklyData,
+    hypeReality,
+    pacingInsight,
+    archetypeEvolution,
   } = stats;
 
   const maxDecadeCount = Math.max(...decadeData.map(d => d.count), 1);
@@ -982,6 +995,169 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ movies, userProfile, onRe
               <div className="text-right">
                 <p className="text-2xl font-black text-bitter-lime">{mostActiveMonth.count}</p>
                 <p className="text-[9px] font-black uppercase tracking-wider text-stone-400">films</p>
+              </div>
+            </div>
+          )}
+
+          {/* HYPE VS RÉALITÉ */}
+          {hypeReality && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1 flex items-center gap-2">
+                <Target size={12} /> Hype vs Réalité
+              </h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{hypeReality.profileLabel}</p>
+                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{hypeReality.description}</p>
+                  </div>
+                  <div className={`text-3xl font-black shrink-0 ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                    {hypeReality.globalDelta > 0 ? '+' : ''}{hypeReality.globalDelta}
+                  </div>
+                </div>
+
+                {(hypeReality.highHypeAvgDelta !== null || hypeReality.lowHypeAvgDelta !== null) && (
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    {hypeReality.highHypeAvgDelta !== null && (
+                      <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Quand tu hypes fort</p>
+                        <p className={`text-lg font-black ${hypeReality.highHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                          {hypeReality.highHypeAvgDelta > 0 ? '+' : ''}{hypeReality.highHypeAvgDelta}
+                        </p>
+                      </div>
+                    )}
+                    {hypeReality.lowHypeAvgDelta !== null && (
+                      <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">Quand tu hypes peu</p>
+                        <p className={`text-lg font-black ${hypeReality.lowHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}>
+                          {hypeReality.lowHypeAvgDelta > 0 ? '+' : ''}{hypeReality.lowHypeAvgDelta}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {hypeReality.topSurprises.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-2">Top surprises</p>
+                    {hypeReality.topSurprises.map(({ movie: m, delta }) => (
+                      <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
+                        <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
+                          {m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover" alt="" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
+                          <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → Note {getAvgRating(m).toFixed(1)}</p>
+                        </div>
+                        <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">+{delta}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {hypeReality.topDisappointments.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-2">Déceptions</p>
+                    {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
+                      <div key={m.id} className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-xl p-2.5 border border-stone-100 dark:border-white/5">
+                        <div className="w-8 h-12 rounded-lg overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
+                          {m.posterUrl && <img src={m.posterUrl} className="w-full h-full object-cover opacity-60 grayscale" alt="" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-charcoal dark:text-white truncate">{m.title}</p>
+                          <p className="text-[9px] font-bold text-stone-400">Hype {m.hype} → Note {getAvgRating(m).toFixed(1)}</p>
+                        </div>
+                        <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* PACING IDÉAL */}
+          {pacingInsight && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1 flex items-center gap-2">
+                <Route size={12} /> Ton Rythme Idéal
+              </h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-xl font-black text-charcoal dark:text-white">{pacingInsight.emoji} {pacingInsight.label}</p>
+                  <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mt-1 leading-snug">{pacingInsight.description}</p>
+                </div>
+                <div className="space-y-2.5">
+                  {pacingInsight.groups.map(g => {
+                    const isIdeal = g.pacing === pacingInsight.idealPacing;
+                    return (
+                      <div key={g.pacing} className="flex items-center gap-3">
+                        <span className="text-[9px] font-black uppercase text-stone-400 w-20 shrink-0">{g.label}</span>
+                        <div className="flex-1 h-2 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${isIdeal ? 'bg-purple-500' : 'bg-stone-300 dark:bg-stone-600'}`}
+                            style={{ width: `${g.avg * 10}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-black w-7 text-right shrink-0 ${isIdeal ? 'text-purple-500' : 'text-stone-400'}`}>{g.avg}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pacingInsight.spread >= 0.5 && (
+                  <p className="mt-4 text-[10px] font-bold text-stone-400 dark:text-stone-500 leading-snug">
+                    Écart de {pacingInsight.spread} pts entre ton rythme idéal et le moins apprécié.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ÉVOLUTION ARCHÉTYPE */}
+          {archetypeEvolution && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">Parcours Cinéphile</h3>
+              <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+                {archetypeEvolution.transitionMessage && (
+                  <div className="bg-bitter-lime/10 rounded-xl p-3 mb-4 border border-bitter-lime/20">
+                    <p className="text-[10px] font-black text-charcoal dark:text-white">{archetypeEvolution.transitionMessage}</p>
+                  </div>
+                )}
+                {!archetypeEvolution.hasEvolved && (
+                  <p className="text-[10px] font-bold text-stone-400 mb-4">Ton profil est stable depuis le début ✓</p>
+                )}
+                <div className="relative">
+                  {archetypeEvolution.snapshots.map((snap, i) => {
+                    const prev = i > 0 ? archetypeEvolution.snapshots[i - 1] : null;
+                    const isChanged = prev ? snap.title !== prev.title : false;
+                    const dotColor = snap.isCurrent
+                      ? 'bg-forest dark:bg-lime-500'
+                      : isChanged
+                      ? 'bg-bitter-lime'
+                      : 'bg-stone-200 dark:bg-stone-700';
+                    return (
+                      <div key={i} className="flex items-start gap-3 relative">
+                        {i < archetypeEvolution.snapshots.length - 1 && (
+                          <div className="absolute left-3.5 top-7 bottom-0 w-0.5 bg-stone-100 dark:bg-white/5" />
+                        )}
+                        <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-sm ${dotColor} mt-0.5`}>
+                          {snap.icon}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-xs font-black text-charcoal dark:text-white">{snap.title}</p>
+                            {isChanged && (
+                              <span className="bg-bitter-lime text-charcoal text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full">Nouveau</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] font-bold text-stone-400 mt-0.5">
+                            {snap.isCurrent ? `Maintenant · ${snap.movieCount} films` : `À ${snap.movieCount} films`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
