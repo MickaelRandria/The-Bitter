@@ -5,6 +5,8 @@ import { getMovieDetailsForAdd } from './services/tmdb';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
+import { getSmartTonightPick, filterByMoodPreset, sortByVibeAxis, MoodPreset, VibeAxis } from './utils/tonightPick';
+import MoodPicker from './components/MoodPicker';
 import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
@@ -91,6 +93,8 @@ const App: React.FC = () => {
   const [tonightPick, setTonightPick] = useState<Movie | null>(null);
   const [isPickAnimating, setIsPickAnimating] = useState(false);
   const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
+  const [selectedMood, setSelectedMood] = useState<MoodPreset>(null);
+  const [activeVibeSort, setActiveVibeSort] = useState<VibeAxis | null>(null);
 
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
@@ -500,47 +504,65 @@ const App: React.FC = () => {
   }, [uniqueMovies, activeProfile]);
 
   const filteredAndSortedMovies = useMemo(() => {
-    if (!activeProfile) return [];
-    const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
-    
-    return uniqueMovies
-      .filter(m => {
-        if ((m.status || 'watched') !== targetStatus) return false;
-        if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter) return false;
-        if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter) return false;
-        if (!debouncedSearch) return true;
-        const q = debouncedSearch.toLowerCase();
-        return m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q);
-      })
-      .sort((a, b) => {
-        if (sortBy === 'Date') return (b.dateWatched || b.dateAdded) - (a.dateWatched || a.dateAdded);
-        if (sortBy === 'Year') return b.year - a.year;
-        if (sortBy === 'Title') return a.title.localeCompare(b.title);
-        if (sortBy === 'Rating') {
-          const ra = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
-          const rb = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
-          return rb - ra;
-        }
-        return 0;
-      });
-  }, [uniqueMovies, sortBy, debouncedSearch, feedTab, watchlistGenreFilter, historyGenreFilter]);
+  if (!activeProfile) return [];
+  const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
+  
+  let result = uniqueMovies
+    .filter(m => {
+      if ((m.status || 'watched') !== targetStatus) return false;
+      if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter) return false;
+      if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter) return false;
+      if (!debouncedSearch) return true;
+      const q = debouncedSearch.toLowerCase();
+      return m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q);
+    });
 
-  const handleTonightPick = () => {
-    if (!activeProfile) return;
-    const watchlist = activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist');
-    if (watchlist.length === 0) return;
-    haptics.medium();
-    setIsPickAnimating(true);
-    let count = 0, maxCycles = 12;
-    const interval = setInterval(() => {
-      setTonightPick(watchlist[Math.floor(Math.random() * watchlist.length)]);
-      if (++count >= maxCycles) {
-        clearInterval(interval);
-        setTonightPick(watchlist[Math.floor(Math.random() * watchlist.length)]);
-        setTimeout(() => setIsPickAnimating(false), 300);
-      }
-    }, 120);
-  };
+  // 🎯 Appliquer les filtres Vibes (watchlist uniquement)
+  if (feedTab === 'queue') {
+    if (selectedMood) {
+      result = filterByMoodPreset(result, selectedMood);
+    }
+    if (activeVibeSort) {
+      result = sortByVibeAxis(result, activeVibeSort);
+      // Skip le tri standard si on trie par vibe
+      return result;
+    }
+  }
+
+  // Tri standard
+  return result.sort((a, b) => {
+    if (sortBy === 'Date') return (b.dateWatched || b.dateAdded) - (a.dateWatched || a.dateAdded);
+    if (sortBy === 'Year') return b.year - a.year;
+    if (sortBy === 'Title') return a.title.localeCompare(b.title);
+    if (sortBy === 'Rating') {
+      const ra = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
+      const rb = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
+      return rb - ra;
+    }
+    return 0;
+  });
+}, [uniqueMovies, sortBy, debouncedSearch, feedTab, watchlistGenreFilter, historyGenreFilter, selectedMood, activeVibeSort]);
+
+const handleTonightPick = () => {
+  if (!activeProfile) return;
+  const watchlist = activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist');
+  if (watchlist.length === 0) return;
+  haptics.medium();
+  setIsPickAnimating(true);
+  
+  // Animation de roulette (inchangée visuellement)
+  let count = 0, maxCycles = 12;
+  const interval = setInterval(() => {
+    setTonightPick(watchlist[Math.floor(Math.random() * watchlist.length)]);
+    if (++count >= maxCycles) {
+      clearInterval(interval);
+      // 🎯 Le pick final utilise l'algorithme intelligent
+      const smartPick = getSmartTonightPick(watchlist, activeProfile.movies, selectedMood);
+      setTonightPick(smartPick);
+      setTimeout(() => setIsPickAnimating(false), 300);
+    }
+  }, 120);
+};
 
 
   const handleBackToFeed = () => {
@@ -724,7 +746,7 @@ const App: React.FC = () => {
                           style={{ transform: feedTab === 'history' ? 'translateX(0)' : 'translateX(100%)' }}
                         />
                         <button
-                          onClick={() => { haptics.soft(); setFeedTab('history'); setHistoryGenreFilter('all'); }}
+                          onClick={() => { haptics.soft(); setFeedTab('history'); setHistoryGenreFilter('all'); setSelectedMood(null); setActiveVibeSort(null); }}
                           className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'history' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                         >
                           Vu {feedStats ? `(${feedStats.watchedCount})` : ''}
@@ -747,11 +769,23 @@ const App: React.FC = () => {
                     )}
                     {feedTab === 'queue' && activeProfile && activeProfile.movies.filter(m => (m.status || 'watched') === 'watchlist').length > 0 && (
                       <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
-                        <button onClick={handleTonightPick} className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3"><Shuffle size={18} strokeWidth={2.5} /> Ce soir ?</button>
+                        <MoodPicker
+                          selectedMood={selectedMood}
+                          onSelectMood={setSelectedMood}
+                          activeVibeSort={activeVibeSort}
+                          onSelectVibeSort={setActiveVibeSort}
+                          matchCount={filteredAndSortedMovies.length}
+                        />
+                        <button onClick={handleTonightPick} className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+  <Shuffle size={18} strokeWidth={2.5} />
+  {selectedMood ? `Ce soir · ${MOOD_PRESETS.find(m => m.id === selectedMood)?.label}` : 'Ce soir ?'}
+</button>
                         {tonightPick && !isPickAnimating && (
                           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
                             {tonightPick.posterUrl && <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg"><img src={tonightPick.posterUrl} alt={tonightPick.title} className="w-full h-full object-cover" /></div>}
-                            <div className="flex-1 min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">🎲 Sugggestion</p><h4 className="font-black text-lg tracking-tight truncate">{tonightPick.title}</h4><p className="text-[10px] text-stone-400 font-bold mt-1">{tonightPick.director} • {tonightPick.year}</p></div>
+                            <div className="flex-1 min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">
+  {selectedMood ? `🎯 Mood : ${MOOD_PRESETS.find(m => m.id === selectedMood)?.label}` : '🎲 Suggestion'}
+</p><h4 className="font-black text-lg tracking-tight truncate">{tonightPick.title}</h4><p className="text-[10px] text-stone-400 font-bold mt-1">{tonightPick.director} • {tonightPick.year}</p></div>
                             <button onClick={() => setTonightPick(null)} className="p-2 text-stone-500 hover:text-white transition-colors"><X size={16} /></button>
                           </div>
                         )}
