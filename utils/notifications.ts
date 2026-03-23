@@ -66,7 +66,7 @@ export function sendTestNotification(movies: Movie[]): void {
   const body = `Cette semaine : ${count} film${count !== 1 ? 's' : ''} vu${count !== 1 ? 's' : ''}. ${count > 0 ? 'Continue sur ta lancée !' : 'Temps de regarder quelque chose !'}`;
 
   const fire = () =>
-    new Notification('The Bitter 🎬', { body, icon: '/pwa-192x192.png', badge: '/pwa-192x192.png' });
+    new Notification('Récap de la semaine 🎬', { body, icon: '/pwa-192x192.png', badge: '/pwa-192x192.png' });
 
   if (!('Notification' in window)) return;
 

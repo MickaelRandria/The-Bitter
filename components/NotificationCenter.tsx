@@ -74,7 +74,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies }) => {
       </button>
 
       {open && (
-        <div className="absolute left-2 right-2 sm:left-auto sm:right-0 sm:w-96 top-full mt-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-2xl shadow-xl z-50 overflow-hidden">
+        <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 w-auto sm:w-96 top-14 sm:top-full sm:mt-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-2xl shadow-xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 dark:border-stone-800">
             <span className="font-bold text-stone-900 dark:text-stone-100 text-sm">
               Notifications
