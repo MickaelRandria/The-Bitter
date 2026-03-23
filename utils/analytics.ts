@@ -1,4 +1,3 @@
-
 import ReactGA from 'react-ga4';
 import posthog from 'posthog-js';
 
@@ -26,11 +25,11 @@ export const initAnalytics = () => {
     // Vérifie si PostHog n'est pas déjà chargé
     // @ts-ignore
     if (!window.posthog?.__loaded) {
-        posthog.init(POSTHOG_KEY, {
-            api_host: POSTHOG_HOST,
-            capture_pageview: false, // SPA : géré manuellement
-            persistence: 'localStorage' 
-        });
+      posthog.init(POSTHOG_KEY, {
+        api_host: POSTHOG_HOST,
+        capture_pageview: false, // SPA : géré manuellement
+        persistence: 'localStorage',
+      });
     }
   }
 };
@@ -52,17 +51,17 @@ export const trackEvent = (category: string, action: string, label?: string, val
         category,
         action,
         label,
-        value
+        value,
       });
     }
 
     // PostHog Event - Seulement si opt-in
     if (posthog.has_opted_in_capturing()) {
-        posthog.capture(action, {
+      posthog.capture(action, {
         category,
         label,
-        value
-        });
+        value,
+      });
     }
   } catch (error) {
     // Silence
@@ -76,17 +75,17 @@ export const trackEvent = (category: string, action: string, label?: string, val
 export const trackPageView = (pageName: string) => {
   try {
     const path = `/${pageName.toLowerCase()}`;
-    
+
     // GA4 Pageview
     if (ReactGA.isInitialized) {
-      ReactGA.send({ hitType: "pageview", page: path, title: pageName });
+      ReactGA.send({ hitType: 'pageview', page: path, title: pageName });
     }
 
     // PostHog Pageview
     if (posthog.has_opted_in_capturing()) {
-        posthog.capture('$pageview', {
-        $current_url: window.location.origin + path
-        });
+      posthog.capture('$pageview', {
+        $current_url: window.location.origin + path,
+      });
     }
   } catch (error) {
     // Silence

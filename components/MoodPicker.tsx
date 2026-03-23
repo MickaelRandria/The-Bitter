@@ -62,46 +62,70 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
     <div className="space-y-3">
       {/* Toggle bar */}
       <button
-        onClick={() => { haptics.soft(); setIsExpanded(e => !e); }}
+        onClick={() => {
+          haptics.soft();
+          setIsExpanded((e) => !e);
+        }}
         className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all ${
-          hasActiveFilter 
-            ? 'bg-bitter-lime/10 dark:bg-bitter-lime/5 border-bitter-lime/30 dark:border-bitter-lime/20' 
+          hasActiveFilter
+            ? 'bg-bitter-lime/10 dark:bg-bitter-lime/5 border-bitter-lime/30 dark:border-bitter-lime/20'
             : 'bg-stone-50 dark:bg-[#161616] border-stone-100 dark:border-white/5'
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <Sparkles size={14} className={hasActiveFilter ? 'text-forest dark:text-bitter-lime' : 'text-stone-400'} />
-          <span className={`text-[10px] font-black uppercase tracking-widest ${
-            hasActiveFilter ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 dark:text-stone-600'
-          }`}>
-            {hasActiveFilter 
-              ? `Mood actif${matchCount !== undefined ? ` · ${matchCount} films` : ''}` 
-              : 'Quel mood ce soir ?'
-            }
+          <Sparkles
+            size={14}
+            className={hasActiveFilter ? 'text-forest dark:text-bitter-lime' : 'text-stone-400'}
+          />
+          <span
+            className={`text-[10px] font-black uppercase tracking-widest ${
+              hasActiveFilter
+                ? 'text-forest dark:text-bitter-lime'
+                : 'text-stone-400 dark:text-stone-600'
+            }`}
+          >
+            {hasActiveFilter
+              ? `Mood actif${matchCount !== undefined ? ` · ${matchCount} films` : ''}`
+              : 'Quel mood ce soir ?'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {hasActiveFilter && (
             <button
-              onClick={(e) => { e.stopPropagation(); handleReset(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReset();
+              }}
               className="p-1 rounded-full hover:bg-stone-200 dark:hover:bg-white/10 transition-colors"
             >
               <X size={12} strokeWidth={3} className="text-stone-400" />
             </button>
           )}
           <svg
-            width="10" height="10" viewBox="0 0 10 10" fill="none"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
             className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
           >
-            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={hasActiveFilter ? 'text-forest dark:text-bitter-lime' : 'text-stone-400'}/>
+            <path
+              d="M2 3.5L5 6.5L8 3.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={hasActiveFilter ? 'text-forest dark:text-bitter-lime' : 'text-stone-400'}
+            />
           </svg>
         </div>
       </button>
 
       {/* Expanded content */}
-      <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-      }`}>
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
         {/* Mood presets grid */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           {MOOD_PRESETS.map((mood) => {

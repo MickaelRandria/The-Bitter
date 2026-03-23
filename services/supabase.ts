@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 🔑 Access environment variables safely
-const supabaseUrl = "https://tnvnmsevddvcklkitnpa.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRudm5tc2V2ZGR2Y2tsa2l0bnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MDgwMTMsImV4cCI6MjA4NTk4NDAxM30.cQi9F7ECVNOk8h8JYoCWATqV3XUwjL4qE_8FQeisHXk";
+const supabaseUrl = 'https://tnvnmsevddvcklkitnpa.supabase.co';
+const supabaseAnonKey =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRudm5tc2V2ZGR2Y2tsa2l0bnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MDgwMTMsImV4cCI6MjA4NTk4NDAxM30.cQi9F7ECVNOk8h8JYoCWATqV3XUwjL4qE_8FQeisHXk';
 
 // On initialise le client seulement si les clés sont présentes pour éviter les erreurs au build
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export const supabase =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 // Types
 export interface SharedSpace {
@@ -98,11 +98,11 @@ export async function createSharedSpace(
 
   const { data, error } = await supabase.rpc('create_space_v2', {
     _name: name,
-    _description: description || ''
+    _description: description || '',
   });
 
   if (error) {
-    console.error('Error creating space (RPC):', error);
+    if (import.meta.env.DEV) console.error('Error creating space (RPC):', error);
     throw error;
   }
 
@@ -117,15 +117,17 @@ export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
 
   const { data, error } = await supabase
     .from('shared_spaces')
-    .select(`
+    .select(
+      `
       *,
       space_members!inner(profile_id)
-    `)
+    `
+    )
     .eq('space_members.profile_id', userId)
     .eq('space_members.is_active', true); // Only fetch spaces where user is active
 
   if (error) {
-    console.error('Error fetching spaces:', error);
+    if (import.meta.env.DEV) console.error('Error fetching spaces:', error);
     return [];
   }
 
@@ -143,14 +145,14 @@ export async function joinSpaceByCode(
 
   try {
     const { data, error } = await supabase.rpc('join_space_by_code', {
-      _invite_code: inviteCode
+      _invite_code: inviteCode,
     });
 
     if (error) throw error;
     return { success: true, space: data as SharedSpace };
   } catch (e: any) {
-    console.error('Error joining space:', e);
-    return { success: false, error: e.message || "Code invalide ou vous êtes déjà membre." };
+    if (import.meta.env.DEV) console.error('Error joining space:', e);
+    return { success: false, error: e.message || 'Code invalide ou vous êtes déjà membre.' };
   }
 }
 
@@ -159,22 +161,22 @@ export async function joinSpaceByCode(
  */
 export async function leaveSharedSpace(spaceId: string, userId: string): Promise<boolean> {
   if (!supabase) return false;
-  
+
   // Soft delete: set is_active to false and record left_at timestamp
   const { error } = await supabase
     .from('space_members')
-    .update({ 
-      is_active: false, 
-      left_at: new Date().toISOString() 
+    .update({
+      is_active: false,
+      left_at: new Date().toISOString(),
     })
     .eq('space_id', spaceId)
     .eq('profile_id', userId);
 
   if (error) {
-    console.error('Error leaving space:', error);
+    if (import.meta.env.DEV) console.error('Error leaving space:', error);
     return false;
   }
-  
+
   return true;
 }
 
@@ -186,15 +188,17 @@ export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
 
   const { data, error } = await supabase
     .from('shared_movies')
-    .select(`
+    .select(
+      `
       *,
       added_by_profile:profiles!added_by(first_name, last_name)
-    `)
+    `
+    )
     .eq('space_id', spaceId)
     .order('added_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching space movies:', error);
+    if (import.meta.env.DEV) console.error('Error fetching space movies:', error);
     return [];
   }
 
@@ -226,13 +230,13 @@ export async function addMovieToSpace(
     .insert({
       space_id: spaceId,
       added_by: userId,
-      ...movieData
+      ...movieData,
     })
     .select()
     .single();
 
   if (error) {
-    console.error('Error adding movie to space:', error);
+    if (import.meta.env.DEV) console.error('Error adding movie to space:', error);
     return null;
   }
 
@@ -243,59 +247,59 @@ export async function addMovieToSpace(
  * Supprimer un film d'un espace (uniquement par l'auteur ou admin de l'espace)
  */
 export async function deleteSharedMovie(movieId: string): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase.from('shared_movies').delete().eq('id', movieId);
-    return !error;
+  if (!supabase) return false;
+  const { error } = await supabase.from('shared_movies').delete().eq('id', movieId);
+  return !error;
 }
 
 /**
  * Marquer un film de la watchlist comme "Regardé"
  */
 export async function markMovieAsWatched(movieId: string): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase
-        .from('shared_movies')
-        .update({ status: 'watched', added_at: new Date().toISOString() })
-        .eq('id', movieId);
-    return !error;
+  if (!supabase) return false;
+  const { error } = await supabase
+    .from('shared_movies')
+    .update({ status: 'watched', added_at: new Date().toISOString() })
+    .eq('id', movieId);
+  return !error;
 }
 
 /**
  * Gérer les votes "Je veux voir" sur la watchlist
  */
 export async function toggleMovieVote(movieId: string, userId: string): Promise<boolean> {
-    if (!supabase) return false;
+  if (!supabase) return false;
 
-    // Vérifier si déjà voté
-    const { data: existing } = await supabase
-        .from('space_movie_votes')
-        .select('id')
-        .eq('movie_id', movieId)
-        .eq('profile_id', userId)
-        .single();
+  // Vérifier si déjà voté
+  const { data: existing } = await supabase
+    .from('space_movie_votes')
+    .select('id')
+    .eq('movie_id', movieId)
+    .eq('profile_id', userId)
+    .single();
 
-    if (existing) {
-        // Unvote
-        await supabase.from('space_movie_votes').delete().eq('id', existing.id);
-    } else {
-        // Vote
-        await supabase.from('space_movie_votes').insert({ movie_id: movieId, profile_id: userId });
-    }
-    return true;
+  if (existing) {
+    // Unvote
+    await supabase.from('space_movie_votes').delete().eq('id', existing.id);
+  } else {
+    // Vote
+    await supabase.from('space_movie_votes').insert({ movie_id: movieId, profile_id: userId });
+  }
+  return true;
 }
 
 /**
  * Récupère tous les votes pour un film ou un espace
  */
 export async function getSpaceMovieVotes(spaceId: string): Promise<MovieVote[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase
-        .from('space_movie_votes')
-        .select('*, shared_movies!inner(space_id)')
-        .eq('shared_movies.space_id', spaceId);
-    
-    if (error) return [];
-    return data || [];
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('space_movie_votes')
+    .select('*, shared_movies!inner(space_id)')
+    .eq('shared_movies.space_id', spaceId);
+
+  if (error) return [];
+  return data || [];
 }
 
 /**
@@ -306,14 +310,16 @@ export async function getMovieRatings(movieId: string): Promise<MovieRating[]> {
 
   const { data, error } = await supabase
     .from('movie_ratings')
-    .select(`
+    .select(
+      `
       *,
       profile:profiles(first_name, last_name)
-    `)
+    `
+    )
     .eq('movie_id', movieId);
 
   if (error) {
-    console.error('Error fetching ratings:', error);
+    if (import.meta.env.DEV) console.error('Error fetching ratings:', error);
     return [];
   }
 
@@ -342,13 +348,13 @@ export async function upsertMovieRating(
       movie_id: movieId,
       profile_id: userId,
       ...ratings,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
     .select()
     .single();
 
   if (error) {
-    console.error('Error upserting rating:', error);
+    if (import.meta.env.DEV) console.error('Error upserting rating:', error);
     return null;
   }
 
@@ -363,15 +369,17 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
 
   const { data, error } = await supabase
     .from('space_members')
-    .select(`
+    .select(
+      `
       *,
       profile:profiles(first_name, last_name, bio, location, website, avatar_url)
-    `)
+    `
+    )
     .eq('space_id', spaceId)
     .eq('is_active', true); // Filter only active members
 
   if (error) {
-    console.error('Error fetching members:', error);
+    if (import.meta.env.DEV) console.error('Error fetching members:', error);
     return [];
   }
 
@@ -400,7 +408,7 @@ export function subscribeToSpace(
         event: '*',
         schema: 'public',
         table: 'shared_movies',
-        filter: `space_id=eq.${spaceId}`
+        filter: `space_id=eq.${spaceId}`,
       },
       onMovieChange
     )
@@ -413,7 +421,7 @@ export function subscribeToSpace(
       {
         event: '*',
         schema: 'public',
-        table: 'movie_ratings'
+        table: 'movie_ratings',
       },
       onRatingChange
     )
@@ -426,7 +434,7 @@ export function subscribeToSpace(
       {
         event: '*',
         schema: 'public',
-        table: 'space_movie_votes'
+        table: 'space_movie_votes',
       },
       onRatingChange // Re-use rating callback for general refresh
     )

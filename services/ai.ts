@@ -1,7 +1,6 @@
-
-import { GoogleGenAI } from "@google/genai";
-import { UserProfile } from "../types";
-import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from "../constants";
+import { GoogleGenAI } from '@google/genai';
+import { UserProfile } from '../types';
+import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
 
 export interface AISearchResult {
   text: string;
@@ -13,8 +12,8 @@ export interface AISearchResult {
  */
 const cleanAIResponse = (text: string): string => {
   return text
-    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")  // ** → <b>
-    .replace(/\*([^*]+)\*/g, "$1")              // * → supprime
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // ** → <b>
+    .replace(/\*([^*]+)\*/g, '$1') // * → supprime
     .trim();
 };
 
@@ -25,19 +24,19 @@ const getNetflixMovies = async (genre?: string, limit: number = 10): Promise<any
   try {
     const genreParam = genre ? `&with_genres=${TMDB_GENRE_MAP[genre] || ''}` : '';
     const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR&with_watch_providers=8${genreParam}&sort_by=popularity.desc&page=1`;
-    
+
     const response = await fetch(url);
     const data = await response.json();
-    
+
     return (data.results || []).slice(0, limit).map((movie: any) => ({
       id: movie.id,
       title: movie.title,
       year: movie.release_date?.split('-')[0] || 'N/A',
       rating: movie.vote_average?.toFixed(1) || 'N/A',
-      overview: movie.overview || ''
+      overview: movie.overview || '',
     }));
   } catch (error) {
-    console.error("Error fetching Netflix movies:", error);
+    if (import.meta.env.DEV) console.error('Error fetching Netflix movies:', error);
     return [];
   }
 };
@@ -50,15 +49,15 @@ const getSimilarMovies = async (tmdbId: number, limit: number = 5): Promise<any[
     const url = `${TMDB_BASE_URL}/movie/${tmdbId}/similar?api_key=${TMDB_API_KEY}&language=fr-FR&page=1`;
     const response = await fetch(url);
     const data = await response.json();
-    
+
     return (data.results || []).slice(0, limit).map((movie: any) => ({
       id: movie.id,
       title: movie.title,
       year: movie.release_date?.split('-')[0] || 'N/A',
-      rating: movie.vote_average?.toFixed(1) || 'N/A'
+      rating: movie.vote_average?.toFixed(1) || 'N/A',
     }));
   } catch (error) {
-    console.error("Error fetching similar movies:", error);
+    if (import.meta.env.DEV) console.error('Error fetching similar movies:', error);
     return [];
   }
 };
@@ -70,17 +69,18 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
   try {
     // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: 'gemini-3-flash-preview',
       contents: [{ role: 'user', parts: [{ text: query }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "Tu es un expert cinéma. Réponds naturellement. Utilise **titre** pour mettre en gras les films importants."
+        systemInstruction:
+          'Tu es un expert cinéma. Réponds naturellement. Utilise **titre** pour mettre en gras les films importants.',
       },
     });
 
-    const text = cleanAIResponse(response.text || "Aucune information trouvée.");
+    const text = cleanAIResponse(response.text || 'Aucune information trouvée.');
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = chunks
       .filter((c: any) => c.web)
@@ -88,8 +88,8 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
 
     return { text, sources };
   } catch (error: any) {
-    console.error("DeepSearch Error:", error.message);
-    return { text: "Recherche temporairement indisponible.", sources: [] };
+    if (import.meta.env.DEV) console.error('DeepSearch Error:', error.message);
+    return { text: 'Recherche temporairement indisponible.', sources: [] };
   }
 };
 
@@ -99,54 +99,74 @@ export const deepMovieSearch = async (query: string): Promise<AISearchResult> =>
 export const callCineAssistant = async (
   userQuestion: string,
   userProfile: UserProfile,
-  conversationHistory: { role: 'user' | 'assistant', content: string }[]
+  conversationHistory: { role: 'user' | 'assistant'; content: string }[]
 ): Promise<string> => {
   try {
     // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     // Contexte utilisateur enrichi
-    const watchedMovies = userProfile.movies.filter(m => m.status === 'watched').slice(0, 15);
+    const watchedMovies = userProfile.movies.filter((m) => m.status === 'watched').slice(0, 15);
     const favoriteGenres = userProfile.favoriteGenres || [];
-    
+
     // Calcul des stats de vibes
-    const vibeStats = watchedMovies.length > 0 ? {
-      cerebral: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.story || 5), 0) / watchedMovies.length).toFixed(1),
-      emotion: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.emotion || 5), 0) / watchedMovies.length).toFixed(1),
-      fun: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.fun || 5), 0) / watchedMovies.length).toFixed(1),
-      visuel: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.visual || 5), 0) / watchedMovies.length).toFixed(1),
-      tension: (watchedMovies.reduce((acc, m) => acc + (m.vibe?.tension || 5), 0) / watchedMovies.length).toFixed(1)
-    } : null;
+    const vibeStats =
+      watchedMovies.length > 0
+        ? {
+            cerebral: (
+              watchedMovies.reduce((acc, m) => acc + (m.vibe?.story || 5), 0) / watchedMovies.length
+            ).toFixed(1),
+            emotion: (
+              watchedMovies.reduce((acc, m) => acc + (m.vibe?.emotion || 5), 0) /
+              watchedMovies.length
+            ).toFixed(1),
+            fun: (
+              watchedMovies.reduce((acc, m) => acc + (m.vibe?.fun || 5), 0) / watchedMovies.length
+            ).toFixed(1),
+            visuel: (
+              watchedMovies.reduce((acc, m) => acc + (m.vibe?.visual || 5), 0) /
+              watchedMovies.length
+            ).toFixed(1),
+            tension: (
+              watchedMovies.reduce((acc, m) => acc + (m.vibe?.tension || 5), 0) /
+              watchedMovies.length
+            ).toFixed(1),
+          }
+        : null;
 
     // 🔥 ENRICHISSEMENT DYNAMIQUE selon la question
     let enrichedContext = '';
     const questionLower = userQuestion.toLowerCase();
-    
+
     // Si mention de Netflix/streaming
-    if (questionLower.includes('netflix') || questionLower.includes('streaming') || questionLower.includes('regarder')) {
-      console.log("🎬 Fetching Netflix catalog...");
+    if (
+      questionLower.includes('netflix') ||
+      questionLower.includes('streaming') ||
+      questionLower.includes('regarder')
+    ) {
+      console.log('🎬 Fetching Netflix catalog...');
       const netflixMovies = await getNetflixMovies(favoriteGenres[0], 8);
-      
+
       if (netflixMovies.length > 0) {
         enrichedContext += `\n\nFILMS NETFLIX FRANCE DISPONIBLES ACTUELLEMENT :\n`;
-        enrichedContext += netflixMovies.map(m => 
-          `- ${m.title} (${m.year}) - Note TMDB: ${m.rating}/10`
-        ).join('\n');
+        enrichedContext += netflixMovies
+          .map((m) => `- ${m.title} (${m.year}) - Note TMDB: ${m.rating}/10`)
+          .join('\n');
       }
     }
-    
+
     // Si mention de similarité
     if (questionLower.includes('comme') || questionLower.includes('similaire')) {
       const lastMovie = watchedMovies[0];
       if (lastMovie && lastMovie.tmdbId) {
         console.log(`🎯 Finding movies similar to ${lastMovie.title}...`);
         const similarMovies = await getSimilarMovies(lastMovie.tmdbId, 5);
-        
+
         if (similarMovies.length > 0) {
           enrichedContext += `\n\nFILMS SIMILAIRES À "${lastMovie.title}" :\n`;
-          enrichedContext += similarMovies.map(m => 
-            `- ${m.title} (${m.year}) - ${m.rating}/10`
-          ).join('\n');
+          enrichedContext += similarMovies
+            .map((m) => `- ${m.title} (${m.year}) - ${m.rating}/10`)
+            .join('\n');
         }
       }
     }
@@ -160,19 +180,28 @@ PROFIL DE ${userProfile.firstName.toUpperCase()} :
 - Genres préférés : ${favoriteGenres.join(', ') || 'Non défini'}
 
 15 DERNIERS FILMS VUS :
-${watchedMovies.map((m, i) => {
-  const avgRating = ((m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4).toFixed(1);
-  // Priority to personal comment, then review (synopsis/legacy comment)
-  const comment = m.comment || m.review;
-  return `${i + 1}. "${m.title}" (${m.year}) - ${m.genre} - Note: ${avgRating}/10${comment ? ` - "${comment}"` : ''}`;
-}).join('\n')}
+${watchedMovies
+  .map((m, i) => {
+    const avgRating = (
+      (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) /
+      4
+    ).toFixed(1);
+    // Priority to personal comment, then review (synopsis/legacy comment)
+    const comment = m.comment || m.review;
+    return `${i + 1}. "${m.title}" (${m.year}) - ${m.genre} - Note: ${avgRating}/10${comment ? ` - "${comment}"` : ''}`;
+  })
+  .join('\n')}
 
-${vibeStats ? `STATISTIQUES VIBES (moyennes) :
+${
+  vibeStats
+    ? `STATISTIQUES VIBES (moyennes) :
 - Cérébral: ${vibeStats.cerebral}/10
 - Émotion: ${vibeStats.emotion}/10
 - Fun: ${vibeStats.fun}/10
 - Visuel: ${vibeStats.visuel}/10
-- Tension: ${vibeStats.tension}/10` : ''}
+- Tension: ${vibeStats.tension}/10`
+    : ''
+}
 
 ${enrichedContext}
 `;
@@ -201,22 +230,22 @@ ${userContext}`;
 
     // Formatage des messages
     const formattedContents = [
-      ...conversationHistory.map(h => ({
+      ...conversationHistory.map((h) => ({
         role: h.role === 'user' ? 'user' : 'model',
-        parts: [{ text: h.content }]
+        parts: [{ text: h.content }],
       })),
-      { role: 'user', parts: [{ text: userQuestion }] }
+      { role: 'user', parts: [{ text: userQuestion }] },
     ];
 
     const response = await ai.models.generateContent({
-      model: "gemini-flash-lite-latest",
+      model: 'gemini-flash-lite-latest',
       contents: formattedContents as any,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
         temperature: 0.9,
         topP: 0.95,
-        topK: 40
+        topK: 40,
       },
     });
 
@@ -224,13 +253,13 @@ ${userContext}`;
 
     return cleanAIResponse(response.text);
   } catch (error: any) {
-    console.error("CRITICAL CineAssistant Error:", error.message);
-    console.error("Error stack:", error.stack);
-    
-    if (error.message.includes("API key")) {
+    if (import.meta.env.DEV) console.error('CRITICAL CineAssistant Error:', error.message);
+    if (import.meta.env.DEV) console.error('Error stack:', error.stack);
+
+    if (error.message.includes('API key')) {
       return "🔑 **Erreur de configuration**\n\nLa clé API Google AI n'est pas accessible. Vérifie que process.env.API_KEY est bien configurée.";
     }
-    
+
     return `Ma pellicule a brûlé... 🎬\n\n**Erreur technique:** ${error.message}\n\nRéessaye dans quelques secondes ou contacte le support si le problème persiste.`;
   }
 };

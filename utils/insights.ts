@@ -19,10 +19,10 @@ export interface HypeRealityResult {
 }
 
 export const computeHypeReality = (watched: Movie[]): HypeRealityResult | null => {
-  const withHype = watched.filter(m => typeof m.hype === 'number');
+  const withHype = watched.filter((m) => typeof m.hype === 'number');
   if (withHype.length < 3) return null;
 
-  const withDelta = withHype.map(m => ({
+  const withDelta = withHype.map((m) => ({
     movie: m,
     delta: Number((getAvgRating(m) - m.hype!).toFixed(2)),
   }));
@@ -36,23 +36,28 @@ export const computeHypeReality = (watched: Movie[]): HypeRealityResult | null =
 
   if (globalDelta <= -1) {
     profileLabel = 'Optimiste chronique';
-    description = "Tu t'emballe avant chaque film. Tes attentes sont souvent trop hautes et la réalité finit par décevoir.";
+    description =
+      "Tu t'emballe avant chaque film. Tes attentes sont souvent trop hautes et la réalité finit par décevoir.";
   } else if (globalDelta <= -0.3) {
     profileLabel = 'Légèrement déçu';
-    description = "Tu tends à anticiper un peu mieux que ce que tu vas trouver. Calibre tes attentes à la baisse.";
+    description =
+      'Tu tends à anticiper un peu mieux que ce que tu vas trouver. Calibre tes attentes à la baisse.';
   } else if (globalDelta <= 0.3) {
     profileLabel = 'Réaliste calibré';
-    description = "Ton intuition avant un film est juste. Tu anticipes correctement ce que tu vas ressentir.";
+    description =
+      'Ton intuition avant un film est juste. Tu anticipes correctement ce que tu vas ressentir.';
   } else if (globalDelta <= 1) {
     profileLabel = 'Légèrement optimiste';
-    description = "Les films te surprennent souvent en bien. Tu y vas avec mesure et tu en ressors content.";
+    description =
+      'Les films te surprennent souvent en bien. Tu y vas avec mesure et tu en ressors content.';
   } else {
     profileLabel = 'Agréablement surpris';
-    description = "Tu sous-estimes régulièrement les films que tu vas voir. Chaque séance est une bonne surprise.";
+    description =
+      'Tu sous-estimes régulièrement les films que tu vas voir. Chaque séance est une bonne surprise.';
   }
 
-  const highHype = withDelta.filter(x => x.movie.hype! >= 7);
-  const lowHype = withDelta.filter(x => x.movie.hype! <= 4);
+  const highHype = withDelta.filter((x) => x.movie.hype! >= 7);
+  const lowHype = withDelta.filter((x) => x.movie.hype! <= 4);
 
   const highHypeAvgDelta =
     highHype.length > 0
@@ -64,10 +69,10 @@ export const computeHypeReality = (watched: Movie[]): HypeRealityResult | null =
       : null;
 
   const sorted = [...withDelta].sort((a, b) => b.delta - a.delta);
-  const topSurprises = sorted.filter(x => x.delta > 0).slice(0, 3);
+  const topSurprises = sorted.filter((x) => x.delta > 0).slice(0, 3);
   const topDisappointments = [...withDelta]
     .sort((a, b) => a.delta - b.delta)
-    .filter(x => x.delta < 0)
+    .filter((x) => x.delta < 0)
     .slice(0, 3);
 
   return {
@@ -100,7 +105,7 @@ export interface PacingInsightResult {
 }
 
 export const computePacingInsight = (watched: Movie[]): PacingInsightResult | null => {
-  const withPacing = watched.filter(m => m.pacing);
+  const withPacing = watched.filter((m) => m.pacing);
   if (withPacing.length < 3) return null;
 
   const pacingLabels: Record<PacingType, string> = {
@@ -117,12 +122,13 @@ export const computePacingInsight = (watched: Movie[]): PacingInsightResult | nu
 
   const pacingDescriptions: Record<PacingType, string> = {
     slow: "Tu t'épanouis dans les films qui respirent. La lenteur est une invitation à la profondeur, pas un défaut.",
-    perfect: "Tu apprécies un cinéma bien équilibré — ni trop pressé ni trop contemplatif. L'harmonie avant tout.",
-    fast: "Tu aimes quand ça bouge. Le rythme effréné te tient en éveil et amplifie ton engagement.",
+    perfect:
+      "Tu apprécies un cinéma bien équilibré — ni trop pressé ni trop contemplatif. L'harmonie avant tout.",
+    fast: 'Tu aimes quand ça bouge. Le rythme effréné te tient en éveil et amplifie ton engagement.',
   };
 
   const groupMap: Partial<Record<PacingType, { sum: number; count: number }>> = {};
-  withPacing.forEach(m => {
+  withPacing.forEach((m) => {
     if (!m.pacing) return;
     if (!groupMap[m.pacing]) groupMap[m.pacing] = { sum: 0, count: 0 };
     groupMap[m.pacing]!.sum += getAvgRating(m);
@@ -144,9 +150,7 @@ export const computePacingInsight = (watched: Movie[]): PacingInsightResult | nu
 
   const idealPacing = groups[0].pacing;
   const spread =
-    groups.length > 1
-      ? Number((groups[0].avg - groups[groups.length - 1].avg).toFixed(1))
-      : 0;
+    groups.length > 1 ? Number((groups[0].avg - groups[groups.length - 1].avg).toFixed(1)) : 0;
 
   return {
     idealPacing,
@@ -198,7 +202,7 @@ export const computeArchetypeEvolution = (
     let smartphoneSum = 0;
     const genres = new Set<string>();
 
-    subset.forEach(m => {
+    subset.forEach((m) => {
       sums.cerebral += m.vibe?.story || 5;
       sums.emotion += m.vibe?.emotion || 5;
       sums.fun += m.vibe?.fun || 5;
@@ -242,8 +246,8 @@ export const computeArchetypeEvolution = (
     };
   };
 
-  const milestonesToShow = MILESTONES.filter(n => n <= count);
-  const snapshots: ArchetypeSnapshot[] = milestonesToShow.map(n => computeAt(n));
+  const milestonesToShow = MILESTONES.filter((n) => n <= count);
+  const snapshots: ArchetypeSnapshot[] = milestonesToShow.map((n) => computeAt(n));
 
   if (!milestonesToShow.includes(count)) {
     const current = computeAt(count);
@@ -253,7 +257,7 @@ export const computeArchetypeEvolution = (
     snapshots[snapshots.length - 1].isCurrent = true;
   }
 
-  const titles = snapshots.map(s => s.title);
+  const titles = snapshots.map((s) => s.title);
   const hasEvolved = new Set(titles).size > 1;
 
   let transitionMessage: string | null = null;

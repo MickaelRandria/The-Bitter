@@ -31,68 +31,149 @@ type ArchetypeDefinition = ArchetypeResult & {
 
 const ARCHETYPES: ArchetypeDefinition[] = [
   {
-    title: "Le Déchiffreur",
-    icon: "🔍",
-    tag: "CÉRÉBRAL",
-    description: "Tu ne regardes pas un film, tu le résous. Les scénarios complexes et les sous-textes cachés sont ton terrain de jeu favori.",
-    vector: { cerebral: 1.0, emotion: 0.3, fun: 0.2, visual: 0.5, tension: 0.6, severity: 0.8, rhythm: 0.4 }
+    title: 'Le Déchiffreur',
+    icon: '🔍',
+    tag: 'CÉRÉBRAL',
+    description:
+      'Tu ne regardes pas un film, tu le résous. Les scénarios complexes et les sous-textes cachés sont ton terrain de jeu favori.',
+    vector: {
+      cerebral: 1.0,
+      emotion: 0.3,
+      fun: 0.2,
+      visual: 0.5,
+      tension: 0.6,
+      severity: 0.8,
+      rhythm: 0.4,
+    },
   },
   {
     title: "L'Éponge Émotionnelle",
-    icon: "🥀",
-    tag: "ÉMOTION PURE",
-    description: "Tu cherches la catharsis. Un bon film doit te traverser, te bouleverser et laisser une trace indélébile sur ton cœur.",
-    vector: { cerebral: 0.4, emotion: 1.0, fun: 0.3, visual: 0.6, tension: 0.4, severity: 0.3, rhythm: 0.5 }
+    icon: '🥀',
+    tag: 'ÉMOTION PURE',
+    description:
+      'Tu cherches la catharsis. Un bon film doit te traverser, te bouleverser et laisser une trace indélébile sur ton cœur.',
+    vector: {
+      cerebral: 0.4,
+      emotion: 1.0,
+      fun: 0.3,
+      visual: 0.6,
+      tension: 0.4,
+      severity: 0.3,
+      rhythm: 0.5,
+    },
   },
   {
     title: "L'Hédoniste",
-    icon: "🍿",
-    tag: "PLAISIR BRUT",
-    description: "Le cinéma est une fête. Tu fuis l'ennui et le prétentieux pour privilégier l'efficacité, le rire et le spectacle immédiat.",
-    vector: { cerebral: 0.1, emotion: 0.4, fun: 1.0, visual: 0.5, tension: 0.6, severity: 0.1, rhythm: 0.9 }
+    icon: '🍿',
+    tag: 'PLAISIR BRUT',
+    description:
+      "Le cinéma est une fête. Tu fuis l'ennui et le prétentieux pour privilégier l'efficacité, le rire et le spectacle immédiat.",
+    vector: {
+      cerebral: 0.1,
+      emotion: 0.4,
+      fun: 1.0,
+      visual: 0.5,
+      tension: 0.6,
+      severity: 0.1,
+      rhythm: 0.9,
+    },
   },
   {
     title: "L'Esthète",
-    icon: "👁️",
-    tag: "ESTHÉTIQUE",
-    description: "La forme prime sur le fond. Une photographie sublime ou une direction artistique audacieuse suffisent à ton bonheur.",
-    vector: { cerebral: 0.6, emotion: 0.5, fun: 0.2, visual: 1.0, tension: 0.3, severity: 0.7, rhythm: 0.2 }
+    icon: '👁️',
+    tag: 'ESTHÉTIQUE',
+    description:
+      'La forme prime sur le fond. Une photographie sublime ou une direction artistique audacieuse suffisent à ton bonheur.',
+    vector: {
+      cerebral: 0.6,
+      emotion: 0.5,
+      fun: 0.2,
+      visual: 1.0,
+      tension: 0.3,
+      severity: 0.7,
+      rhythm: 0.2,
+    },
   },
   {
     title: "L'Adrénaline Junkie",
-    icon: "🎢",
-    tag: "HAUTE TENSION",
-    description: "Tu vis pour le frisson. Thrillers, horreur, action effrénée : tu as besoin que ton rythme cardiaque s'accélère.",
-    vector: { cerebral: 0.3, emotion: 0.2, fun: 0.7, visual: 0.4, tension: 1.0, severity: 0.4, rhythm: 1.0 }
+    icon: '🎢',
+    tag: 'HAUTE TENSION',
+    description:
+      "Tu vis pour le frisson. Thrillers, horreur, action effrénée : tu as besoin que ton rythme cardiaque s'accélère.",
+    vector: {
+      cerebral: 0.3,
+      emotion: 0.2,
+      fun: 0.7,
+      visual: 0.4,
+      tension: 1.0,
+      severity: 0.4,
+      rhythm: 1.0,
+    },
   },
   {
-    title: "Le Stratège Noir",
-    icon: "🕵️",
-    tag: "THRILLER CÉRÉBRAL",
-    description: "Tu aimes quand l'intelligence rencontre la noirceur. Les polars psychologiques et les intrigues tortueuses sont ta spécialité.",
-    vector: { cerebral: 0.9, emotion: 0.2, fun: 0.3, visual: 0.6, tension: 0.9, severity: 0.7, rhythm: 0.6 }
+    title: 'Le Stratège Noir',
+    icon: '🕵️',
+    tag: 'THRILLER CÉRÉBRAL',
+    description:
+      "Tu aimes quand l'intelligence rencontre la noirceur. Les polars psychologiques et les intrigues tortueuses sont ta spécialité.",
+    vector: {
+      cerebral: 0.9,
+      emotion: 0.2,
+      fun: 0.3,
+      visual: 0.6,
+      tension: 0.9,
+      severity: 0.7,
+      rhythm: 0.6,
+    },
   },
   {
-    title: "Le Romantique Visionnaire",
-    icon: "🌅",
-    tag: "POÉSIE VISUELLE",
-    description: "Tu cherches la beauté qui émeut. L'alliance parfaite entre une esthétique soignée et des sentiments profonds.",
-    vector: { cerebral: 0.4, emotion: 0.9, fun: 0.2, visual: 0.9, tension: 0.2, severity: 0.5, rhythm: 0.3 }
+    title: 'Le Romantique Visionnaire',
+    icon: '🌅',
+    tag: 'POÉSIE VISUELLE',
+    description:
+      "Tu cherches la beauté qui émeut. L'alliance parfaite entre une esthétique soignée et des sentiments profonds.",
+    vector: {
+      cerebral: 0.4,
+      emotion: 0.9,
+      fun: 0.2,
+      visual: 0.9,
+      tension: 0.2,
+      severity: 0.5,
+      rhythm: 0.3,
+    },
   },
   {
-    title: "Le Philosophe Sensible",
-    icon: "🎭",
-    tag: "PROFONDEUR",
-    description: "Tu veux comprendre ET ressentir. Les œuvres qui stimulent autant ton intellect que ton empathie sont celles qui te marquent.",
-    vector: { cerebral: 0.9, emotion: 0.9, fun: 0.1, visual: 0.4, tension: 0.3, severity: 0.6, rhythm: 0.3 }
+    title: 'Le Philosophe Sensible',
+    icon: '🎭',
+    tag: 'PROFONDEUR',
+    description:
+      'Tu veux comprendre ET ressentir. Les œuvres qui stimulent autant ton intellect que ton empathie sont celles qui te marquent.',
+    vector: {
+      cerebral: 0.9,
+      emotion: 0.9,
+      fun: 0.1,
+      visual: 0.4,
+      tension: 0.3,
+      severity: 0.6,
+      rhythm: 0.3,
+    },
   },
   {
     title: "L'Omnivore",
-    icon: "🌍",
-    tag: "ÉCLECTIQUE",
-    description: "Ta force est ta curiosité. Du blockbuster au film d'auteur, tu trouves de la valeur partout grâce à ton esprit ouvert.",
-    vector: { cerebral: 0.5, emotion: 0.5, fun: 0.5, visual: 0.5, tension: 0.5, severity: 0.5, rhythm: 0.5 }
-  }
+    icon: '🌍',
+    tag: 'ÉCLECTIQUE',
+    description:
+      "Ta force est ta curiosité. Du blockbuster au film d'auteur, tu trouves de la valeur partout grâce à ton esprit ouvert.",
+    vector: {
+      cerebral: 0.5,
+      emotion: 0.5,
+      fun: 0.5,
+      visual: 0.5,
+      tension: 0.5,
+      severity: 0.5,
+      rhythm: 0.5,
+    },
+  },
 ];
 
 // --- LOGIQUE MATHÉMATIQUE ---
@@ -101,7 +182,7 @@ const ARCHETYPES: ArchetypeDefinition[] = [
 // Retourne une valeur entre -1 (opposés) et 1 (identiques)
 const cosineSimilarity = (vecA: ArchetypeVector, vecB: ArchetypeVector): number => {
   const keys = Object.keys(vecA) as (keyof ArchetypeVector)[];
-  
+
   let dotProduct = 0;
   let magA = 0;
   let magB = 0;
@@ -125,10 +206,9 @@ const cosineSimilarity = (vecA: ArchetypeVector, vecB: ArchetypeVector): number 
 
 export const getArchetypeFromOnboarding = (
   severityIndex: number, // 0-10
-  rhythmIndex: number,   // 0-10 (anciennement patienceLevel)
-  depthIndex: number     // 0-10 (inféré des genres)
+  rhythmIndex: number, // 0-10 (anciennement patienceLevel)
+  depthIndex: number // 0-10 (inféré des genres)
 ): ArchetypeResult => {
-  
   // Normalisation des entrées utilisateur [0, 1]
   const userSeverity = severityIndex / 10;
   const userRhythm = rhythmIndex / 10;
@@ -143,26 +223,27 @@ export const getArchetypeFromOnboarding = (
     // On approxime la "Profondeur" (Depth) par une moyenne de Cerebral + Emotion
     // Un film profond est souvent soit intellectuel, soit émotionnel, rarement juste "Fun" ou "Tension"
     const archetypeDepth = (archetype.vector.cerebral + archetype.vector.emotion) / 2;
-    
+
     // Vecteur 3D simplifié pour la comparaison
     const archetypeVector3D = [archetype.vector.severity, archetype.vector.rhythm, archetypeDepth];
     const userVector3D = [userSeverity, userRhythm, userDepth];
 
     // Calcul de distance euclidienne inversée (plus simple ici que le cosinus sur 3 axes biaisés)
     // Distance au carré pour éviter les racines
-    const distSq = 
+    const distSq =
       Math.pow(archetypeVector3D[0] - userVector3D[0], 2) +
       Math.pow(archetypeVector3D[1] - userVector3D[1], 2) +
       Math.pow(archetypeVector3D[2] - userVector3D[2], 2);
 
     // On cherche la distance minimale
-    if (distSq < 100) { // Juste une initialisation, max dist est 3
-       // On inverse la logique ici : on veut minimiser la distance, donc maximiser le score
-       const similarity = 1 - Math.sqrt(distSq); // Score approximatif 
-       if (similarity > maxSimilarity) {
-         maxSimilarity = similarity;
-         bestMatch = archetype;
-       }
+    if (distSq < 100) {
+      // Juste une initialisation, max dist est 3
+      // On inverse la logique ici : on veut minimiser la distance, donc maximiser le score
+      const similarity = 1 - Math.sqrt(distSq); // Score approximatif
+      if (similarity > maxSimilarity) {
+        maxSimilarity = similarity;
+        bestMatch = archetype;
+      }
     }
   }
 
@@ -186,15 +267,15 @@ export interface AdvancedArchetypeInput {
     visual: number;
     sound: number;
   };
-  smartphone: number;   // 0-100 (Attention inversée : haut = distrait, bas = focus)
+  smartphone: number; // 0-100 (Attention inversée : haut = distrait, bas = focus)
   distinctGenreCount: number; // Nombre de genres uniques regardés
   severityIndex: number; // 0-10 (Profil déclaré ou recalibré)
-  rhythmIndex: number;   // 0-10 (Profil déclaré ou recalibré)
+  rhythmIndex: number; // 0-10 (Profil déclaré ou recalibré)
 }
 
 export const getAdvancedArchetype = (input: AdvancedArchetypeInput): ArchetypeResult => {
   // 1. Construction du Vecteur Utilisateur Normalisé [0, 1]
-  
+
   // Normalisation des vibes (Input 0-10 -> 0-1)
   const normVibes = {
     cerebral: input.vibes.cerebral / 10,
@@ -210,15 +291,15 @@ export const getAdvancedArchetype = (input: AdvancedArchetypeInput): ArchetypeRe
   // Normalisation Rythme
   // Ici c'est subtil : le rythme déclaré est une bonne base, mais on peut le nuancer par le smartphone factor
   // Si smartphone est élevé (>40%), l'utilisateur a probablement besoin de rythme élevé (attention faible)
-  const attentionSpan = 1 - (input.smartphone / 100); // 1 = Focus total, 0 = Distrait
+  const attentionSpan = 1 - input.smartphone / 100; // 1 = Focus total, 0 = Distrait
   // On mixe le rythme déclaré (50%) et l'attention réelle (50%)
   // Si attention faible (0.2) -> Rythme nécessaire élevé (0.8)
-  const inferredRhythm = (input.rhythmIndex / 10 * 0.6) + ((1 - attentionSpan) * 0.4);
+  const inferredRhythm = (input.rhythmIndex / 10) * 0.6 + (1 - attentionSpan) * 0.4;
 
   const userVector: ArchetypeVector = {
     ...normVibes,
     severity: normSeverity,
-    rhythm: inferredRhythm
+    rhythm: inferredRhythm,
   };
 
   // 2. Comparaison Vectorielle
@@ -227,18 +308,17 @@ export const getAdvancedArchetype = (input: AdvancedArchetypeInput): ArchetypeRe
 
   // Règle Spéciale "Omnivore" :
   // Nécessite une diversité réelle. Si pas assez de genres, on exclut l'Omnivore des candidats.
-  const candidates = input.distinctGenreCount >= 4 
-    ? ARCHETYPES 
-    : ARCHETYPES.filter(a => a.title !== "L'Omnivore");
+  const candidates =
+    input.distinctGenreCount >= 4 ? ARCHETYPES : ARCHETYPES.filter((a) => a.title !== "L'Omnivore");
 
   for (const archetype of candidates) {
     const similarity = cosineSimilarity(userVector, archetype.vector);
-    
+
     // Bonus léger pour l'Omnivore si la diversité est très haute, pour favoriser ce profil "équilibré"
     // qui sinon perd souvent contre des profils plus typés mathématiquement
     let adjustedSimilarity = similarity;
     if (archetype.title === "L'Omnivore" && input.distinctGenreCount >= 6) {
-      adjustedSimilarity += 0.05; 
+      adjustedSimilarity += 0.05;
     }
 
     if (adjustedSimilarity > maxSimilarity) {
@@ -249,7 +329,7 @@ export const getAdvancedArchetype = (input: AdvancedArchetypeInput): ArchetypeRe
 
   return {
     ...bestMatch,
-    matchScore: maxSimilarity
+    matchScore: maxSimilarity,
   };
 };
 
@@ -259,12 +339,20 @@ export const inferDepthFromGenres = (genres: string[]): number => {
 
   const deepGenres = ['Drame', 'Documentaire', 'Biopic', 'Histoire', 'Guerre'];
   const midGenres = ['Thriller', 'Science-Fiction', 'Romance', 'Mystère', 'Western', 'Musique'];
-  const lightGenres = ['Action', 'Comédie', 'Horreur', 'Animation', 'Aventure', 'Familial', 'Fantastique'];
+  const lightGenres = [
+    'Action',
+    'Comédie',
+    'Horreur',
+    'Animation',
+    'Aventure',
+    'Familial',
+    'Fantastique',
+  ];
 
   let score = 0;
   let count = 0;
 
-  genres.forEach(g => {
+  genres.forEach((g) => {
     if (deepGenres.includes(g)) score += 9;
     else if (midGenres.includes(g)) score += 6;
     else if (lightGenres.includes(g)) score += 3;

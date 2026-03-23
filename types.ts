@@ -1,4 +1,3 @@
-
 export interface RatingCriteria {
   story: number;
   visuals: number;
@@ -87,3 +86,16 @@ export interface UserProfile {
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;
+
+export interface TMDBSearchResult {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string;
+  release_date?: string;
+  first_air_date?: string;
+  media_type?: 'movie' | 'tv';
+  vote_average?: number;
+  vote_count?: number;
+  popularity?: number;
+}

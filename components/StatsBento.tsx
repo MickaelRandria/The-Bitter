@@ -27,13 +27,17 @@ const StatsBento: React.FC<StatsBentoProps> = ({ movies }) => {
         {/* Metric 1 */}
         <div className="bg-surface px-6 py-4 rounded-2xl flex flex-col items-start">
           <span className="text-3xl font-bold text-primary">{stats.count}</span>
-          <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Watched</span>
+          <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
+            Watched
+          </span>
         </div>
 
         {/* Metric 2 */}
         <div className="bg-primary px-6 py-4 rounded-2xl flex flex-col items-start text-white relative overflow-hidden">
           <span className="text-3xl font-bold relative z-10">{stats.avg}</span>
-          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider relative z-10">Avg Score</span>
+          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider relative z-10">
+            Avg Score
+          </span>
           <div className="absolute -right-2 -top-2 text-white/10">
             <ArrowUpRight size={48} />
           </div>

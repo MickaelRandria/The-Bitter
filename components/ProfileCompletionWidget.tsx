@@ -7,19 +7,25 @@ interface ProfileCompletionWidgetProps {
   onCompleteProfile: () => void;
 }
 
-export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = ({ profile, onCompleteProfile }) => {
+export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = ({
+  profile,
+  onCompleteProfile,
+}) => {
   const { completion, missing } = useMemo(() => {
     const criteria = [
       { label: 'Nom', done: !!(profile.firstName && profile.firstName !== 'Utilisateur') },
       { label: 'Posture critique', done: profile.severityIndex !== undefined },
       { label: 'Rythme narratif', done: profile.patienceLevel !== undefined },
-      { label: 'Genres favoris', done: !!(profile.favoriteGenres && profile.favoriteGenres.length > 0) },
+      {
+        label: 'Genres favoris',
+        done: !!(profile.favoriteGenres && profile.favoriteGenres.length > 0),
+      },
       { label: 'Archétype', done: !!profile.role },
     ];
-    const score = criteria.filter(c => c.done).length;
+    const score = criteria.filter((c) => c.done).length;
     return {
       completion: Math.round((score / criteria.length) * 100),
-      missing: criteria.filter(c => !c.done).map(c => c.label),
+      missing: criteria.filter((c) => !c.done).map((c) => c.label),
     };
   }, [profile]);
 
@@ -57,7 +63,9 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
 
         <div className="flex-1 text-left">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-xs font-black uppercase tracking-wider text-charcoal dark:text-white">Complète ton profil</h3>
+            <h3 className="text-xs font-black uppercase tracking-wider text-charcoal dark:text-white">
+              Complète ton profil
+            </h3>
             <Sparkles size={12} className="text-bitter-lime animate-pulse" />
           </div>
           {missing.length > 0 && (

@@ -13,7 +13,7 @@ export const updateAppBadge = async (count: number) => {
         await (navigator as any).clearAppBadge();
       }
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du badge:', error);
+      if (import.meta.env.DEV) console.error('Erreur lors de la mise à jour du badge:', error);
     }
   }
 };

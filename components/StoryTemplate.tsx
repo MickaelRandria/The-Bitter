@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface StoryTemplateProps {
@@ -23,24 +22,53 @@ interface StoryTemplateProps {
 // Simple SVG Icons definitions to ensure perfect rendering with html2canvas
 const Icons = {
   Film: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}>
-      <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 12h4"/><path d="M3 17h4"/><path d="M17 7h4"/><path d="M17 12h4"/><path d="M17 17h4"/>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ marginRight: '10px' }}
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <path d="M7 3v18" />
+      <path d="M17 3v18" />
+      <path d="M3 7h4" />
+      <path d="M3 12h4" />
+      <path d="M3 17h4" />
+      <path d="M17 7h4" />
+      <path d="M17 12h4" />
+      <path d="M17 17h4" />
     </svg>
   ),
   Check: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}>
-      <polyline points="20 6 9 17 4 12"/>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ marginRight: '10px' }}
+    >
+      <polyline points="20 6 9 17 4 12" />
     </svg>
-  )
+  ),
 };
 
 const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
   // Logic (Untouched as requested)
-  const avgScore = (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
+  const avgScore =
+    (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
   const isDistracted = (movie.smartphoneFactor || 0) > 50;
 
   const formatRuntime = (minutes?: number) => {
-    if (!minutes) return "--";
+    if (!minutes) return '--';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h}h ${m.toString().padStart(2, '0')}m`;
@@ -113,7 +141,8 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       left: 0,
       right: 0,
       padding: '80px 50px 50px 50px',
-      background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
+      background:
+        'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
@@ -236,19 +265,19 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       lineHeight: 1,
     },
     scoreMain: {
-      fontSize: '260px', 
-      fontWeight: 900, 
+      fontSize: '260px',
+      fontWeight: 900,
       lineHeight: 0.85,
       textShadow: '0 4px 12px rgba(0,0,0,0.15)',
     },
     scoreDecimal: {
-      fontSize: '130px', 
-      fontWeight: 900, 
+      fontSize: '130px',
+      fontWeight: 900,
       opacity: 0.45,
     },
     bottomBox: {
-      backgroundColor: 'rgba(0,0,0,0.12)', 
-      padding: '24px', 
+      backgroundColor: 'rgba(0,0,0,0.12)',
+      padding: '24px',
       borderRadius: '1.4rem',
       position: 'relative',
       zIndex: 1,
@@ -258,7 +287,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       fontWeight: 900,
       textTransform: 'uppercase',
       letterSpacing: '0.1em',
-    }
+    },
   };
 
   return (
@@ -275,14 +304,25 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
       {/* ROW 2: POSTER */}
       <div style={styles.posterCard}>
         {movie.posterUrl ? (
-          <img 
-            src={movie.posterUrl.replace('w780', 'original')} 
-            alt={movie.title} 
+          <img
+            src={movie.posterUrl.replace('w780', 'original')}
+            alt={movie.title}
             style={styles.posterImg}
             crossOrigin="anonymous"
           />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#E8E5E0', color: '#737373', fontSize: '24px', fontWeight: 700 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              backgroundColor: '#E8E5E0',
+              color: '#737373',
+              fontSize: '24px',
+              fontWeight: 700,
+            }}
+          >
             No Poster
           </div>
         )}
@@ -298,22 +338,40 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
         <div style={styles.leftCol}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* MINI CARD: GENRE */}
-            <div style={{ ...styles.miniCard, background: 'linear-gradient(135deg, #FFFFFF 0%, #F9F9F9 100%)' }}>
-              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>🎬</span>
+            <div
+              style={{
+                ...styles.miniCard,
+                background: 'linear-gradient(135deg, #FFFFFF 0%, #F9F9F9 100%)',
+              }}
+            >
+              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>
+                🎬
+              </span>
               <span style={styles.label}>Genre</span>
               <span style={{ fontSize: '22px', fontWeight: 900 }}>{movie.genre}</span>
             </div>
             {/* MINI CARD: DURATION */}
-            <div style={{ ...styles.miniCard, background: 'linear-gradient(135deg, #F9F9F9 0%, #FFFFFF 100%)' }}>
-              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>⏱️</span>
+            <div
+              style={{
+                ...styles.miniCard,
+                background: 'linear-gradient(135deg, #F9F9F9 0%, #FFFFFF 100%)',
+              }}
+            >
+              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>
+                ⏱️
+              </span>
               <span style={styles.label}>Durée</span>
-              <span style={{ fontSize: '22px', fontWeight: 900 }}>{formatRuntime(movie.runtime)}</span>
+              <span style={{ fontSize: '22px', fontWeight: 900 }}>
+                {formatRuntime(movie.runtime)}
+              </span>
             </div>
           </div>
 
           {/* CARD B: RATINGS */}
           <div style={styles.ratingsCard}>
-            <span style={{ ...styles.label, color: '#a3e635', fontWeight: 800 }}>Détails Critiques</span>
+            <span style={{ ...styles.label, color: '#a3e635', fontWeight: 800 }}>
+              Détails Critiques
+            </span>
             {[
               { label: 'Scénario', val: movie.ratings.story },
               { label: 'Visuel', val: movie.ratings.visuals },
@@ -323,13 +381,15 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
               <div key={i} style={styles.ratingRow}>
                 <span style={styles.ratingLabel}>{r.label}</span>
                 <div style={styles.ratingBarBg}>
-                  <div style={{
-                    height: '100%',
-                    width: `${r.val * 10}%`,
-                    backgroundColor: getRatingColor(r.val),
-                    borderRadius: '999px',
-                    boxShadow: r.val >= 8 ? '0 2px 8px rgba(163, 230, 53, 0.4)' : 'none'
-                  }} />
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${r.val * 10}%`,
+                      backgroundColor: getRatingColor(r.val),
+                      borderRadius: '999px',
+                      boxShadow: r.val >= 8 ? '0 2px 8px rgba(163, 230, 53, 0.4)' : 'none',
+                    }}
+                  />
                 </div>
                 <span style={styles.ratingVal}>{r.val.toFixed(1)}</span>
               </div>
@@ -343,7 +403,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
             <div style={styles.ghostScore}>
               {isDistracted ? movie.smartphoneFactor : Math.floor(avgScore)}
             </div>
-            
+
             <span style={styles.verdictLabel}>
               {isDistracted ? 'Alerte Distraction' : 'Verdict Global'}
             </span>
@@ -351,43 +411,41 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
             <div style={{ position: 'relative', zIndex: 1 }}>
               {isDistracted ? (
                 <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                  <span style={styles.scoreMain}>
-                    {movie.smartphoneFactor}
-                  </span>
+                  <span style={styles.scoreMain}>{movie.smartphoneFactor}</span>
                   <span style={{ ...styles.scoreDecimal, opacity: 0.6 }}>%</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                  <span style={styles.scoreMain}>
-                    {Math.floor(avgScore)}
-                  </span>
-                  <span style={styles.scoreDecimal}>
-                    .{Math.round((avgScore % 1) * 10)}
-                  </span>
+                  <span style={styles.scoreMain}>{Math.floor(avgScore)}</span>
+                  <span style={styles.scoreDecimal}>.{Math.round((avgScore % 1) * 10)}</span>
                 </div>
               )}
-              
-              <span style={{
-                fontSize: '24px',
-                fontWeight: 900,
-                textTransform: 'uppercase',
-                letterSpacing: '0.2em',
-                opacity: 0.4,
-                display: 'block',
-                marginTop: '10px'
-              }}>
+
+              <span
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.2em',
+                  opacity: 0.4,
+                  display: 'block',
+                  marginTop: '10px',
+                }}
+              >
                 {isDistracted ? 'Smartphone Factor' : 'Sur 10 points'}
               </span>
               {!isDistracted && movie.tmdbRating && movie.tmdbRating > 0 && (
-                <span style={{
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  opacity: 0.5,
-                  display: 'block',
-                  marginTop: '6px'
-                }}>
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    opacity: 0.5,
+                    display: 'block',
+                    marginTop: '6px',
+                  }}
+                >
                   ★ {movie.tmdbRating.toFixed(1)} moy. tmdb
                 </span>
               )}

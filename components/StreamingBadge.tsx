@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
 import { Ticket } from 'lucide-react';
@@ -24,14 +23,20 @@ const PROVIDER_NAMES: Record<number, string> = {
 };
 
 const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, releaseDate }) => {
-  const [badge, setBadge] = useState<{ type: 'provider' | 'cinema', label: string, className?: string } | null>(null);
+  const [badge, setBadge] = useState<{
+    type: 'provider' | 'cinema';
+    label: string;
+    className?: string;
+  } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchProviders = async () => {
       try {
-        const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${mediaId}/watch/providers?api_key=${TMDB_API_KEY}`);
+        const res = await fetch(
+          `${TMDB_BASE_URL}/${mediaType}/${mediaId}/watch/providers?api_key=${TMDB_API_KEY}`
+        );
         const data = await res.json();
         const frProviders = data.results?.FR;
 
@@ -46,7 +51,7 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
           setBadge({
             type: 'provider',
             label: PROVIDER_NAMES[priorityProvider.provider_id] || priorityProvider.provider_name,
-            className: PROVIDER_STYLES[priorityProvider.provider_id]
+            className: PROVIDER_STYLES[priorityProvider.provider_id],
           });
           return; // Priorité absolue au streaming
         }
@@ -63,7 +68,7 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
           if (release >= threeMonthsAgo && release <= now) {
             setBadge({
               type: 'cinema',
-              label: 'AU CINÉMA'
+              label: 'AU CINÉMA',
             });
           }
         }
@@ -74,7 +79,9 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
 
     fetchProviders();
 
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [mediaId, mediaType, releaseDate]);
 
   if (!badge) return null;
@@ -89,7 +96,9 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
   }
 
   return (
-    <div className={`px-2.5 py-1 rounded-lg shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out] ${badge.className}`}>
+    <div
+      className={`px-2.5 py-1 rounded-lg shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out] ${badge.className}`}
+    >
       <span className="text-[9px] font-black uppercase tracking-wide">{badge.label}</span>
     </div>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { Sparkles, Send, Loader2, X, BrainCircuit } from 'lucide-react';
@@ -26,10 +25,10 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quickQuestions = [
-    "Quoi regarder ce soir ?",
-    "Analyse mes goûts",
-    "Un film comme mon dernier vu ?",
-    "Plateformes streaming FR ?"
+    'Quoi regarder ce soir ?',
+    'Analyse mes goûts',
+    'Un film comme mon dernier vu ?',
+    'Plateformes streaming FR ?',
   ];
 
   // Auto-scroll constant
@@ -42,11 +41,13 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
   // Initialisation stable du message de bienvenue
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      setMessages([{
-        id: 'welcome',
-        role: 'assistant',
-        content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je connais ton profil <b>${userProfile.role || 'Analyste'}</b>. De quoi veux-tu discuter ?`
-      }]);
+      setMessages([
+        {
+          id: 'welcome',
+          role: 'assistant',
+          content: `Salut <b>${userProfile.firstName}</b> ! 🎬 Je connais ton profil <b>${userProfile.role || 'Analyste'}</b>. De quoi veux-tu discuter ?`,
+        },
+      ]);
     }
   }, [isOpen]);
 
@@ -56,18 +57,22 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
 
     haptics.soft();
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: query };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
       const responseText = await callCineAssistant(query, userProfile, history);
-      
-      const assistantMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: responseText };
-      setMessages(prev => [...prev, assistantMsg]);
+
+      const assistantMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: responseText,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
-      console.error("Chat Send Error:", err);
+      if (import.meta.env.DEV) console.error('Chat Send Error:', err);
     } finally {
       setIsLoading(false);
       haptics.medium();
@@ -78,8 +83,11 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-6">
-      <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
-      
+      <div
+        className="absolute inset-0 bg-charcoal/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
+        onClick={onClose}
+      />
+
       <div className="relative bg-cream w-full sm:max-w-xl sm:rounded-[2.5rem] rounded-t-[3rem] shadow-2xl flex flex-col h-[85vh] sm:h-[650px] animate-[springSlideUp_0.5s_cubic-bezier(0.175,0.885,0.32,1.1)] overflow-hidden border border-white/20 will-change-transform">
         <style>{`
           @keyframes springSlideUp {
@@ -88,7 +96,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
             100% { transform: translateY(0) scale(1); opacity: 1; }
           }
         `}</style>
-        
+
         {/* Header */}
         <div className="p-6 border-b border-sand bg-white/80 backdrop-blur-md flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -102,7 +110,10 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 bg-stone-100 rounded-full text-stone-500 active:scale-90 transition-all">
+          <button
+            onClick={onClose}
+            className="p-2 bg-stone-100 rounded-full text-stone-500 active:scale-90 transition-all"
+          >
             <X size={20} strokeWidth={2.5} />
           </button>
         </div>
@@ -110,11 +121,14 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
         {/* Chat Area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s_ease-out]`}>
-              <div 
+            <div
+              key={msg.id}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s_ease-out]`}
+            >
+              <div
                 className={`max-w-[85%] p-5 rounded-[1.8rem] text-sm font-medium leading-relaxed ${
-                  msg.role === 'user' 
-                    ? 'bg-charcoal text-white rounded-tr-none shadow-xl' 
+                  msg.role === 'user'
+                    ? 'bg-charcoal text-white rounded-tr-none shadow-xl'
                     : 'bg-white border border-sand text-charcoal rounded-tl-none shadow-sm'
                 }`}
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
@@ -125,7 +139,9 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
             <div className="flex justify-start">
               <div className="bg-white border border-sand p-4 rounded-[1.8rem] rounded-tl-none flex items-center gap-3 shadow-sm">
                 <Loader2 size={16} className="animate-spin text-forest" />
-                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">Réflexion...</span>
+                <span className="text-xs font-black text-stone-400 uppercase tracking-widest">
+                  Réflexion...
+                </span>
               </div>
             </div>
           )}
@@ -136,24 +152,28 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
           {messages.length < 3 && !isLoading && (
             <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-2 px-2">
               {quickQuestions.map((q, i) => (
-                <button key={i} onClick={() => handleSend(q)} className="whitespace-nowrap px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black uppercase tracking-widest text-stone-500 hover:bg-forest hover:text-white transition-all active:scale-95">
+                <button
+                  key={i}
+                  onClick={() => handleSend(q)}
+                  className="whitespace-nowrap px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black uppercase tracking-widest text-stone-500 hover:bg-forest hover:text-white transition-all active:scale-95"
+                >
                   {q}
                 </button>
               ))}
             </div>
           )}
-          
+
           <div className="relative flex items-center">
-            <input 
-              type="text" 
-              placeholder="Pose-moi une question..." 
+            <input
+              type="text"
+              placeholder="Pose-moi une question..."
               className="w-full bg-stone-100 border-2 border-transparent focus:border-forest/20 p-5 pr-16 rounded-[2rem] font-black text-sm outline-none transition-all placeholder:text-stone-300"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend(input)}
               disabled={isLoading}
             />
-            <button 
+            <button
               onClick={() => handleSend(input)}
               disabled={!input.trim() || isLoading}
               className="absolute right-2 w-12 h-12 bg-forest text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-30"
