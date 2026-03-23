@@ -60,6 +60,7 @@ import ConsentModal from './components/ConsentModal';
 import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
 import AuthScreen from './components/AuthScreen';
 import ThemeToggle from './components/ThemeToggle';
+import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
@@ -963,6 +964,7 @@ const App: React.FC = () => {
                 </span>
               )}
               <ThemeToggle />
+              <NotificationCenter movies={activeProfile?.movies || []} />
               <button
                 onClick={() => {
                   if (!session) {

@@ -14,6 +14,37 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.82',
+    date: '23 Mars 2026',
+    title: 'Notifications & Reminders',
+    changes: [
+      {
+        type: 'feature',
+        text: '🔔 Centre de notifications — Cloche dans le header avec badge non-lu : streak, récap hebdo, rappel watchlist, stats mensuelles.',
+      },
+      {
+        type: 'feature',
+        text: 'Préférences granulaires — Active ou désactive chaque type de notif individuellement depuis ton profil.',
+      },
+      {
+        type: 'feature',
+        text: 'Notif test — Envoie immédiatement une notification navigateur (films vus cette semaine) depuis le profil.',
+      },
+      {
+        type: 'feature',
+        text: 'Recherche globale étendue — Titre, réalisateur, acteurs et genre avec raccourci ⌘K.',
+      },
+      {
+        type: 'feature',
+        text: 'Filtres avancés — Slider note minimum et plage d\'années dans le feed.',
+      },
+      {
+        type: 'fix',
+        text: 'Qualité code : types stricts, cache TMDB 5 min, guards DEV pour les logs.',
+      },
+    ],
+  },
+  {
     version: 'v0.81',
     date: '15 Mars 2026',
     title: 'Calendrier, Analytics & Feed',

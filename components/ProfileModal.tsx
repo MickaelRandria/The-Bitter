@@ -1,8 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   X,
   LogOut,
-  User,
   Info,
   SlidersHorizontal,
   Repeat,
@@ -12,15 +11,21 @@ import {
   Fingerprint,
   Mail,
   Film,
-  Clock,
-  Star,
-  Zap,
   PieChart,
   Download,
+  Bell,
+  BellOff,
+  Send,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { RELEASE_HISTORY } from '../constants/changelog';
+import {
+  NotificationPrefs,
+  getNotificationPrefs,
+  saveNotificationPrefs,
+  sendTestNotification,
+} from '../utils/notifications';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -48,6 +53,13 @@ const ARCHETYPE_INFO: Record<string, { icon: string; description: string }> = {
   "L'Omnivore": { icon: '🌍', description: 'Ta force est ta curiosité sans limite.' },
 };
 
+const NOTIF_LABELS: Record<keyof NotificationPrefs, { label: string; emoji: string }> = {
+  streak: { label: 'Streak jours consécutifs', emoji: '🔥' },
+  weekly: { label: 'Récap hebdomadaire', emoji: '📅' },
+  unrated: { label: 'Films en attente de note', emoji: '🎬' },
+  monthly: { label: 'Stats mensuelles', emoji: '📊' },
+};
+
 const ProfileModal: React.FC<ProfileModalProps> = ({
   profile,
   session,
@@ -58,11 +70,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onSignOut,
 }) => {
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
+  const [testSent, setTestSent] = useState(false);
   const joinDate = new Date(profile.createdAt).toLocaleDateString('fr-FR', {
     month: 'long',
     year: 'numeric',
   });
   const email = session?.user?.email;
+
+  const handleToggleNotif = (key: keyof NotificationPrefs) => {
+    haptics.soft();
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(updated);
+    saveNotificationPrefs(updated);
+  };
+
+  const handleTestNotif = () => {
+    haptics.medium();
+    sendTestNotification(profile.movies);
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
 
   const handleExport = () => {
     haptics.success();
@@ -311,7 +339,67 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
 
-          {/* SECTION 5: ACTIONS */}
+          {/* SECTION 5: NOTIFICATIONS */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
+                Notifications
+              </h3>
+              <button
+                onClick={handleTestNotif}
+                className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
+              >
+                <Send size={12} />
+                {testSent ? 'Envoyée !' : 'Notif test'}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {(Object.keys(notifPrefs) as Array<keyof NotificationPrefs>).map((key) => (
+                <div
+                  key={key}
+                  className="bg-stone-50 dark:bg-[#1a1a1a] px-4 py-3 rounded-[1.5rem] border border-stone-100 dark:border-white/5 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-base leading-none">{NOTIF_LABELS[key].emoji}</span>
+                    <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
+                      {NOTIF_LABELS[key].label}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleToggleNotif(key)}
+                    className={`w-10 h-6 rounded-full transition-colors shrink-0 relative ${
+                      notifPrefs[key]
+                        ? 'bg-forest dark:bg-lime-500'
+                        : 'bg-stone-200 dark:bg-stone-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                        notifPrefs[key] ? 'left-[18px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {'Notification' in window && Notification.permission === 'denied' && (
+              <p className="mt-3 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
+                <BellOff size={12} /> Notifications bloquées dans les paramètres du navigateur.
+              </p>
+            )}
+            {'Notification' in window && Notification.permission === 'default' && (
+              <button
+                onClick={() => Notification.requestPermission()}
+                className="mt-3 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
+              >
+                <Bell size={12} /> Autoriser les notifications navigateur
+              </button>
+            )}
+          </div>
+
+          {/* SECTION 6: ACTIONS */}
           <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
             <button
               onClick={() => {

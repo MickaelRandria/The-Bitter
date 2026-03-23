@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
 import {
   ArrowRight,
-  Globe,
-  Users,
-  Merge,
-  Sparkles,
   Instagram,
   Share2,
   EyeOff,
-  Scale,
   BarChart3,
-  Moon,
-  Sun,
   Radar,
+  Bell,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
@@ -53,7 +47,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
                   <BarChart3 size={12} />
-                  Mise à jour v0.78
+                  Mise à jour v0.82
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
                   ANALYSE
@@ -149,75 +143,51 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 2: ESPACES (TUTO) */}
+          {/* STEP 2: NOTIFICATIONS */}
           {step === 2 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-stone-300 text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Globe size={12} />
-                  Master Class
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
+                  <Bell size={12} />
+                  Nouveau v0.82
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  MAÎTRISEZ
+                  RESTE
                   <br />
-                  LES <span className="text-stone-400">ESPACES.</span>
+                  <span className="text-bitter-lime">CONNECTÉ.</span>
                 </h2>
-                <p className="text-stone-500 font-bold text-xs uppercase tracking-widest mb-10">
-                  Comment collaborer avec vos amis
-                </p>
 
-                <div className="space-y-4 relative pl-4 pb-4">
-                  {/* Ligne verticale */}
-                  <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-[#a3e635] via-white/20 to-transparent" />
-
-                  {/* Step 1 */}
-                  <div className="flex gap-6 items-start relative z-10">
-                    <div className="w-6 h-6 rounded-full bg-[#a3e635] flex items-center justify-center text-black font-black text-[10px] shrink-0 mt-1 shadow-[0_0_15px_rgba(163,230,53,0.4)]">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="text-white font-black text-lg mb-1 flex items-center gap-2">
-                        <Globe size={16} className="text-[#a3e635]" /> CRÉER
-                      </h4>
-                      <p className="text-stone-400 text-sm font-medium leading-relaxed">
-                        Lancez une Room privée pour votre groupe, ciné-club ou famille.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="flex gap-6 items-start relative z-10 pt-4">
-                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-black font-black text-[10px] shrink-0 mt-1">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="text-white font-black text-lg mb-1 flex items-center gap-2">
-                        <Users size={16} /> INVITER
-                      </h4>
-                      <p className="text-stone-400 text-sm font-medium leading-relaxed">
-                        Envoyez le Code Unique à vos amis pour qu'ils rejoignent l'espace.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="flex gap-6 items-start relative z-10 pt-4">
-                    <div className="w-6 h-6 rounded-full bg-stone-800 border border-white/20 flex items-center justify-center text-white font-black text-[10px] shrink-0 mt-1">
+                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="w-16 h-16 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-5 shadow-2xl relative">
+                    <Bell size={28} strokeWidth={2} />
+                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-bitter-lime rounded-full border-2 border-[#0c0c0c] flex items-center justify-center text-[9px] font-black text-black">
                       3
                     </div>
-                    <div>
-                      <h4 className="text-white font-black text-lg mb-1 flex items-center gap-2">
-                        <Merge size={16} /> FUSIONNER
-                      </h4>
-                      <p className="text-stone-400 text-sm font-medium leading-relaxed">
-                        Chacun ajoute ses films. La liste se synchronise instantanément pour tous.
-                      </p>
-                    </div>
                   </div>
+                  <div className="space-y-3">
+                    {[
+                      { e: '🔥', t: 'Streak', d: 'Jours consécutifs à regarder des films' },
+                      { e: '📅', t: 'Récap hebdo', d: 'Films vus + note moyenne de la semaine' },
+                      { e: '🎬', t: 'Rappel watchlist', d: 'Films qui attendent ta note' },
+                      { e: '📊', t: 'Stats mensuelles', d: 'Ton activité cinéma du mois' },
+                    ].map((item) => (
+                      <div key={item.t} className="flex items-center gap-3">
+                        <span className="text-xl w-7 text-center shrink-0">{item.e}</span>
+                        <div>
+                          <span className="text-white font-black text-sm">{item.t}</span>
+                          <span className="text-stone-500 text-xs ml-2">{item.d}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-stone-500 text-[10px] font-bold uppercase tracking-widest mt-5">
+                    Personnalisable dans ton profil
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-8 shrink-0">
+              <div className="mt-4 shrink-0">
                 <button
                   onClick={handleComplete}
                   className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
