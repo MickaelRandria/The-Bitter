@@ -120,7 +120,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   
 // --- NOUVEAU CALCUL DYNAMIQUE POUR TITLE Y ---
   // On calcule la hauteur totale que va prendre le bloc (titre + marges + notes = environ 390px fixes)
-  const totalBlockHeight = (lines.length * (fontSize + 10)) + 390;
+  const tmdbOffset = (movie.tmdbRating && movie.tmdbRating > 0) ? 70 : 0;
+  const totalBlockHeight = (lines.length * (fontSize + 10)) + 390 + tmdbOffset;
   
   // On part de la position du footer (CANVAS_H - 250 = 1670)
   // On soustrait la hauteur du bloc, et on enlève 90px pour laisser une belle marge propre au-dessus du footer
@@ -186,6 +187,22 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   // Décalage léger à gauche (-5) car la police crée un vide naturel
   ctx.fillText(globalRating, MARGIN_X - 5, noteY); 
   ctx.shadowBlur = 0; // On désactive l'ombre pour la suite
+
+  // 8b. NOTE TMDB (petite, sous la note globale)
+  if (movie.tmdbRating && movie.tmdbRating > 0) {
+    const tmdbY = noteY + noteSize + 15;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '700 20px "Inter", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.letterSpacing = '2px';
+    ctx.fillText('MOY. TMDB', MARGIN_X, tmdbY);
+    ctx.letterSpacing = '0px';
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.font = '800 34px "Inter", sans-serif';
+    ctx.fillText(`\u2605 ${movie.tmdbRating.toFixed(1)}`, MARGIN_X, tmdbY + 26);
+  }
 
   // 9. TECHNICAL SPECS (JAUGES AVEC DÉGRADÉ À DROITE)
   const specsY = noteY + 15;

@@ -16,6 +16,7 @@ interface StoryTemplateProps {
       sound: number;
     };
     smartphoneFactor?: number;
+    tmdbRating?: number;
   };
 }
 
@@ -366,10 +367,10 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
                 </div>
               )}
               
-              <span style={{ 
-                fontSize: '24px', 
-                fontWeight: 900, 
-                textTransform: 'uppercase', 
+              <span style={{
+                fontSize: '24px',
+                fontWeight: 900,
+                textTransform: 'uppercase',
                 letterSpacing: '0.2em',
                 opacity: 0.4,
                 display: 'block',
@@ -377,6 +378,19 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
               }}>
                 {isDistracted ? 'Smartphone Factor' : 'Sur 10 points'}
               </span>
+              {!isDistracted && movie.tmdbRating && movie.tmdbRating > 0 && (
+                <span style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  opacity: 0.5,
+                  display: 'block',
+                  marginTop: '6px'
+                }}>
+                  ★ {movie.tmdbRating.toFixed(1)} moy. tmdb
+                </span>
+              )}
             </div>
 
             <div style={styles.bottomBox}>
