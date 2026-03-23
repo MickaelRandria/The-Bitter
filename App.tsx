@@ -36,6 +36,7 @@ import {
   Check,
   Shuffle,
   Trash2,
+  Filter,
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
@@ -190,6 +191,11 @@ const App: React.FC = () => {
   const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
   const [selectedMood, setSelectedMood] = useState<MoodPreset>(null);
   const [activeVibeSort, setActiveVibeSort] = useState<VibeAxis | null>(null);
+  const [minRatingFilter, setMinRatingFilter] = useState(0);
+  const [yearMinFilter, setYearMinFilter] = useState<number | null>(null);
+  const [yearMaxFilter, setYearMaxFilter] = useState<number | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
@@ -500,6 +506,17 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (view === 'Feed') searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view]);
+
   const handleCompleteCalibration = (data: {
     name: string;
     severityIndex: number;
@@ -711,6 +728,20 @@ const App: React.FC = () => {
     return { watchedCount, avgRating, totalHours, queueCount };
   }, [uniqueMovies, activeProfile]);
 
+  const yearBounds = useMemo(() => {
+    const years = uniqueMovies.map((m) => m.year).filter(Boolean);
+    if (years.length === 0) return { min: 1970, max: new Date().getFullYear() };
+    return { min: Math.min(...years), max: Math.max(...years) };
+  }, [uniqueMovies]);
+
+  const activeAdvancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (minRatingFilter > 0) count++;
+    if (yearMinFilter !== null) count++;
+    if (yearMaxFilter !== null) count++;
+    return count;
+  }, [minRatingFilter, yearMinFilter, yearMaxFilter]);
+
   const filteredAndSortedMovies = useMemo(() => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
@@ -721,9 +752,26 @@ const App: React.FC = () => {
         return false;
       if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter)
         return false;
-      if (!debouncedSearch) return true;
-      const q = debouncedSearch.toLowerCase();
-      return m.title.toLowerCase().includes(q) || m.director.toLowerCase().includes(q);
+
+      // Recherche étendue : titre, réalisateur, acteurs, genre — mots-clés multiples
+      if (debouncedSearch) {
+        const fields = [m.title, m.director, m.actors || '', m.genre].map((f) =>
+          f.toLowerCase()
+        );
+        const words = debouncedSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        if (!words.every((word) => fields.some((field) => field.includes(word)))) return false;
+      }
+
+      // Filtres avancés
+      if (minRatingFilter > 0) {
+        const avg =
+          (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+        if (avg < minRatingFilter) return false;
+      }
+      if (yearMinFilter !== null && m.year < yearMinFilter) return false;
+      if (yearMaxFilter !== null && m.year > yearMaxFilter) return false;
+
+      return true;
     });
 
     // 🎯 Appliquer les filtres Vibes (watchlist uniquement)
@@ -759,6 +807,9 @@ const App: React.FC = () => {
     historyGenreFilter,
     selectedMood,
     activeVibeSort,
+    minRatingFilter,
+    yearMinFilter,
+    yearMaxFilter,
   ]);
 
   const handleTonightPick = () => {
@@ -1279,8 +1330,9 @@ const App: React.FC = () => {
                         className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
                       />
                       <input
+                        ref={searchInputRef}
                         type="text"
-                        placeholder="Rechercher un film, un réalisateur..."
+                        placeholder="Titre, réalisateur, acteur, genre... (⌘K)"
                         className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-2.5 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1294,11 +1346,109 @@ const App: React.FC = () => {
                         </button>
                       )}
                     </div>
+
+                    {/* ── FILTRES AVANCÉS ── */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setShowAdvancedFilters((p) => !p)}
+                        className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${showAdvancedFilters || activeAdvancedFilterCount > 0 ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
+                      >
+                        <Filter size={11} />
+                        Filtres
+                        {activeAdvancedFilterCount > 0 && (
+                          <span className="w-4 h-4 bg-forest dark:bg-lime-500 text-white dark:text-black rounded-full text-[8px] flex items-center justify-center font-black">
+                            {activeAdvancedFilterCount}
+                          </span>
+                        )}
+                      </button>
+                      {activeAdvancedFilterCount > 0 && (
+                        <button
+                          onClick={() => {
+                            setMinRatingFilter(0);
+                            setYearMinFilter(null);
+                            setYearMaxFilter(null);
+                          }}
+                          className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-red-400 transition-colors"
+                        >
+                          Effacer
+                        </button>
+                      )}
+                    </div>
+
+                    {showAdvancedFilters && (
+                      <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/5 rounded-2xl p-4 space-y-5 animate-[fadeIn_0.2s_ease-out]">
+                        {/* Note minimum */}
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                              Note min.
+                            </span>
+                            <span className="text-xs font-black text-charcoal dark:text-white">
+                              {minRatingFilter > 0 ? `${minRatingFilter}+` : 'Toutes'}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={9}
+                            step={1}
+                            value={minRatingFilter}
+                            onChange={(e) => setMinRatingFilter(Number(e.target.value))}
+                            className="w-full accent-forest dark:accent-lime-500 cursor-pointer"
+                          />
+                          <div className="flex justify-between mt-1 px-0.5">
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((v) => (
+                              <span
+                                key={v}
+                                className={`text-[8px] font-bold transition-colors ${v === minRatingFilter ? 'text-forest dark:text-lime-500' : 'text-stone-300 dark:text-stone-700'}`}
+                              >
+                                {v}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Période */}
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 block mb-2">
+                            Période
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              placeholder={String(yearBounds.min)}
+                              min={yearBounds.min}
+                              max={yearBounds.max}
+                              value={yearMinFilter ?? ''}
+                              onChange={(e) =>
+                                setYearMinFilter(e.target.value ? Number(e.target.value) : null)
+                              }
+                              className="flex-1 bg-stone-100 dark:bg-[#111] border border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-charcoal dark:text-white outline-none text-center"
+                            />
+                            <span className="text-stone-300 dark:text-stone-700 text-xs font-bold">
+                              —
+                            </span>
+                            <input
+                              type="number"
+                              placeholder={String(yearBounds.max)}
+                              min={yearBounds.min}
+                              max={yearBounds.max}
+                              value={yearMaxFilter ?? ''}
+                              onChange={(e) =>
+                                setYearMaxFilter(e.target.value ? Number(e.target.value) : null)
+                              }
+                              className="flex-1 bg-stone-100 dark:bg-[#111] border border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-charcoal dark:text-white outline-none text-center"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {filteredAndSortedMovies.length === 0 &&
                   (searchQuery ||
                     watchlistGenreFilter !== 'all' ||
-                    historyGenreFilter !== 'all') ? (
+                    historyGenreFilter !== 'all' ||
+                    activeAdvancedFilterCount > 0) ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
                       <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors">
                         <Search size={28} />
@@ -1312,6 +1462,9 @@ const App: React.FC = () => {
                           setSearchQuery('');
                           setWatchlistGenreFilter('all');
                           setHistoryGenreFilter('all');
+                          setMinRatingFilter(0);
+                          setYearMinFilter(null);
+                          setYearMaxFilter(null);
                         }}
                         className="text-xs font-black uppercase tracking-widest text-forest dark:text-bitter-lime underline underline-offset-4 active:scale-95 transition-all"
                       >
