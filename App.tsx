@@ -510,12 +510,12 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        if (view === 'Feed') searchInputRef.current?.focus();
+        if (viewMode === 'Feed') searchInputRef.current?.focus();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view]);
+  }, [viewMode]);
 
   const handleCompleteCalibration = (data: {
     name: string;
