@@ -1172,21 +1172,6 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {isAIUnlocked && (
-                    <button
-                      onClick={() => setShowRecommendationsModal(true)}
-                      className="w-full flex items-center gap-4 p-5 bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-[2rem] shadow-sm animate-pulse-glow transition-all active:scale-[0.98] text-left"
-                    >
-                      <div className="w-11 h-11 shrink-0 bg-forest/10 dark:bg-lime-400/10 rounded-2xl flex items-center justify-center">
-                        <Sparkles size={20} className="text-forest dark:text-lime-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-0.5">Personnalisées</p>
-                        <p className="text-sm font-black text-charcoal dark:text-white">Recos Perso</p>
-                      </div>
-                      <ChevronRight size={16} className="text-stone-300 dark:text-stone-600 shrink-0" />
-                    </button>
-                  )}
                   <div className="flex justify-center w-full mb-2">
                     <div className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
                       <div
@@ -1701,6 +1686,21 @@ const App: React.FC = () => {
             onComplete={handleCompleteCalibration}
           />
         )}
+        {/* FAB Recos Perso */}
+        {viewMode === 'Feed' && isAIUnlocked && (
+          <button
+            onClick={() => {
+              haptics.soft();
+              setShowRecommendationsModal(true);
+            }}
+            className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl animate-pulse-glow active:scale-90 transition-all"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
+            aria-label="Recommandations personnalisées"
+          >
+            <Sparkles size={22} />
+          </button>
+        )}
+
         {showRecommendationsModal && (
           <RecommendationsModal
             isOpen={showRecommendationsModal}
