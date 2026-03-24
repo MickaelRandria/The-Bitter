@@ -45,6 +45,7 @@ import {
   MovieVote,
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -63,6 +64,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   onAddMovie,
   refreshTrigger,
 }) => {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<SpaceTab>('feed');
   const [movies, setMovies] = useState<SharedMovie[]>([]);
   const [members, setMembers] = useState<SpaceMember[]>([]);
@@ -135,7 +137,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   const handleLeaveSpace = () => {
     setConfirmAction({
-      message: `Quitter l'espace "${space.name}" ?`,
+      message: t('shared.leaveConfirm', { name: space.name }),
       onConfirm: async () => {
         setIsLeaving(true);
         haptics.medium();
@@ -166,7 +168,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const handleMarkAsWatched = (e: React.MouseEvent, movieId: string) => {
     e.stopPropagation();
     setConfirmAction({
-      message: 'Marquer ce film comme regardé par le groupe ?',
+      message: t('shared.watchedConfirm'),
       onConfirm: async () => {
         haptics.success();
         await markMovieAsWatched(movieId);
@@ -179,7 +181,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const handleDeleteMovie = (e: React.MouseEvent, movieId: string) => {
     e.stopPropagation();
     setConfirmAction({
-      message: 'Supprimer définitivement ce film ?',
+      message: t('shared.deleteConfirm'),
       onConfirm: async () => {
         haptics.error();
         setMovies((prev) => prev.filter((m) => m.id !== movieId));
@@ -252,7 +254,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="animate-spin text-forest" size={32} />
         <p className="text-[10px] font-black uppercase text-stone-300 dark:text-stone-700 tracking-[0.2em]">
-          Synchronisation...
+          {t('shared.syncing')}
         </p>
       </div>
     );
@@ -295,7 +297,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
             >
-              <History size={14} /> Chrono
+              <History size={14} /> {t('shared.tabFeed')}
             </button>
             <button
               onClick={() => {
@@ -304,7 +306,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
             >
-              <Bookmark size={14} /> À voir
+              <Bookmark size={14} /> {t('shared.tabWatchlist')}
               {watchlistMovies.length > 0 && (
                 <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>
               )}
@@ -316,7 +318,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
             >
-              <Users size={14} /> Membres
+              <Users size={14} /> {t('shared.tabMembers')}
             </button>
           </div>
           <button
@@ -340,11 +342,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                    {members.length} MEMBRES
+                    {members.length} {t('shared.members')}
                   </span>
                   <div className="w-1 h-1 bg-stone-200 dark:bg-stone-800 rounded-full" />
                   <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                    {movies.length} FILMS
+                    {movies.length} {t('shared.films')}
                   </span>
                 </div>
               </div>
@@ -356,7 +358,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             >
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                  Code :
+                  {t('shared.codeLabel')}
                 </span>
                 <span className="text-sm font-black font-mono text-charcoal dark:text-white tracking-widest">
                   {space.invite_code}
@@ -377,10 +379,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         <div className="flex items-center justify-between px-1">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
             {activeTab === 'feed'
-              ? 'Derniers Verdicts'
+              ? t('shared.feedTitle')
               : activeTab === 'watchlist'
-                ? 'Watchlist Collective'
-                : 'Liste des Membres'}
+                ? t('shared.watchlistTitle')
+                : t('shared.membersTitle')}
           </h2>
           {activeTab !== 'members' && (
             <button
@@ -390,7 +392,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               }}
               className="bg-charcoal dark:bg-forest text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg"
             >
-              <Plus size={14} strokeWidth={3} /> {activeTab === 'feed' ? 'Ajouter' : 'Suggérer'}
+              <Plus size={14} strokeWidth={3} /> {activeTab === 'feed' ? t('shared.addMovie') : t('shared.suggestMovie')}
             </button>
           )}
         </div>
@@ -424,7 +426,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     </span>
                     {member.role === 'owner' && (
                       <span className="text-[8px] bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                        Fondateur
+                        {t('shared.founder')}
                       </span>
                     )}
                   </div>
@@ -433,7 +435,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       className={`w-2 h-2 rounded-full ${member.is_active ? 'bg-green-400' : 'bg-stone-300 dark:bg-stone-700'}`}
                     />
                     <span className="text-[10px] font-medium text-stone-400 dark:text-stone-600">
-                      {member.is_active ? 'Actif' : 'Inactif'}
+                      {member.is_active ? t('shared.active') : t('shared.inactive')}
                     </span>
                   </div>
                 </div>
@@ -447,12 +449,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               {activeTab === 'feed' ? <History size={24} /> : <Bookmark size={24} />}
             </div>
             <h3 className="font-black text-charcoal dark:text-white text-base mb-1">
-              C'est encore calme ici
+              {t('shared.emptyTitle')}
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">
-              {activeTab === 'feed'
-                ? 'Ajoutez les films que vous avez vus ensemble.'
-                : 'Suggérez les prochains films à voir !'}
+              {activeTab === 'feed' ? t('shared.emptyFeed') : t('shared.emptyWatchlist')}
             </p>
           </div>
         ) : (
@@ -510,7 +510,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                   {(movie.added_by_profile?.first_name || '?')[0].toUpperCase()}
                                 </div>
                                 <span className="text-[10px] font-bold text-stone-400 dark:text-stone-600">
-                                  {movie.added_by_profile?.first_name || 'Inconnu'}
+                                  {movie.added_by_profile?.first_name || t('shared.unknown')}
                                 </span>
                               </div>
                               <div className="w-px h-3 bg-stone-200 dark:bg-stone-800" />
@@ -521,7 +521,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 </div>
                               ) : (
                                 <span className="text-[10px] font-bold text-stone-300 dark:text-stone-800">
-                                  Non noté
+                                  {t('shared.notRated')}
                                 </span>
                               )}
                             </div>
@@ -545,7 +545,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               <div className="flex items-center gap-1.5 text-[10px] font-black text-forest dark:text-lime-500">
                                 <Users size={12} />
                                 <span>
-                                  {voteCount} / {members.length} INTÉRESSÉS
+                                  {voteCount} / {members.length} {t('shared.interested')}
                                 </span>
                               </div>
                               <span className="text-[10px] font-bold text-stone-400 dark:text-stone-600">
@@ -575,7 +575,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             >
                               <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
                               <span className="text-xs font-black uppercase tracking-widest text-charcoal">
-                                Verdict Complet !
+                                {t('shared.completeVerdict')}
                               </span>
                               <PartyPopper
                                 size={20}
@@ -590,15 +590,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
                                 <BarChart3 size={16} />
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">
-                                  Moyennes du Groupe
+                                  {t('shared.groupAvg')}
                                 </h4>
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 {[
-                                  { l: 'Script', v: criteriaAvg.story },
-                                  { l: 'Visuel', v: criteriaAvg.visuals },
-                                  { l: 'Jeu', v: criteriaAvg.acting },
-                                  { l: 'Son', v: criteriaAvg.sound },
+                                  { l: t('criteria.story'), v: criteriaAvg.story },
+                                  { l: t('criteria.visuals'), v: criteriaAvg.visuals },
+                                  { l: t('criteria.acting'), v: criteriaAvg.acting },
+                                  { l: t('criteria.sound'), v: criteriaAvg.sound },
                                 ].map((c) => (
                                   <div key={c.l} className="space-y-1">
                                     <div className="flex justify-between text-[9px] font-bold text-stone-400 dark:text-stone-600 uppercase">
@@ -619,7 +619,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
                           <div className="flex items-center justify-between mt-2">
                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                              Détail des Verdicts ({ratings.length}/{members.length})
+                              {t('shared.verdictDetail')} ({ratings.length}/{members.length})
                             </h4>
                             {movie.added_by === currentUserId && (
                               <button
@@ -652,7 +652,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                           {(rating.profile?.first_name || '?')[0].toUpperCase()}
                                         </div>
                                         <span className="font-bold text-sm text-charcoal dark:text-white">
-                                          {rating.profile?.first_name || 'Membre'}
+                                          {rating.profile?.first_name || t('shared.member')}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm">
@@ -672,7 +672,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           ) : (
                             <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
                               <p className="text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">
-                                Soyez le premier à noter !
+                                {t('shared.beFirst')}
                               </p>
                             </div>
                           )}
@@ -692,7 +692,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             }}
                             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400' : 'bg-charcoal dark:bg-forest text-white shadow-xl dark:shadow-none'}`}
                           >
-                            {myRating ? 'Éditer mon verdict' : 'Déposer mon verdict'}
+                            {myRating ? t('shared.editVerdict') : t('shared.submitVerdict')}
                           </button>
                         </>
                       ) : (
@@ -709,7 +709,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                   <UserCheck size={18} />
                                 </div>
                                 <span className="font-black text-xs uppercase tracking-widest">
-                                  {hasIVoted ? 'JE VEUX LE VOIR' : 'JE SUIS CHAUD'}
+                                  {hasIVoted ? t('shared.iWantToSee') : t('shared.imIn')}
                                 </span>
                               </div>
                               {hasIVoted && <CheckCircle2 size={20} strokeWidth={3} />}
@@ -720,7 +720,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               className="w-full bg-bitter-lime text-charcoal py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
                             >
                               <Ticket size={18} strokeWidth={2.5} />
-                              MARQUER COMME VU
+                              {t('shared.markWatched')}
                             </button>
                           </div>
                         </>
@@ -741,10 +741,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             <div className="p-8 border-b border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black tracking-tight text-charcoal dark:text-white">
-                  Fiche Membre
+                  {t('shared.memberProfile')}
                 </h3>
                 <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mt-1">
-                  PROFIL PUBLIC
+                  {t('shared.publicProfile')}
                 </p>
               </div>
               <button
@@ -781,8 +781,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     Bio
                   </h4>
                   <p className="text-sm font-medium text-charcoal dark:text-stone-300 leading-relaxed p-4 bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/5">
-                    {selectedMember.profile?.bio ||
-                      "Ce membre n'a pas encore rédigé sa biographie."}
+                    {selectedMember.profile?.bio || t('shared.noBio')}
                   </p>
                 </div>
               </div>
@@ -801,7 +800,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   {ratingMovie.title}
                 </h3>
                 <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mt-1">
-                  Verdict Shared
+                  {t('shared.verdictShared')}
                 </p>
               </div>
               <button
@@ -813,10 +812,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             </div>
             <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
               {[
-                { l: 'ÉCRITURE', v: ratingStory, s: setRatingStory },
-                { l: 'ESTHÉTIQUE', v: ratingVisuals, s: setRatingVisuals },
-                { l: 'INTERPRÉTATION', v: ratingActing, s: setRatingActing },
-                { l: 'SON', v: ratingSound, s: setRatingSound },
+                { l: t('shared.ratingWriting'), v: ratingStory, s: setRatingStory },
+                { l: t('shared.ratingAesthetics'), v: ratingVisuals, s: setRatingVisuals },
+                { l: t('shared.ratingPerformance'), v: ratingActing, s: setRatingActing },
+                { l: t('shared.ratingSound'), v: ratingSound, s: setRatingSound },
               ].map((x) => (
                 <div key={x.l} className="space-y-4">
                   <div className="flex justify-between items-end">
@@ -844,12 +843,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               ))}
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
-                  Notes de l'Analyste
+                  {t('shared.analystNotes')}
                 </label>
                 <textarea
                   value={ratingReview}
                   onChange={(e) => setRatingReview(e.target.value)}
-                  placeholder="Qu'est-ce qui a retenu votre attention ?"
+                  placeholder={t('shared.reviewPlaceholder')}
                   className="w-full p-6 bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-[2rem] text-sm font-medium dark:text-white outline-none focus:border-forest dark:focus:border-forest/50 transition-all min-h-[140px] resize-none placeholder:text-stone-300 dark:placeholder:text-stone-700"
                 />
               </div>
@@ -865,7 +864,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 ) : (
                   <CheckCircle2 size={18} />
                 )}
-                {savingRating ? 'Synchronisation...' : 'Valider mon verdict'}
+                {savingRating ? t('shared.syncing') : t('shared.validateVerdict')}
               </button>
             </div>
           </div>
@@ -895,7 +894,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 onClick={() => setConfirmAction(null)}
                 className="flex-1 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-stone-100 dark:bg-[#202020] text-stone-500 dark:text-stone-400 active:scale-95 transition-all"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => {
@@ -904,7 +903,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 }}
                 className="flex-1 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-red-500 text-white shadow-lg active:scale-95 transition-all"
               >
-                Confirmer
+                {t('common.confirm')}
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface NewFeaturesModalProps {
   onClose: () => void;
@@ -16,6 +17,7 @@ interface NewFeaturesModalProps {
 }
 
 const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverShowAgain }) => {
+  const { t } = useLanguage();
   const [step, setStep] = useState(0);
 
   const handleNext = () => {
@@ -48,12 +50,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
                   <Bell size={12} />
-                  Nouveau v0.82
+                  {t('newFeatures.newBadge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  RESTE
+                  {t('newFeatures.step0.title1')}
                   <br />
-                  <span className="text-bitter-lime">CONNECTÉ.</span>
+                  <span className="text-bitter-lime">{t('newFeatures.step0.title2')}</span>
                 </h2>
 
                 <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
@@ -66,22 +68,22 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   </div>
                   <div className="space-y-3">
                     {[
-                      { e: '🔥', t: 'Streak', d: 'Jours consécutifs à regarder des films' },
-                      { e: '📅', t: 'Récap hebdo', d: 'Films vus + note moyenne de la semaine' },
-                      { e: '🎬', t: 'Rappel watchlist', d: 'Films qui attendent ta note' },
-                      { e: '📊', t: 'Stats mensuelles', d: 'Ton activité cinéma du mois' },
+                      { e: '🔥', tKey: 'newFeatures.step0.streak', dKey: 'newFeatures.step0.streakDesc' },
+                      { e: '📅', tKey: 'newFeatures.step0.weeklyRecap', dKey: 'newFeatures.step0.weeklyRecapDesc' },
+                      { e: '🎬', tKey: 'newFeatures.step0.watchlistReminder', dKey: 'newFeatures.step0.watchlistReminderDesc' },
+                      { e: '📊', tKey: 'newFeatures.step0.monthlyStats', dKey: 'newFeatures.step0.monthlyStatsDesc' },
                     ].map((item) => (
-                      <div key={item.t} className="flex items-center gap-3">
+                      <div key={item.tKey} className="flex items-center gap-3">
                         <span className="text-xl w-7 text-center shrink-0">{item.e}</span>
                         <div>
-                          <span className="text-white font-black text-sm">{item.t}</span>
-                          <span className="text-stone-500 text-xs ml-2">{item.d}</span>
+                          <span className="text-white font-black text-sm">{t(item.tKey)}</span>
+                          <span className="text-stone-500 text-xs ml-2">{t(item.dKey)}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                   <p className="text-stone-500 text-[10px] font-bold uppercase tracking-widest mt-5">
-                    Personnalisable dans ton profil
+                    {t('newFeatures.step0.customizable')}
                   </p>
                 </div>
               </div>
@@ -91,7 +93,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   onClick={handleNext}
                   className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
                 >
-                  Suivant <ArrowRight size={16} strokeWidth={3} />
+                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
                 </button>
               </div>
             </div>
@@ -103,12 +105,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
                   <BarChart3 size={12} />
-                  Analytics v0.78
+                  {t('newFeatures.step1.badge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  ANALYSE
+                  {t('newFeatures.step1.title1')}
                   <br />
-                  <span className="text-bitter-lime">VISUELLE.</span>
+                  <span className="text-bitter-lime">{t('newFeatures.step1.title2')}</span>
                 </h2>
 
                 <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
@@ -117,10 +119,10 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                     <Radar size={32} strokeWidth={2} />
                     <div className="absolute -top-2 -right-2 w-6 h-6 bg-bitter-lime rounded-full border-2 border-[#0c0c0c]" />
                   </div>
-                  <p className="text-stone-300 text-sm font-medium leading-relaxed">
-                    Découvrez votre <b>Radar ADN</b> et la <b>Distribution</b> de vos notes. Une
-                    vision macro de votre identité de cinéphile.
-                  </p>
+                  <p
+                    className="text-stone-300 text-sm font-medium leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step1.desc') }}
+                  />
                   <div className="flex justify-center gap-3 mt-6">
                     <div className="flex flex-col items-center gap-1">
                       <div className="w-12 h-8 bg-white/5 rounded-lg flex items-end justify-center gap-0.5 p-1 border border-white/10">
@@ -150,7 +152,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   onClick={handleNext}
                   className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
                 >
-                  Suivant <ArrowRight size={16} strokeWidth={3} />
+                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
                 </button>
               </div>
             </div>
@@ -162,13 +164,13 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
                   <Instagram size={12} />
-                  NOUVEAUTÉ BETA
+                  {t('newFeatures.step2.badge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  PARTAGE TES
+                  {t('newFeatures.step2.title1')}
                   <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]">
-                    VERDICTS.
+                    {t('newFeatures.step2.title2')}
                   </span>
                 </h2>
 
@@ -177,12 +179,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   <div className="w-20 h-20 bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl rotate-[-3deg]">
                     <Share2 size={36} strokeWidth={2.5} />
                   </div>
-                  <p className="text-stone-200 text-sm font-medium leading-relaxed">
-                    Partage tes notes, que ce soit pour tes films ou bien tes series, fais une{' '}
-                    <b>Stories Instagram</b>. Affiche ton expertise auprès de ta communauté.
-                  </p>
+                  <p
+                    className="text-stone-200 text-sm font-medium leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step2.desc') }}
+                  />
                   <p className="text-pink-400 text-[10px] font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
-                    <Instagram size={12} /> Disponible sur tes films/series notés
+                    <Instagram size={12} /> {t('newFeatures.step2.available')}
                   </p>
                 </div>
               </div>
@@ -192,7 +194,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   onClick={handleComplete}
                   className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
                 >
-                  C'EST PARTI
+                  {t('newFeatures.close')}
                 </button>
               </div>
             </div>
@@ -218,7 +220,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                 className="flex items-center gap-2 text-[10px] font-bold text-stone-600 hover:text-stone-400 uppercase tracking-widest transition-colors opacity-60 hover:opacity-100"
               >
                 <EyeOff size={12} />
-                Ne plus afficher à l'ouverture
+                {t('newFeatures.neverShow')}
               </button>
             )}
           </div>

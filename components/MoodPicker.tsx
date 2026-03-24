@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { MoodPreset, MOOD_PRESETS, VibeAxis } from '../utils/tonightPick';
 import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface MoodPickerProps {
   selectedMood: MoodPreset;
@@ -13,12 +14,12 @@ interface MoodPickerProps {
   matchCount?: number;
 }
 
-const VIBE_AXES: { key: VibeAxis; label: string; emoji: string }[] = [
-  { key: 'story', label: 'Cérébral', emoji: '🧠' },
-  { key: 'emotion', label: 'Émotion', emoji: '💧' },
-  { key: 'fun', label: 'Fun', emoji: '😄' },
-  { key: 'visual', label: 'Visuel', emoji: '👁️' },
-  { key: 'tension', label: 'Tension', emoji: '⚡' },
+const VIBE_AXES: { key: VibeAxis; emoji: string }[] = [
+  { key: 'story', emoji: '🧠' },
+  { key: 'emotion', emoji: '💧' },
+  { key: 'fun', emoji: '😄' },
+  { key: 'visual', emoji: '👁️' },
+  { key: 'tension', emoji: '⚡' },
 ];
 
 const MoodPicker: React.FC<MoodPickerProps> = ({
@@ -28,12 +29,12 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
   onSelectVibeSort,
   matchCount,
 }) => {
+  const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleMoodSelect = (moodId: MoodPreset) => {
     haptics.soft();
     if (selectedMood === moodId) {
-      // Deselect
       onSelectMood(null);
     } else {
       onSelectMood(moodId);
@@ -85,8 +86,8 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
             }`}
           >
             {hasActiveFilter
-              ? `Mood actif${matchCount !== undefined ? ` · ${matchCount} films` : ''}`
-              : 'Quel mood ce soir ?'}
+              ? `${t('feed.moodActive')}${matchCount !== undefined ? ` · ${matchCount} ${t('feed.filmsLabel')}` : ''}`
+              : t('feed.whatMood')}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -142,7 +143,7 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
               >
                 <span className="text-xl leading-none">{mood.emoji}</span>
                 <span className="text-[9px] font-black uppercase tracking-widest leading-none">
-                  {mood.label}
+                  {t(`mood.${mood.id}`)}
                 </span>
               </button>
             );
@@ -154,11 +155,11 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={11} className="text-stone-400" />
             <span className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-              Trier par axe vibe
+              {t('feed.sortByVibe')}
             </span>
           </div>
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {VIBE_AXES.map(({ key, label, emoji }) => {
+            {VIBE_AXES.map(({ key, emoji }) => {
               const isActive = activeVibeSort === key;
               return (
                 <button
@@ -171,7 +172,7 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
                   }`}
                 >
                   <span className="text-xs">{emoji}</span>
-                  {label}
+                  {t(`vibe.${key}`)}
                 </button>
               );
             })}

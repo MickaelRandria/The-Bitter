@@ -4,6 +4,7 @@ import { Movie, MovieFormData } from '../types';
 import { getRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
 import { TMDB_IMAGE_URL } from '../constants';
 import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const MIN_MOVIES_FOR_AI = 10;
 
@@ -24,6 +25,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   existingTmdbIds,
   movies = [],
 }) => {
+  const { t } = useLanguage();
   const watchedMovies = movies.filter((m) => m.status === 'watched');
   const watchedCount = watchedMovies.length;
 
@@ -103,11 +105,11 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               <Sparkles size={36} className="text-white" />
             </div>
             <h3 className="text-2xl font-black text-charcoal dark:text-white mb-2 tracking-tight">
-              Recos perso en cours d'activation
+              {t('reco.unlocking')}
             </h3>
             <div className="max-w-xs mx-auto mb-6 mt-5">
               <div className="flex items-center justify-between text-sm font-bold text-stone-400 mb-2">
-                <span>Progression</span>
+                <span>{t('aiUnlock.progress')}</span>
                 <span>
                   {watchedCount}/{MIN_MOVIES_FOR_AI} films
                 </span>
@@ -120,12 +122,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               </div>
             </div>
             <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs mx-auto mb-6">
-              Note encore{' '}
-              <span className="font-black text-forest dark:text-lime-400">
-                {MIN_MOVIES_FOR_AI - watchedCount} film
-                {MIN_MOVIES_FOR_AI - watchedCount > 1 ? 's' : ''}
-              </span>{' '}
-              pour débloquer des recommandations basées sur TES goûts.
+              {t('reco.unlockDesc', { n: String(MIN_MOVIES_FOR_AI - watchedCount), s: MIN_MOVIES_FOR_AI - watchedCount > 1 ? 's' : '' })}
             </p>
           </div>
         </div>
@@ -151,9 +148,9 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-charcoal dark:text-white tracking-tight">
-                    Recos Perso
+                    {t('reco.title')}
                   </h3>
-                  <p className="text-xs text-stone-400 font-bold">Choisis un film</p>
+                  <p className="text-xs text-stone-400 font-bold">{t('reco.pickMovie')}</p>
                 </div>
               </div>
               <button
@@ -170,7 +167,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                 type="text"
                 value={pickerSearch}
                 onChange={(e) => setPickerSearch(e.target.value)}
-                placeholder="Titre ou réalisateur..."
+                placeholder={t('reco.searchPlaceholder')}
                 className="w-full pl-9 pr-4 py-2.5 bg-stone-100 dark:bg-white/5 rounded-2xl text-sm font-medium text-charcoal dark:text-white placeholder-stone-400 outline-none border border-transparent focus:border-forest/30 transition-colors"
               />
             </div>
@@ -218,7 +215,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               })}
               {filteredWatched.length === 0 && (
                 <div className="col-span-3 text-center py-10 text-stone-400 text-sm font-bold">
-                  Aucun film trouvé
+                  {t('addMovie.noResults')}
                 </div>
               )}
             </div>
@@ -255,7 +252,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               )}
               <div className="min-w-0">
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-0.5">
-                  Parce que tu as vu
+                  {t('reco.because')}
                 </p>
                 <h3 className="text-base font-black text-charcoal dark:text-white tracking-tight leading-tight truncate">
                   {selectedMovie.title}
@@ -280,12 +277,12 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
             <div className="flex flex-col items-center justify-center py-16 gap-4 opacity-50">
               <Loader2 size={36} className="animate-spin text-forest dark:text-lime-400" />
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">
-                Recherche en cours...
+                {t('reco.searching')}
               </p>
             </div>
           ) : recommendations.length === 0 ? (
             <div className="text-center py-16 opacity-40">
-              <p className="font-bold text-stone-400 text-sm">Aucune reco trouvée pour ce film.</p>
+              <p className="font-bold text-stone-400 text-sm">{t('reco.noReco')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">

@@ -39,6 +39,7 @@ import {
   Filter,
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
+import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
@@ -50,7 +51,6 @@ import {
   sortByVibeAxis,
   MoodPreset,
   VibeAxis,
-  MOOD_PRESETS,
 } from './utils/tonightPick';
 import MoodPicker from './components/MoodPicker';
 import { initAnalytics } from './utils/analytics';
@@ -167,6 +167,7 @@ const BottomNav = memo(
 );
 
 const App: React.FC = () => {
+  const { t } = useLanguage();
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
   const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';
@@ -318,20 +319,20 @@ const App: React.FC = () => {
     if (viewMode === 'Analytics' && !seenTooltips.includes('analytics_intro')) {
       showTooltip(
         'analytics_intro',
-        'Statistiques',
-        'Découvre ton archétype cinéphile, tes genres favoris et ta sévérité comparée au reste du monde.'
+        t('tooltip.analytics.title'),
+        t('tooltip.analytics.content')
       );
     } else if (viewMode === 'Calendar' && !seenTooltips.includes('calendar_intro')) {
       showTooltip(
         'calendar_intro',
-        'Calendrier',
-        'Visualise ton historique de visionnage mois par mois. Chaque point correspond à un film vu.'
+        t('tooltip.calendar.title'),
+        t('tooltip.calendar.content')
       );
     } else if (viewMode === 'Discover' && !seenTooltips.includes('discover_intro')) {
       showTooltip(
         'discover_intro',
-        'Explorateur',
-        'Parcours les sorties par période et plateforme. Appuie sur une affiche pour voir les détails.'
+        t('tooltip.discover.title'),
+        t('tooltip.discover.content')
       );
     } else if (
       viewMode === 'Feed' &&
@@ -342,8 +343,8 @@ const App: React.FC = () => {
       const timer = setTimeout(() => {
         showTooltip(
           'feed_intro',
-          'Ta Collection',
-          'Glisse une carte vers la gauche pour supprimer, vers la droite pour éditer. Utilise le bouton + pour ajouter.'
+          t('tooltip.feed.title'),
+          t('tooltip.feed.content')
         );
       }, 1000);
       return () => clearTimeout(timer);
@@ -574,10 +575,10 @@ const App: React.FC = () => {
     );
     setToastMessage(
       editingMovie
-        ? 'Film modifié ✓'
+        ? t('feed.movieEdited')
         : data.status === 'watchlist'
-          ? 'Ajouté à ta watchlist ✓'
-          : 'Film ajouté ✓'
+          ? t('feed.addedToWatchlist')
+          : t('feed.movieAdded')
     );
     setEditingMovie(null);
     setTmdbIdToLoad(null);
@@ -640,7 +641,7 @@ const App: React.FC = () => {
       if (!formData) throw new Error('fetch failed');
       handleSaveMovie({ ...formData, status: 'watchlist' });
     } catch {
-      setToastMessage("Impossible d'ajouter à la watchlist");
+      setToastMessage(t('feed.cannotAddToWatchlist'));
     }
   };
 
@@ -963,13 +964,13 @@ const App: React.FC = () => {
                 }}
                 className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-forest transition-colors text-left mt-1.5"
               >
-                {RELEASE_HISTORY[0].version} • Notes
+                {RELEASE_HISTORY[0].version} • {t('app.notes')}
               </button>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               {isGuestMode && (
                 <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-stone-100 dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-white/5">
-                  Invité
+                  {t('feed.guest')}
                 </span>
               )}
               <ThemeToggle />
@@ -977,7 +978,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   if (!session) {
-                    setToastMessage('Connecte-toi pour accéder aux espaces partagés');
+                    setToastMessage(t('feed.connectForSpaces'));
                     return;
                   }
                   setShowSharedSpaces(true);
@@ -1066,10 +1067,10 @@ const App: React.FC = () => {
                     <Film size={40} />
                   </div>
                   <h2 className="text-2xl font-black mb-3 tracking-tighter">
-                    Démarrez votre collection
+                    {t('feed.startCollection')}
                   </h2>
                   <p className="text-stone-400 dark:text-stone-500 font-medium mb-10 max-w-xs mx-auto text-sm leading-relaxed">
-                    Ajoutez des films pour voir vos statistiques d'analyste.
+                    {t('feed.startCollectionDesc')}
                   </p>
 
                   <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -1077,13 +1078,13 @@ const App: React.FC = () => {
                       onClick={() => setIsModalOpen(true)}
                       className="bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"
                     >
-                      <Plus size={18} strokeWidth={3} /> Ajouter un film
+                      <Plus size={18} strokeWidth={3} /> {t('feed.addMovie')}
                     </button>
                     <button
                       onClick={() => setViewMode('Discover')}
                       className="bg-stone-100 dark:bg-[#1a1a1a] text-charcoal dark:text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest border border-stone-200 dark:border-white/5 flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"
                     >
-                      <Clapperboard size={18} /> Explorer
+                      <Clapperboard size={18} /> {t('common.explore')}
                     </button>
                   </div>
                 </div>
@@ -1110,7 +1111,7 @@ const App: React.FC = () => {
                         className="flex items-center gap-1.5 py-1 px-3 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
                       >
                         <span className="text-[9px] font-black uppercase tracking-widest">
-                          Mes stats
+                          {t('feed.myStats')}
                         </span>
                         <svg
                           width="10"
@@ -1137,7 +1138,7 @@ const App: React.FC = () => {
                               {feedStats.watchedCount}
                             </p>
                             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              films
+                              {t('feed.filmsLabel')}
                             </p>
                           </div>
                           <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
@@ -1146,7 +1147,7 @@ const App: React.FC = () => {
                               {feedStats.avgRating.toFixed(1)}
                             </p>
                             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              moy.
+                              {t('feed.avgLabel')}
                             </p>
                           </div>
                           <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
@@ -1155,7 +1156,7 @@ const App: React.FC = () => {
                               {feedStats.totalHours}h
                             </p>
                             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              vues
+                              {t('feed.watchedHours')}
                             </p>
                           </div>
                         </div>
@@ -1166,7 +1167,7 @@ const App: React.FC = () => {
                           }}
                           className="w-full flex items-center justify-center gap-1.5 py-2 px-5 bg-stone-100 dark:bg-[#111] rounded-b-2xl border border-stone-100 dark:border-white/5 text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
                         >
-                          Voir mes statistiques complètes
+                          {t('feed.fullStats')}
                           <ChevronRight size={10} strokeWidth={3} />
                         </button>
                       </div>
@@ -1190,7 +1191,7 @@ const App: React.FC = () => {
                         }}
                         className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'history' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                       >
-                        Vu {feedStats ? `(${feedStats.watchedCount})` : ''}
+                        {t('feed.watched')} {feedStats ? `(${feedStats.watchedCount})` : ''}
                       </button>
                       <button
                         onClick={() => {
@@ -1200,7 +1201,7 @@ const App: React.FC = () => {
                         }}
                         className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'queue' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                       >
-                        À voir {feedStats ? `(${feedStats.queueCount})` : ''}
+                        {t('feed.toWatch')} {feedStats ? `(${feedStats.queueCount})` : ''}
                       </button>
                     </div>
                   </div>
@@ -1214,16 +1215,16 @@ const App: React.FC = () => {
                           <Clock size={28} />
                         </div>
                         <h3 className="text-base font-black tracking-tight mb-2">
-                          Ta liste est vide
+                          {t('feed.emptyWatchlist')}
                         </h3>
                         <p className="text-stone-400 dark:text-stone-500 font-medium text-sm max-w-xs mx-auto leading-relaxed mb-6">
-                          Ajoute des films à ta watchlist pour les retrouver ici.
+                          {t('feed.emptyWatchlistDesc')}
                         </p>
                         <button
                           onClick={() => setViewMode('Discover')}
                           className="bg-stone-100 dark:bg-[#1a1a1a] text-charcoal dark:text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest border border-stone-200 dark:border-white/5 active:scale-95 transition-all"
                         >
-                          Explorer
+                          {t('common.explore')}
                         </button>
                       </div>
                     )}
@@ -1245,8 +1246,8 @@ const App: React.FC = () => {
                         >
                           <Shuffle size={18} strokeWidth={2.5} />
                           {selectedMood
-                            ? `Ce soir · ${MOOD_PRESETS.find((m) => m.id === selectedMood)?.label}`
-                            : 'Ce soir ?'}
+                            ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) })
+                            : t('feed.tonight')}
                         </button>
                         {tonightPick && !isPickAnimating && (
                           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
@@ -1262,8 +1263,8 @@ const App: React.FC = () => {
                             <div className="flex-1 min-w-0">
                               <p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">
                                 {selectedMood
-                                  ? `🎯 Mood : ${MOOD_PRESETS.find((m) => m.id === selectedMood)?.label}`
-                                  : '🎲 Suggestion'}
+                                  ? `🎯 ${t('feed.moodActive')} : ${t(`mood.${selectedMood}`)}`
+                                  : t('feed.suggestion')}
                               </p>
                               <h4 className="font-black text-lg tracking-tight truncate">
                                 {tonightPick.title}
@@ -1286,7 +1287,7 @@ const App: React.FC = () => {
                               onClick={() => setWatchlistGenreFilter('all')}
                               className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${watchlistGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}
                             >
-                              Tous
+                              {t('common.all')}
                             </button>
                             {watchlistGenres.map((genre) => (
                               <button
@@ -1308,7 +1309,7 @@ const App: React.FC = () => {
                         onClick={() => setHistoryGenreFilter('all')}
                         className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${historyGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}
                       >
-                        Tous
+                        {t('common.all')}
                       </button>
                       {historyGenres.map((genre) => (
                         <button
@@ -1324,7 +1325,7 @@ const App: React.FC = () => {
                   <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
                     <div className="flex items-center justify-between">
                       <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                        {feedTab === 'history' ? 'Films Vus' : 'À Voir'} (
+                        {feedTab === 'history' ? t('feed.filmsWatched') : t('feed.toWatchLabel')} (
                         {filteredAndSortedMovies.length})
                       </h2>
                       <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-[#1a1a1a] px-3 py-2 rounded-full shrink-0">
@@ -1334,10 +1335,10 @@ const App: React.FC = () => {
                           onChange={(e) => setSortBy(e.target.value as SortOption)}
                           className="bg-transparent text-[10px] font-bold uppercase text-charcoal dark:text-white outline-none cursor-pointer tracking-widest appearance-none pr-1"
                         >
-                          <option value="Date">Récents</option>
-                          {feedTab === 'history' && <option value="Rating">Note</option>}
-                          <option value="Year">Année</option>
-                          <option value="Title">A-Z</option>
+                          <option value="Date">{t('feed.sortRecent')}</option>
+                          {feedTab === 'history' && <option value="Rating">{t('feed.sortRating')}</option>}
+                          <option value="Year">{t('feed.sortYear')}</option>
+                          <option value="Title">{t('feed.sortAlpha')}</option>
                         </select>
                       </div>
                     </div>
@@ -1349,7 +1350,7 @@ const App: React.FC = () => {
                       <input
                         ref={searchInputRef}
                         type="text"
-                        placeholder="Titre, réalisateur, acteur, genre... (⌘K)"
+                        placeholder={t('feed.search')}
                         className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-2.5 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1371,7 +1372,7 @@ const App: React.FC = () => {
                         className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${showAdvancedFilters || activeAdvancedFilterCount > 0 ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
                       >
                         <Filter size={11} />
-                        Filtres
+                        {t('feed.filters')}
                         {activeAdvancedFilterCount > 0 && (
                           <span className="w-4 h-4 bg-forest dark:bg-lime-500 text-white dark:text-black rounded-full text-[8px] flex items-center justify-center font-black">
                             {activeAdvancedFilterCount}
@@ -1387,7 +1388,7 @@ const App: React.FC = () => {
                           }}
                           className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-red-400 transition-colors"
                         >
-                          Effacer
+                          {t('feed.clearFilter')}
                         </button>
                       )}
                     </div>
@@ -1398,10 +1399,10 @@ const App: React.FC = () => {
                         <div>
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
-                              Note min.
+                              {t('feed.minRating')}
                             </span>
                             <span className="text-xs font-black text-charcoal dark:text-white">
-                              {minRatingFilter > 0 ? `${minRatingFilter}+` : 'Toutes'}
+                              {minRatingFilter > 0 ? `${minRatingFilter}+` : t('feed.allRatings')}
                             </span>
                           </div>
                           <input
@@ -1428,7 +1429,7 @@ const App: React.FC = () => {
                         {/* Période */}
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 block mb-2">
-                            Période
+                            {t('feed.period')}
                           </span>
                           <div className="flex items-center gap-2">
                             <input
@@ -1470,9 +1471,9 @@ const App: React.FC = () => {
                       <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors">
                         <Search size={28} />
                       </div>
-                      <h3 className="text-base font-black tracking-tight mb-2">Aucun résultat</h3>
+                      <h3 className="text-base font-black tracking-tight mb-2">{t('feed.noResults')}</h3>
                       <p className="text-stone-400 dark:text-stone-500 font-medium text-sm max-w-xs mx-auto leading-relaxed mb-4">
-                        Aucun film ne correspond à ta recherche.
+                        {t('feed.noResultsDesc')}
                       </p>
                       <button
                         onClick={() => {
@@ -1485,7 +1486,7 @@ const App: React.FC = () => {
                         }}
                         className="text-xs font-black uppercase tracking-widest text-forest dark:text-bitter-lime underline underline-offset-4 active:scale-95 transition-all"
                       >
-                        Effacer les filtres
+                        {t('feed.clearFilters')}
                       </button>
                     </div>
                   ) : (
@@ -1543,7 +1544,7 @@ const App: React.FC = () => {
               onClick={handleUndoDelete}
               className="ml-2 px-4 py-2 bg-bitter-lime text-charcoal rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shrink-0"
             >
-              Annuler
+              {t('app.undoDelete')}
             </button>
           </div>
         </div>
@@ -1694,8 +1695,8 @@ const App: React.FC = () => {
               setShowRecommendationsModal(true);
             }}
             className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl animate-pulse-glow active:scale-90 transition-all"
-            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8.5rem)' }}
-            aria-label="Recommandations personnalisées"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}
+            aria-label={t('app.recosFABLabel')}
           >
             <Sparkles size={22} className="animate-sparkle" />
           </button>
@@ -1754,10 +1755,10 @@ const App: React.FC = () => {
 
             <div className="mb-8">
               <h3 className="text-2xl font-black tracking-tighter text-charcoal dark:text-white mb-2">
-                Se déconnecter ?
+                {t('app.signOutTitle')}
               </h3>
               <p className="text-sm font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
-                Tes films et ta collection restent sauvegardés sur cet appareil.
+                {t('app.signOutDesc')}
               </p>
             </div>
 
@@ -1766,7 +1767,7 @@ const App: React.FC = () => {
                 onClick={handleSignOutConfirmed}
                 className="w-full py-5 rounded-[1.8rem] font-black text-sm uppercase tracking-widest bg-red-500 text-white shadow-xl shadow-red-500/20 active:scale-[0.98] transition-all"
               >
-                Confirmer la déconnexion
+                {t('app.signOutConfirm')}
               </button>
               <button
                 onClick={() => {
@@ -1775,7 +1776,7 @@ const App: React.FC = () => {
                 }}
                 className="w-full py-5 rounded-[1.8rem] font-black text-sm uppercase tracking-widest bg-stone-100 dark:bg-[#202020] text-charcoal dark:text-white active:scale-[0.98] transition-all"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
             </div>
           </div>

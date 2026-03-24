@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { haptics } from '../utils/haptics';
 import { SharedSpace, addMovieToSpace } from '../services/supabase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -153,6 +154,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   initialMediaType = 'movie',
   onToast,
 }) => {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
   const [isBitterMode, setIsBitterMode] = useState(false);
@@ -245,7 +247,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     } catch (e) {
       if (import.meta.env.DEV) console.error(e);
       setSearchResults([]);
-      onToast?.('Erreur de recherche, vérifie ta connexion');
+      onToast?.(t('addMovie.searchError'));
     } finally {
       setIsSearching(false);
     }
@@ -335,7 +337,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         }
       } catch (err) {
         haptics.error();
-        onToast?.("Impossible d'ajouter le film à l'espace");
+        onToast?.(t('addMovie.cannotAddToSpace'));
       } finally {
         setIsSaving(false);
       }
@@ -371,7 +373,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               </p>
             )}
             <h2 className="text-2xl font-black tracking-tighter truncate text-charcoal dark:text-white">
-              {isEditMode ? 'Modifier' : formData.title || 'Nouveau Verdict'}
+              {isEditMode ? t('addMovie.edit') : formData.title || t('addMovie.newVerdict')}
             </h2>
           </div>
           <button
@@ -391,7 +393,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all ${mode === 'watched' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
             >
-              <Eye size={16} strokeWidth={2.5} /> Vu
+              <Eye size={16} strokeWidth={2.5} /> {t('addMovie.watched')}
             </button>
             <button
               onClick={() => {
@@ -400,7 +402,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all ${mode === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
             >
-              <Clock size={16} strokeWidth={2.5} /> À voir
+              <Clock size={16} strokeWidth={2.5} /> {t('addMovie.toWatch')}
             </button>
           </div>
 
@@ -410,7 +412,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 <div className="p-2 bg-white dark:bg-[#202020] rounded-xl shadow-sm">
                   <Calendar size={16} />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Visionnage</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">{t('addMovie.viewing')}</span>
               </div>
               <input
                 type="date"
@@ -447,7 +449,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             <div className="space-y-6 relative">
               <div className="group">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-2 block ml-1">
-                  Type de recherche
+                  {t('addMovie.searchType')}
                 </label>
                 <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl mb-4 w-fit transition-colors">
                   <button
@@ -457,7 +459,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'movie' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-sm' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
                   >
-                    <Film size={12} /> Films
+                    <Film size={12} /> {t('addMovie.movies')}
                   </button>
                   <button
                     onClick={() => {
@@ -466,7 +468,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${searchType === 'tv' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-sm' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
                   >
-                    <Tv size={12} /> Séries
+                    <Tv size={12} /> {t('addMovie.series')}
                   </button>
                 </div>
 
@@ -474,7 +476,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   <input
                     type="text"
                     className="w-full bg-white dark:bg-[#161616] border-2 border-stone-100 dark:border-white/5 focus:border-charcoal dark:focus:border-white/20 p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12 text-charcoal dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
-                    placeholder={searchType === 'tv' ? 'Nom de la série...' : 'Titre du film...'}
+                    placeholder={searchType === 'tv' ? t('addMovie.seriesName') : t('addMovie.movieTitle')}
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   />
@@ -517,7 +519,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                         formData.title.trim().length >= 2 && (
                           <div className="p-10 text-center bg-stone-50/50 dark:bg-[#161616]/50 transition-colors">
                             <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-700">
-                              Aucun résultat
+                              {t('addMovie.noResults')}
                             </p>
                           </div>
                         )}
@@ -543,11 +545,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     className={isBitterMode ? 'text-charcoal' : 'text-bitter-lime'}
                   />
                   <div>
-                    <p className="font-black text-xs uppercase tracking-tight">Analyse Bitter</p>
+                    <p className="font-black text-xs uppercase tracking-tight">{t('addMovie.bitterAnalysis')}</p>
                     <p
                       className={`text-[8px] font-bold uppercase tracking-widest ${isBitterMode ? 'text-charcoal/70' : 'text-stone-400'}`}
                     >
-                      Évaluation Multi-Critères
+                      {t('addMovie.bitterSubtitle')}
                     </p>
                   </div>
                 </div>
@@ -564,12 +566,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                         key={c}
                         label={
                           c === 'scenario'
-                            ? 'Écriture'
+                            ? t('addMovie.writing')
                             : c === 'acting'
-                              ? 'Jeu'
+                              ? t('addMovie.acting')
                               : c === 'visual'
-                                ? 'Visuel'
-                                : 'Son'
+                                ? t('addMovie.visual')
+                                : t('addMovie.sound')
                         }
                         value={formData.qualityMetrics?.[c as keyof QualityMetrics] || 5}
                         onChange={(v) =>
@@ -587,7 +589,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       <div className="flex items-center gap-3">
                         <Smartphone size={20} className="text-bitter-lime" />
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                          Distraction
+                          {t('addMovie.distraction')}
                         </span>
                       </div>
                       <span className="text-2xl font-black text-bitter-lime">
@@ -617,10 +619,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                            Hype
+                            {t('addMovie.hype')}
                           </p>
                           <p className="text-[9px] font-bold text-stone-300 dark:text-stone-600">
-                            Tes attentes avant de voir le film
+                            {t('addMovie.hypeDesc')}
                           </p>
                         </div>
                       </div>
@@ -642,10 +644,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     />
                     <div className="flex justify-between mt-2">
                       <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600">
-                        Aucune attente
+                        {t('addMovie.noExpectations')}
                       </span>
                       <span className="text-[9px] font-bold text-stone-300 dark:text-stone-600">
-                        Méga hype
+                        {t('addMovie.megaHype')}
                       </span>
                     </div>
                   </div>
@@ -658,21 +660,21 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       </div>
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                          Rythme
+                          {t('addMovie.rhythm')}
                         </p>
                         <p className="text-[9px] font-bold text-stone-300 dark:text-stone-600">
-                          Comment tu as ressenti le tempo
+                          {t('addMovie.rhythmDesc')}
                         </p>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       {(
                         [
-                          ['slow', '🐌', 'Lent'],
-                          ['perfect', '⚖️', 'Parfait'],
-                          ['fast', '⚡', 'Rapide'],
+                          ['slow', '🐌', 'addMovie.slow'],
+                          ['perfect', '⚖️', 'addMovie.perfect'],
+                          ['fast', '⚡', 'addMovie.fast'],
                         ] as const
-                      ).map(([val, emoji, label]) => (
+                      ).map(([val, emoji, labelKey]) => (
                         <button
                           key={val}
                           type="button"
@@ -688,7 +690,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                         >
                           <div className="text-lg leading-none">{emoji}</div>
                           <div className="text-[9px] font-black uppercase tracking-wider mt-1">
-                            {label}
+                            {t(labelKey)}
                           </div>
                         </button>
                       ))}
@@ -698,7 +700,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <VibeBox
                       icon={<Heart size={14} />}
-                      label="Émotion"
+                      label={t('addMovie.emotion')}
                       value={formData.vibe?.emotion || 5}
                       onChange={(v) =>
                         setFormData({ ...formData, vibe: { ...formData.vibe!, emotion: v } })
@@ -706,7 +708,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     />
                     <VibeBox
                       icon={<Zap size={14} />}
-                      label="Tension"
+                      label={t('addMovie.tension')}
                       value={formData.vibe?.tension || 5}
                       onChange={(v) =>
                         setFormData({ ...formData, vibe: { ...formData.vibe!, tension: v } })
@@ -714,7 +716,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     />
                     <VibeBox
                       icon={<Smile size={14} />}
-                      label="Fun"
+                      label={t('addMovie.fun')}
                       value={formData.vibe?.fun || 5}
                       onChange={(v) =>
                         setFormData({ ...formData, vibe: { ...formData.vibe!, fun: v } })
@@ -722,7 +724,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     />
                     <VibeBox
                       icon={<BrainCircuit size={14} />}
-                      label="Cérébral"
+                      label={t('addMovie.cerebral')}
                       value={formData.vibe?.story || 5}
                       onChange={(v) =>
                         setFormData({ ...formData, vibe: { ...formData.vibe!, story: v } })
@@ -733,7 +735,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               ) : (
                 <div className="py-4">
                   <RatingStepper
-                    label="Note Globale"
+                    label={t('addMovie.globalRating')}
                     value={globalRating}
                     onChange={setGlobalRating}
                     isBitter={false}
@@ -743,11 +745,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 block ml-1">
-                  Mon Avis
+                  {t('addMovie.myReview')}
                 </label>
                 <textarea
                   className="w-full bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/10 p-6 rounded-[2rem] font-medium text-sm outline-none focus:border-stone-200 dark:focus:border-white/30 transition-all min-h-[120px] resize-none shadow-sm dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
-                  placeholder="Votre verdict personnel..."
+                  placeholder={t('addMovie.reviewPlaceholder')}
                   value={formData.comment || ''}
                   onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                 />
@@ -762,7 +764,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             disabled={isSaving}
             className="w-full bg-charcoal dark:bg-forest text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
           >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Confirmer'}
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : t('addMovie.confirm')}
           </button>
         </div>
       </div>

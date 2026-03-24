@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, Plus } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AIUnlockWidgetProps {
   watchedCount: number;
@@ -9,6 +10,7 @@ interface AIUnlockWidgetProps {
 const MIN_MOVIES_FOR_AI = 10;
 
 export const AIUnlockWidget: React.FC<AIUnlockWidgetProps> = ({ watchedCount, onAddMovie }) => {
+  const { t } = useLanguage();
   if (watchedCount >= MIN_MOVIES_FOR_AI) return null;
 
   const remaining = MIN_MOVIES_FOR_AI - watchedCount;
@@ -21,13 +23,13 @@ export const AIUnlockWidget: React.FC<AIUnlockWidgetProps> = ({ watchedCount, on
           <Sparkles size={18} className="text-forest dark:text-lime-400" />
         </div>
         <h3 className="text-sm font-black uppercase tracking-widest text-charcoal dark:text-white">
-          Débloque Recos Perso
+          {t('aiUnlock.title')}
         </h3>
       </div>
 
       <div className="mb-3">
         <div className="flex items-center justify-between text-xs font-bold text-stone-400 dark:text-stone-500 mb-2">
-          <span>Progression</span>
+          <span>{t('aiUnlock.progress')}</span>
           <span>
             {watchedCount}/{MIN_MOVIES_FOR_AI}
           </span>
@@ -41,9 +43,7 @@ export const AIUnlockWidget: React.FC<AIUnlockWidgetProps> = ({ watchedCount, on
       </div>
 
       <p className="text-xs font-bold text-stone-600 dark:text-stone-400 mb-4">
-        Plus que{' '}
-        <span className="text-forest dark:text-lime-400 font-black">{remaining}</span> film
-        {remaining > 1 ? 's' : ''} à noter
+        {t('aiUnlock.remaining', { count: String(remaining), s: remaining > 1 ? 's' : '' })}
       </p>
 
       <button
@@ -51,7 +51,7 @@ export const AIUnlockWidget: React.FC<AIUnlockWidgetProps> = ({ watchedCount, on
         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-2xl text-xs font-black text-charcoal dark:text-white hover:border-forest dark:hover:border-forest/50 transition-all"
       >
         <Plus size={16} />
-        Ajouter un film
+        {t('aiUnlock.addMovie')}
       </button>
     </div>
   );

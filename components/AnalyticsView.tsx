@@ -31,6 +31,7 @@ import { getAdvancedArchetype } from '../utils/archetypes';
 import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils/insights';
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -44,53 +45,9 @@ type TabMode = 'overview' | 'notes' | 'psycho';
 
 const MIN_MOVIES_FOR_ANALYTICS = 5;
 
-const getVibePhrase = (label: string, value: number) => {
-  if (value > 7) {
-    switch (label) {
-      case 'Cérébral':
-        return 'Tu aimes les films qui font réfléchir';
-      case 'Émotion':
-        return 'Les films te touchent en plein cœur';
-      case 'Fun':
-        return "Le cinéma c'est d'abord du plaisir";
-      case 'Visuel':
-        return "L'esthétique est essentielle pour toi";
-      case 'Tension':
-        return "Tu adores la montée d'adrénaline";
-      default:
-        return '';
-    }
-  } else if (value >= 4) {
-    switch (label) {
-      case 'Cérébral':
-        return 'Tu apprécies un bon scénario sans prise de tête';
-      case 'Émotion':
-        return 'Tu ressens, sans te laisser submerger';
-      case 'Fun':
-        return 'Un bon moment, avec du fond';
-      case 'Visuel':
-        return 'Tu remarques les beaux plans, sans plus';
-      case 'Tension':
-        return 'Un peu de suspense, ça ne fait pas de mal';
-      default:
-        return '';
-    }
-  } else {
-    switch (label) {
-      case 'Cérébral':
-        return 'Tu préfères ne pas trop cogiter';
-      case 'Émotion':
-        return 'Tu gardes tes émotions pour toi';
-      case 'Fun':
-        return "Le divertissement pur, c'est pas ton truc";
-      case 'Visuel':
-        return 'Le visuel passe au second plan';
-      case 'Tension':
-        return 'Tu préfères les films calmes';
-      default:
-        return '';
-    }
-  }
+const getVibePhrase = (key: string, value: number, t: (k: string) => string): string => {
+  const tier = value > 7 ? 'high' : value >= 4 ? 'mid' : 'low';
+  return t(`vibe.phrase.${key}.${tier}`);
 };
 
 const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
@@ -195,6 +152,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onRecalibrate,
   onViewDirector,
 }) => {
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   const [isSharing, setIsSharing] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
@@ -217,12 +175,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `Mon archétype : ${stats.advancedArchetype.title}`,
+          title: t('analytics.shareTitle', { title: stats.advancedArchetype.title }),
         });
       } else {
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = 'mon-archetype-the-bitter.png';
+        a.download = 'the-bitter-archetype.png';
         a.click();
       }
     } catch (e) {
@@ -238,6 +196,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const isLocked = watchedCount < MIN_MOVIES_FOR_ANALYTICS;
 
   const stats = useMemo(() => {
+    const locale = language === 'fr' ? 'fr-FR' : 'en-US';
     if (isLocked) return null;
 
     const watched = movies.filter((m) => m.status === 'watched');
@@ -321,24 +280,24 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     const userGlobalAvg = ratingAverages.global;
     const delta = Number((userGlobalAvg - tmdbAvg).toFixed(1));
 
-    let comparisonLabel = 'Aligné';
+    let comparisonLabel = 'analytics.aligned';
     let comparisonColor = 'text-stone-400 dark:text-stone-500';
     let ComparisonIcon = Minus;
 
     if (delta >= 0.8) {
-      comparisonLabel = 'Généreux';
+      comparisonLabel = 'analytics.generous';
       comparisonColor = 'text-forest dark:text-lime-500';
       ComparisonIcon = ArrowUp;
     } else if (delta >= 0.3) {
-      comparisonLabel = 'Bienveillant';
+      comparisonLabel = 'analytics.benevolent';
       comparisonColor = 'text-lime-500';
       ComparisonIcon = ArrowUp;
     } else if (delta <= -0.8) {
-      comparisonLabel = 'Intransigeant';
+      comparisonLabel = 'analytics.uncompromising';
       comparisonColor = 'text-red-500';
       ComparisonIcon = ArrowDown;
     } else if (delta <= -0.3) {
-      comparisonLabel = 'Exigeant';
+      comparisonLabel = 'analytics.demanding';
       comparisonColor = 'text-orange-400';
       ComparisonIcon = ArrowDown;
     }
@@ -390,10 +349,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
     // --- CRITÈRES : dominant & point aveugle ---
     const criteriaScores = [
-      { id: 'story', label: 'Scénario', val: ratingAverages.story },
-      { id: 'visuals', label: 'Visuel', val: ratingAverages.visuals },
-      { id: 'acting', label: 'Jeu', val: ratingAverages.acting },
-      { id: 'sound', label: 'Son', val: ratingAverages.sound },
+      { id: 'story', label: 'criteria.story', val: ratingAverages.story },
+      { id: 'visuals', label: 'criteria.visuals', val: ratingAverages.visuals },
+      { id: 'acting', label: 'criteria.acting', val: ratingAverages.acting },
+      { id: 'sound', label: 'criteria.sound', val: ratingAverages.sound },
     ];
     const dominantCriterion = [...criteriaScores].sort((a, b) => a.val - b.val)[0];
     const blindSpotCriterion = [...criteriaScores].sort((a, b) => b.val - a.val)[0];
@@ -429,7 +388,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       const [year, month] = key.split('-');
       const d = new Date(parseInt(year), parseInt(month), 1);
       mostActiveMonth = {
-        label: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+        label: d.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
         count: mCount,
       };
     }
@@ -440,7 +399,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       return {
-        label: d.toLocaleDateString('fr-FR', { month: 'short' }),
+        label: d.toLocaleDateString(locale, { month: 'short' }),
         count: monthCounts[key] || 0,
       };
     });
@@ -507,7 +466,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         weekStart: d,
         avg: data ? Number((data.sum / data.count).toFixed(1)) : null,
         count: data?.count || 0,
-        monthLabel: d.toLocaleDateString('fr-FR', { month: 'short' }),
+        monthLabel: d.toLocaleDateString(locale, { month: 'short' }),
         isFirstOfMonth: !prevD || prevD.getMonth() !== d.getMonth(),
       };
     });
@@ -561,7 +520,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       hypeReality,
       pacingInsight,
     };
-  }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel]);
+  }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel, language]);
 
   // Recalibration silencieuse de l'archétype en DB
   useEffect(() => {
@@ -588,10 +547,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           <Lock size={40} />
         </div>
         <h2 className="text-2xl font-black text-charcoal dark:text-white mb-2">
-          Profil en construction
+          {t('analytics.locked')}
         </h2>
         <p className="text-sm font-medium text-stone-500 dark:text-stone-600 max-w-xs mx-auto leading-relaxed mb-8">
-          Notez encore {MIN_MOVIES_FOR_ANALYTICS - watchedCount} films pour débloquer votre analyse.
+          {t('analytics.lockedDesc', { n: String(MIN_MOVIES_FOR_ANALYTICS - watchedCount), s: MIN_MOVIES_FOR_ANALYTICS - watchedCount > 1 ? 's' : '' })}
         </p>
         <div className="w-full max-w-xs bg-stone-100 dark:bg-[#202020] h-2 rounded-full overflow-hidden transition-colors">
           <div
@@ -654,7 +613,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             }}
             className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm dark:shadow-black/20' : 'text-stone-400 dark:text-stone-600'}`}
           >
-            {tab === 'overview' ? 'Profil' : tab === 'notes' ? 'Goûts' : 'ADN'}
+            {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : t('analytics.tabDNA')}
           </button>
         ))}
       </div>
@@ -680,7 +639,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {advancedArchetype.secondaryTrait && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3 inline-block">
                   <p className="text-[10px] font-bold text-stone-300 dark:text-stone-400 uppercase tracking-wide">
-                    Signe : {advancedArchetype.secondaryTrait}
+                    {t('analytics.sign')} {advancedArchetype.secondaryTrait}
                   </p>
                 </div>
               )}
@@ -694,7 +653,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   className="flex items-center gap-2 mx-auto px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
                 >
                   <Share2 size={12} />
-                  {isSharing ? 'Génération…' : 'Partager mon archétype'}
+                  {isSharing ? t('analytics.sharing') : t('analytics.shareArchetype')}
                 </button>
               </div>
             </div>
@@ -708,7 +667,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div>
                 <p className="text-2xl font-black text-charcoal dark:text-white">{totalHours}h</p>
                 <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-wider">
-                  Devant l'écran
+                  {t('analytics.screenTime')}
                 </p>
               </div>
             </div>
@@ -719,7 +678,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div>
                 <p className="text-2xl font-black text-charcoal dark:text-white">{watchedCount}</p>
                 <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-wider">
-                  Analysés
+                  {t('analytics.analysed')}
                 </p>
               </div>
             </div>
@@ -736,7 +695,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       <BarChart2 size={18} />
                     </div>
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
-                      Activité · 12 mois
+                      {t('analytics.activity12m')}
                     </h3>
                   </div>
                   <div className="flex items-end gap-1.5 h-20">
@@ -780,13 +739,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <Scale size={18} />
               </div>
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                Sévérité
+                {t('analytics.severity')}
               </h3>
             </div>
             <div className="flex items-end justify-between mb-4">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
-                  Ta moyenne
+                  {t('analytics.yourAvg')}
                 </p>
                 <p className="text-4xl font-black text-charcoal dark:text-white tracking-tighter">
                   {userGlobalAvg}
@@ -797,7 +756,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-black ${comparisonColor} border-current/20`}
                 >
                   <ComparisonIcon size={14} />
-                  {comparisonLabel}
+                  {t(comparisonLabel)}
                 </div>
                 <p className="text-[9px] font-bold text-stone-400 mt-1">
                   {delta > 0 ? '+' : ''}
@@ -806,7 +765,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
-                  Monde
+                  {t('analytics.world')}
                 </p>
                 {tmdbAvg > 0 ? (
                   <p className="text-4xl font-black text-stone-300 dark:text-stone-600 tracking-tighter">
@@ -836,7 +795,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <BarChart2 size={18} />
               </div>
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                Distribution
+                {t('analytics.distribution')}
               </h3>
             </div>
             <div className="flex items-end gap-1 h-14 mb-2">
@@ -868,28 +827,28 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div className="flex justify-between mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
               {[
                 {
-                  label: 'Sévère',
+                  labelKey: 'analytics.severe',
                   range: '≤ 3',
                   count: [1, 2, 3].reduce((s, k) => s + (ratingDist[k] || 0), 0),
                   color: 'text-orange-400',
                 },
                 {
-                  label: 'Moyen',
+                  labelKey: 'analytics.middle',
                   range: '4–7',
                   count: [4, 5, 6, 7].reduce((s, k) => s + (ratingDist[k] || 0), 0),
                   color: 'text-stone-400',
                 },
                 {
-                  label: 'Généreux',
+                  labelKey: 'analytics.generous',
                   range: '≥ 8',
                   count: [8, 9, 10].reduce((s, k) => s + (ratingDist[k] || 0), 0),
                   color: 'text-forest dark:text-lime-500',
                 },
-              ].map(({ label, range, count, color }) => (
-                <div key={label} className="text-center">
+              ].map(({ labelKey, range, count, color }) => (
+                <div key={labelKey} className="text-center">
                   <p className={`text-lg font-black ${color}`}>{count}</p>
                   <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">
-                    {label}
+                    {t(labelKey)}
                   </p>
                   <p className="text-[7px] font-bold text-stone-300 dark:text-stone-600">{range}</p>
                 </div>
@@ -928,7 +887,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         <TrendingUp size={18} />
                       </div>
                       <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                        Tendance · 26 sem
+                        {t('analytics.trend26w')}
                       </h3>
                     </div>
                     {weeklyTrendDelta !== null && (
@@ -1023,7 +982,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {/* LE PALMARÈS */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
-              Le Palmarès
+              {t('analytics.palmares')}
             </h3>
 
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
@@ -1040,7 +999,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <div className="flex items-center gap-2 mb-1 text-forest dark:text-lime-500">
                   <ThumbsUp size={12} fill="currentColor" />
                   <span className="text-[9px] font-black uppercase tracking-widest">
-                    Coup de cœur
+                    {t('analytics.favorite')}
                   </span>
                 </div>
                 <h4 className="font-black text-charcoal dark:text-white truncate leading-tight">
@@ -1079,7 +1038,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <div className="flex items-center gap-2 mb-1 text-orange-400">
                   <ThumbsDown size={12} fill="currentColor" />
                   <span className="text-[9px] font-black uppercase tracking-widest">
-                    Douleur Visuelle
+                    {t('analytics.worst')}
                   </span>
                 </div>
                 <h4 className="font-black text-stone-500 dark:text-stone-400 truncate leading-tight">
@@ -1105,7 +1064,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {(biggestSurprise || biggestDisappointment) && (
             <div className="space-y-3">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
-                Contre-courant
+                {t('analytics.contrarian')}
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {biggestSurprise && (
@@ -1113,7 +1072,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="flex items-center gap-2 text-forest dark:text-lime-500">
                       <TrendingUp size={14} />
                       <span className="text-[9px] font-black uppercase tracking-widest">
-                        Ta surprise
+                        {t('analytics.yourSurprise')}
                       </span>
                     </div>
                     <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
@@ -1150,7 +1109,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="flex items-center gap-2 text-orange-400">
                       <TrendingDown size={14} />
                       <span className="text-[9px] font-black uppercase tracking-widest">
-                        Ta déception
+                        {t('analytics.yourDisappointment')}
                       </span>
                     </div>
                     <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
@@ -1193,7 +1152,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   <User size={16} />
                 </div>
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400">
-                  Ton réalisateur
+                  {t('analytics.director')}
                 </h3>
               </div>
               <div className="flex items-center gap-4">
@@ -1221,7 +1180,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     {favoriteDirector.name}
                   </h4>
                   <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mt-0.5">
-                    {favoriteDirector.count} films vus
+                    {t('analytics.directorFilms', { count: String(favoriteDirector.count), s: favoriteDirector.count > 1 ? 's' : '' })}
                   </p>
                 </div>
                 <div className="bg-charcoal dark:bg-[#161616] text-white w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shadow-lg shrink-0">
@@ -1234,25 +1193,25 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {/* CRITÈRES avec dominant & point aveugle */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
-              Ton Regard
+              {t('analytics.yourEye')}
             </h3>
 
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl p-3">
                 <p className="text-[8px] font-black uppercase tracking-widest text-red-400 mb-1">
-                  Plus exigeant sur
+                  {t('analytics.moreExacting')}
                 </p>
                 <p className="text-sm font-black text-charcoal dark:text-white">
-                  {dominantCriterion.label}
+                  {t(dominantCriterion.label)}
                 </p>
                 <p className="text-[10px] font-bold text-red-400">{dominantCriterion.val} / 10</p>
               </div>
               <div className="bg-forest/5 dark:bg-lime-500/10 border border-forest/10 dark:border-lime-500/20 rounded-2xl p-3">
                 <p className="text-[8px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mb-1">
-                  Plus généreux sur
+                  {t('analytics.moreGenerous')}
                 </p>
                 <p className="text-sm font-black text-charcoal dark:text-white">
-                  {blindSpotCriterion.label}
+                  {t(blindSpotCriterion.label)}
                 </p>
                 <p className="text-[10px] font-bold text-forest dark:text-lime-400">
                   {blindSpotCriterion.val} / 10
@@ -1267,7 +1226,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 return (
                   <div key={c.id} className="flex items-center gap-3">
                     <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest w-20 shrink-0">
-                      {c.label}
+                      {t(c.label)}
                     </span>
                     <div className="flex-1 h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
                       <div
@@ -1289,7 +1248,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {/* TOP GENRES avec count */}
           <div className="bg-stone-50 dark:bg-[#161616] rounded-[2.5rem] p-6 border border-stone-100 dark:border-white/5 transition-all">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
-              <Star size={12} /> Top Genres
+              <Star size={12} /> {t('analytics.topGenres')}
             </h3>
             <div className="space-y-3.5">
               {genreRatingsSorted.slice(0, 6).map((g, i) => (
@@ -1325,7 +1284,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {decadeData.length > 1 && (
             <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2.5rem] p-6 shadow-sm dark:shadow-black/20 transition-all">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-5">
-                Par décennie
+                {t('analytics.byDecade')}
               </h3>
               <div className="space-y-3">
                 {decadeData.map((d) => (
@@ -1361,7 +1320,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 </div>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                    Mois le plus actif
+                    {t('analytics.mostActiveMonth')}
                   </p>
                   <p className="font-black text-white capitalize">{mostActiveMonth.label}</p>
                 </div>
@@ -1383,7 +1342,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   <Target size={18} />
                 </div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                  Hype vs Réalité
+                  {t('analytics.hypeVsReality')}
                 </h3>
               </div>
               <div className="flex items-end justify-between mb-5">
@@ -1408,7 +1367,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   {hypeReality.highHypeAvgDelta !== null && (
                     <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-2">
-                        Quand tu hypes fort
+                        {t('analytics.highHype')}
                       </p>
                       <p
                         className={`text-2xl font-black tracking-tighter ${hypeReality.highHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
@@ -1421,7 +1380,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   {hypeReality.lowHypeAvgDelta !== null && (
                     <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-2">
-                        Quand tu hypes peu
+                        {t('analytics.lowHype')}
                       </p>
                       <p
                         className={`text-2xl font-black tracking-tighter ${hypeReality.lowHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
@@ -1437,7 +1396,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {hypeReality.topSurprises.length > 0 && (
                 <div className="space-y-2 mt-2">
                   <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-1">
-                    Bonnes surprises
+                    {t('analytics.goodSurprises')}
                   </p>
                   {hypeReality.topSurprises.map(({ movie: m, delta }) => (
                     <div
@@ -1454,7 +1413,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           {m.title}
                         </p>
                         <p className="text-[9px] font-bold text-stone-400 mt-0.5">
-                          Hype {m.hype} · Note {getAvgRating(m).toFixed(1)}
+                          {t('analytics.hypeLabel', { hype: String(m.hype), rating: getAvgRating(m).toFixed(1) })}
                         </p>
                       </div>
                       <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">
@@ -1468,7 +1427,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {hypeReality.topDisappointments.length > 0 && (
                 <div className="space-y-2 mt-4">
                   <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-1">
-                    Déceptions
+                    {t('analytics.disappointments')}
                   </p>
                   {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
                     <div
@@ -1489,7 +1448,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           {m.title}
                         </p>
                         <p className="text-[9px] font-bold text-stone-400 mt-0.5">
-                          Hype {m.hype} · Note {getAvgRating(m).toFixed(1)}
+                          {t('analytics.hypeLabel', { hype: String(m.hype), rating: getAvgRating(m).toFixed(1) })}
                         </p>
                       </div>
                       <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
@@ -1509,30 +1468,30 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
             <RadarChart
               data={[
-                { label: 'Cérébral', value: averages.cerebral },
-                { label: 'Tension', value: averages.tension },
-                { label: 'Fun', value: averages.fun },
-                { label: 'Visuel', value: averages.visual },
-                { label: 'Émotion', value: averages.emotion },
+                { label: t('vibe.story'), value: averages.cerebral },
+                { label: t('vibe.tension'), value: averages.tension },
+                { label: t('vibe.fun'), value: averages.fun },
+                { label: t('vibe.visual'), value: averages.visual },
+                { label: t('vibe.emotion'), value: averages.emotion },
               ]}
             />
             <div className="mt-5 space-y-2">
               {[
-                { label: 'Cérébral', val: averages.cerebral, icon: Brain },
-                { label: 'Tension', val: averages.tension, icon: Zap },
-                { label: 'Fun', val: averages.fun, icon: Smile },
-                { label: 'Visuel', val: averages.visual, icon: Aperture },
-                { label: 'Émotion', val: averages.emotion, icon: Heart },
+                { key: 'story', val: averages.cerebral, icon: Brain },
+                { key: 'tension', val: averages.tension, icon: Zap },
+                { key: 'fun', val: averages.fun, icon: Smile },
+                { key: 'visual', val: averages.visual, icon: Aperture },
+                { key: 'emotion', val: averages.emotion, icon: Heart },
               ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3">
+                <div key={item.key} className="flex items-center gap-3">
                   <div className="p-1.5 bg-stone-50 dark:bg-[#161616] rounded-lg text-stone-400 dark:text-stone-500 shrink-0">
                     <item.icon size={13} />
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 w-20 shrink-0">
-                    {item.label}
+                    {t(`vibe.${item.key}`)}
                   </span>
                   <p className="text-[10px] font-medium text-stone-500 dark:text-stone-400 flex-1 leading-tight">
-                    {getVibePhrase(item.label, item.val)}
+                    {getVibePhrase(item.key, item.val, t)}
                   </p>
                 </div>
               ))}
@@ -1543,7 +1502,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div className="absolute top-0 right-0 w-32 h-32 bg-forest/20 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10 flex justify-between items-center mb-4">
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 flex items-center gap-2">
-                <Smartphone size={16} /> Immersion
+                <Smartphone size={16} /> {t('analytics.immersion')}
               </h3>
               <span className="text-2xl font-black text-white">{100 - averages.smartphone}%</span>
             </div>
@@ -1554,7 +1513,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               />
             </div>
             <p className="text-xs font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
-              Vous passez environ {averages.smartphone}% du temps sur votre téléphone.
+              {t('analytics.phoneTime', { pct: String(averages.smartphone) })}
             </p>
           </div>
         </div>
@@ -1565,7 +1524,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           onClick={onRecalibrate}
           className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 hover:text-charcoal dark:hover:text-white transition-colors border-b border-stone-200 dark:border-stone-800 pb-0.5"
         >
-          Recalibrer mon profil
+          {t('analytics.recalibrate')}
         </button>
       </div>
 
@@ -1631,9 +1590,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
           {[
-            { label: 'Films', value: watchedCount },
-            { label: 'Heures', value: `${totalHours}h` },
-            { label: 'Moyenne', value: stats.ratingAverages.global },
+            { label: t('analytics.shareFilms'), value: watchedCount },
+            { label: t('analytics.shareHours'), value: `${totalHours}h` },
+            { label: t('analytics.shareAvg'), value: stats.ratingAverages.global },
           ].map((s) => (
             <div
               key={s.label}
@@ -1670,7 +1629,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               letterSpacing: '0.12em',
             }}
           >
-            Genre favori · {stats.genreRatingsSorted[0].name}
+            {t('analytics.favGenre', { name: stats.genreRatingsSorted[0].name })}
           </div>
         )}
       </div>

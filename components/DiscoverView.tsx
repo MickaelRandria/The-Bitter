@@ -32,6 +32,7 @@ import { UserProfile, Movie } from '../types';
 import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
 import StreamingBadge from './StreamingBadge';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
@@ -106,6 +107,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   movies,
   onToast,
 }) => {
+  const { t } = useLanguage();
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -229,7 +231,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       }
     } catch (error) {
       if (import.meta.env.DEV) console.error('Discovery error', error);
-      onToast?.('Erreur de chargement, vérifie ta connexion');
+      onToast?.(t('discover.loadError'));
     } finally {
       setLoading(false);
     }
@@ -266,7 +268,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
         >
-          <Film size={14} /> FILMS
+          <Film size={14} /> {t('addMovie.movies').toUpperCase()}
         </button>
         <button
           onClick={() => {
@@ -275,7 +277,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'tv' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
         >
-          <Tv size={14} /> SÉRIES
+          <Tv size={14} /> {t('addMovie.series').toUpperCase()}
         </button>
       </div>
 
@@ -287,7 +289,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           </div>
           <input
             type="text"
-            placeholder="Rechercher..."
+            placeholder={t('discover.search')}
             className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -327,7 +329,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         {isSearchFocused && !isSearchActive && recentSearches.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 px-1 animate-[fadeIn_0.2s_ease-out]">
             <span className="text-[9px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-700">
-              Récent
+              {t('discover.recent')}
             </span>
             {recentSearches.map((s, i) => (
               <div
@@ -364,7 +366,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               }}
               className="text-[9px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-600 hover:text-stone-400 transition-colors"
             >
-              Effacer
+              {t('feed.clearFilter')}
             </button>
           </div>
         )}
@@ -394,13 +396,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2">
-              <Clock size={12} /> Période
+              <Clock size={12} /> {t('feed.period')}
             </h3>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { id: 'this_month', l: 'Mois', i: <Calendar size={18} /> },
+                { id: 'this_month', l: t('discover.month'), i: <Calendar size={18} /> },
                 { id: 'this_year', l: new Date().getFullYear().toString(), i: <Zap size={18} /> },
-                { id: 'all_time', l: 'Catalogue', i: <Layers size={18} /> },
+                { id: 'all_time', l: t('discover.catalogue'), i: <Layers size={18} /> },
               ].map((p) => (
                 <button
                   key={p.id}
@@ -419,7 +421,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1">
-              Plateforme
+              {t('discover.platform')}
             </h3>
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
               {PROVIDERS.map((provider) => {
@@ -439,7 +441,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                     ) : provider.logo ? (
                       <img src={provider.logo} alt="" className="w-5 h-5 object-contain" />
                     ) : null}
-                    {provider.name}
+                    {provider.id === 'all' ? t('common.all') : provider.id === 'cinema' ? t('discover.cinema') : provider.name}
                   </button>
                 );
               })}
@@ -464,7 +466,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                   ) : (
                     <ArrowUpAZ size={14} />
                   )}
-                  {opt === 'popularity' ? 'Pop' : opt === 'date' ? 'Date' : 'A-Z'}
+                  {opt === 'popularity' ? t('discover.sortPop') : opt === 'date' ? t('discover.sortDate') : 'A-Z'}
                 </button>
               ))}
             </div>
@@ -498,10 +500,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               <Search size={24} />
             </div>
             <h3 className="font-black text-charcoal dark:text-white text-base mb-2">
-              Aucun résultat
+              {t('feed.noResults')}
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">
-              Essaye d'élargir tes critères.
+              {t('discover.broaden')}
             </p>
           </div>
         ) : (
@@ -543,7 +545,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                     {/* Collection badge */}
                     {isWatched && (
                       <div className="absolute bottom-3 left-3 z-20 bg-forest/90 text-white px-2 py-1 rounded-full flex items-center gap-1 text-[9px] font-black backdrop-blur-sm shadow">
-                        <Check size={9} strokeWidth={3} /> Vu
+                        <Check size={9} strokeWidth={3} /> {t('feed.watched')}
                       </div>
                     )}
                     {isInWatchlist && !isWatched && (
@@ -599,7 +601,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                           {item.vote_count >= 1000
                             ? `${(item.vote_count / 1000).toFixed(1)}k`
                             : item.vote_count}{' '}
-                          avis
+                          {t('discover.reviews')}
                         </span>
                       ) : null}
                     </p>

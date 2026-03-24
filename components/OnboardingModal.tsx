@@ -9,11 +9,11 @@ import {
   Layers,
   Loader2,
   Fingerprint,
-  Sparkles,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getArchetypeFromOnboarding, inferDepthFromGenres } from '../utils/archetypes';
 import { supabase } from '../services/supabase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface OnboardingModalProps {
   initialName: string;
@@ -39,11 +39,10 @@ const GENRES_LIST = [
 ];
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, onComplete }) => {
+  const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [name] = useState(initialName);
   const [severityIndex, setSeverityIndex] = useState(5);
-  // patienceLevel est renommé conceptuellement en rhythmIndex dans l'UI, mais on garde le nom de variable
-  // pour compatibilité avec la DB (patience_level) qui stockera cette valeur.
   const [patienceLevel, setPatienceLevel] = useState(5);
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -59,12 +58,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
     if (step < totalSteps) setStep(step + 1);
     else if (step === totalSteps) {
       setIsAnalyzing(true);
-
-      // Inférence de la profondeur basée sur les genres
       const depthIndex = inferDepthFromGenres(favoriteGenres);
-
       setTimeout(() => {
-        // Calcul Phase 1 : Déclaratif
         const result = getArchetypeFromOnboarding(severityIndex, patienceLevel, depthIndex);
         setArchetype(result);
         setIsAnalyzing(false);
@@ -82,7 +77,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
           .from('profiles')
           .update({
             severity_index: severityIndex,
-            patience_level: patienceLevel, // Stocké comme "Rythme" logiquement
+            patience_level: patienceLevel,
             favorite_genres: favoriteGenres,
             role: archetype.title,
             is_onboarded: true,
@@ -110,7 +105,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
             strokeWidth={1.5}
           />
           <h3 className="text-xl font-black text-charcoal dark:text-white uppercase tracking-widest animate-pulse">
-            Calibrage...
+            {t('onboarding.calibrating')}
           </h3>
         </div>
       </div>
@@ -136,15 +131,15 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
             </div>
             <div>
               <h2 className="text-3xl font-black text-charcoal dark:text-white tracking-tighter leading-none mb-3">
-                Calibration
+                {t('onboarding.calibration')}
               </h2>
               <p className="text-stone-400 dark:text-stone-500 font-medium">
-                Configurez vos critères de notation pour personnaliser votre expérience.
+                {t('onboarding.calibrationDesc')}
               </p>
             </div>
             <div className="group">
               <label className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-600 tracking-[0.2em] mb-3 block ml-1">
-                Identifiant
+                {t('onboarding.identifier')}
               </label>
               <input
                 type="text"
@@ -164,10 +159,10 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
             </div>
             <div>
               <h2 className="text-3xl font-black text-charcoal dark:text-white tracking-tighter leading-none mb-3">
-                Posture critique
+                {t('onboarding.criticalPosture')}
               </h2>
               <p className="text-stone-400 dark:text-stone-500 font-medium">
-                Définissez votre sévérité habituelle lors de la notation.
+                {t('onboarding.criticalPostureDesc')}
               </p>
             </div>
             <div className="py-4">
@@ -183,15 +178,12 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
                 max="10"
                 step="0.5"
                 value={severityIndex}
-                onChange={(e) => {
-                  haptics.soft();
-                  setSeverityIndex(Number(e.target.value));
-                }}
+                onChange={(e) => { haptics.soft(); setSeverityIndex(Number(e.target.value)); }}
                 className="w-full h-2 bg-stone-100 dark:bg-[#202020] rounded-full appearance-none cursor-pointer accent-charcoal dark:accent-forest"
               />
               <div className="flex justify-between mt-3 text-[9px] font-black text-stone-300 dark:text-stone-500 uppercase tracking-widest">
-                <span>Indulgent</span>
-                <span>Sévère</span>
+                <span>{t('onboarding.lenient')}</span>
+                <span>{t('onboarding.harsh')}</span>
               </div>
             </div>
           </div>
@@ -204,10 +196,10 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
             </div>
             <div>
               <h2 className="text-3xl font-black text-charcoal dark:text-white tracking-tighter leading-none mb-3">
-                Rythme narratif
+                {t('onboarding.narrativeRhythm')}
               </h2>
               <p className="text-stone-400 dark:text-stone-500 font-medium">
-                Quelle est votre tolérance aux films lents ou contemplatifs ?
+                {t('onboarding.narrativeRhythmDesc')}
               </p>
             </div>
             <div className="py-4">
@@ -223,15 +215,12 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
                 max="10"
                 step="0.5"
                 value={patienceLevel}
-                onChange={(e) => {
-                  haptics.soft();
-                  setPatienceLevel(Number(e.target.value));
-                }}
+                onChange={(e) => { haptics.soft(); setPatienceLevel(Number(e.target.value)); }}
                 className="w-full h-2 bg-stone-100 dark:bg-[#202020] rounded-full appearance-none cursor-pointer accent-charcoal dark:accent-forest"
               />
               <div className="flex justify-between mt-3 text-[9px] font-black text-stone-300 dark:text-stone-500 uppercase tracking-widest">
-                <span>Contemplatif</span>
-                <span>Intense</span>
+                <span>{t('onboarding.contemplative')}</span>
+                <span>{t('onboarding.intense')}</span>
               </div>
             </div>
           </div>
@@ -243,7 +232,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
               <Layers size={24} />
             </div>
             <h2 className="text-3xl font-black text-charcoal dark:text-white tracking-tighter leading-none mb-3">
-              Zone de confort
+              {t('onboarding.comfortZone')}
             </h2>
             <div className="grid grid-cols-2 gap-3">
               {GENRES_LIST.map((genre) => (
@@ -268,7 +257,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
             </div>
             <div>
               <p className="text-[10px] font-black uppercase text-stone-300 dark:text-stone-500 tracking-[0.3em] mb-4">
-                PROFIL DÉFINI
+                {t('onboarding.profileDefined')}
               </p>
               <h2 className="text-4xl sm:text-5xl font-black text-charcoal dark:text-white tracking-tighter leading-[0.9] mb-6">
                 {archetype.title}
@@ -282,7 +271,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
                 onClick={handleFinalValidation}
                 className="w-full bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
               >
-                <Fingerprint size={18} /> Assumer mon Rôle
+                <Fingerprint size={18} /> {t('onboarding.assumeRole')}
               </button>
             </div>
           </div>
@@ -292,13 +281,10 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
           <div className="mt-10 flex justify-between items-center">
             {step > 1 ? (
               <button
-                onClick={() => {
-                  haptics.soft();
-                  setStep(step - 1);
-                }}
+                onClick={() => { haptics.soft(); setStep(step - 1); }}
                 className="flex items-center gap-2 text-stone-400 dark:text-stone-500 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:text-charcoal dark:hover:text-white transition-colors active:scale-95"
               >
-                <ArrowLeft size={14} strokeWidth={3} /> Retour
+                <ArrowLeft size={14} strokeWidth={3} /> {t('common.back')}
               </button>
             ) : (
               <div />
@@ -307,7 +293,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
               onClick={handleNext}
               className="flex items-center gap-3 bg-charcoal dark:bg-forest text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
             >
-              {step === totalSteps ? 'Finaliser' : 'Suivant'}{' '}
+              {step === totalSteps ? t('common.finish') : t('common.next')}{' '}
               <ArrowRight size={16} strokeWidth={3} />
             </button>
           </div>

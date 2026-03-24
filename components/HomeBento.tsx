@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Movie, UserProfile } from '../types';
-import { TMDB_IMAGE_URL } from '../constants';
 import {
   Play,
   Plus,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { AIUnlockWidget } from './AIUnlockWidget';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const MIN_MOVIES_FOR_AI = 10;
 
@@ -28,10 +28,10 @@ interface HomeBentoProps {
 }
 
 const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, onNavigate, onOpenRecommendations }) => {
+  const { t } = useLanguage();
   const watchedCount = movies.filter((m) => m.status === 'watched').length;
   const isAIUnlocked = watchedCount >= MIN_MOVIES_FOR_AI;
 
-  // Tri des films : Du plus récent (vu ou ajouté) au plus ancien
   const sortedMovies = useMemo(() => {
     return [...movies].sort((a, b) => {
       const dateA = a.dateWatched || a.dateAdded;
@@ -45,15 +45,14 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
   const totalMinutes = movies.reduce((acc, m) => acc + (m.runtime || 0), 0);
   const hours = Math.floor(totalMinutes / 60);
 
-  // --- RENDU EMPTY STATE (0 FILMS) ---
+  // --- EMPTY STATE ---
   if (movies.length === 0) {
     return (
       <div className="min-h-screen bg-[#0c0c0c] text-white p-6 pb-32 flex flex-col font-sans selection:bg-lime-400 selection:text-black">
-        {/* Header */}
         <header className="flex justify-between items-center py-6">
           <div className="flex flex-col">
             <span className="text-stone-500 dark:text-stone-400 text-xs font-bold uppercase tracking-[0.2em]">
-              Bienvenue
+              {t('bento.welcome')}
             </span>
             <span className="text-2xl font-black tracking-tight">{userName}</span>
           </div>
@@ -62,9 +61,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           </div>
         </header>
 
-        {/* Bento Grid Empty */}
         <div className="grid grid-cols-2 gap-4 flex-1 content-start">
-          {/* Block A: Welcome Hero */}
           <div className="col-span-2 h-[40vh] bg-[#141414] rounded-[2.5rem] relative overflow-hidden p-8 flex flex-col justify-end border border-white/5">
             <div className="absolute top-0 right-0 w-64 h-64 bg-lime-400/20 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <h1 className="text-6xl font-black tracking-tighter leading-[0.9] mb-4">
@@ -73,28 +70,26 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
               <span className="text-lime-400">Tracking.</span>
             </h1>
             <p className="text-stone-400 dark:text-stone-500 font-medium max-w-xs leading-relaxed">
-              Votre collection est vide. Ajoutez votre premier film pour initialiser l'analyseur.
+              {t('bento.emptyDesc')}
             </p>
           </div>
 
-          {/* Block B: Zero Counter */}
           <div className="aspect-square bg-[#141414] rounded-[2.5rem] flex flex-col items-center justify-center border border-white/5 relative overflow-hidden">
             <span className="text-[8rem] font-black text-white/5 leading-none absolute scale-150 select-none">
               0
             </span>
             <span className="text-6xl font-black text-lime-400 relative z-10">0</span>
             <span className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400 mt-2 relative z-10">
-              Films
+              {t('feed.filmsLabel')}
             </span>
           </div>
 
-          {/* Block C: Call to Action */}
           <button
             onClick={() => onNavigate('Discover')}
             className="aspect-square bg-lime-400 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 shadow-lg shadow-lime-400/20 active:scale-95 transition-transform"
           >
             <Plus size={40} className="text-black" strokeWidth={3} />
-            <span className="text-xs font-black uppercase tracking-widest text-black">Ajouter</span>
+            <span className="text-xs font-black uppercase tracking-widest text-black">{t('bento.add')}</span>
           </button>
         </div>
 
@@ -103,22 +98,20 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
     );
   }
 
-  // --- RENDU PRINCIPAL (AVEC DONNÉES) ---
+  // --- MAIN RENDER ---
   return (
     <div className="min-h-screen bg-[#0c0c0c] text-white p-4 sm:p-6 pb-32 flex flex-col font-sans selection:bg-lime-400 selection:text-black overflow-x-hidden">
-      {/* Header Minimal */}
       <header className="flex justify-between items-end py-6 px-2 animate-[fadeIn_0.5s_ease-out]">
         <div>
           <h1 className="text-[10px] font-black text-lime-400 uppercase tracking-[0.3em] mb-1">
             The Bitter
           </h1>
           <div className="text-3xl font-black tracking-tighter leading-none">
-            Salut, {userName}.
+            {t('bento.hello', { name: userName })}
           </div>
         </div>
       </header>
 
-      {/* Bento Grid */}
       <div className="grid grid-cols-2 gap-4 animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
         {/* BLOCK A: HERO (Last Movie) */}
         <div
@@ -143,7 +136,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           <div className="absolute bottom-0 left-0 p-8 w-full z-10">
             <div className="flex items-center gap-3 mb-4">
               <div className="bg-lime-400 text-black px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg shadow-lime-400/20">
-                <Play size={10} fill="currentColor" /> Dernier Vu
+                <Play size={10} fill="currentColor" /> {t('bento.lastWatched')}
               </div>
               {(lastMovie.tmdbRating || 0) > 0 && (
                 <div className="bg-white/10 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-black uppercase border border-white/10">
@@ -160,7 +153,7 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           </div>
         </div>
 
-        {/* BLOCK B: KPI (Total Count) */}
+        {/* BLOCK B: KPI */}
         <div className="aspect-square bg-[#141414] rounded-[2.5rem] flex flex-col justify-between p-6 border border-white/5 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
             <ArrowUpRight className="text-lime-400" />
@@ -170,12 +163,12 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
               {movies.length}
             </span>
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
-              Films Vus
+              {t('bento.filmsWatched')}
             </span>
           </div>
         </div>
 
-        {/* BLOCK C: IDENTITY (Profile Role or Stats) */}
+        {/* BLOCK C: IDENTITY */}
         <div
           onClick={() => onNavigate('Analytics')}
           className="aspect-square bg-[#141414] rounded-[2.5rem] p-6 border border-white/5 relative overflow-hidden flex flex-col justify-between cursor-pointer group hover:bg-[#1a1a1a] transition-colors"
@@ -189,10 +182,10 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">
-              {userProfile?.role ? 'Archétype' : 'Temps Total'}
+              {userProfile?.role ? t('bento.archetype') : t('bento.totalTime')}
             </p>
             <p className="text-xl sm:text-2xl font-black leading-tight text-white">
-              {userProfile?.role || `${hours} Heures`}
+              {userProfile?.role || `${hours} ${t('bento.hours')}`}
             </p>
           </div>
         </div>
@@ -205,12 +198,12 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
         {/* BLOCK D: COMPACT FEED */}
         <div className="col-span-2 bg-[#141414] rounded-[2.5rem] p-8 border border-white/5">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-black tracking-tight">Récemment</h3>
+            <h3 className="text-lg font-black tracking-tight">{t('bento.recently')}</h3>
             <button
               onClick={() => onNavigate('Feed')}
               className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400 hover:text-white transition-colors"
             >
-              Voir tout
+              {t('bento.seeAll')}
             </button>
           </div>
 
@@ -251,11 +244,12 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
             ))}
             {recentHistory.length === 0 && (
               <div className="text-center py-4 text-stone-600 text-xs font-bold uppercase tracking-widest">
-                Rien d'autre à signaler
+                {t('bento.nothingElse')}
               </div>
             )}
           </div>
         </div>
+
         {/* BLOCK RECOMMENDATIONS */}
         <button
           onClick={() => {
@@ -275,13 +269,11 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mb-1">
-              {isAIUnlocked ? 'Débloqué' : `${watchedCount}/${MIN_MOVIES_FOR_AI} films`}
+              {isAIUnlocked ? t('bento.unlocked') : t('bento.lockedProgress', { count: String(watchedCount), max: String(MIN_MOVIES_FOR_AI) })}
             </p>
-            <p className="text-lg font-black text-white leading-tight">Recos Perso</p>
+            <p className="text-lg font-black text-white leading-tight">{t('bento.personalRecos')}</p>
             <p className="text-xs text-stone-500 mt-0.5 truncate">
-              {isAIUnlocked
-                ? 'Recommandations basées sur tes goûts'
-                : 'Note encore quelques films pour débloquer'}
+              {isAIUnlocked ? t('bento.recosUnlocked') : t('bento.recosLocked')}
             </p>
           </div>
           {isAIUnlocked && (
@@ -301,7 +293,6 @@ const DockNavigation: React.FC<{ onNavigate: (page: string) => void }> = ({ onNa
   return (
     <div className="fixed bottom-8 left-0 right-0 flex justify-center items-center z-50 pointer-events-none">
       <div className="flex items-center gap-4 pointer-events-auto">
-        {/* Main Dock */}
         <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[2rem] flex items-center shadow-2xl">
           <NavButton
             icon={<LayoutGrid size={20} />}
@@ -333,7 +324,6 @@ const DockNavigation: React.FC<{ onNavigate: (page: string) => void }> = ({ onNa
           />
         </div>
 
-        {/* Detached Add Button */}
         <button
           onClick={() => {
             haptics.medium();

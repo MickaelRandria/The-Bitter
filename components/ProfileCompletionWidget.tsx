@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { UserProfile } from '../types';
-import { Sparkles, ChevronRight, Fingerprint } from 'lucide-react';
+import { Sparkles, ChevronRight } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ProfileCompletionWidgetProps {
   profile: UserProfile;
@@ -11,23 +12,25 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
   profile,
   onCompleteProfile,
 }) => {
+  const { t } = useLanguage();
+
   const { completion, missing } = useMemo(() => {
     const criteria = [
-      { label: 'Nom', done: !!(profile.firstName && profile.firstName !== 'Utilisateur') },
-      { label: 'Posture critique', done: profile.severityIndex !== undefined },
-      { label: 'Rythme narratif', done: profile.patienceLevel !== undefined },
+      { labelKey: 'completion.name', done: !!(profile.firstName && profile.firstName !== 'Utilisateur') },
+      { labelKey: 'completion.criticalPosture', done: profile.severityIndex !== undefined },
+      { labelKey: 'completion.narrativeRhythm', done: profile.patienceLevel !== undefined },
       {
-        label: 'Genres favoris',
+        labelKey: 'completion.favGenres',
         done: !!(profile.favoriteGenres && profile.favoriteGenres.length > 0),
       },
-      { label: 'Archétype', done: !!profile.role },
+      { labelKey: 'completion.archetype', done: !!profile.role },
     ];
     const score = criteria.filter((c) => c.done).length;
     return {
       completion: Math.round((score / criteria.length) * 100),
-      missing: criteria.filter((c) => !c.done).map((c) => c.label),
+      missing: criteria.filter((c) => !c.done).map((c) => t(c.labelKey)),
     };
-  }, [profile]);
+  }, [profile, t]);
 
   if (completion >= 100) return null;
 
@@ -64,13 +67,13 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
         <div className="flex-1 text-left">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-xs font-black uppercase tracking-wider text-charcoal dark:text-white">
-              Complète ton profil
+              {t('completion.title')}
             </h3>
             <Sparkles size={12} className="text-bitter-lime animate-pulse" />
           </div>
           {missing.length > 0 && (
             <p className="text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-tight">
-              Manque : {missing.join(' · ')}
+              {t('completion.missing')} {missing.join(' · ')}
             </p>
           )}
         </div>

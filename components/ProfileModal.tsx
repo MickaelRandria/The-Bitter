@@ -16,6 +16,7 @@ import {
   Bell,
   BellOff,
   Send,
+  Globe,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -26,6 +27,7 @@ import {
   saveNotificationPrefs,
   sendTestNotification,
 } from '../utils/notifications';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -37,28 +39,24 @@ interface ProfileModalProps {
   onSignOut: () => void;
 }
 
-// Données statiques pour l'affichage (copie simplifiée de archetypes.ts pour l'affichage UI)
-const ARCHETYPE_INFO: Record<string, { icon: string; description: string }> = {
-  'Le Déchiffreur': { icon: '🔍', description: 'Tu ne regardes pas un film, tu le résous.' },
-  "L'Éponge Émotionnelle": {
-    icon: '🥀',
-    description: "Tu cherches la catharsis et l'émotion pure.",
-  },
-  "L'Hédoniste": { icon: '🍿', description: 'Le cinéma est une fête, le plaisir avant tout.' },
-  "L'Esthète": { icon: '👁️', description: 'La forme prime sur le fond.' },
-  "L'Adrénaline Junkie": { icon: '🎢', description: 'Tu vis pour le frisson et la tension.' },
-  'Le Stratège Noir': { icon: '🕵️', description: "L'intelligence rencontre la noirceur." },
-  'Le Romantique Visionnaire': { icon: '🌅', description: 'La beauté qui émeut.' },
-  'Le Philosophe Sensible': { icon: '🎭', description: 'Tu veux comprendre ET ressentir.' },
-  "L'Omnivore": { icon: '🌍', description: 'Ta force est ta curiosité sans limite.' },
+const ARCHETYPE_ICONS: Record<string, string> = {
+  'Le Déchiffreur': '🔍',
+  "L'Éponge Émotionnelle": '🥀',
+  "L'Hédoniste": '🍿',
+  "L'Esthète": '👁️',
+  "L'Adrénaline Junkie": '🎢',
+  'Le Stratège Noir': '🕵️',
+  'Le Romantique Visionnaire': '🌅',
+  'Le Philosophe Sensible': '🎭',
+  "L'Omnivore": '🌍',
 };
 
-const NOTIF_LABELS: Record<keyof NotificationPrefs, { label: string; emoji: string }> = {
-  streak: { label: 'Streak jours consécutifs', emoji: '🔥' },
-  weekly: { label: 'Récap hebdomadaire', emoji: '📅' },
-  unrated: { label: 'Films en attente de note', emoji: '🎬' },
-  monthly: { label: 'Stats mensuelles', emoji: '📊' },
-};
+const NOTIF_KEYS: Array<{ key: keyof NotificationPrefs; translationKey: string; emoji: string }> = [
+  { key: 'streak', translationKey: 'notif.streak', emoji: '🔥' },
+  { key: 'weekly', translationKey: 'notif.weekly', emoji: '📅' },
+  { key: 'unrated', translationKey: 'notif.unrated', emoji: '🎬' },
+  { key: 'monthly', translationKey: 'notif.monthly', emoji: '📊' },
+];
 
 const ProfileModal: React.FC<ProfileModalProps> = ({
   profile,
@@ -69,10 +67,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onShowTutorial,
   onSignOut,
 }) => {
+  const { t, language, setLanguage } = useLanguage();
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
-  const joinDate = new Date(profile.createdAt).toLocaleDateString('fr-FR', {
+
+  const locale = language === 'en' ? 'en-US' : 'fr-FR';
+  const joinDate = new Date(profile.createdAt).toLocaleDateString(locale, {
     month: 'long',
     year: 'numeric',
   });
@@ -124,27 +125,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Calcul des statistiques en temps réel
   const stats = useMemo(() => {
     const watched = profile.movies.filter((m) => m.status === 'watched');
-    const watchlist = profile.movies.filter((m) => m.status === 'watchlist');
-
-    // Genre Dominant
     const genreCounts: Record<string, number> = {};
     watched.forEach((m) => {
       if (m.genre) genreCounts[m.genre] = (genreCounts[m.genre] || 0) + 1;
     });
     const dominantGenre =
-      Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Aucun';
-
-    return {
-      watchedCount: watched.length,
-      dominantGenre,
-    };
+      Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    return { watchedCount: watched.length, dominantGenre };
   }, [profile.movies]);
 
-  // Info Archétype
-  const currentArchetypeInfo = profile.role ? ARCHETYPE_INFO[profile.role] : null;
+  const archetypeIcon = profile.role ? ARCHETYPE_ICONS[profile.role] : null;
+  const archetypeDesc = profile.role ? t(`archetype.${profile.role}`) : null;
   const isArchetypeConfirmed = stats.watchedCount >= 10;
 
   return (
@@ -166,7 +159,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Header */}
         <div className="px-6 pb-4 border-b border-sand dark:border-white/5 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
           <h2 className="text-xl font-black tracking-tight text-charcoal dark:text-white">
-            Mon Profil
+            {t('profileModal.title')}
           </h2>
           <button
             onClick={onClose}
@@ -186,7 +179,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               <h1 className="text-2xl font-black text-charcoal dark:text-white tracking-tight leading-none mb-2 truncate">
                 {profile.firstName} {profile.lastName}
               </h1>
-
               <div className="flex flex-col gap-1.5">
                 {email ? (
                   <div className="flex items-center gap-1.5 text-stone-400 dark:text-stone-500">
@@ -197,27 +189,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div className="flex items-center gap-1.5 text-orange-400">
                     <Fingerprint size={12} />
                     <span className="text-[10px] font-bold uppercase tracking-wide">
-                      Compte Invité
+                      {t('profileModal.guest')}
                     </span>
                   </div>
                 )}
-
                 <div className="flex items-center gap-1.5 text-stone-400 dark:text-stone-500">
                   <Calendar size={12} />
-                  <span className="text-[10px] font-medium">Membre depuis {joinDate}</span>
+                  <span className="text-[10px] font-medium">
+                    {t('profileModal.memberSince', { date: joinDate })}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* SECTION 2: ARCHETYPE */}
-          {profile.role && currentArchetypeInfo && (
+          {profile.role && archetypeIcon && archetypeDesc && (
             <div className="bg-white dark:bg-[#1a1a1a] rounded-[2rem] p-6 shadow-sm border border-sand dark:border-white/5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-forest/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-
               <div className="flex items-start gap-4 relative z-10">
                 <div className="text-4xl bg-stone-50 dark:bg-[#252525] w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner">
-                  {currentArchetypeInfo.icon}
+                  {archetypeIcon}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -227,11 +219,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <span
                       className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${isArchetypeConfirmed ? 'bg-forest/10 text-forest dark:text-lime-500' : 'bg-stone-100 text-stone-400 dark:bg-stone-800'}`}
                     >
-                      {isArchetypeConfirmed ? 'Confirmé' : 'Provisoire'}
+                      {isArchetypeConfirmed ? t('profileModal.confirmed') : t('profileModal.provisional')}
                     </span>
                   </div>
                   <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed">
-                    "{currentArchetypeInfo.description}"
+                    "{archetypeDesc}"
                   </p>
                 </div>
               </div>
@@ -243,7 +235,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="bg-white dark:bg-[#1a1a1a] p-4 rounded-[1.8rem] border border-sand dark:border-white/5 shadow-sm">
               <div className="flex items-center gap-2 mb-2 text-stone-400 dark:text-stone-500">
                 <Film size={14} />
-                <span className="text-[9px] font-black uppercase tracking-widest">Vus</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{t('profileModal.watched')}</span>
               </div>
               <span className="text-3xl font-black text-charcoal dark:text-white">
                 {stats.watchedCount}
@@ -252,7 +244,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="bg-white dark:bg-[#1a1a1a] p-4 rounded-[1.8rem] border border-sand dark:border-white/5 shadow-sm">
               <div className="flex items-center gap-2 mb-2 text-stone-400 dark:text-stone-500">
                 <PieChart size={14} />
-                <span className="text-[9px] font-black uppercase tracking-widest">Genre</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{t('profileModal.genre')}</span>
               </div>
               <span className="text-xl font-black text-charcoal dark:text-white truncate block">
                 {stats.dominantGenre}
@@ -260,20 +252,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 4: PREFERENCES */}
+          {/* SECTION 4: CALIBRATION */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
-                Calibrage
+                {t('profileModal.calibration')}
               </h3>
               <button
-                onClick={() => {
-                  haptics.soft();
-                  onRecalibrate();
-                }}
+                onClick={() => { haptics.soft(); onRecalibrate(); }}
                 className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
               >
-                <SlidersHorizontal size={12} /> Recalibrer
+                <SlidersHorizontal size={12} /> {t('profileModal.recalibrate')}
               </button>
             </div>
 
@@ -283,7 +272,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
                     <Scale size={14} />
                     <span className="text-[9px] font-black uppercase tracking-widest">
-                      Exigence
+                      {t('profileModal.exigence')}
                     </span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
@@ -297,8 +286,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 </div>
                 <div className="flex justify-between mt-1 text-[8px] font-bold text-stone-300 dark:text-stone-600 uppercase tracking-wider">
-                  <span>Indulgent</span>
-                  <span>Sévère</span>
+                  <span>{t('profileModal.lenient')}</span>
+                  <span>{t('profileModal.harsh')}</span>
                 </div>
               </div>
 
@@ -306,7 +295,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
                     <Timer size={14} />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Rythme</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest">{t('profileModal.rhythm')}</span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
                     {profile.patienceLevel}/10
@@ -319,8 +308,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 </div>
                 <div className="flex justify-between mt-1 text-[8px] font-bold text-stone-300 dark:text-stone-600 uppercase tracking-wider">
-                  <span>Contemplatif</span>
-                  <span>Intense</span>
+                  <span>{t('profileModal.contemplative')}</span>
+                  <span>{t('profileModal.intense')}</span>
                 </div>
               </div>
             </div>
@@ -339,31 +328,52 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
 
-          {/* SECTION 5: NOTIFICATIONS */}
+          {/* SECTION 5: LANGUAGE */}
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1 mb-4">
+              {t('profileModal.language')}
+            </h3>
+            <div className="flex bg-stone-100 dark:bg-[#1a1a1a] p-1.5 rounded-2xl border border-stone-200/50 dark:border-white/5">
+              <button
+                onClick={() => { haptics.soft(); setLanguage('fr'); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'fr' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <span className="text-base leading-none">🇫🇷</span> Français
+              </button>
+              <button
+                onClick={() => { haptics.soft(); setLanguage('en'); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'en' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <span className="text-base leading-none">🇬🇧</span> English
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 6: NOTIFICATIONS */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
-                Notifications
+                {t('profileModal.notifications')}
               </h3>
               <button
                 onClick={handleTestNotif}
                 className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
               >
                 <Send size={12} />
-                {testSent ? 'Envoyée !' : 'Notif test'}
+                {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
               </button>
             </div>
 
             <div className="space-y-2">
-              {(Object.keys(notifPrefs) as Array<keyof NotificationPrefs>).map((key) => (
+              {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
                 <div
                   key={key}
                   className="bg-stone-50 dark:bg-[#1a1a1a] px-4 py-3 rounded-[1.5rem] border border-stone-100 dark:border-white/5 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-base leading-none">{NOTIF_LABELS[key].emoji}</span>
+                    <span className="text-base leading-none">{emoji}</span>
                     <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
-                      {NOTIF_LABELS[key].label}
+                      {t(translationKey)}
                     </span>
                   </div>
                   <button
@@ -386,7 +396,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
             {'Notification' in window && Notification.permission === 'denied' && (
               <p className="mt-3 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
-                <BellOff size={12} /> Notifications bloquées dans les paramètres du navigateur.
+                <BellOff size={12} /> {t('profileModal.notifBlocked')}
               </p>
             )}
             {'Notification' in window && Notification.permission === 'default' && (
@@ -394,18 +404,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 onClick={() => Notification.requestPermission()}
                 className="mt-3 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
               >
-                <Bell size={12} /> Autoriser les notifications navigateur
+                <Bell size={12} /> {t('profileModal.allowNotif')}
               </button>
             )}
           </div>
 
-          {/* SECTION 6: ACTIONS */}
+          {/* SECTION 7: ACTIONS */}
           <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
             <button
-              onClick={() => {
-                haptics.soft();
-                onSwitchProfile();
-              }}
+              onClick={() => { haptics.soft(); onSwitchProfile(); }}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
             >
               <div className="flex items-center gap-4">
@@ -413,16 +420,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <Repeat size={14} />
                 </div>
                 <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  Changer de profil
+                  {t('profileModal.switchProfile')}
                 </span>
               </div>
             </button>
 
             <button
-              onClick={() => {
-                haptics.soft();
-                onShowTutorial();
-              }}
+              onClick={() => { haptics.soft(); onShowTutorial(); }}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
             >
               <div className="flex items-center gap-4">
@@ -430,7 +434,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <Info size={14} />
                 </div>
                 <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  Revoir le tutoriel
+                  {t('profileModal.tutorial')}
                 </span>
               </div>
             </button>
@@ -444,17 +448,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <Download size={14} />
                 </div>
                 <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  Exporter mes données
+                  {t('profileModal.export')}
                 </span>
               </div>
             </button>
 
             {session && (
               <button
-                onClick={() => {
-                  haptics.medium();
-                  onSignOut();
-                }}
+                onClick={() => { haptics.medium(); onSignOut(); }}
                 className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group mt-2"
               >
                 <div className="flex items-center gap-4">
@@ -462,7 +463,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <LogOut size={14} />
                   </div>
                   <span className="text-xs font-black uppercase tracking-wide text-red-500">
-                    Se déconnecter
+                    {t('profileModal.signOut')}
                   </span>
                 </div>
               </button>

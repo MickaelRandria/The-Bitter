@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface StoryTemplateProps {
   movie: {
@@ -62,6 +63,7 @@ const Icons = {
 };
 
 const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
+  const { t } = useLanguage();
   // Logic (Untouched as requested)
   const avgScore =
     (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) / 4;
@@ -360,7 +362,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
               <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '18px' }}>
                 ⏱️
               </span>
-              <span style={styles.label}>Durée</span>
+              <span style={styles.label}>{t('story.duration')}</span>
               <span style={{ fontSize: '22px', fontWeight: 900 }}>
                 {formatRuntime(movie.runtime)}
               </span>
@@ -370,13 +372,13 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
           {/* CARD B: RATINGS */}
           <div style={styles.ratingsCard}>
             <span style={{ ...styles.label, color: '#a3e635', fontWeight: 800 }}>
-              Détails Critiques
+              {t('story.criticalDetails')}
             </span>
             {[
-              { label: 'Scénario', val: movie.ratings.story },
-              { label: 'Visuel', val: movie.ratings.visuals },
-              { label: 'Jeu', val: movie.ratings.acting },
-              { label: 'Son', val: movie.ratings.sound },
+              { label: t('criteria.story'), val: movie.ratings.story },
+              { label: t('criteria.visuals'), val: movie.ratings.visuals },
+              { label: t('criteria.acting'), val: movie.ratings.acting },
+              { label: t('criteria.sound'), val: movie.ratings.sound },
             ].map((r, i) => (
               <div key={i} style={styles.ratingRow}>
                 <span style={styles.ratingLabel}>{r.label}</span>
@@ -405,7 +407,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
             </div>
 
             <span style={styles.verdictLabel}>
-              {isDistracted ? 'Alerte Distraction' : 'Verdict Global'}
+              {isDistracted ? t('story.distractionAlert') : t('story.globalVerdict')}
             </span>
 
             <div style={{ position: 'relative', zIndex: 1 }}>
@@ -432,7 +434,7 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
                   marginTop: '10px',
                 }}
               >
-                {isDistracted ? 'Smartphone Factor' : 'Sur 10 points'}
+                {isDistracted ? t('story.smartphoneFactor') : t('story.outOf10')}
               </span>
               {!isDistracted && movie.tmdbRating && movie.tmdbRating > 0 && (
                 <span
@@ -446,14 +448,14 @@ const StoryTemplate: React.FC<StoryTemplateProps> = ({ movie }) => {
                     marginTop: '6px',
                   }}
                 >
-                  ★ {movie.tmdbRating.toFixed(1)} moy. tmdb
+                  ★ {movie.tmdbRating.toFixed(1)} {t('story.avgTmdb')}
                 </span>
               )}
             </div>
 
             <div style={styles.bottomBox}>
               {!isDistracted && <Icons.Check />}
-              {isDistracted ? 'Lâchez ce téléphone.' : 'Analyse Certifiée'}
+              {isDistracted ? t('story.putDownPhone') : t('story.certifiedAnalysis')}
             </div>
           </div>
         </div>
