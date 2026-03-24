@@ -12,17 +12,25 @@ import {
   Zap,
   Calendar,
   ArrowUpRight,
+  Sparkles,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
+import { AIUnlockWidget } from './AIUnlockWidget';
+
+const MIN_MOVIES_FOR_AI = 10;
 
 interface HomeBentoProps {
   movies: Movie[];
   userProfile: UserProfile | null;
   userName: string;
   onNavigate: (page: string) => void;
+  onOpenRecommendations?: () => void;
 }
 
-const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, onNavigate }) => {
+const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, onNavigate, onOpenRecommendations }) => {
+  const watchedCount = movies.filter((m) => m.status === 'watched').length;
+  const isAIUnlocked = watchedCount >= MIN_MOVIES_FOR_AI;
+
   // Tri des films : Du plus récent (vu ou ajouté) au plus ancien
   const sortedMovies = useMemo(() => {
     return [...movies].sort((a, b) => {
@@ -189,6 +197,11 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
           </div>
         </div>
 
+        {/* BLOCK AI UNLOCK */}
+        <div className="col-span-2">
+          <AIUnlockWidget watchedCount={watchedCount} onAddMovie={() => onNavigate('Add')} />
+        </div>
+
         {/* BLOCK D: COMPACT FEED */}
         <div className="col-span-2 bg-[#141414] rounded-[2.5rem] p-8 border border-white/5">
           <div className="flex items-center justify-between mb-6">
@@ -243,6 +256,38 @@ const HomeBento: React.FC<HomeBentoProps> = ({ movies, userProfile, userName, on
             )}
           </div>
         </div>
+        {/* BLOCK RECOMMENDATIONS */}
+        <button
+          onClick={() => {
+            haptics.medium();
+            onOpenRecommendations ? onOpenRecommendations() : onNavigate('Recommendations');
+          }}
+          className={`col-span-2 bg-[#141414] rounded-[2.5rem] p-8 border flex items-center gap-5 text-left transition-all active:scale-[0.98] ${
+            isAIUnlocked
+              ? 'border-lime-400/30 shadow-[0_0_20px_rgba(217,255,0,0.25)] animate-pulse-glow'
+              : 'border-white/5'
+          }`}
+        >
+          <div
+            className={`w-14 h-14 shrink-0 rounded-3xl flex items-center justify-center ${isAIUnlocked ? 'bg-lime-400/10 text-lime-400' : 'bg-white/5 text-stone-500'}`}
+          >
+            <Sparkles size={24} strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mb-1">
+              {isAIUnlocked ? 'Débloqué' : `${watchedCount}/${MIN_MOVIES_FOR_AI} films`}
+            </p>
+            <p className="text-lg font-black text-white leading-tight">Recos Perso</p>
+            <p className="text-xs text-stone-500 mt-0.5 truncate">
+              {isAIUnlocked
+                ? 'Recommandations basées sur tes goûts'
+                : 'Note encore quelques films pour débloquer'}
+            </p>
+          </div>
+          {isAIUnlocked && (
+            <ArrowUpRight size={20} className="shrink-0 text-lime-400" />
+          )}
+        </button>
       </div>
 
       <DockNavigation onNavigate={onNavigate} />

@@ -121,6 +121,14 @@
         from { transform: scale(0.9); opacity: 0; }
         to { transform: scale(1); opacity: 1; }
       }
+      @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 20px rgba(217, 255, 0, 0.25); }
+        50% { box-shadow: 0 0 32px rgba(217, 255, 0, 0.45); }
+      }
+      .animate-pulse-glow {
+        animation: pulse-glow 3s ease-in-out infinite;
+      }
+
       @keyframes shimmer {
         0% { background-position: -200% 0; }
         100% { background-position: 200% 0; }
