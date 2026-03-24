@@ -1,4 +1,4 @@
-import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL, GENRES } from '../constants';
+import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL, GENRES, TMDB_GENRE_MAP } from '../constants';
 import { MovieFormData } from '../types';
 import { getCachedData, setCachedData } from '../utils/cache';
 
@@ -123,5 +123,107 @@ export const getMovieDetailsForAdd = async (tmdbId: number): Promise<MovieFormDa
   } catch (error) {
     if (import.meta.env.DEV) console.error('Error fetching movie details:', error);
     return null;
+  }
+};
+
+export const getRecommendationsByGenres = async (
+  genreNames: string[],
+  existingTmdbIds: Set<number>
+): Promise<any[]> => {
+  const genreIds = genreNames.map((n) => TMDB_GENRE_MAP[n]).filter(Boolean);
+  if (genreIds.length === 0) return [];
+  const key = `byGenres:${genreIds.join(',')}`;
+  const cached = getCachedData<any[]>(key);
+  if (cached) return cached.filter((m) => !existingTmdbIds.has(m.id));
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
+        `&with_genres=${genreIds.join(',')}` +
+        `&vote_average.gte=7.0&sort_by=popularity.desc&page=1`
+    );
+    const data = await res.json();
+    const results = (data.results || []).filter((m: any) => m.poster_path);
+    setCachedData(key, results);
+    return results.filter((m: any) => !existingTmdbIds.has(m.id)).slice(0, 12);
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching by genres:', error);
+    return [];
+  }
+};
+
+export const getRecommendationsByDirectors = async (
+  directorNames: string[],
+  existingTmdbIds: Set<number>
+): Promise<any[]> => {
+  const recommendations: any[] = [];
+  for (const name of directorNames) {
+    try {
+      const id = await searchPerson(name);
+      if (!id) continue;
+      const res = await fetch(
+        `${TMDB_BASE_URL}/person/${id}/movie_credits?api_key=${TMDB_API_KEY}&language=fr-FR`
+      );
+      const data = await res.json();
+      const directed = (data.crew || [])
+        .filter((m: any) => m.job === 'Director' && m.poster_path)
+        .sort((a: any, b: any) => b.vote_average - a.vote_average)
+        .slice(0, 6);
+      recommendations.push(...directed);
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(`Error fetching director ${name}:`, error);
+    }
+  }
+  const unique = Array.from(new Map(recommendations.map((m) => [m.id, m])).values());
+  return unique.filter((m) => !existingTmdbIds.has(m.id)).slice(0, 12);
+};
+
+export const getRecommendationsByDecades = async (
+  decades: number[],
+  existingTmdbIds: Set<number>
+): Promise<any[]> => {
+  const recommendations: any[] = [];
+  for (const decade of decades) {
+    try {
+      const res = await fetch(
+        `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
+          `&primary_release_date.gte=${decade}-01-01` +
+          `&primary_release_date.lte=${decade + 9}-12-31` +
+          `&vote_average.gte=7.5&sort_by=vote_average.desc&page=1`
+      );
+      const data = await res.json();
+      recommendations.push(...(data.results || []).slice(0, 6));
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(`Error fetching decade ${decade}:`, error);
+    }
+  }
+  const unique = Array.from(new Map(recommendations.map((m) => [m.id, m])).values());
+  return unique
+    .filter((m) => m.poster_path && !existingTmdbIds.has(m.id))
+    .slice(0, 12);
+};
+
+export const getHiddenGems = async (
+  genreNames: string[],
+  existingTmdbIds: Set<number>
+): Promise<any[]> => {
+  const genreIds = genreNames.map((n) => TMDB_GENRE_MAP[n]).filter(Boolean);
+  if (genreIds.length === 0) return [];
+  const key = `gems:${genreIds.join(',')}`;
+  const cached = getCachedData<any[]>(key);
+  if (cached) return cached.filter((m) => !existingTmdbIds.has(m.id));
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
+        `&with_genres=${genreIds.join(',')}` +
+        `&vote_average.gte=7.5&vote_count.gte=100&vote_count.lte=5000` +
+        `&sort_by=vote_average.desc&page=1`
+    );
+    const data = await res.json();
+    const results = (data.results || []).filter((m: any) => m.poster_path);
+    setCachedData(key, results);
+    return results.filter((m: any) => !existingTmdbIds.has(m.id)).slice(0, 12);
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching hidden gems:', error);
+    return [];
   }
 };
