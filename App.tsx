@@ -63,6 +63,7 @@ import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
+import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 
 // Lazy loading components
@@ -79,6 +80,7 @@ const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
+const RecommendationsModal = lazy(() => import('./components/RecommendationsModal'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
@@ -222,6 +224,7 @@ const App: React.FC = () => {
     timeoutId: ReturnType<typeof setTimeout>;
   } | null>(null);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<{
     id: string;
@@ -729,6 +732,12 @@ const App: React.FC = () => {
     return { watchedCount, avgRating, totalHours, queueCount };
   }, [uniqueMovies, activeProfile]);
 
+  const isAIUnlocked = (feedStats?.watchedCount ?? 0) >= 10;
+  const lastWatchedMovie = useMemo(() => {
+    const watched = uniqueMovies.filter((m) => m.status === 'watched' && m.tmdbId);
+    return watched.sort((a, b) => (b.dateWatched ?? 0) - (a.dateWatched ?? 0))[0] ?? null;
+  }, [uniqueMovies]);
+
   const yearBounds = useMemo(() => {
     const years = uniqueMovies.map((m) => m.year).filter(Boolean);
     if (years.length === 0) return { min: 1970, max: new Date().getFullYear() };
@@ -1086,7 +1095,12 @@ const App: React.FC = () => {
                       onCompleteProfile={() => setShowCalibration(true)}
                     />
                   )}
-                  {feedStats && (
+                  <AIUnlockWidget
+                    watchedCount={feedStats?.watchedCount ?? 0}
+                    onAddMovie={() => setIsModalOpen(true)}
+                  />
+                  <div className="space-y-2">
+                    {feedStats && (
                     <div className="flex flex-col items-center">
                       <button
                         onClick={() => {
@@ -1158,6 +1172,21 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   )}
+                  {isAIUnlocked && (
+                    <button
+                      onClick={() => setShowRecommendationsModal(true)}
+                      className="w-full flex items-center gap-4 p-5 bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-[2rem] shadow-sm animate-pulse-glow transition-all active:scale-[0.98] text-left"
+                    >
+                      <div className="w-11 h-11 shrink-0 bg-forest/10 dark:bg-lime-400/10 rounded-2xl flex items-center justify-center">
+                        <Sparkles size={20} className="text-forest dark:text-lime-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-0.5">Personnalisées</p>
+                        <p className="text-sm font-black text-charcoal dark:text-white">Recos Perso</p>
+                      </div>
+                      <ChevronRight size={16} className="text-stone-300 dark:text-stone-600 shrink-0" />
+                    </button>
+                  )}
                   <div className="flex justify-center w-full mb-2">
                     <div className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
                       <div
@@ -1189,6 +1218,7 @@ const App: React.FC = () => {
                         À voir {feedStats ? `(${feedStats.queueCount})` : ''}
                       </button>
                     </div>
+                  </div>
                   </div>
                   {feedTab === 'queue' &&
                     activeProfile &&
@@ -1669,6 +1699,19 @@ const App: React.FC = () => {
             initialName={activeProfile.firstName}
             userId={session?.user?.id || activeProfile.id}
             onComplete={handleCompleteCalibration}
+          />
+        )}
+        {showRecommendationsModal && (
+          <RecommendationsModal
+            isOpen={showRecommendationsModal}
+            onClose={() => setShowRecommendationsModal(false)}
+            sourceMovie={lastWatchedMovie}
+            onAddMovie={(movieData) => {
+              handleSaveMovie(movieData);
+              setShowRecommendationsModal(false);
+            }}
+            existingTmdbIds={new Set(uniqueMovies.map((m) => m.tmdbId).filter(Boolean) as number[])}
+            movies={uniqueMovies}
           />
         )}
         {showProfile && activeProfile && (
