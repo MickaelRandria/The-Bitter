@@ -1694,10 +1694,10 @@ const App: React.FC = () => {
               setShowRecommendationsModal(true);
             }}
             className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl animate-pulse-glow active:scale-90 transition-all"
-            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8.5rem)' }}
             aria-label="Recommandations personnalisées"
           >
-            <Sparkles size={22} />
+            <Sparkles size={22} className="animate-sparkle" />
           </button>
         )}
 
