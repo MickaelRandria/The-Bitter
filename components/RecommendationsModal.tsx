@@ -36,16 +36,14 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [addingId, setAddingId] = useState<number | null>(null);
 
-  // Top 10 films les mieux notés
+  // Films notés > 7/10 (base pour les recos "Pour toi")
   const top10 = useMemo(() => {
-    return [...watchedMovies]
-      .filter((m) => m.tmdbId)
-      .sort((a, b) => {
-        const avgA = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
-        const avgB = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
-        return avgB - avgA;
-      })
-      .slice(0, 10) as (Movie & { tmdbId: number })[];
+    return watchedMovies
+      .filter((m) => {
+        if (!m.tmdbId) return false;
+        const avg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+        return avg > 7;
+      }) as (Movie & { tmdbId: number })[];
   }, [watchedMovies]);
 
   // Stable ref pour existingTmdbIds — évite de relancer les effects quand le Set change de référence

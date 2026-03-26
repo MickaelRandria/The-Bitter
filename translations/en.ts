@@ -382,7 +382,7 @@ export const en: Record<string, string> = {
   'reco.noReco': 'No recommendations found for this film.',
   'reco.smartMode': 'For you',
   'reco.pickMode': 'By film',
-  'reco.smartSubtitle': 'Based on your 10 best-rated films',
+  'reco.smartSubtitle': 'Based on your films rated above 7/10',
   'reco.noSmartReco': 'Not enough data to generate recommendations.',
 
   // ── Discover View ────────────────────────────────────────────────────────
