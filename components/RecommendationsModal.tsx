@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Sparkles, Plus, Check, Loader2, Calendar, ChevronLeft, Search } from 'lucide-react';
 import { Movie, MovieFormData } from '../types';
 import { getRecommendations, getTopRatedRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
@@ -26,7 +26,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   movies = [],
 }) => {
   const { t } = useLanguage();
-  const watchedMovies = movies.filter((m) => m.status === 'watched');
+  const watchedMovies = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const watchedCount = watchedMovies.length;
 
   const [mode, setMode] = useState<'smart' | 'pick'>('smart');
@@ -48,6 +48,10 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
       .slice(0, 10) as (Movie & { tmdbId: number })[];
   }, [watchedMovies]);
 
+  // Stable ref pour existingTmdbIds — évite de relancer les effects quand le Set change de référence
+  const existingTmdbIdsRef = useRef(existingTmdbIds);
+  existingTmdbIdsRef.current = existingTmdbIds;
+
   // Reset when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -58,34 +62,42 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
     }
   }, [isOpen, sourceMovie]);
 
-  // Fetch smart recs
+  // Fetch smart recs — top10 stable grâce au double useMemo, existingTmdbIds via ref
   useEffect(() => {
     if (!isOpen || mode !== 'smart' || top10.length === 0) return;
-    const fetch = async () => {
+    let cancelled = false;
+    const doFetch = async () => {
       setLoading(true);
       setRecommendations([]);
-      const results = await getTopRatedRecommendations(top10, existingTmdbIds);
-      setRecommendations(results);
-      setLoading(false);
+      const results = await getTopRatedRecommendations(top10, existingTmdbIdsRef.current);
+      if (!cancelled) {
+        setRecommendations(results);
+        setLoading(false);
+      }
     };
-    fetch();
-  }, [isOpen, mode, existingTmdbIds, top10]);
+    doFetch();
+    return () => { cancelled = true; };
+  }, [isOpen, mode, top10]);
 
   // Fetch pick recs
   useEffect(() => {
     if (!isOpen || mode !== 'pick' || !selectedMovie?.tmdbId) return;
-    const fetch = async () => {
+    let cancelled = false;
+    const doFetch = async () => {
       setLoading(true);
       setRecommendations([]);
       const raw = await getRecommendations(selectedMovie.tmdbId!);
-      const filtered = raw
-        .filter((r) => r.poster_path && !existingTmdbIds.has(r.id))
-        .slice(0, 5);
-      setRecommendations(filtered);
-      setLoading(false);
+      if (!cancelled) {
+        const filtered = raw
+          .filter((r) => r.poster_path && !existingTmdbIdsRef.current.has(r.id))
+          .slice(0, 5);
+        setRecommendations(filtered);
+        setLoading(false);
+      }
     };
-    fetch();
-  }, [isOpen, mode, selectedMovie, existingTmdbIds]);
+    doFetch();
+    return () => { cancelled = true; };
+  }, [isOpen, mode, selectedMovie]);
 
   const handleAdd = async (tmdbId: number) => {
     setAddingId(tmdbId);
