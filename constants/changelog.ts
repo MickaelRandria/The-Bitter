@@ -14,6 +14,29 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.83',
+    date: '26 Mars 2026',
+    title: 'Recos Perso & Dark Mode Total',
+    changes: [
+      {
+        type: 'feature',
+        text: 'Recos Perso — Un nouveau widget intelligent analyse tes 10 films les mieux notés pour te suggérer des œuvres qui correspondent vraiment à tes goûts. Tu peux aussi continuer à chercher des recos à partir d\'un film précis via le mode "Par film".',
+      },
+      {
+        type: 'feature',
+        text: 'Version anglaise — L\'application est désormais disponible en anglais. Bascule entre FR et EN depuis le header.',
+      },
+      {
+        type: 'style',
+        text: 'CTA "Compléter mon profil" — Un bouton mis en évidence apparaît dans l\'écran d\'accueil vide pour guider les nouveaux utilisateurs vers le calibrage de leur profil.',
+      },
+      {
+        type: 'fix',
+        text: 'Dark mode complet — Les écrans de connexion, d\'inscription et de création de profil sont maintenant entièrement compatibles dark mode, avec un toggle accessible dès ces étapes. Fini le texte blanc sur fond blanc.',
+      },
+    ],
+  },
+  {
     version: 'v0.82',
     date: '23 Mars 2026',
     title: 'Notifications & Reminders',
