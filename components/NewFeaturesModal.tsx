@@ -6,7 +6,8 @@ import {
   EyeOff,
   BarChart3,
   Radar,
-  Bell,
+  Sparkles,
+  Globe,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -15,6 +16,8 @@ interface NewFeaturesModalProps {
   onClose: () => void;
   onNeverShowAgain?: () => void;
 }
+
+const TOTAL_STEPS = 4;
 
 const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverShowAgain }) => {
   const { t } = useLanguage();
@@ -44,12 +47,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-10">
 
-          {/* STEP 0: NOTIFICATIONS */}
+          {/* STEP 0: RECOS PERSO */}
           {step === 0 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Bell size={12} />
+                  <Sparkles size={12} />
                   {t('newFeatures.newBadge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
@@ -61,30 +64,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                 <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
                   <div className="w-16 h-16 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-5 shadow-2xl relative">
-                    <Bell size={28} strokeWidth={2} />
-                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-bitter-lime rounded-full border-2 border-[#0c0c0c] flex items-center justify-center text-[9px] font-black text-black">
-                      3
-                    </div>
+                    <Sparkles size={28} strokeWidth={2} />
                   </div>
-                  <div className="space-y-3">
-                    {[
-                      { e: '🔥', tKey: 'newFeatures.step0.streak', dKey: 'newFeatures.step0.streakDesc' },
-                      { e: '📅', tKey: 'newFeatures.step0.weeklyRecap', dKey: 'newFeatures.step0.weeklyRecapDesc' },
-                      { e: '🎬', tKey: 'newFeatures.step0.watchlistReminder', dKey: 'newFeatures.step0.watchlistReminderDesc' },
-                      { e: '📊', tKey: 'newFeatures.step0.monthlyStats', dKey: 'newFeatures.step0.monthlyStatsDesc' },
-                    ].map((item) => (
-                      <div key={item.tKey} className="flex items-center gap-3">
-                        <span className="text-xl w-7 text-center shrink-0">{item.e}</span>
-                        <div>
-                          <span className="text-white font-black text-sm">{t(item.tKey)}</span>
-                          <span className="text-stone-500 text-xs ml-2">{t(item.dKey)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-stone-500 text-[10px] font-bold uppercase tracking-widest mt-5">
-                    {t('newFeatures.step0.customizable')}
-                  </p>
+                  <p
+                    className="text-stone-300 text-sm font-medium leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step0.desc') }}
+                  />
                 </div>
               </div>
 
@@ -99,12 +84,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 1: ANALYTICS */}
+          {/* STEP 1: MODE ANGLAIS */}
           {step === 1 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
-                  <BarChart3 size={12} />
+                  <Globe size={12} />
                   {t('newFeatures.step1.badge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
@@ -115,13 +100,54 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
                 <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-6 mx-auto shadow-2xl">
+                    <Globe size={32} strokeWidth={2} />
+                  </div>
+                  <p
+                    className="text-stone-300 text-sm font-medium leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step1.desc') }}
+                  />
+                  <div className="flex justify-center gap-3 mt-6">
+                    <div className="px-4 py-2 bg-bitter-lime text-black rounded-xl text-xs font-black uppercase tracking-widest">FR</div>
+                    <div className="px-4 py-2 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-widest border border-white/10">EN</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 shrink-0">
+                <button
+                  onClick={handleNext}
+                  className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
+                >
+                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: ANALYTICS */}
+          {step === 2 && (
+            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
+              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
+                  <BarChart3 size={12} />
+                  {t('newFeatures.step2.badge')}
+                </div>
+                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
+                  {t('newFeatures.step2.title1')}
+                  <br />
+                  <span className="text-bitter-lime">{t('newFeatures.step2.title2')}</span>
+                </h2>
+
+                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
                   <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-6 mx-auto shadow-2xl relative">
                     <Radar size={32} strokeWidth={2} />
                     <div className="absolute -top-2 -right-2 w-6 h-6 bg-bitter-lime rounded-full border-2 border-[#0c0c0c]" />
                   </div>
                   <p
                     className="text-stone-300 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step1.desc') }}
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step2.desc') }}
                   />
                   <div className="flex justify-center gap-3 mt-6">
                     <div className="flex flex-col items-center gap-1">
@@ -158,19 +184,19 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 2: INSTAGRAM STORIES */}
-          {step === 2 && (
+          {/* STEP 3: INSTAGRAM STORIES */}
+          {step === 3 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
                   <Instagram size={12} />
-                  {t('newFeatures.step2.badge')}
+                  {t('newFeatures.step3.badge')}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step2.title1')}
+                  {t('newFeatures.step3.title1')}
                   <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]">
-                    {t('newFeatures.step2.title2')}
+                    {t('newFeatures.step3.title2')}
                   </span>
                 </h2>
 
@@ -181,10 +207,10 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   </div>
                   <p
                     className="text-stone-200 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step2.desc') }}
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step3.desc') }}
                   />
                   <p className="text-pink-400 text-[10px] font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
-                    <Instagram size={12} /> {t('newFeatures.step2.available')}
+                    <Instagram size={12} /> {t('newFeatures.step3.available')}
                   </p>
                 </div>
               </div>
@@ -203,15 +229,18 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
           {/* Bottom Controls */}
           <div className="mt-8 shrink-0 flex flex-col items-center gap-6 pb-4 sm:pb-0">
             <div className="flex justify-center gap-2">
-              <div
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 0 ? 'bg-bitter-lime w-6' : 'bg-white/20'}`}
-              />
-              <div
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 1 ? 'bg-bitter-lime w-6' : 'bg-white/20'}`}
-              />
-              <div
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${step === 2 ? 'bg-pink-500 w-6' : 'bg-white/20'}`}
-              />
+              {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    step === i
+                      ? i === TOTAL_STEPS - 1
+                        ? 'bg-pink-500 w-6'
+                        : 'bg-bitter-lime w-6'
+                      : 'bg-white/20 w-2'
+                  }`}
+                />
+              ))}
             </div>
 
             {onNeverShowAgain && (
