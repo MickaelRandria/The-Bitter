@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Sparkles, Plus, Check, Loader2, Calendar, ChevronLeft, Search } from 'lucide-react';
 import { Movie, MovieFormData } from '../types';
-import { getRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
+import { getRecommendations, getTopRatedRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
 import { TMDB_IMAGE_URL } from '../constants';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -29,37 +29,63 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   const watchedMovies = movies.filter((m) => m.status === 'watched');
   const watchedCount = watchedMovies.length;
 
-  // Start on picker if no sourceMovie, else go straight to recs
+  const [mode, setMode] = useState<'smart' | 'pick'>('smart');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(sourceMovie);
   const [pickerSearch, setPickerSearch] = useState('');
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingId, setAddingId] = useState<number | null>(null);
 
+  // Top 10 films les mieux notés
+  const top10 = useMemo(() => {
+    return [...watchedMovies]
+      .filter((m) => m.tmdbId)
+      .sort((a, b) => {
+        const avgA = (a.ratings.story + a.ratings.visuals + a.ratings.acting + a.ratings.sound) / 4;
+        const avgB = (b.ratings.story + b.ratings.visuals + b.ratings.acting + b.ratings.sound) / 4;
+        return avgB - avgA;
+      })
+      .slice(0, 10) as (Movie & { tmdbId: number })[];
+  }, [watchedMovies]);
+
   // Reset when modal opens
   useEffect(() => {
     if (isOpen) {
+      setMode('smart');
       setSelectedMovie(sourceMovie);
       setPickerSearch('');
       setRecommendations([]);
     }
   }, [isOpen, sourceMovie]);
 
-  // Fetch recs when a movie is selected
+  // Fetch smart recs
   useEffect(() => {
-    if (!isOpen || !selectedMovie?.tmdbId) return;
+    if (!isOpen || mode !== 'smart' || top10.length === 0) return;
+    const fetch = async () => {
+      setLoading(true);
+      setRecommendations([]);
+      const results = await getTopRatedRecommendations(top10, existingTmdbIds);
+      setRecommendations(results);
+      setLoading(false);
+    };
+    fetch();
+  }, [isOpen, mode, existingTmdbIds, top10]);
+
+  // Fetch pick recs
+  useEffect(() => {
+    if (!isOpen || mode !== 'pick' || !selectedMovie?.tmdbId) return;
     const fetch = async () => {
       setLoading(true);
       setRecommendations([]);
       const raw = await getRecommendations(selectedMovie.tmdbId!);
       const filtered = raw
         .filter((r) => r.poster_path && !existingTmdbIds.has(r.id))
-        .slice(0, 12);
+        .slice(0, 5);
       setRecommendations(filtered);
       setLoading(false);
     };
     fetch();
-  }, [isOpen, selectedMovie, existingTmdbIds]);
+  }, [isOpen, mode, selectedMovie, existingTmdbIds]);
 
   const handleAdd = async (tmdbId: number) => {
     setAddingId(tmdbId);
@@ -130,8 +156,8 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
     );
   }
 
-  // ── Picker ─────────────────────────────────────────────────────────────────
-  if (!selectedMovie) {
+  // ── Picker (mode pick, no movie selected) ─────────────────────────────────
+  if (mode === 'pick' && !selectedMovie) {
     return (
       <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
         <div
@@ -143,9 +169,12 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
           <div className="p-6 pb-4 border-b border-sand dark:border-white/10 shrink-0">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-forest text-white rounded-2xl">
-                  <Sparkles size={20} />
-                </div>
+                <button
+                  onClick={() => setMode('smart')}
+                  className="p-2 bg-stone-100 dark:bg-white/10 rounded-full text-stone-500 dark:text-stone-400 hover:text-charcoal dark:hover:text-white transition-all active:scale-90"
+                >
+                  <ChevronLeft size={18} strokeWidth={2.5} />
+                </button>
                 <div>
                   <h3 className="text-lg font-black text-charcoal dark:text-white tracking-tight">
                     {t('reco.title')}
@@ -225,7 +254,9 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
     );
   }
 
-  // ── Recommendations ────────────────────────────────────────────────────────
+  // ── Smart mode OR pick mode with selected movie ────────────────────────────
+  const isPickWithMovie = mode === 'pick' && selectedMovie;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div
@@ -235,15 +266,17 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
       <div className="relative z-10 bg-white dark:bg-[#111] w-full sm:max-w-2xl rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="p-6 pb-4 border-b border-sand dark:border-white/10 shrink-0">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-start gap-3 min-w-0">
-              <button
-                onClick={() => setSelectedMovie(null)}
-                className="p-2 bg-stone-100 dark:bg-white/10 rounded-full text-stone-500 dark:text-stone-400 hover:text-charcoal dark:hover:text-white transition-all active:scale-90 shrink-0 mt-0.5"
-              >
-                <ChevronLeft size={18} strokeWidth={2.5} />
-              </button>
-              {selectedMovie.posterUrl && (
+              {isPickWithMovie && (
+                <button
+                  onClick={() => setSelectedMovie(null)}
+                  className="p-2 bg-stone-100 dark:bg-white/10 rounded-full text-stone-500 dark:text-stone-400 hover:text-charcoal dark:hover:text-white transition-all active:scale-90 shrink-0 mt-0.5"
+                >
+                  <ChevronLeft size={18} strokeWidth={2.5} />
+                </button>
+              )}
+              {isPickWithMovie && selectedMovie.posterUrl && (
                 <img
                   src={selectedMovie.posterUrl}
                   alt={selectedMovie.title}
@@ -251,15 +284,31 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                 />
               )}
               <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-0.5">
-                  {t('reco.because')}
-                </p>
-                <h3 className="text-base font-black text-charcoal dark:text-white tracking-tight leading-tight truncate">
-                  {selectedMovie.title}
-                </h3>
-                <p className="text-xs text-stone-400 font-bold">
-                  {selectedMovie.director} · {selectedMovie.year}
-                </p>
+                {isPickWithMovie ? (
+                  <>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-0.5">
+                      {t('reco.because')}
+                    </p>
+                    <h3 className="text-base font-black text-charcoal dark:text-white tracking-tight leading-tight truncate">
+                      {selectedMovie.title}
+                    </h3>
+                    <p className="text-xs text-stone-400 font-bold">
+                      {selectedMovie.director} · {selectedMovie.year}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <div className="p-1.5 bg-forest text-white rounded-xl">
+                        <Sparkles size={14} />
+                      </div>
+                      <h3 className="text-base font-black text-charcoal dark:text-white tracking-tight">
+                        {t('reco.title')}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-stone-400 font-bold">{t('reco.smartSubtitle')}</p>
+                  </>
+                )}
               </div>
             </div>
             <button
@@ -267,6 +316,31 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               className="p-2.5 bg-stone-100 dark:bg-white/10 rounded-full text-stone-400 hover:text-charcoal dark:hover:text-white transition-all active:scale-90 shrink-0"
             >
               <X size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setMode('smart'); setSelectedMovie(null); setRecommendations([]); }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-black transition-all ${
+                mode === 'smart'
+                  ? 'bg-forest text-white shadow-sm'
+                  : 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+              }`}
+            >
+              <Sparkles size={11} />
+              {t('reco.smartMode')}
+            </button>
+            <button
+              onClick={() => { setMode('pick'); setSelectedMovie(null); setRecommendations([]); }}
+              className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${
+                mode === 'pick'
+                  ? 'bg-forest text-white shadow-sm'
+                  : 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+              }`}
+            >
+              {t('reco.pickMode')}
             </button>
           </div>
         </div>
@@ -282,7 +356,9 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
             </div>
           ) : recommendations.length === 0 ? (
             <div className="text-center py-16 opacity-40">
-              <p className="font-bold text-stone-400 text-sm">{t('reco.noReco')}</p>
+              <p className="font-bold text-stone-400 text-sm">
+                {mode === 'smart' ? t('reco.noSmartReco') : t('reco.noReco')}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">

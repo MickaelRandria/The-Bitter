@@ -18,6 +18,7 @@ import {
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import ThemeToggle from './ThemeToggle';
 
 interface WelcomePageProps {
   existingProfiles: UserProfile[];
@@ -126,24 +127,29 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
-      <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand rounded-full blur-[140px] opacity-30 animate-blob" />
+    <div className="min-h-screen bg-cream dark:bg-[#0c0c0c] flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
+      <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand dark:bg-white/5 rounded-full blur-[140px] opacity-30 animate-blob" />
       <div
-        className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 rounded-full blur-[120px] opacity-50 animate-blob"
+        className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 dark:bg-white/5 rounded-full blur-[120px] opacity-50 animate-blob"
         style={{ animationDelay: '-5s' }}
       />
 
       {step !== 'landing' && (
         <button
           onClick={goBack}
-          className="absolute top-8 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-full border border-sand shadow-sm active:scale-95 transition-all group"
+          className="absolute top-8 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-white/10 backdrop-blur-md rounded-full border border-sand dark:border-white/10 shadow-sm active:scale-95 transition-all group"
         >
-          <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-charcoal">
+          <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform text-charcoal dark:text-white" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-charcoal dark:text-white">
             {t('common.back')}
           </span>
         </button>
       )}
+
+      {/* Dark mode toggle */}
+      <div className="absolute top-6 right-6 z-50">
+        <ThemeToggle />
+      </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl mx-auto">
         {step === 'landing' && (
@@ -157,7 +163,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               </div>
             </div>
 
-            <h1 className="text-7xl sm:text-8xl font-black text-charcoal tracking-tighter mb-4 leading-none select-none">
+            <h1 className="text-7xl sm:text-8xl font-black text-charcoal dark:text-white tracking-tighter mb-4 leading-none select-none">
               The
               <br />
               <span className="text-forest">Bitter</span>
@@ -180,7 +186,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                   </button>
                   <button
                     onClick={() => { haptics.medium(); setStep('create'); }}
-                    className="w-full flex items-center justify-center gap-5 bg-white border border-sand text-charcoal px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all hover:bg-sand shadow-sm"
+                    className="w-full flex items-center justify-center gap-5 bg-white dark:bg-white/5 border border-sand dark:border-white/10 text-charcoal dark:text-white px-10 py-7 rounded-[2.5rem] font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all hover:bg-sand dark:hover:bg-white/10 shadow-sm"
                   >
                     <UserPlus size={22} strokeWidth={2} /> {t('welcome.newAccount')}
                   </button>
@@ -202,7 +208,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
           <div className="w-full animate-[fadeIn_0.5s_ease-out]">
             <div className="mb-10 flex justify-between items-end">
               <div className="text-left">
-                <h2 className="text-5xl font-black text-charcoal tracking-tighter leading-none mb-3">
+                <h2 className="text-5xl font-black text-charcoal dark:text-white tracking-tighter leading-none mb-3">
                   {t('welcome.backWelcome')}
                 </h2>
                 <p className="text-stone-400 font-bold text-base">{t('welcome.chooseProfile')}</p>
@@ -210,7 +216,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               {existingProfiles.length > 0 && (
                 <button
                   onClick={() => { haptics.soft(); setIsManaging(!isManaging); }}
-                  className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${isManaging ? 'bg-charcoal text-white' : 'text-stone-300 hover:bg-stone-100 hover:text-stone-500'}`}
+                  className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${isManaging ? 'bg-charcoal text-white' : 'text-stone-300 dark:text-stone-600 hover:bg-stone-100 dark:hover:bg-white/10 hover:text-stone-500 dark:hover:text-stone-300'}`}
                 >
                   {isManaging ? t('common.done') : t('common.manage')}
                 </button>
@@ -226,15 +232,15 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                       key={p.id}
                       onClick={() => !isManaging && onSelectProfile(p.id)}
                       role={!isManaging ? 'button' : undefined}
-                      className={`relative flex items-center gap-6 p-6 rounded-[2.5rem] transition-all text-left group w-full ${isLast && !isManaging ? 'bg-white border-2 border-forest/15 shadow-2xl shadow-forest/10 active:scale-[0.98]' : 'bg-white border border-sand shadow-lg shadow-black/[0.02]'} ${!isManaging ? 'hover:border-forest/30 hover:shadow-xl active:scale-[0.98] cursor-pointer' : 'opacity-100 cursor-default'}`}
+                      className={`relative flex items-center gap-6 p-6 rounded-[2.5rem] transition-all text-left group w-full ${isLast && !isManaging ? 'bg-white dark:bg-[#111] border-2 border-forest/15 shadow-2xl shadow-forest/10 active:scale-[0.98]' : 'bg-white dark:bg-[#111] border border-sand dark:border-white/10 shadow-lg shadow-black/[0.02]'} ${!isManaging ? 'hover:border-forest/30 hover:shadow-xl active:scale-[0.98] cursor-pointer' : 'opacity-100 cursor-default'}`}
                     >
                       <div
-                        className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast && !isManaging ? 'bg-forest text-white' : 'bg-sand text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}
+                        className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-inner shrink-0 ${isLast && !isManaging ? 'bg-forest text-white' : 'bg-sand dark:bg-white/10 text-stone-400 group-hover:bg-charcoal group-hover:text-white'}`}
                       >
                         {p.firstName[0]}{p.lastName[0]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-xl text-charcoal tracking-tight group-hover:text-forest transition-colors truncate">
+                        <p className="font-black text-xl text-charcoal dark:text-white tracking-tight group-hover:text-forest transition-colors truncate">
                           {p.firstName} {p.lastName}
                         </p>
                         <p className="text-[11px] font-black uppercase text-stone-400 tracking-[0.1em] mt-1">
@@ -250,7 +256,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                             haptics.medium();
                             setProfileToDelete(p.id);
                           }}
-                          className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100 z-20"
+                          className="w-12 h-12 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100 dark:border-red-500/20 z-20"
                         >
                           <Trash2 size={20} strokeWidth={2.5} />
                         </button>
@@ -261,10 +267,10 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               </div>
             ) : (
               <div className="py-20 flex flex-col items-center text-center animate-[fadeIn_0.5s_ease-out]">
-                <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200">
+                <div className="w-20 h-20 bg-stone-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-200 dark:text-stone-700">
                   <Users size={32} />
                 </div>
-                <h3 className="text-xl font-black text-charcoal mb-2">{t('welcome.noProfiles')}</h3>
+                <h3 className="text-xl font-black text-charcoal dark:text-white mb-2">{t('welcome.noProfiles')}</h3>
                 <p className="text-stone-400 text-sm max-w-[240px] mb-10 leading-relaxed">
                   {t('welcome.noProfilesDesc')}
                 </p>
@@ -289,7 +295,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                 <Sparkles size={32} />
               </div>
               <div>
-                <h2 className="text-4xl font-black text-charcoal tracking-tighter leading-none">
+                <h2 className="text-4xl font-black text-charcoal dark:text-white tracking-tighter leading-none">
                   {t('createProfile.title')}
                 </h2>
                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-2">
@@ -301,27 +307,27 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-5">
                 <div className="group/field">
-                  <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] mb-3 block ml-1">
+                  <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] mb-3 block ml-1">
                     {t('createProfile.firstName')}
                   </label>
                   <input
                     required
                     type="text"
                     placeholder="Jean"
-                    className="w-full bg-white border-2 border-sand rounded-[1.5rem] p-5 font-black text-lg outline-none focus:border-forest/40 transition-all shadow-sm"
+                    className="w-full bg-white dark:bg-[#1a1a1a] border-2 border-sand dark:border-white/10 rounded-[1.5rem] p-5 font-black text-lg outline-none focus:border-forest/40 dark:focus:border-forest/60 transition-all shadow-sm text-charcoal dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-600"
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                   />
                 </div>
                 <div className="group/field">
-                  <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] mb-3 block ml-1">
+                  <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] mb-3 block ml-1">
                     {t('createProfile.lastName')}
                   </label>
                   <input
                     required
                     type="text"
                     placeholder="Bitter"
-                    className="w-full bg-white border-2 border-sand rounded-[1.5rem] p-5 font-black text-lg outline-none focus:border-forest/40 transition-all shadow-sm"
+                    className="w-full bg-white dark:bg-[#1a1a1a] border-2 border-sand dark:border-white/10 rounded-[1.5rem] p-5 font-black text-lg outline-none focus:border-forest/40 dark:focus:border-forest/60 transition-all shadow-sm text-charcoal dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-600"
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                   />
@@ -330,35 +336,35 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
 
               <div className="grid grid-cols-2 gap-6 items-end">
                 <div>
-                  <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] mb-3 block ml-1">
+                  <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] mb-3 block ml-1">
                     {t('createProfile.gender')}
                   </label>
-                  <div className="flex bg-stone-100 p-1.5 rounded-2xl border border-sand">
+                  <div className="flex bg-stone-100 dark:bg-white/5 p-1.5 rounded-2xl border border-sand dark:border-white/10">
                     <button
                       type="button"
                       onClick={() => { haptics.soft(); setFormData({ ...formData, gender: 'h' }); }}
-                      className={`flex-1 flex items-center justify-center py-3.5 rounded-xl text-[10px] font-black transition-all ${formData.gender === 'h' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-500'}`}
+                      className={`flex-1 flex items-center justify-center py-3.5 rounded-xl text-[10px] font-black transition-all ${formData.gender === 'h' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-500 dark:text-stone-400'}`}
                     >
                       {t('createProfile.male')}
                     </button>
                     <button
                       type="button"
                       onClick={() => { haptics.soft(); setFormData({ ...formData, gender: 'f' }); }}
-                      className={`flex-1 flex items-center justify-center py-3.5 rounded-xl text-[10px] font-black transition-all ${formData.gender === 'f' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-500'}`}
+                      className={`flex-1 flex items-center justify-center py-3.5 rounded-xl text-[10px] font-black transition-all ${formData.gender === 'f' ? 'bg-charcoal text-white shadow-lg' : 'text-stone-500 dark:text-stone-400'}`}
                     >
                       {t('createProfile.female')}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] mb-3 block ml-1">
+                  <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] mb-3 block ml-1">
                     {t('createProfile.age')}
                   </label>
                   <div className="relative">
                     <input
                       required
                       type="number"
-                      className="w-full bg-white border-2 border-sand rounded-2xl p-4 font-black text-lg outline-none focus:border-forest/40 transition-all shadow-sm pr-12"
+                      className="w-full bg-white dark:bg-[#1a1a1a] border-2 border-sand dark:border-white/10 rounded-2xl p-4 font-black text-lg outline-none focus:border-forest/40 dark:focus:border-forest/60 transition-all shadow-sm pr-12 text-charcoal dark:text-white"
                       value={formData.age}
                       onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
                     />
@@ -370,7 +376,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               </div>
 
               <div className="space-y-4">
-                <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] block ml-1">
+                <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] block ml-1">
                   {t('createProfile.whereWatch')}
                 </label>
                 <div className="grid grid-cols-3 gap-3">
@@ -383,7 +389,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                       key={val}
                       type="button"
                       onClick={() => { haptics.medium(); setFormData({ ...formData, viewingPreference: val as any }); }}
-                      className={`p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 sm:gap-3 ${formData.viewingPreference === val ? 'bg-forest border-forest text-white shadow-xl' : 'bg-white border-sand text-stone-400'}`}
+                      className={`p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 sm:gap-3 ${formData.viewingPreference === val ? 'bg-forest border-forest text-white shadow-xl' : 'bg-white dark:bg-white/5 border-sand dark:border-white/10 text-stone-400 dark:text-stone-500'}`}
                     >
                       {icon}
                       <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center">
@@ -396,7 +402,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
 
               {(formData.viewingPreference === 'streaming' || formData.viewingPreference === 'both') && (
                 <div className="animate-[fadeIn_0.3s_ease-out] space-y-4">
-                  <label className="text-[11px] font-black uppercase text-stone-500 tracking-[0.2em] block ml-1">
+                  <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] block ml-1">
                     {t('createProfile.favPlatforms')}
                   </label>
                   <div className="grid grid-cols-4 gap-3">
@@ -407,7 +413,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                           key={p.id}
                           type="button"
                           onClick={() => togglePlatform(p.id)}
-                          className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all p-1 ${isSelected ? 'border-forest shadow-lg scale-105' : 'border-transparent grayscale'}`}
+                          className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all p-1 ${isSelected ? 'border-forest shadow-lg scale-105' : 'border-transparent grayscale opacity-60 dark:opacity-40'}`}
                         >
                           <img src={p.logo} alt={p.name} className="w-full h-full object-cover rounded-xl" />
                           {isSelected && (
@@ -434,7 +440,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
       </div>
 
       <div className="p-8 text-center relative z-10 mt-auto">
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 opacity-60">
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-stone-200 dark:text-stone-700 opacity-60">
           The Bitter
         </p>
       </div>
@@ -445,11 +451,11 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
             className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
             onClick={() => setProfileToDelete(null)}
           />
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl relative z-10 w-full max-w-sm text-center animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+          <div className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] shadow-2xl relative z-10 w-full max-w-sm text-center animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
               <AlertTriangle size={32} strokeWidth={2} />
             </div>
-            <h3 className="text-2xl font-black text-charcoal mb-2">{t('welcome.deleteTitle')}</h3>
+            <h3 className="text-2xl font-black text-charcoal dark:text-white mb-2">{t('welcome.deleteTitle')}</h3>
             <p className="text-stone-400 font-medium text-sm leading-relaxed mb-8">
               {t('welcome.deleteDesc')}
             </p>
@@ -464,7 +470,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               <button
                 type="button"
                 onClick={() => setProfileToDelete(null)}
-                className="w-full bg-stone-100 text-stone-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-all"
+                className="w-full bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 dark:hover:bg-white/20 transition-all"
               >
                 {t('common.cancel')}
               </button>

@@ -28,6 +28,31 @@ export const getRecommendations = async (tmdbId: number): Promise<TMDBRecommenda
   }
 };
 
+export const getTopRatedRecommendations = async (
+  topMovies: { tmdbId: number }[],
+  existingTmdbIds: Set<number>
+): Promise<(TMDBRecommendation & { _score: number })[]> => {
+  const allResults = await Promise.all(topMovies.map((m) => getRecommendations(m.tmdbId)));
+
+  const map = new Map<number, { movie: TMDBRecommendation; freq: number }>();
+  allResults.forEach((results) => {
+    results.forEach((movie) => {
+      if (!movie.poster_path || existingTmdbIds.has(movie.id)) return;
+      const entry = map.get(movie.id);
+      if (entry) entry.freq++;
+      else map.set(movie.id, { movie, freq: 1 });
+    });
+  });
+
+  return Array.from(map.values())
+    .map(({ movie, freq }) => ({
+      ...movie,
+      _score: (freq / topMovies.length) * 6 + (movie.vote_average / 10) * 4,
+    }))
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 5);
+};
+
 export const getDirectorMovies = async (directorId: number): Promise<any[]> => {
   const key = `director:${directorId}`;
   const cached = getCachedData<any[]>(key);

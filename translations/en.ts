@@ -383,6 +383,10 @@ export const en: Record<string, string> = {
   'reco.because': 'Because you watched',
   'reco.searching': 'Searching...',
   'reco.noReco': 'No recommendations found for this film.',
+  'reco.smartMode': 'For you',
+  'reco.pickMode': 'By film',
+  'reco.smartSubtitle': 'Based on your 10 best-rated films',
+  'reco.noSmartReco': 'Not enough data to generate recommendations.',
 
   // ── Discover View ────────────────────────────────────────────────────────
   'discover.cinema': 'Cinema',
