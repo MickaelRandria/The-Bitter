@@ -1086,6 +1086,14 @@ const App: React.FC = () => {
                     >
                       <Clapperboard size={18} /> {t('common.explore')}
                     </button>
+                    {activeProfile && !activeProfile.isOnboarded && (
+                      <button
+                        onClick={() => { haptics.medium(); setShowCalibration(true); }}
+                        className="bg-lime-400 text-black px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-lime-400/20 flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"
+                      >
+                        <Sparkles size={18} strokeWidth={2.5} /> {t('feed.completeProfile')}
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (

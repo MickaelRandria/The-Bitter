@@ -136,6 +136,7 @@ export const en: Record<string, string> = {
 
   // ── Feed / App ────────────────────────────────────────────────────────────
   'feed.startCollection': 'Start your collection',
+  'feed.completeProfile': 'Complete my profile',
   'feed.startCollectionDesc': 'Add films to see your analyst statistics.',
   'feed.addMovie': 'Add a film',
   'feed.myStats': 'My stats',
