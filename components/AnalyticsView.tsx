@@ -1311,6 +1311,71 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           )}
 
+          {/* HYPE VS RÉALITÉ */}
+          {hypeReality && (
+            <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
+                  <Target size={18} />
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
+                  {t('analytics.hypeVsReality')}
+                </h3>
+              </div>
+              <div className="mb-5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
+                  {hypeReality.profileLabel}
+                </p>
+                <p
+                  className={`text-4xl font-black tracking-tighter ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
+                >
+                  {hypeReality.globalDelta > 0 ? '+' : ''}
+                  {hypeReality.globalDelta}
+                </p>
+              </div>
+
+              {hypeReality.topSurprises.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-1">
+                    ✦ {t('analytics.goodSurprises')}
+                  </p>
+                  {hypeReality.topSurprises.map(({ movie: m, delta }) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl px-4 py-3 border border-stone-100 dark:border-white/5"
+                    >
+                      <p className="text-xs font-black text-charcoal dark:text-white truncate flex-1 min-w-0">
+                        {m.title}
+                      </p>
+                      <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">
+                        +{delta}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {hypeReality.topDisappointments.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-1">
+                    ✦ {t('analytics.disappointments')}
+                  </p>
+                  {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl px-4 py-3 border border-stone-100 dark:border-white/5"
+                    >
+                      <p className="text-xs font-black text-charcoal dark:text-white truncate flex-1 min-w-0">
+                        {m.title}
+                      </p>
+                      <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* MOIS LE PLUS ACTIF */}
           {mostActiveMonth && (
             <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-5 flex items-center justify-between shadow-xl dark:shadow-black/40 transition-all">
@@ -1331,131 +1396,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   films
                 </p>
               </div>
-            </div>
-          )}
-
-          {/* HYPE VS RÉALITÉ */}
-          {hypeReality && (
-            <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
-                  <Target size={18} />
-                </div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                  {t('analytics.hypeVsReality')}
-                </h3>
-              </div>
-              <div className="flex items-end justify-between mb-5">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
-                    {hypeReality.profileLabel}
-                  </p>
-                  <p
-                    className={`text-4xl font-black tracking-tighter ${hypeReality.globalDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
-                  >
-                    {hypeReality.globalDelta > 0 ? '+' : ''}
-                    {hypeReality.globalDelta}
-                  </p>
-                </div>
-                <p className="text-xs font-medium text-stone-400 dark:text-stone-500 max-w-[55%] text-right leading-snug">
-                  {hypeReality.description}
-                </p>
-              </div>
-
-              {(hypeReality.highHypeAvgDelta !== null || hypeReality.lowHypeAvgDelta !== null) && (
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  {hypeReality.highHypeAvgDelta !== null && (
-                    <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-2">
-                        {t('analytics.highHype')}
-                      </p>
-                      <p
-                        className={`text-2xl font-black tracking-tighter ${hypeReality.highHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
-                      >
-                        {hypeReality.highHypeAvgDelta > 0 ? '+' : ''}
-                        {hypeReality.highHypeAvgDelta}
-                      </p>
-                    </div>
-                  )}
-                  {hypeReality.lowHypeAvgDelta !== null && (
-                    <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-2">
-                        {t('analytics.lowHype')}
-                      </p>
-                      <p
-                        className={`text-2xl font-black tracking-tighter ${hypeReality.lowHypeAvgDelta >= 0 ? 'text-forest dark:text-lime-500' : 'text-orange-400'}`}
-                      >
-                        {hypeReality.lowHypeAvgDelta > 0 ? '+' : ''}
-                        {hypeReality.lowHypeAvgDelta}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {hypeReality.topSurprises.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 mb-1">
-                    {t('analytics.goodSurprises')}
-                  </p>
-                  {hypeReality.topSurprises.map(({ movie: m, delta }) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
-                    >
-                      <div className="w-8 h-12 rounded-xl overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
-                        {m.posterUrl && (
-                          <img src={m.posterUrl} className="w-full h-full object-cover" alt="" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black text-charcoal dark:text-white truncate">
-                          {m.title}
-                        </p>
-                        <p className="text-[9px] font-bold text-stone-400 mt-0.5">
-                          {t('analytics.hypeLabel', { hype: String(m.hype), rating: getAvgRating(m).toFixed(1) })}
-                        </p>
-                      </div>
-                      <span className="text-sm font-black text-forest dark:text-lime-500 shrink-0">
-                        +{delta}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {hypeReality.topDisappointments.length > 0 && (
-                <div className="space-y-2 mt-4">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-1">
-                    {t('analytics.disappointments')}
-                  </p>
-                  {hypeReality.topDisappointments.map(({ movie: m, delta }) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
-                    >
-                      <div className="w-8 h-12 rounded-xl overflow-hidden bg-stone-200 dark:bg-stone-700 shrink-0">
-                        {m.posterUrl && (
-                          <img
-                            src={m.posterUrl}
-                            className="w-full h-full object-cover opacity-60 grayscale"
-                            alt=""
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black text-charcoal dark:text-white truncate">
-                          {m.title}
-                        </p>
-                        <p className="text-[9px] font-bold text-stone-400 mt-0.5">
-                          {t('analytics.hypeLabel', { hype: String(m.hype), rating: getAvgRating(m).toFixed(1) })}
-                        </p>
-                      </div>
-                      <span className="text-sm font-black text-orange-400 shrink-0">{delta}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
