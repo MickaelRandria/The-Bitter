@@ -45,6 +45,7 @@ import { getMovieDetailsForAdd } from './services/tmdb';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
+import { getAdvancedArchetype } from './utils/archetypes';
 import {
   getSmartTonightPick,
   filterByMoodPreset,
@@ -199,6 +200,7 @@ const App: React.FC = () => {
   const [yearMinFilter, setYearMinFilter] = useState<number | null>(null);
   const [yearMaxFilter, setYearMaxFilter] = useState<number | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [feedPage, setFeedPage] = useState(1);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
@@ -564,21 +566,65 @@ const App: React.FC = () => {
     let finalMovie: Movie = editingMovie
       ? { ...editingMovie, ...data, status: determinedStatus }
       : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
+
+    // Recalcul de l'archétype basé sur les films regardés
+    const currentProfile = profiles.find((p) => p.id === activeProfileId);
+    let newRole: string | undefined;
+    if (currentProfile) {
+      const updatedMovies = editingMovie
+        ? currentProfile.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
+        : [finalMovie, ...currentProfile.movies];
+      const watched = updatedMovies.filter((m) => m.status === 'watched');
+      if (watched.length >= 10) {
+        const getVibe = (m: Movie, key: 'cerebral' | 'emotion' | 'fun' | 'visual' | 'tension'): number => {
+          if (m.vibe) {
+            switch (key) {
+              case 'cerebral': return m.vibe.story;
+              case 'emotion': return m.vibe.emotion;
+              case 'fun': return m.vibe.fun;
+              case 'visual': return m.vibe.visual;
+              case 'tension': return m.vibe.tension;
+            }
+          }
+          switch (key) {
+            case 'cerebral': return m.ratings.story;
+            case 'emotion': return (m.ratings.story + m.ratings.acting) / 2;
+            case 'fun': return m.ratings.acting;
+            case 'visual': return m.ratings.visuals;
+            case 'tension': return (m.ratings.sound + m.ratings.visuals) / 2;
+          }
+        };
+        const avg = (key: 'cerebral' | 'emotion' | 'fun' | 'visual' | 'tension') =>
+          watched.reduce((s, m) => s + getVibe(m, key), 0) / watched.length;
+        const result = getAdvancedArchetype({
+          vibes: { cerebral: avg('cerebral'), emotion: avg('emotion'), fun: avg('fun'), visual: avg('visual'), tension: avg('tension') },
+          quality: { scenario: 5, acting: 5, visual: 5, sound: 5 },
+          smartphone: watched.reduce((s, m) => s + (m.smartphoneFactor ?? 0), 0) / watched.length,
+          distinctGenreCount: new Set(watched.map((m) => m.genre)).size,
+          severityIndex: currentProfile.severityIndex ?? 5,
+          rhythmIndex: currentProfile.patienceLevel ?? 5,
+        });
+        if (result.title !== currentProfile.role) newRole = result.title;
+      }
+    }
+
     setProfiles((prev) =>
       prev.map((p) => {
         if (p.id !== activeProfileId) return p;
         let updatedMovies = editingMovie
           ? p.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
           : [finalMovie, ...p.movies];
-        return { ...p, movies: updatedMovies };
+        return { ...p, movies: updatedMovies, ...(newRole ? { role: newRole } : {}) };
       })
     );
     setToastMessage(
-      editingMovie
-        ? t('feed.movieEdited')
-        : data.status === 'watchlist'
-          ? t('feed.addedToWatchlist')
-          : t('feed.movieAdded')
+      newRole
+        ? t('archetype.evolved', { title: newRole })
+        : editingMovie
+          ? t('feed.movieEdited')
+          : data.status === 'watchlist'
+            ? t('feed.addedToWatchlist')
+            : t('feed.movieAdded')
     );
     setEditingMovie(null);
     setTmdbIdToLoad(null);
@@ -822,6 +868,15 @@ const App: React.FC = () => {
     yearMinFilter,
     yearMaxFilter,
   ]);
+
+  const visibleMovies = useMemo(
+    () => filteredAndSortedMovies.slice(0, feedPage * 20),
+    [filteredAndSortedMovies, feedPage]
+  );
+
+  useEffect(() => {
+    setFeedPage(1);
+  }, [feedTab, debouncedSearch, historyGenreFilter, watchlistGenreFilter, minRatingFilter, yearMinFilter, yearMaxFilter, sortBy, selectedMood, activeVibeSort]);
 
   const handleTonightPick = () => {
     if (!activeProfile) return;
@@ -1499,7 +1554,7 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-8">
-                      {filteredAndSortedMovies.map((movie, index) => (
+                      {visibleMovies.map((movie, index) => (
                         <MovieCard
                           key={movie.id}
                           movie={movie}
@@ -1517,6 +1572,14 @@ const App: React.FC = () => {
                           onViewDirector={(name, id) => setPreviewDirector({ name, id })}
                         />
                       ))}
+                      {visibleMovies.length < filteredAndSortedMovies.length && (
+                        <button
+                          onClick={() => setFeedPage((p) => p + 1)}
+                          className="w-full py-3 text-xs font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 border border-stone-200 dark:border-white/5 rounded-2xl active:scale-95 transition-all"
+                        >
+                          {t('feed.loadMore')} · {filteredAndSortedMovies.length - visibleMovies.length}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

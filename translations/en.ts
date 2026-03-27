@@ -133,6 +133,7 @@ export const en: Record<string, string> = {
   'archetype.Le Romantique Visionnaire': 'Beauty that moves.',
   'archetype.Le Philosophe Sensible': 'You want to understand AND to feel.',
   "archetype.L'Omnivore": 'Your strength is your limitless curiosity.',
+  'archetype.evolved': '🎭 Archetype evolved: {title}',
 
   // ── Feed / App ────────────────────────────────────────────────────────────
   'feed.startCollection': 'Start your collection',
@@ -153,6 +154,7 @@ export const en: Record<string, string> = {
   'feed.noResults': 'No results',
   'feed.noResultsDesc': 'No films match your search.',
   'feed.clearFilters': 'Clear filters',
+  'feed.loadMore': 'Load more',
   'feed.filters': 'Filters',
   'feed.clearFilter': 'Clear',
   'feed.search': 'Title, director, actor, genre... (⌘K)',

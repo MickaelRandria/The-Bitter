@@ -243,7 +243,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         fetchItems();
         if (searchQuery.length >= 2) saveRecentSearch(searchQuery);
       },
-      isSearchActive ? 500 : 0
+      isSearchActive ? 500 : 200
     );
     return () => clearTimeout(timer);
   }, [searchQuery, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);

@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 🔑 Access environment variables safely
-const supabaseUrl = 'https://tnvnmsevddvcklkitnpa.supabase.co';
-const supabaseAnonKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRudm5tc2V2ZGR2Y2tsa2l0bnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MDgwMTMsImV4cCI6MjA4NTk4NDAxM30.cQi9F7ECVNOk8h8JYoCWATqV3XUwjL4qE_8FQeisHXk';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 // On initialise le client seulement si les clés sont présentes pour éviter les erreurs au build
 export const supabase =
