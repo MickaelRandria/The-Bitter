@@ -56,24 +56,66 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
           return; // Priorité absolue au streaming
         }
 
-        // 2. Check Cinema (Seulement pour les films, sortis il y a moins de 3 mois)
-        // La logique "Au Cinéma" ne s'applique que si le film n'est PAS en streaming flatrate
-        if (mediaType === 'movie' && releaseDate) {
-          const release = new Date(releaseDate);
-          const now = new Date();
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(now.getMonth() - 3);
+        // 2. Check Cinema (plus précis avec release_dates)
+        if (mediaType === 'movie' && releaseDate && !priorityProvider) {
+          try {
+            const releaseDatesRes = await fetch(
+              `${TMDB_BASE_URL}/movie/${mediaId}/release_dates?api_key=${TMDB_API_KEY}`
+            );
+            const releaseDatesData = await releaseDatesRes.json();
 
-          // Si sorti entre il y a 3 mois et aujourd'hui (donc toujours potentiellement en salle)
-          if (release >= threeMonthsAgo && release <= now) {
-            setBadge({
-              type: 'cinema',
-              label: 'AU CINÉMA',
-            });
+            const frReleases = releaseDatesData.results?.find((r: any) => r.iso_3166_1 === 'FR');
+
+            if (frReleases?.release_dates) {
+              const now = new Date();
+              const threeMonthsAgo = new Date();
+              threeMonthsAgo.setMonth(now.getMonth() - 3);
+
+              const theatricalRelease = frReleases.release_dates.find((rd: any) => rd.type === 3);
+              const digitalRelease = frReleases.release_dates.find((rd: any) => rd.type === 4);
+
+              if (theatricalRelease) {
+                const theatricalDate = new Date(theatricalRelease.release_date);
+                const isRecentTheatrical = theatricalDate >= threeMonthsAgo && theatricalDate <= now;
+
+                let hasDigitalRelease = false;
+                if (digitalRelease) {
+                  const digitalDate = new Date(digitalRelease.release_date);
+                  const twoWeeksAgo = new Date();
+                  twoWeeksAgo.setDate(now.getDate() - 14);
+                  hasDigitalRelease = digitalDate < twoWeeksAgo;
+                }
+
+                if (isRecentTheatrical && !hasDigitalRelease) {
+                  if (!isMounted) return;
+                  setBadge({ type: 'cinema', label: 'AU CINÉMA' });
+                }
+              }
+            } else {
+              // Pas de données FR : fallback date simple
+              const release = new Date(releaseDate);
+              const now = new Date();
+              const threeMonthsAgo = new Date();
+              threeMonthsAgo.setMonth(now.getMonth() - 3);
+              if (release >= threeMonthsAgo && release <= now) {
+                if (!isMounted) return;
+                setBadge({ type: 'cinema', label: 'AU CINÉMA' });
+              }
+            }
+          } catch {
+            // Fallback date simple en cas d'erreur API
+            const release = new Date(releaseDate);
+            const now = new Date();
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(now.getMonth() - 3);
+            if (release >= threeMonthsAgo && release <= now) {
+              if (!isMounted) return;
+              setBadge({ type: 'cinema', label: 'AU CINÉMA' });
+            }
           }
         }
       } catch (error) {
-        // En cas d'erreur, on n'affiche rien (silencieux)
+        // En cas d'erreur sur watch/providers, on n'affiche rien
       }
     };
 
