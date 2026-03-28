@@ -104,7 +104,6 @@ const BottomNav = memo(
     feedTab: FeedTab;
     setInitialStatusForAdd: (s: MovieStatus) => void;
     movieCount: number;
-    onFeedback: () => void;
   }) => {
     const navItemClass = (isActive: boolean) =>
       `p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm opacity-100 scale-105' : 'text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100'}`;
@@ -163,12 +162,6 @@ const BottomNav = memo(
             className={navItemClass(viewMode === 'Calendar')}
           >
             <CalendarDays size={22} />
-          </button>
-          <button
-            onClick={() => { haptics.soft(); onFeedback(); }}
-            className="p-3 rounded-full transition-all duration-300 text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100"
-          >
-            <MessageSquareText size={22} />
           </button>
         </div>
       </nav>
@@ -1042,20 +1035,12 @@ const App: React.FC = () => {
               <NotificationCenter movies={activeProfile?.movies || []} />
               <button
                 onClick={() => {
-                  if (!session) {
-                    setToastMessage(t('feed.connectForSpaces'));
-                    return;
-                  }
-                  setShowSharedSpaces(true);
+                  haptics.soft();
+                  setShowFeedbackModal(true);
                 }}
-                className={`relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all ${!session ? 'bg-stone-50 dark:bg-stone-900 border-stone-100 dark:border-stone-800 text-stone-300' : 'bg-white dark:bg-[#1a1a1a] border-sand dark:border-white/10 text-charcoal dark:text-white'}`}
+                className="relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all bg-white dark:bg-[#1a1a1a] border-sand dark:border-white/10 text-charcoal dark:text-white"
               >
-                <Users size={20} />
-                {mySpaces.length > 0 && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-forest text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm">
-                    {mySpaces.length}
-                  </div>
-                )}
+                <MessageSquareText size={20} />
               </button>
               <button
                 onClick={() => {
@@ -1610,7 +1595,6 @@ const App: React.FC = () => {
         feedTab={feedTab}
         setInitialStatusForAdd={setInitialStatusForAdd}
         movieCount={activeProfile?.movies.length || 0}
-        onFeedback={() => setShowFeedbackModal(true)}
       />
 
       {/* Cine Assistant Button removed for now */}
