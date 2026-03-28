@@ -66,7 +66,7 @@ import { ContextualTooltip } from './components/ContextualTooltip';
 import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
 import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
-import FeedbackButton from './components/FeedbackButton';
+import FeedbackModal from './components/FeedbackModal';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -96,6 +96,7 @@ const BottomNav = memo(
     feedTab,
     setInitialStatusForAdd,
     movieCount,
+    onFeedback,
   }: {
     viewMode: ViewMode;
     setViewMode: (v: ViewMode) => void;
@@ -103,6 +104,7 @@ const BottomNav = memo(
     feedTab: FeedTab;
     setInitialStatusForAdd: (s: MovieStatus) => void;
     movieCount: number;
+    onFeedback: () => void;
   }) => {
     const navItemClass = (isActive: boolean) =>
       `p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm opacity-100 scale-105' : 'text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100'}`;
@@ -113,7 +115,7 @@ const BottomNav = memo(
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
       >
         <div
-          className="bg-white/95 dark:bg-black/95 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl rounded-[2.5rem] px-6 py-3.5 flex justify-between items-center transition-colors"
+          className="bg-white/95 dark:bg-black/95 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl rounded-[2.5rem] px-4 py-3.5 flex justify-between items-center transition-colors"
           style={{ willChange: 'transform' }}
         >
           <button
@@ -161,6 +163,12 @@ const BottomNav = memo(
             className={navItemClass(viewMode === 'Calendar')}
           >
             <CalendarDays size={22} />
+          </button>
+          <button
+            onClick={() => { haptics.soft(); onFeedback(); }}
+            className="p-3 rounded-full transition-all duration-300 text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100"
+          >
+            <MessageSquareText size={22} />
           </button>
         </div>
       </nav>
@@ -229,6 +237,7 @@ const App: React.FC = () => {
   } | null>(null);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<{
     id: string;
@@ -1601,6 +1610,7 @@ const App: React.FC = () => {
         feedTab={feedTab}
         setInitialStatusForAdd={setInitialStatusForAdd}
         movieCount={activeProfile?.movies.length || 0}
+        onFeedback={() => setShowFeedbackModal(true)}
       />
 
       {/* Cine Assistant Button removed for now */}
@@ -1855,7 +1865,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <FeedbackButton />
+      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
     </div>
   );
 };
