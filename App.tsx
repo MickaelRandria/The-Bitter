@@ -66,6 +66,7 @@ import { ContextualTooltip } from './components/ContextualTooltip';
 import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
 import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
+import FeedbackButton from './components/FeedbackButton';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -1853,6 +1854,8 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      <FeedbackButton />
     </div>
   );
 };
