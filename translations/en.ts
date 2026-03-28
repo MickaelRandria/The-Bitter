@@ -291,7 +291,10 @@ export const en: Record<string, string> = {
   'tooltip.feed.content': 'Swipe a card left to delete, right to edit. Use the + button to add.',
 
   // ── New Features Modal ───────────────────────────────────────────────────
-  'newFeatures.newBadge': 'New v0.83',
+  'newFeatures.step4.title1': 'YOUR VOICE',
+  'newFeatures.step4.title2': 'MATTERS.',
+  'newFeatures.step4.desc': 'See the <b>💬 button in the navbar</b>? It\'s for you. Report a bug, share an idea, drop us a message — <b>we read everything</b>. Your feedback is the main driver of future The Bitter updates.',
+  'newFeatures.newBadge': 'New v0.84',
   'newFeatures.step0.title1': 'PERSONAL',
   'newFeatures.step0.title2': 'RECS.',
   'newFeatures.step0.desc': 'The app analyses your <b>10 best-rated films</b> to recommend titles that truly match your taste. You can also target recs from a <b>specific film</b> with the By film mode.',

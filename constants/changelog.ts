@@ -14,25 +14,29 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
-    version: 'v0.83',
-    date: '26 Mars 2026',
-    title: 'Recos Perso & Dark Mode Total',
+    version: 'v0.84',
+    date: '28 Mars 2026',
+    title: 'Feedback, Recos & Optimisations',
     changes: [
       {
         type: 'feature',
-        text: 'Recos Perso — Un nouveau widget intelligent analyse tes 10 films les mieux notés pour te suggérer des œuvres qui correspondent vraiment à tes goûts. Tu peux aussi continuer à chercher des recos à partir d\'un film précis via le mode "Par film".',
+        text: 'Feedback intégré — Un bouton 💬 dans la navbar te permet de signaler un bug, proposer une amélioration ou envoyer un message directement à l\'équipe. Tes retours nous sont précieux pour faire évoluer l\'app.',
+      },
+      {
+        type: 'feature',
+        text: 'Recos Perso — Un widget intelligent analyse tes 10 films les mieux notés pour te suggérer des œuvres qui correspondent vraiment à tes goûts. Mode "Par film" disponible aussi.',
       },
       {
         type: 'feature',
         text: 'Version anglaise — L\'application est désormais disponible en anglais. Bascule entre FR et EN depuis le header.',
       },
       {
-        type: 'style',
-        text: 'CTA "Compléter mon profil" — Un bouton mis en évidence apparaît dans l\'écran d\'accueil vide pour guider les nouveaux utilisateurs vers le calibrage de leur profil.',
+        type: 'fix',
+        text: 'Optimisation du code — Pagination du feed (20 films par page), debounce sur les filtres Discover, recalcul automatique de l\'archétype à chaque ajout de film (≥ 10 vus), et sécurisation des clés API.',
       },
       {
         type: 'fix',
-        text: 'Dark mode complet — Les écrans de connexion, d\'inscription et de création de profil sont maintenant entièrement compatibles dark mode, avec un toggle accessible dès ces étapes. Fini le texte blanc sur fond blanc.',
+        text: 'Dark mode complet — Les écrans de connexion, d\'inscription et de création de profil sont maintenant entièrement compatibles dark mode.',
       },
     ],
   },

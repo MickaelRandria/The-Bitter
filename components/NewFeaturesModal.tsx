@@ -8,6 +8,7 @@ import {
   Radar,
   Sparkles,
   Globe,
+  MessageSquareText,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -17,7 +18,7 @@ interface NewFeaturesModalProps {
   onNeverShowAgain?: () => void;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverShowAgain }) => {
   const { t } = useLanguage();
@@ -47,8 +48,52 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
         <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-10">
 
-          {/* STEP 0: RECOS PERSO */}
+          {/* STEP 0: FEEDBACK */}
           {step === 0 && (
+            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
+              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
+                  <MessageSquareText size={12} />
+                  {t('newFeatures.newBadge')}
+                </div>
+                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
+                  {t('newFeatures.step4.title1')}
+                  <br />
+                  <span className="text-bitter-lime">{t('newFeatures.step4.title2')}</span>
+                </h2>
+
+                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="w-16 h-16 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-5 shadow-2xl relative">
+                    <MessageSquareText size={28} strokeWidth={2} />
+                  </div>
+                  <p
+                    className="text-stone-300 text-sm font-medium leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step4.desc') }}
+                  />
+                  <div className="flex items-center gap-3 mt-6 p-4 bg-[#0c0c0c] rounded-2xl border border-white/10">
+                    <div className="flex gap-2">
+                      <span className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20">🐛 Bug</span>
+                      <span className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-500/20">💡 Idée</span>
+                      <span className="px-3 py-1.5 bg-white/10 text-stone-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10">❤️ Autre</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 shrink-0">
+                <button
+                  onClick={handleNext}
+                  className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
+                >
+                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1: RECOS PERSO */}
+          {step === 1 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
@@ -84,8 +129,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 1: MODE ANGLAIS */}
-          {step === 1 && (
+          {/* STEP 2: MODE ANGLAIS */}
+          {step === 2 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
@@ -125,8 +170,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 2: ANALYTICS */}
-          {step === 2 && (
+          {/* STEP 3: ANALYTICS */}
+          {step === 3 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
@@ -184,8 +229,8 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
             </div>
           )}
 
-          {/* STEP 3: INSTAGRAM STORIES */}
-          {step === 3 && (
+          {/* STEP 4: INSTAGRAM STORIES */}
+          {step === 4 && (
             <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
               <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
@@ -234,7 +279,7 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
                   key={i}
                   className={`h-2 rounded-full transition-all duration-300 ${
                     step === i
-                      ? i === TOTAL_STEPS - 1
+                      ? i === 4
                         ? 'bg-pink-500 w-6'
                         : 'bg-bitter-lime w-6'
                       : 'bg-white/20 w-2'

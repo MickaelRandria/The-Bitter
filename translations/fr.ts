@@ -291,7 +291,10 @@ export const fr: Record<string, string> = {
   'tooltip.feed.content': "Glisse une carte vers la gauche pour supprimer, vers la droite pour éditer. Utilise le bouton + pour ajouter.",
 
   // ── New Features Modal ───────────────────────────────────────────────────
-  'newFeatures.newBadge': 'Nouveau v0.83',
+  'newFeatures.step4.title1': 'TON AVIS',
+  'newFeatures.step4.title2': 'COMPTE.',
+  'newFeatures.step4.desc': 'Tu vois le bouton <b>💬 dans la navbar</b> ? C\'est pour toi. Bug à signaler, idée à partager, message à nous laisser — <b>on lit tout</b>. Ton feedback est le moteur principal des prochaines versions de The Bitter.',
+  'newFeatures.newBadge': 'Nouveau v0.84',
   'newFeatures.step0.title1': 'RECOS',
   'newFeatures.step0.title2': 'PERSO.',
   'newFeatures.step0.desc': "L'app analyse tes <b>10 films les mieux notés</b> pour te recommander des œuvres qui correspondent vraiment à tes goûts. Tu peux aussi cibler les recos à partir d'un <b>film précis</b> avec le mode Par film.",
