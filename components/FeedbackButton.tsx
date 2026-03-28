@@ -9,7 +9,8 @@ const FeedbackButton: React.FC = () => {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-forest hover:bg-lime-400 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        className="fixed right-4 z-40 w-14 h-14 bg-forest hover:bg-lime-400 text-white rounded-full shadow-xl flex items-center justify-center transition-all active:scale-90"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}
         aria-label="Envoyer un feedback"
         title="Envoyer un feedback"
       >
