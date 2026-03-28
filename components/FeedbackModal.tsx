@@ -10,7 +10,7 @@ const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mpqoqjnn';
 
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const [type, setType] = useState<'bug' | 'suggestion' | 'other'>('bug');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -28,7 +28,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
         },
         body: JSON.stringify({
           type,
-          email: email || 'Non fourni',
+          name: name || 'Anonyme',
           message,
           userAgent: navigator.userAgent,
           url: window.location.href,
@@ -41,7 +41,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
           onClose();
           setSuccess(false);
           setMessage('');
-          setEmail('');
+          setName('');
           setType('bug');
         }, 2000);
       } else {
@@ -108,13 +108,13 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
 
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-2 block">
-                Email (optionnel)
+                Nom ou pseudo
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Pour te recontacter si besoin"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Facultatif"
                 className="w-full px-4 py-3 rounded-2xl border-2 border-sand bg-white text-charcoal text-sm font-medium focus:outline-none focus:border-forest transition-colors"
               />
             </div>
