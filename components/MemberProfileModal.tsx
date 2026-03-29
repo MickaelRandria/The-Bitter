@@ -5,15 +5,13 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
   member: SpaceMember;
-  spaceId: string;
-  isOwner: boolean;
   onClose: () => void;
 }
 
-export default function MemberProfileModal({ member, spaceId, isOwner, onClose }: Props) {
+export default function MemberProfileModal({ member, onClose }: Props) {
   const { t } = useLanguage();
   const [topFilms, setTopFilms] = useState<
-    { id: string; title: string; poster_url?: string; year: number; avg_rating: number }[]
+    { id: string; title: string; poster_url?: string; year: number; director: string; avg_rating: number }[]
   >([]);
   const [stats, setStats] = useState<{ watchedCount: number; avgRating: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,15 +19,17 @@ export default function MemberProfileModal({ member, spaceId, isOwner, onClose }
   useEffect(() => {
     const load = async () => {
       const [films, memberStats] = await Promise.all([
-        getMemberTopFilms(member.profile_id, spaceId),
-        getMemberStats(member.profile_id, spaceId),
+        getMemberTopFilms(member.profile_id),
+        getMemberStats(member.profile_id),
       ]);
       setTopFilms(films);
       setStats(memberStats);
       setLoading(false);
     };
     load();
-  }, [member.profile_id, spaceId]);
+  }, [member.profile_id]);
+
+  const isOwner = member.role === 'owner';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
@@ -86,7 +86,9 @@ export default function MemberProfileModal({ member, spaceId, isOwner, onClose }
                 </p>
               </div>
               <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5 text-center">
-                <p className="text-2xl font-black text-charcoal dark:text-white">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}</p>
+                <p className="text-2xl font-black text-charcoal dark:text-white">
+                  {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}
+                </p>
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
                   Moyenne /10
                 </p>
@@ -113,7 +115,7 @@ export default function MemberProfileModal({ member, spaceId, isOwner, onClose }
             {loading ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-12 bg-stone-100 dark:bg-[#252525] rounded-2xl animate-pulse" />
+                  <div key={i} className="h-14 bg-stone-100 dark:bg-[#252525] rounded-2xl animate-pulse" />
                 ))}
               </div>
             ) : topFilms.length === 0 ? (
@@ -129,15 +131,17 @@ export default function MemberProfileModal({ member, spaceId, isOwner, onClose }
                     key={film.id}
                     className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
                   >
-                    <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 w-4 text-center">{i + 1}</span>
+                    <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 w-4 text-center shrink-0">{i + 1}</span>
                     {film.poster_url ? (
                       <img src={film.poster_url} alt="" className="w-8 rounded-md object-cover aspect-[2/3] shrink-0" />
                     ) : (
-                      <div className="w-8 aspect-[2/3] bg-stone-200 dark:bg-[#252525] rounded-md shrink-0" />
+                      <div className="w-8 aspect-[2/3] bg-stone-200 dark:bg-[#252525] rounded-md shrink-0 flex items-center justify-center">
+                        <Film size={12} className="text-stone-400" />
+                      </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-charcoal dark:text-white truncate">{film.title}</p>
-                      <p className="text-[10px] text-stone-400 dark:text-stone-600">{film.year}</p>
+                      <p className="text-[10px] text-stone-400 dark:text-stone-600 truncate">{film.director} · {film.year}</p>
                     </div>
                     <div className="flex items-center gap-1 text-charcoal bg-bitter-lime px-2.5 py-1 rounded-lg shrink-0">
                       <Star size={10} fill="currentColor" />

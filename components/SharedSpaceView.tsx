@@ -770,8 +770,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       {selectedMember && (
         <MemberProfileModal
           member={selectedMember}
-          spaceId={space.id}
-          isOwner={selectedMember.role === 'owner'}
           onClose={() => setSelectedMember(null)}
         />
       )}

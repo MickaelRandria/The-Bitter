@@ -42,6 +42,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } fro
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
+import { migrateLocalStorageToSupabase } from './services/migration';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
@@ -473,6 +474,11 @@ const App: React.FC = () => {
       setAuthLoading(false);
       if (session?.user) {
         loadOrCreateProfile(session.user);
+        migrateLocalStorageToSupabase(session.user.id).then((result) => {
+          if (result.success && result.count && result.count > 0) {
+            if (import.meta.env.DEV) console.log(`✅ Migration : ${result.count} films synchronisés`);
+          }
+        });
       }
     });
 
@@ -484,6 +490,11 @@ const App: React.FC = () => {
 
       if (event === 'SIGNED_IN' && session?.user) {
         await loadOrCreateProfile(session.user);
+        migrateLocalStorageToSupabase(session.user.id).then((result) => {
+          if (result.success && result.count && result.count > 0) {
+            if (import.meta.env.DEV) console.log(`✅ Migration : ${result.count} films synchronisés`);
+          }
+        });
       }
 
       if (event === 'SIGNED_OUT') {
