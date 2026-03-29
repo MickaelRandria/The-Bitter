@@ -1798,6 +1798,8 @@ const App: React.FC = () => {
               setShowCalibration(true);
             }}
             onSignOut={handleSignOut}
+            onShowTutorial={() => { setShowProfile(false); setShowNewFeatures(true); }}
+            onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
           />
         )}
       </Suspense>

@@ -111,6 +111,8 @@ export const fr: Record<string, string> = {
   'profileModal.sent': 'Envoyée !',
   'profileModal.notifBlocked': 'Notifications bloquées dans les paramètres du navigateur.',
   'profileModal.allowNotif': 'Autoriser les notifications navigateur',
+  'profileModal.spaces': 'Espaces Partagés',
+  'profileModal.spacesDesc': 'Ciné-clubs, watchlists collectives...',
   'profileModal.switchProfile': 'Changer de profil',
   'profileModal.tutorial': 'Revoir le tutoriel',
   'profileModal.export': 'Exporter mes données',

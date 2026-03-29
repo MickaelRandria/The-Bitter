@@ -17,6 +17,8 @@ import {
   BellOff,
   Send,
   Globe,
+  Users,
+  ChevronDown,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -37,6 +39,7 @@ interface ProfileModalProps {
   onRecalibrate: () => void;
   onShowTutorial: () => void;
   onSignOut: () => void;
+  onOpenSpaces: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -66,11 +69,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onRecalibrate,
   onShowTutorial,
   onSignOut,
+  onOpenSpaces,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const locale = language === 'en' ? 'en-US' : 'fr-FR';
   const joinDate = new Date(profile.createdAt).toLocaleDateString(locale, {
@@ -349,68 +354,99 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 6: NOTIFICATIONS */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
-                {t('profileModal.notifications')}
-              </h3>
-              <button
-                onClick={handleTestNotif}
-                className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
-              >
-                <Send size={12} />
-                {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
-                <div
-                  key={key}
-                  className="bg-stone-50 dark:bg-[#1a1a1a] px-4 py-3 rounded-[1.5rem] border border-stone-100 dark:border-white/5 flex items-center justify-between"
+          {/* SECTION 6: NOTIFICATIONS (accordéon) */}
+          <div className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden">
+            <button
+              onClick={() => setNotifOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5"
+            >
+              <div className="flex items-center gap-3">
+                <Bell size={15} className="text-stone-400 dark:text-stone-500" />
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('profileModal.notifications')}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTestNotif(); }}
+                  className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-base leading-none">{emoji}</span>
-                    <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
-                      {t(translationKey)}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleToggleNotif(key)}
-                    className={`w-10 h-6 rounded-full transition-colors shrink-0 relative ${
-                      notifPrefs[key]
-                        ? 'bg-forest dark:bg-lime-500'
-                        : 'bg-stone-200 dark:bg-stone-700'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
-                        notifPrefs[key] ? 'left-[18px]' : 'left-0.5'
-                      }`}
-                    />
-                  </button>
-                </div>
-              ))}
-            </div>
+                  <Send size={11} />
+                  {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
+                </button>
+                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-200 ${notifOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
 
-            {'Notification' in window && Notification.permission === 'denied' && (
-              <p className="mt-3 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
-                <BellOff size={12} /> {t('profileModal.notifBlocked')}
-              </p>
-            )}
-            {'Notification' in window && Notification.permission === 'default' && (
-              <button
-                onClick={() => Notification.requestPermission()}
-                className="mt-3 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
-              >
-                <Bell size={12} /> {t('profileModal.allowNotif')}
-              </button>
+            {notifOpen && (
+              <div className="px-3 pb-3 space-y-1.5 border-t border-stone-100 dark:border-white/5 pt-2">
+                {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
+                  <div
+                    key={key}
+                    className="px-3 py-2.5 rounded-xl flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm leading-none">{emoji}</span>
+                      <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
+                        {t(translationKey)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleToggleNotif(key)}
+                      className={`w-10 h-6 rounded-full transition-colors shrink-0 relative ${
+                        notifPrefs[key] ? 'bg-forest dark:bg-lime-500' : 'bg-stone-200 dark:bg-stone-700'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                          notifPrefs[key] ? 'left-[18px]' : 'left-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                ))}
+                {'Notification' in window && Notification.permission === 'denied' && (
+                  <p className="pt-1 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
+                    <BellOff size={11} /> {t('profileModal.notifBlocked')}
+                  </p>
+                )}
+                {'Notification' in window && Notification.permission === 'default' && (
+                  <button
+                    onClick={() => Notification.requestPermission()}
+                    className="pt-1 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
+                  >
+                    <Bell size={11} /> {t('profileModal.allowNotif')}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {/* SECTION 7: ACTIONS */}
           <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+
+            {session && (
+              <button
+                onClick={() => { haptics.medium(); onOpenSpaces(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl bg-forest/5 dark:bg-lime-400/5 hover:bg-forest/10 dark:hover:bg-lime-400/10 border border-forest/20 dark:border-lime-400/20 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-forest/10 dark:bg-lime-400/10 flex items-center justify-center text-forest dark:text-lime-400 group-hover:scale-110 transition-transform">
+                    <Users size={14} />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-xs font-black uppercase tracking-wide text-forest dark:text-lime-400 block">
+                      {t('profileModal.spaces')}
+                    </span>
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                      {t('profileModal.spacesDesc')}
+                    </span>
+                  </div>
+                </div>
+                <ChevronDown size={14} className="text-forest dark:text-lime-400 -rotate-90" />
+              </button>
+            )}
+
             <button
               onClick={() => { haptics.soft(); onSwitchProfile(); }}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
