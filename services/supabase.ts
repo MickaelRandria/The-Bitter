@@ -57,6 +57,12 @@ export interface SharedMovie {
   };
   media_type?: 'movie' | 'tv';
   number_of_seasons?: number;
+  synopsis?: string;
+  runtime?: number;
+  genres?: string[];
+  actors?: string;
+  trailer_key?: string;
+  tmdb_rating?: number;
 }
 
 export interface MovieRating {
@@ -219,6 +225,12 @@ export async function addMovieToSpace(
     status?: 'watched' | 'watchlist';
     media_type?: 'movie' | 'tv';
     number_of_seasons?: number;
+    synopsis?: string;
+    runtime?: number;
+    genres?: string[];
+    actors?: string;
+    trailer_key?: string;
+    tmdb_rating?: number;
   },
   userId: string
 ): Promise<SharedMovie | null> {
@@ -383,6 +395,60 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
   }
 
   return data || [];
+}
+
+/**
+ * Top 5 films les mieux notés par un membre dans un espace
+ */
+export async function getMemberTopFilms(
+  profileId: string,
+  spaceId: string,
+  limit = 5
+): Promise<{ id: string; title: string; poster_url?: string; year: number; avg_rating: number }[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('movie_ratings')
+    .select('movie_id, story, visuals, acting, sound, shared_movies!inner(id, title, poster_url, year, space_id)')
+    .eq('profile_id', profileId)
+    .eq('shared_movies.space_id', spaceId);
+  if (error) {
+    if (import.meta.env.DEV) console.error('Error fetching member top films:', error);
+    return [];
+  }
+  return (data || [])
+    .map((r: any) => ({
+      id: r.shared_movies.id,
+      title: r.shared_movies.title,
+      poster_url: r.shared_movies.poster_url,
+      year: r.shared_movies.year,
+      avg_rating: Math.round(((r.story + r.visuals + r.acting + r.sound) / 4) * 10) / 10,
+    }))
+    .sort((a, b) => b.avg_rating - a.avg_rating)
+    .slice(0, limit);
+}
+
+/**
+ * Stats d'un membre dans un espace (films notés + moyenne)
+ */
+export async function getMemberStats(
+  profileId: string,
+  spaceId: string
+): Promise<{ watchedCount: number; avgRating: number }> {
+  if (!supabase) return { watchedCount: 0, avgRating: 0 };
+  const { data, error } = await supabase
+    .from('movie_ratings')
+    .select('story, visuals, acting, sound, shared_movies!inner(space_id)')
+    .eq('profile_id', profileId)
+    .eq('shared_movies.space_id', spaceId);
+  if (error || !data || data.length === 0) return { watchedCount: 0, avgRating: 0 };
+  const watchedCount = data.length;
+  const avgRating =
+    Math.round(
+      (data.reduce((sum: number, r: any) => sum + (r.story + r.visuals + r.acting + r.sound) / 4, 0) /
+        watchedCount) *
+        10
+    ) / 10;
+  return { watchedCount, avgRating };
 }
 
 // ===============================================

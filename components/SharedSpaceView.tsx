@@ -46,6 +46,7 @@ import {
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import MemberProfileModal from './MemberProfileModal';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -579,6 +580,26 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     <div className="border-t border-sand dark:border-white/5 p-6 bg-stone-50/50 dark:bg-[#1a1a1a]/50 animate-[fadeIn_0.3s_ease-out] space-y-6">
                       {activeTab === 'feed' ? (
                         <>
+                          {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || movie.tmdb_rating) && (
+                            <div className="space-y-2">
+                              {movie.synopsis && (
+                                <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-400 dark:text-stone-500">
+                                {movie.runtime && <span>{movie.runtime} min</span>}
+                                {movie.genres && movie.genres.length > 0 && (
+                                  <span>{movie.genres.join(', ')}</span>
+                                )}
+                                {movie.tmdb_rating && (
+                                  <span className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg">⭐ {movie.tmdb_rating.toFixed(1)} TMDB</span>
+                                )}
+                              </div>
+                              {movie.actors && (
+                                <p className="text-[10px] text-stone-400 dark:text-stone-500">Avec {movie.actors}</p>
+                              )}
+                            </div>
+                          )}
+
                           {isConsensus && (
                             <div
                               className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-bitter-lime/20 border-2 border-charcoal/5"
@@ -747,58 +768,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
       {/* Modal Fiche Profil */}
       {selectedMember && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-          <div className="relative bg-white dark:bg-[#1a1a1a] w-full sm:max-w-md rounded-t-[3rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-sand dark:border-white/10">
-            <div className="p-8 border-b border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-black tracking-tight text-charcoal dark:text-white">
-                  {t('shared.memberProfile')}
-                </h3>
-                <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mt-1">
-                  {t('shared.publicProfile')}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedMember(null)}
-                className="p-3 bg-stone-100 dark:bg-[#252525] rounded-full text-stone-500 hover:text-charcoal dark:hover:text-white transition-all"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-8 overflow-y-auto no-scrollbar space-y-8">
-              <div className="flex flex-col items-center">
-                <div className="w-24 h-24 rounded-full bg-stone-100 dark:bg-[#252525] border-4 border-white dark:border-white/10 shadow-lg mb-4 flex items-center justify-center overflow-hidden relative">
-                  {selectedMember.profile?.avatar_url ? (
-                    <img
-                      src={selectedMember.profile.avatar_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl font-black text-stone-300 dark:text-stone-700">
-                      {(selectedMember.profile?.first_name || '?')[0].toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-2xl font-black text-charcoal dark:text-white tracking-tight">
-                  {selectedMember.profile?.first_name}
-                </h2>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-600 tracking-widest">
-                    Bio
-                  </h4>
-                  <p className="text-sm font-medium text-charcoal dark:text-stone-300 leading-relaxed p-4 bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/5">
-                    {selectedMember.profile?.bio || t('shared.noBio')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MemberProfileModal
+          member={selectedMember}
+          spaceId={space.id}
+          isOwner={selectedMember.role === 'owner'}
+          onClose={() => setSelectedMember(null)}
+        />
       )}
 
       {/* Modal Notation Shared */}

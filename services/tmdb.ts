@@ -252,3 +252,33 @@ export const getHiddenGems = async (
     return [];
   }
 };
+
+export const getSharedMovieDetails = async (tmdbId: number): Promise<{
+  synopsis?: string;
+  runtime?: number;
+  genres?: string[];
+  actors?: string;
+  trailer_key?: string;
+  tmdb_rating?: number;
+}> => {
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits,videos&language=fr-FR`
+    );
+    const data = await res.json();
+    const trailer = data.videos?.results?.find(
+      (v: any) => v.type === 'Trailer' && v.site === 'YouTube'
+    );
+    return {
+      synopsis: data.overview || undefined,
+      runtime: data.runtime || undefined,
+      genres: data.genres?.map((g: any) => g.name) || undefined,
+      actors: data.credits?.cast?.slice(0, 5).map((a: any) => a.name).join(', ') || undefined,
+      trailer_key: trailer?.key || undefined,
+      tmdb_rating: data.vote_average || undefined,
+    };
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching shared movie details:', error);
+    return {};
+  }
+};

@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { haptics } from '../utils/haptics';
 import { SharedSpace, addMovieToSpace } from '../services/supabase';
+import { getSharedMovieDetails } from '../services/tmdb';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface AddMovieModalProps {
@@ -315,6 +316,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
     if (sharedSpace && currentUserId) {
       try {
+        const tmdbDetails =
+          formData.tmdbId && formData.mediaType !== 'tv'
+            ? await getSharedMovieDetails(formData.tmdbId)
+            : {};
         const result = await addMovieToSpace(
           sharedSpace.id,
           {
@@ -327,6 +332,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             status: mode,
             media_type: formData.mediaType,
             number_of_seasons: formData.numberOfSeasons,
+            ...tmdbDetails,
           },
           currentUserId
         );
