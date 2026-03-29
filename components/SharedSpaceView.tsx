@@ -313,8 +313,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           >
             <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
           </button>
-          <div className="flex-1 overflow-x-auto no-scrollbar">
-            <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner transition-colors min-w-max">
+          <div className="flex-1 bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner overflow-x-auto no-scrollbar transition-colors">
+            <div className="flex min-w-max">
               <button
                 onClick={() => {
                   haptics.soft();
