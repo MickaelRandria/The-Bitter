@@ -469,16 +469,13 @@ const App: React.FC = () => {
     }
 
     // Vérifier la session existante
-    (supabase.auth as any).getSession().then(({ data: { session } }: any) => {
+    (supabase.auth as any).getSession().then(async ({ data: { session } }: any) => {
       setSession(session);
       setAuthLoading(false);
       if (session?.user) {
-        loadOrCreateProfile(session.user);
-        migrateLocalStorageToSupabase(session.user.id).then((result) => {
-          if (result.success && result.count && result.count > 0) {
-            if (import.meta.env.DEV) console.log(`✅ Migration : ${result.count} films synchronisés`);
-          }
-        });
+        await loadOrCreateProfile(session.user);
+        const result = await migrateLocalStorageToSupabase(session.user.id);
+        console.log('[Migration]', result);
       }
     });
 
@@ -490,11 +487,8 @@ const App: React.FC = () => {
 
       if (event === 'SIGNED_IN' && session?.user) {
         await loadOrCreateProfile(session.user);
-        migrateLocalStorageToSupabase(session.user.id).then((result) => {
-          if (result.success && result.count && result.count > 0) {
-            if (import.meta.env.DEV) console.log(`✅ Migration : ${result.count} films synchronisés`);
-          }
-        });
+        const result = await migrateLocalStorageToSupabase(session.user.id);
+        console.log('[Migration]', result);
       }
 
       if (event === 'SIGNED_OUT') {

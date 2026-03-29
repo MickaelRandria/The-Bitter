@@ -119,6 +119,10 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
+export function resetMigrationFlag(userId: string) {
+  localStorage.removeItem(`migration_completed_${userId}`);
+}
+
 export async function restoreFromBackup(userId: string): Promise<boolean> {
   try {
     const backupKey = `backup_movies_${userId}`;
