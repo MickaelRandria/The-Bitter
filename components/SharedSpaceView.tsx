@@ -192,17 +192,38 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   const handleSubmitRating = async () => {
-    if (!ratingMovie || !currentUserId) return;
+    console.log('[DEBUG] handleSubmitRating called');
+    console.log('[DEBUG] ratingMovie:', ratingMovie);
+    console.log('[DEBUG] currentUserId:', currentUserId);
+
+    if (!ratingMovie || !currentUserId) {
+      alert(`[DEBUG] Guard déclenché — ratingMovie: ${!!ratingMovie}, currentUserId: ${!!currentUserId}`);
+      return;
+    }
+
     setSavingRating(true);
+    console.log('[DEBUG] Appel upsertMovieRating avec:', {
+      movieId: ratingMovie.id,
+      userId: currentUserId,
+      story: ratingStory,
+      visuals: ratingVisuals,
+      acting: ratingActing,
+      sound: ratingSound,
+      review: ratingReview.trim() || undefined,
+    });
+
     try {
       const result = await upsertMovieRating(ratingMovie.id, currentUserId, {
-        story: ratingStory,
-        visuals: ratingVisuals,
-        acting: ratingActing,
-        sound: ratingSound,
+        story: Math.round(ratingStory),
+        visuals: Math.round(ratingVisuals),
+        acting: Math.round(ratingActing),
+        sound: Math.round(ratingSound),
         review: ratingReview.trim() || undefined,
       });
+      console.log('[DEBUG] Résultat upsertMovieRating:', result);
+
       if (result) {
+        console.log('[DEBUG] Succès — fermeture du modal');
         haptics.success();
         await loadRatings(ratingMovie.id);
         setRatingMovie(null);
@@ -211,9 +232,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         setRatingActing(5);
         setRatingSound(5);
         setRatingReview('');
+      } else {
+        alert('[DEBUG] upsertMovieRating a retourné null — voir console pour détails');
       }
     } catch (e) {
-      if (import.meta.env.DEV) console.error(e);
+      console.error('[DEBUG] Exception dans handleSubmitRating:', e);
+      alert(`[DEBUG] Exception: ${String(e)}`);
       haptics.error();
     } finally {
       setSavingRating(false);
@@ -831,7 +855,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     type="range"
                     min="0"
                     max="10"
-                    step="0.5"
+                    step="1"
                     value={x.v}
                     onChange={(e) => {
                       x.s(parseFloat(e.target.value));
