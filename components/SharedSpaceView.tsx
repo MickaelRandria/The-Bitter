@@ -88,6 +88,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [ratingSound, setRatingSound] = useState(5);
   const [ratingReview, setRatingReview] = useState('');
   const [savingRating, setSavingRating] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -192,25 +193,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   const handleSubmitRating = async () => {
-    console.log('[DEBUG] handleSubmitRating called');
-    console.log('[DEBUG] ratingMovie:', ratingMovie);
-    console.log('[DEBUG] currentUserId:', currentUserId);
-
-    if (!ratingMovie || !currentUserId) {
-      alert(`[DEBUG] Guard déclenché — ratingMovie: ${!!ratingMovie}, currentUserId: ${!!currentUserId}`);
-      return;
-    }
+    if (!ratingMovie || !currentUserId) return;
 
     setSavingRating(true);
-    console.log('[DEBUG] Appel upsertMovieRating avec:', {
-      movieId: ratingMovie.id,
-      userId: currentUserId,
-      story: ratingStory,
-      visuals: ratingVisuals,
-      acting: ratingActing,
-      sound: ratingSound,
-      review: ratingReview.trim() || undefined,
-    });
+    setRatingError(null);
 
     try {
       const result = await upsertMovieRating(ratingMovie.id, currentUserId, {
@@ -220,10 +206,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         sound: Math.round(ratingSound),
         review: ratingReview.trim() || undefined,
       });
-      console.log('[DEBUG] Résultat upsertMovieRating:', result);
 
       if (result) {
-        console.log('[DEBUG] Succès — fermeture du modal');
         haptics.success();
         await loadRatings(ratingMovie.id);
         setRatingMovie(null);
@@ -233,12 +217,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         setRatingSound(5);
         setRatingReview('');
       } else {
-        alert('[DEBUG] upsertMovieRating a retourné null — voir console pour détails');
+        haptics.error();
+        setRatingError(t('shared.ratingError'));
       }
     } catch (e) {
-      console.error('[DEBUG] Exception dans handleSubmitRating:', e);
-      alert(`[DEBUG] Exception: ${String(e)}`);
+      console.error(e);
       haptics.error();
+      setRatingError(t('shared.ratingError'));
     } finally {
       setSavingRating(false);
     }
@@ -879,7 +864,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 />
               </div>
             </div>
-            <div className="p-8 border-t border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] shrink-0">
+            <div className="p-8 border-t border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] shrink-0 space-y-3">
+              {ratingError && (
+                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 rounded-2xl px-4 py-3">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <p className="text-xs font-bold">{ratingError}</p>
+                </div>
+              )}
               <button
                 onClick={handleSubmitRating}
                 disabled={savingRating}

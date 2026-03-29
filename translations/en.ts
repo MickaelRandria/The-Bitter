@@ -455,6 +455,7 @@ export const en: Record<string, string> = {
   'shared.verdictDetail': 'Verdict Details',
   'shared.member': 'Member',
   'shared.beFirst': 'Be the first to rate!',
+  'shared.ratingError': 'Failed to submit. Please try again.',
   'shared.editVerdict': 'Edit my verdict',
   'shared.submitVerdict': 'Submit my verdict',
   'shared.iWantToSee': 'I WANT TO SEE IT',

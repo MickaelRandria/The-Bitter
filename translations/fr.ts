@@ -455,6 +455,7 @@ export const fr: Record<string, string> = {
   'shared.verdictDetail': 'Détail des Verdicts',
   'shared.member': 'Membre',
   'shared.beFirst': 'Soyez le premier à noter !',
+  'shared.ratingError': "Erreur lors de l'envoi. Réessaie.",
   'shared.editVerdict': 'Éditer mon verdict',
   'shared.submitVerdict': 'Déposer mon verdict',
   'shared.iWantToSee': 'JE VEUX LE VOIR',

@@ -339,39 +339,24 @@ export async function upsertMovieRating(
     review?: string;
   }
 ): Promise<MovieRating | null> {
-  console.log('[DEBUG] upsertMovieRating called');
-  console.log('[DEBUG] supabase client:', !!supabase);
-  console.log('[DEBUG] movieId:', movieId);
-  console.log('[DEBUG] userId:', userId);
-  console.log('[DEBUG] ratings:', ratings);
-
-  if (!supabase) {
-    console.error('[DEBUG] supabase est null — client non initialisé');
-    return null;
-  }
-
-  const payload = {
-    movie_id: movieId,
-    profile_id: userId,
-    ...ratings,
-    updated_at: new Date().toISOString(),
-  };
-  console.log('[DEBUG] payload envoyé à Supabase:', payload);
+  if (!supabase) return null;
 
   const { data, error } = await supabase
     .from('movie_ratings')
-    .upsert(payload)
+    .upsert({
+      movie_id: movieId,
+      profile_id: userId,
+      ...ratings,
+      updated_at: new Date().toISOString(),
+    })
     .select()
     .single();
 
-  console.log('[DEBUG] Réponse Supabase — data:', data, '| error:', error);
-
   if (error) {
-    console.error('[DEBUG] Erreur Supabase complète:', JSON.stringify(error, null, 2));
+    console.error('Error upserting rating:', error);
     return null;
   }
 
-  console.log('[DEBUG] upsertMovieRating succès:', data);
   return data;
 }
 
