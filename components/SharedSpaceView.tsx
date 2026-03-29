@@ -306,49 +306,51 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
       {/* Header Capsule */}
       <div className="mb-10 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-2 mb-6">
           <button
             onClick={onBack}
-            className="w-10 h-10 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all"
+            className="shrink-0 w-10 h-10 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all"
           >
             <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
           </button>
-          <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner w-full max-w-[280px] mx-4 transition-colors">
-            <button
-              onClick={() => {
-                haptics.soft();
-                setActiveTab('feed');
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-            >
-              <History size={14} /> {t('shared.tabFeed')}
-            </button>
-            <button
-              onClick={() => {
-                haptics.soft();
-                setActiveTab('watchlist');
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-            >
-              <Bookmark size={14} /> {t('shared.tabWatchlist')}
-              {watchlistMovies.length > 0 && (
-                <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                haptics.soft();
-                setActiveTab('members');
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-            >
-              <Users size={14} /> {t('shared.tabMembers')}
-            </button>
+          <div className="flex-1 overflow-x-auto no-scrollbar">
+            <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner transition-colors min-w-max">
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  setActiveTab('feed');
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <History size={14} /> {t('shared.tabFeed')}
+              </button>
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  setActiveTab('watchlist');
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <Bookmark size={14} /> {t('shared.tabWatchlist')}
+                {watchlistMovies.length > 0 && (
+                  <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  setActiveTab('members');
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <Users size={14} /> {t('shared.tabMembers')}
+              </button>
+            </div>
           </div>
           <button
             onClick={handleLeaveSpace}
             disabled={isLeaving}
-            className="w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-red-500"
+            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-red-500"
           >
             {isLeaving ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
           </button>
