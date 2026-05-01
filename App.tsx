@@ -84,6 +84,7 @@ const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
 const RecommendationsModal = lazy(() => import('./components/RecommendationsModal'));
+const LetterboxdImport = lazy(() => import('./components/LetterboxdImport'));
 
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
@@ -224,6 +225,7 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [showLetterboxdImport, setShowLetterboxdImport] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     title: string;
@@ -1805,6 +1807,35 @@ const App: React.FC = () => {
             onSignOut={handleSignOut}
             onShowTutorial={() => { setShowProfile(false); setShowNewFeatures(true); }}
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
+            onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}
+          />
+        )}
+
+        {showLetterboxdImport && activeProfile && (
+          <LetterboxdImport
+            userId={session?.user?.id || activeProfile.id}
+            onImportMovies={(importedMovies) => {
+              let addedCount = 0;
+              setProfiles((prev) =>
+                prev.map((p) => {
+                  if (p.id !== activeProfileId) return p;
+                  // IDs already in the watched list — can't import again
+                  const watchedTmdbIds = new Set(
+                    p.movies.filter((m) => m.status === 'watched').map((m) => m.tmdbId).filter(Boolean)
+                  );
+                  const newMovies = importedMovies.filter((m) => !m.tmdbId || !watchedTmdbIds.has(m.tmdbId));
+                  addedCount = newMovies.length;
+                  // Remove from watchlist any movie now being imported as watched
+                  const importedTmdbIds = new Set(newMovies.map((m) => m.tmdbId).filter(Boolean));
+                  const remainingMovies = p.movies.filter(
+                    (m) => m.status !== 'watchlist' || !m.tmdbId || !importedTmdbIds.has(m.tmdbId)
+                  );
+                  return { ...p, movies: [...newMovies, ...remainingMovies] };
+                })
+              );
+              setToastMessage(`${addedCount} film${addedCount !== 1 ? 's' : ''} importé${addedCount !== 1 ? 's' : ''} depuis Letterboxd !`);
+            }}
+            onClose={() => setShowLetterboxdImport(false)}
           />
         )}
       </Suspense>

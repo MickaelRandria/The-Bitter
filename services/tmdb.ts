@@ -253,6 +253,29 @@ export const getHiddenGems = async (
   }
 };
 
+export async function searchMovieForImport(title: string, year?: string): Promise<MovieFormData | null> {
+  try {
+    let url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=fr-FR`;
+    if (year) url += `&year=${year}`;
+
+    let res = await fetch(url);
+    let data = await res.json();
+
+    // Retry without year if no results
+    if (!data.results?.length && year) {
+      res = await fetch(
+        `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=fr-FR`
+      );
+      data = await res.json();
+    }
+
+    if (!data.results?.length) return null;
+    return await getMovieDetailsForAdd(data.results[0].id);
+  } catch {
+    return null;
+  }
+}
+
 export const getSharedMovieDetails = async (tmdbId: number): Promise<{
   synopsis?: string;
   runtime?: number;

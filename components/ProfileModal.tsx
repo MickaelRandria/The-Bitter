@@ -40,6 +40,7 @@ interface ProfileModalProps {
   onShowTutorial: () => void;
   onSignOut: () => void;
   onOpenSpaces: () => void;
+  onLetterboxdImport?: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -70,6 +71,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onShowTutorial,
   onSignOut,
   onOpenSpaces,
+  onLetterboxdImport,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
@@ -488,6 +490,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </span>
               </div>
             </button>
+
+            {onLetterboxdImport && (
+              <button
+                onClick={() => { haptics.soft(); onLetterboxdImport(); }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#00d735]/10 hover:bg-[#00d735]/20 border border-[#00d735]/30 transition-colors group"
+              >
+                <img
+                  src="/icons/letterboxd.jpeg"
+                  alt="Letterboxd"
+                  className="w-8 h-8 rounded-lg shrink-0 group-hover:scale-105 transition-transform shadow-sm"
+                />
+                <div className="text-left">
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
+                    Importer depuis Letterboxd
+                  </span>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                    Importe ton watched.csv
+                  </span>
+                </div>
+              </button>
+            )}
 
             {session && (
               <button
