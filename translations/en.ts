@@ -17,6 +17,7 @@ export const en: Record<string, string> = {
   'auth.signup': 'Sign Up',
   'auth.recovery': 'Recovery',
   'auth.authentication': 'Authentication',
+  'auth.tagline': 'Required only for Shared Spaces',
   'auth.email': 'Email',
   'auth.password': 'Password',
   'auth.firstName': 'First Name',

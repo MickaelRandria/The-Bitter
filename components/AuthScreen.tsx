@@ -229,11 +229,35 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
               <span className="text-forest">Bitter</span>
             </h1>
             <p className="text-stone-400 font-bold text-[10px] uppercase tracking-[0.3em] opacity-80">
-              {authMode === 'forgot' ? t('auth.recovery') : t('auth.authentication')}
+              {authMode === 'forgot' ? t('auth.recovery') : t('auth.tagline')}
             </p>
           </div>
 
           <div className="w-full space-y-5 animate-[fadeIn_0.5s_ease-out]">
+            {authMode !== 'forgot' && (
+              <div className="w-full space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 bg-forest/8 dark:bg-forest/10 rounded-[1.25rem] text-center">
+                    <Globe size={15} className="text-forest" strokeWidth={2} />
+                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">Avec compte</p>
+                    <p className="text-[9px] text-stone-400 leading-tight">Accès aux<br />Espaces Partagés</p>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 bg-stone-100/80 dark:bg-white/5 rounded-[1.25rem] text-center">
+                    <Smartphone size={15} className="text-stone-400 dark:text-stone-500" strokeWidth={2} />
+                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">Sans compte</p>
+                    <p className="text-[9px] text-stone-400 leading-tight">Expérience identique<br />sauf espaces partagés</p>
+                  </div>
+                </div>
+                <div className="w-full px-4 py-3 bg-stone-100/60 dark:bg-white/5 rounded-[1.25rem] flex items-start gap-2.5">
+                  <Globe size={13} className="text-forest shrink-0 mt-0.5" strokeWidth={2} />
+                  <p className="text-[9px] text-stone-400 leading-relaxed">
+                    <span className="font-black text-charcoal dark:text-stone-300">Espace Partagé : </span>
+                    un groupe où tu regardes et notes des films avec tes amis. Votes, verdicts communs, liste de films à voir ensemble.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {authMode === 'forgot' && (
               <button
                 type="button"
@@ -372,10 +396,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
               <button
                 type="button"
                 onClick={() => { haptics.medium(); onContinueAsGuest(); }}
-                className="w-full bg-white dark:bg-white/5 text-stone-500 dark:text-stone-400 border-2 border-sand dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20 hover:text-charcoal dark:hover:text-white py-5 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-3"
+                className="w-full bg-white dark:bg-white/5 text-stone-500 dark:text-stone-400 border-2 border-sand dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20 hover:text-charcoal dark:hover:text-white py-5 px-6 rounded-[2rem] transition-all active:scale-95 flex items-center gap-4"
               >
-                <Ghost size={16} />
-                {t('auth.guestMode')}
+                <Ghost size={18} className="shrink-0" />
+                <div className="text-left">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.2em]">{t('auth.guestMode')}</span>
+                  <span className="block text-[9px] font-medium text-stone-400 mt-0.5">Crée un profil local · 100% privé</span>
+                </div>
               </button>
             )}
           </div>

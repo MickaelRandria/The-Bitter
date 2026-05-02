@@ -17,6 +17,7 @@ export const fr: Record<string, string> = {
   'auth.signup': "Inscription",
   'auth.recovery': 'Récupération',
   'auth.authentication': 'Authentification',
+  'auth.tagline': 'Requis uniquement pour les Espaces Partagés',
   'auth.email': 'Email',
   'auth.password': 'Mot de passe',
   'auth.firstName': 'Prénom',
