@@ -54,6 +54,8 @@ export interface SharedMovie {
   added_at: string;
   added_by_profile?: {
     first_name: string;
+    last_name?: string;
+    avatar_url?: string;
   };
   media_type?: 'movie' | 'tv';
   number_of_seasons?: number;
@@ -196,7 +198,7 @@ export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
     .select(
       `
       *,
-      added_by_profile:profiles!added_by(first_name, last_name)
+      added_by_profile:profiles!added_by(first_name, last_name, avatar_url)
     `
     )
     .eq('space_id', spaceId)
@@ -207,7 +209,10 @@ export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
     return [];
   }
 
-  return data || [];
+  return (data || []).map((movie: any) => ({
+    ...movie,
+    genres: movie.genres?.length ? movie.genres : (movie.genre ? movie.genre.split(', ') : []),
+  })) as SharedMovie[];
 }
 
 /**
