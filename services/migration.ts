@@ -119,6 +119,20 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
+export async function resyncAllMoviesToSupabase(userId: string): Promise<void> {
+  if (!supabase) return;
+  const profilesRaw = localStorage.getItem(PROFILES_STORAGE_KEY);
+  if (!profilesRaw) return;
+  const profiles: UserProfile[] = JSON.parse(profilesRaw);
+  const profile = profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]);
+  if (!profile || profile.movies.length === 0) return;
+  const withTmdbId = profile.movies.filter((m) => m.tmdbId);
+  if (withTmdbId.length === 0) return;
+  await supabase
+    .from('user_movies')
+    .upsert(withTmdbId.map((m) => movieToRow(m, userId)), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+}
+
 export async function syncMovieToSupabase(userId: string, movie: Movie): Promise<void> {
   if (!supabase || !movie.tmdbId) return;
   await supabase
