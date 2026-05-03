@@ -119,12 +119,14 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
-export async function resyncAllMoviesToSupabase(userId: string): Promise<void> {
+export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?: string): Promise<void> {
   if (!supabase) return;
   const profilesRaw = localStorage.getItem(PROFILES_STORAGE_KEY);
   if (!profilesRaw) return;
   const profiles: UserProfile[] = JSON.parse(profilesRaw);
-  const profile = profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]);
+  const profile = linkedProfileId
+    ? (profiles.find((p) => p.id === linkedProfileId) ?? profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]))
+    : profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]);
   if (!profile || profile.movies.length === 0) return;
   const withTmdbId = profile.movies.filter((m) => m.tmdbId);
   if (withTmdbId.length === 0) return;

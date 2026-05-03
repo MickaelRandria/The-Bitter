@@ -68,6 +68,7 @@ import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
 import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
+import ProfileLinkingModal from './components/ProfileLinkingModal';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -177,11 +178,13 @@ const App: React.FC = () => {
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
   const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';
   const SEEN_TOOLTIPS_KEY = 'the_bitter_seen_tooltips';
+  const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
   const [session, setSession] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showProfileLinking, setShowProfileLinking] = useState(false);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
@@ -478,7 +481,17 @@ const App: React.FC = () => {
         await loadOrCreateProfile(session.user);
         const result = await migrateLocalStorageToSupabase(session.user.id);
         console.log('[Migration]', result);
-        resyncAllMoviesToSupabase(session.user.id);
+        const linkedId = localStorage.getItem(linkedProfileKey(session.user.id)) ?? undefined;
+        resyncAllMoviesToSupabase(session.user.id, linkedId);
+        if (!linkedId) {
+          const localProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+          if (localProfiles.length === 1) {
+            localStorage.setItem(linkedProfileKey(session.user.id), localProfiles[0].id);
+            resyncAllMoviesToSupabase(session.user.id, localProfiles[0].id);
+          } else if (localProfiles.length > 1) {
+            setShowProfileLinking(true);
+          }
+        }
       }
     });
 
@@ -492,7 +505,17 @@ const App: React.FC = () => {
         await loadOrCreateProfile(session.user);
         const result = await migrateLocalStorageToSupabase(session.user.id);
         console.log('[Migration]', result);
-        resyncAllMoviesToSupabase(session.user.id);
+        const linkedId = localStorage.getItem(linkedProfileKey(session.user.id)) ?? undefined;
+        resyncAllMoviesToSupabase(session.user.id, linkedId);
+        if (!linkedId) {
+          const localProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+          if (localProfiles.length === 1) {
+            localStorage.setItem(linkedProfileKey(session.user.id), localProfiles[0].id);
+            resyncAllMoviesToSupabase(session.user.id, localProfiles[0].id);
+          } else if (localProfiles.length > 1) {
+            setShowProfileLinking(true);
+          }
+        }
       }
 
       if (event === 'SIGNED_OUT') {
@@ -643,6 +666,13 @@ const App: React.FC = () => {
     setIsModalOpen(false);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
+  };
+
+  const handleLinkProfile = (profileId: string) => {
+    if (!session?.user?.id) return;
+    localStorage.setItem(linkedProfileKey(session.user.id), profileId);
+    resyncAllMoviesToSupabase(session.user.id, profileId);
+    setShowProfileLinking(false);
   };
 
   const handleUpdateTmdbRating = (movieId: string, newRating: number) => {
@@ -1891,6 +1921,14 @@ const App: React.FC = () => {
       )}
 
       <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
+
+      {showProfileLinking && session && (
+        <ProfileLinkingModal
+          profiles={profiles}
+          onLink={handleLinkProfile}
+          onSkip={() => setShowProfileLinking(false)}
+        />
+      )}
     </div>
   );
 };
