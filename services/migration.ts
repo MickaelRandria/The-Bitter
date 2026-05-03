@@ -119,6 +119,13 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
+export async function syncMovieToSupabase(userId: string, movie: Movie): Promise<void> {
+  if (!supabase || !movie.tmdbId) return;
+  await supabase
+    .from('user_movies')
+    .upsert(movieToRow(movie, userId), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+}
+
 export function resetMigrationFlag(userId: string) {
   localStorage.removeItem(`migration_completed_${userId}`);
 }

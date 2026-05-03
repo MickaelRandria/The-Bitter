@@ -42,7 +42,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } fro
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
-import { migrateLocalStorageToSupabase } from './services/migration';
+import { migrateLocalStorageToSupabase, syncMovieToSupabase } from './services/migration';
 import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
@@ -640,6 +640,7 @@ const App: React.FC = () => {
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
+    if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
   };
 
   const handleUpdateTmdbRating = (movieId: string, newRating: number) => {
