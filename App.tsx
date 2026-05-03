@@ -668,11 +668,12 @@ const App: React.FC = () => {
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
   };
 
-  const handleLinkProfile = (profileId: string) => {
+  const handleLinkProfile = async (profileId: string) => {
     if (!session?.user?.id) return;
     localStorage.setItem(linkedProfileKey(session.user.id), profileId);
-    resyncAllMoviesToSupabase(session.user.id, profileId);
     setShowProfileLinking(false);
+    const count = await resyncAllMoviesToSupabase(session.user.id, profileId);
+    if (count > 0) setToastMessage(`${count} film${count > 1 ? 's' : ''} synchronisé${count > 1 ? 's' : ''} avec ton compte`);
   };
 
   const handleUpdateTmdbRating = (movieId: string, newRating: number) => {

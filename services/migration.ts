@@ -119,20 +119,26 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
-export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?: string): Promise<void> {
-  if (!supabase) return;
+export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?: string): Promise<number> {
+  if (!supabase) { console.warn('[Resync] supabase not initialized'); return 0; }
   const profilesRaw = localStorage.getItem(PROFILES_STORAGE_KEY);
-  if (!profilesRaw) return;
+  if (!profilesRaw) { console.warn('[Resync] no profiles in localStorage'); return 0; }
   const profiles: UserProfile[] = JSON.parse(profilesRaw);
+  console.log(`[Resync] ${profiles.length} profil(s) trouvé(s) en localStorage, linkedProfileId=${linkedProfileId}`);
   const profile = linkedProfileId
     ? (profiles.find((p) => p.id === linkedProfileId) ?? profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]))
     : profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]);
-  if (!profile || profile.movies.length === 0) return;
-  const withTmdbId = profile.movies.filter((m) => m.tmdbId);
-  if (withTmdbId.length === 0) return;
-  await supabase
+  if (!profile) { console.warn('[Resync] aucun profil trouvé'); return 0; }
+  console.log(`[Resync] profil sélectionné: ${profile.firstName}, ${profile.movies.length} film(s) total`);
+  const withTmdbId = profile.movies.filter((m) => m.tmdbId != null);
+  console.log(`[Resync] ${withTmdbId.length} film(s) avec tmdbId à upserter`);
+  if (withTmdbId.length === 0) return 0;
+  const { error } = await supabase
     .from('user_movies')
     .upsert(withTmdbId.map((m) => movieToRow(m, userId)), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+  if (error) { console.error('[Resync] erreur upsert:', error); return 0; }
+  console.log(`[Resync] ✓ ${withTmdbId.length} film(s) synchronisés pour userId=${userId}`);
+  return withTmdbId.length;
 }
 
 export async function syncMovieToSupabase(userId: string, movie: Movie): Promise<void> {
