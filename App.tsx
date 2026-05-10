@@ -43,7 +43,9 @@ import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
 import { migrateLocalStorageToSupabase, syncMovieToSupabase, resyncAllMoviesToSupabase } from './services/migration';
-import { Movie, MovieFormData, MovieStatus, UserProfile } from './types';
+import { Movie, MovieFormData, MovieStatus, MovieWatch, UserProfile } from './types';
+import RewatchModal from './components/RewatchModal';
+import { MovieDisplayMode } from './utils/movieDisplay';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
 import { getAdvancedArchetype } from './utils/archetypes';
@@ -237,6 +239,7 @@ const App: React.FC = () => {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<{
     id: string;
@@ -248,6 +251,7 @@ const App: React.FC = () => {
     () => profiles.find((p) => p.id === activeProfileId) || null,
     [profiles, activeProfileId]
   );
+
 
   useEffect(() => {
     const savedProfiles = localStorage.getItem(STORAGE_KEY);
@@ -284,6 +288,43 @@ const App: React.FC = () => {
         if (import.meta.env.DEV) console.error('Error loading tooltips', e);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    setProfiles((prev) =>
+      prev.map((profile) => ({
+        ...profile,
+        movies: profile.movies.map((movie) => {
+          if (movie.status === 'watched' && !movie.watches) {
+            const avg =
+              (movie.ratings.story +
+                movie.ratings.visuals +
+                movie.ratings.acting +
+                movie.ratings.sound) /
+              4;
+            return {
+              ...movie,
+              watches: [
+                {
+                  id: crypto.randomUUID(),
+                  watch_number: 1,
+                  watched_at: movie.dateWatched
+                    ? new Date(movie.dateWatched).toISOString()
+                    : new Date(movie.dateAdded).toISOString(),
+                  ratings: movie.ratings,
+                  review: movie.review || undefined,
+                },
+              ],
+              watch_count: 1,
+              first_rating: avg,
+              current_rating: avg,
+              avg_rating: avg,
+            };
+          }
+          return movie;
+        }),
+      }))
+    );
   }, []);
 
   useEffect(() => {
@@ -777,6 +818,53 @@ const App: React.FC = () => {
     // Pré-remplir le film avec status 'watched' pour forcer l'onglet "Vu"
     setEditingMovie({ ...movie, status: 'watched' });
     setIsModalOpen(true);
+  };
+
+  const handleToggleMovieDisplayMode = (movieId: string, mode: MovieDisplayMode) => {
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id !== activeProfileId
+          ? p
+          : {
+              ...p,
+              movies: p.movies.map((m) =>
+                m.id === movieId ? { ...m, preferred_display_mode: mode } : m
+              ),
+            }
+      )
+    );
+  };
+
+  const handleSaveRewatch = (watch: MovieWatch) => {
+    if (!rewatchMovie || !activeProfileId) return;
+    setProfiles((prev) =>
+      prev.map((profile) => {
+        if (profile.id !== activeProfileId) return profile;
+        return {
+          ...profile,
+          movies: profile.movies.map((movie) => {
+            if (movie.id !== rewatchMovie.id) return movie;
+            const existingWatches = movie.watches ?? [];
+            const updatedWatches = [...existingWatches, watch];
+            const avgs = updatedWatches.map(
+              (w) => (w.ratings.story + w.ratings.visuals + w.ratings.acting + w.ratings.sound) / 4
+            );
+            return {
+              ...movie,
+              watches: updatedWatches,
+              watch_count: updatedWatches.length,
+              ratings: watch.ratings,
+              dateWatched: new Date(watch.watched_at).getTime(),
+              first_rating: avgs[0],
+              current_rating: avgs[avgs.length - 1],
+              avg_rating: avgs.reduce((a, b) => a + b, 0) / avgs.length,
+            };
+          }),
+        };
+      })
+    );
+    setToastMessage('Rewatch enregistré !');
+    setRewatchMovie(null);
   };
 
   const watchlistGenres = useMemo(() => {
@@ -1606,6 +1694,8 @@ const App: React.FC = () => {
                             setPreviewMediaType(type);
                           }}
                           onViewDirector={(name, id) => setPreviewDirector({ name, id })}
+                          onRewatch={(m) => setRewatchMovie(m)}
+                          onToggleDisplayMode={handleToggleMovieDisplayMode}
                         />
                       ))}
                       {visibleMovies.length < filteredAndSortedMovies.length && (
@@ -1693,6 +1783,13 @@ const App: React.FC = () => {
               setShowNewFeatures(false);
               localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version);
             }}
+          />
+        )}
+        {rewatchMovie && (
+          <RewatchModal
+            movie={rewatchMovie}
+            onClose={() => setRewatchMovie(null)}
+            onSave={handleSaveRewatch}
           />
         )}
         {isModalOpen && (

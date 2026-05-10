@@ -1,6 +1,8 @@
 import React, { useState, memo, useRef } from 'react';
 import { Movie } from '../types';
-import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info } from 'lucide-react';
+import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw } from 'lucide-react';
+import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
+import MovieRatingToggle from './MovieRatingToggle';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
 import { haptics } from '../utils/haptics';
 
@@ -12,6 +14,8 @@ interface MovieCardProps {
   onMarkAsWatched: (movie: Movie) => void;
   onViewDetails?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
   onViewDirector?: (name: string, id?: number) => void;
+  onRewatch?: (movie: Movie) => void;
+  onToggleDisplayMode?: (movieId: string, mode: MovieDisplayMode) => void;
 }
 
 const RatingBar = ({
@@ -24,40 +28,46 @@ const RatingBar = ({
   value: number;
   hasPoster: boolean;
   isExpanded: boolean;
-}) => {
-  return (
-    <div className="flex items-center gap-4 mb-4 group/bar">
-      <span
-        className={`text-[9px] font-black uppercase w-20 tracking-widest ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
-      >
-        {label}
-      </span>
+}) => (
+  <div className="flex items-center gap-4 mb-4 group/bar">
+    <span
+      className={`text-[9px] font-black uppercase w-20 tracking-widest ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
+    >
+      {label}
+    </span>
+    <div
+      className={`flex-1 h-1.5 rounded-full overflow-hidden ${hasPoster ? 'bg-white/10' : 'bg-stone-100 dark:bg-white/5'}`}
+    >
       <div
-        className={`flex-1 h-1.5 rounded-full overflow-hidden ${hasPoster ? 'bg-white/10' : 'bg-stone-100 dark:bg-white/5'}`}
-      >
-        <div
-          className={`h-full rounded-full ${hasPoster ? 'bg-white' : 'bg-charcoal dark:bg-white'}`}
-          style={{
-            width: isExpanded ? `${value * 10}%` : '0%',
-            transition: 'width 500ms cubic-bezier(0.16, 1, 0.3, 1)',
-            willChange: isExpanded ? 'width' : 'auto',
-          }}
-        />
-      </div>
-      <span
-        className={`text-[10px] font-black w-6 text-right ${hasPoster ? 'text-white' : 'text-charcoal dark:text-white'}`}
-      >
-        {value}
-      </span>
+        className={`h-full rounded-full ${hasPoster ? 'bg-white' : 'bg-charcoal dark:bg-white'}`}
+        style={{
+          width: isExpanded ? `${value * 10}%` : '0%',
+          transition: 'width 500ms cubic-bezier(0.16, 1, 0.3, 1)',
+          willChange: isExpanded ? 'width' : 'auto',
+        }}
+      />
     </div>
-  );
-};
+    <span
+      className={`text-[10px] font-black w-6 text-right ${hasPoster ? 'text-white' : 'text-charcoal dark:text-white'}`}
+    >
+      {value}
+    </span>
+  </div>
+);
 
 const MovieCard: React.FC<MovieCardProps> = memo(
-  ({ movie, index, onDelete, onEdit, onMarkAsWatched, onViewDetails, onViewDirector }) => {
+  ({
+    movie,
+    index,
+    onDelete,
+    onEdit,
+    onMarkAsWatched,
+    onViewDetails,
+    onViewDirector,
+    onRewatch,
+    onToggleDisplayMode,
+  }) => {
     const [isExpanded, setIsExpanded] = useState(false);
-
-    // Swipe State
     const [swipeX, setSwipeX] = useState(0);
     const [isSwiping, setIsSwiping] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -66,14 +76,13 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
     if (!movie?.ratings) return null;
 
-    const globalRatingRaw =
-      (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) /
-      4;
-    const globalRating = globalRatingRaw.toFixed(1);
+    const displayRating = getMovieDisplayRating(movie);
+    const globalRating = displayRating.toFixed(1);
+    const displayRatings = getDisplayRatings(movie);
+    const hasRewatches = (movie.watch_count ?? 1) > 1;
     const hasPoster = !!movie.posterUrl;
     const isWatchlist = movie.status === 'watchlist';
     const baseHeight = index % 3 === 0 ? 'h-80' : 'h-64';
-
     const isTv = movie.mediaType === 'tv';
 
     const SWIPE_THRESHOLD = 80;
@@ -88,26 +97,18 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
     const handleTouchMove = (e: React.TouchEvent) => {
       if (!touchStartRef.current) return;
-
       const deltaX = e.touches[0].clientX - touchStartRef.current.x;
       const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-
       if (Math.abs(deltaY) > Math.abs(deltaX) && !isSwiping) return;
-
-      if (Math.abs(deltaX) > 10) {
-        setIsSwiping(true);
-      }
-
+      if (Math.abs(deltaX) > 10) setIsSwiping(true);
       const maxSwipe = 120;
-      const clampedX = Math.max(-maxSwipe, Math.min(maxSwipe, deltaX));
-      setSwipeX(clampedX);
+      setSwipeX(Math.max(-maxSwipe, Math.min(maxSwipe, deltaX)));
     };
 
     const handleTouchEnd = () => {
       if (!touchStartRef.current) return;
-
       if (swipeX < -SWIPE_THRESHOLD) {
-        setSwipeX(-SWIPE_THRESHOLD - 20); // slight over-pull for spring effect
+        setSwipeX(-SWIPE_THRESHOLD - 20);
         setShowDeleteConfirm(true);
       } else if (swipeX > SWIPE_THRESHOLD) {
         setSwipeX(0);
@@ -117,7 +118,6 @@ const MovieCard: React.FC<MovieCardProps> = memo(
         setSwipeX(0);
         setShowDeleteConfirm(false);
       }
-
       setTimeout(() => setIsSwiping(false), 50);
       touchStartRef.current = null;
     };
@@ -139,16 +139,15 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const editProgress = Math.min(1, Math.max(0, swipeX / SWIPE_THRESHOLD));
 
     const cardClasses = `
-    relative rounded-[2.5rem] p-8 flex flex-col transition-[transform,box-shadow,height,background-color] duration-300 w-full overflow-hidden cursor-pointer group/card
-    ${isExpanded ? 'shadow-2xl z-20 scale-[1.01] h-auto' : `shadow-lg hover:shadow-xl hover:-translate-y-2 ${baseHeight}`}
-    ${hasPoster ? 'text-white bg-[#0c0c0c]' : 'text-charcoal dark:text-white bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5'}
-  `;
+      relative rounded-[2.5rem] p-8 flex flex-col transition-[transform,box-shadow,height,background-color] duration-300 w-full overflow-hidden cursor-pointer group/card
+      ${isExpanded ? 'shadow-2xl z-20 scale-[1.01] h-auto' : `shadow-lg hover:shadow-xl hover:-translate-y-2 ${baseHeight}`}
+      ${hasPoster ? 'text-white bg-[#0c0c0c]' : 'text-charcoal dark:text-white bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5'}
+    `;
 
     return (
       <div className="relative overflow-hidden rounded-[2.5rem]" ref={cardRef}>
         {/* Actions révélées */}
         <div className="absolute inset-0 flex rounded-[2.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616]">
-          {/* Edit Action (Left) */}
           <div
             className="absolute left-0 top-0 bottom-0 flex items-center justify-center bg-white dark:bg-[#202020] border-r border-stone-100 dark:border-white/5"
             style={{ width: SWIPE_THRESHOLD, opacity: editProgress }}
@@ -163,12 +162,10 @@ const MovieCard: React.FC<MovieCardProps> = memo(
               </span>
             </div>
           </div>
-
-          {/* Delete Action (Right) */}
           <div
             className="absolute right-0 top-0 bottom-0 flex items-center justify-center transition-colors"
             style={{
-              width: SWIPE_THRESHOLD + 20, // Match the over-pull
+              width: SWIPE_THRESHOLD + 20,
               backgroundColor: showDeleteConfirm
                 ? '#dc2626'
                 : `rgba(239, 68, 68, ${deleteProgress})`,
@@ -208,22 +205,21 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             transform: `translateX(${swipeX}px)`,
-            transition: isSwiping ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1)', // Spring animation
+            transition: isSwiping ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1)',
             willChange: 'transform',
           }}
         >
-          {/* Overlay spécifique Dark Mode pour améliorer le contraste des posters */}
           {hasPoster && (
             <div className="absolute inset-0 bg-black/20 dark:bg-black/40 opacity-100 transition-colors pointer-events-none" />
           )}
 
+          {/* Top row */}
           <div className="relative z-10 flex justify-between items-start mb-4">
             <span
               className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-current/20 transition-colors duration-200 ${hasPoster ? 'bg-black/60' : 'bg-stone-50 dark:bg-[#161616]'}`}
             >
               {movie.genre}
             </span>
-
             <div className="flex items-center gap-2">
               {movie.tmdbId && onViewDetails && (
                 <button
@@ -260,6 +256,13 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                   <div className="flex items-center gap-1.5">
                     <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
                     <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
+                    {hasRewatches && (
+                      <span
+                        className={`text-[7px] font-black uppercase tracking-wider ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-600'}`}
+                      >
+                        {(movie.preferred_display_mode ?? 'average') === 'latest' ? 'DER' : 'MOY'}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -276,6 +279,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             </div>
           </div>
 
+          {/* Title + meta */}
           <div
             className={`relative z-10 transition-[margin,transform] duration-300 ${isExpanded ? 'mb-6' : 'mt-auto'}`}
           >
@@ -316,6 +320,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             </div>
           </div>
 
+          {/* Expanded section */}
           <div
             className={`relative z-10 grid transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'}`}
             style={{ willChange: 'opacity, transform' }}
@@ -325,44 +330,35 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 <div
                   className={`rounded-[2rem] p-6 mb-6 border transition-colors duration-200 ${hasPoster ? 'bg-[#0c0c0c] border-white/10' : 'bg-stone-50 dark:bg-[#0c0c0c] border-stone-100 dark:border-white/5'}`}
                 >
+                  {/* Section header */}
                   <div className="flex justify-between items-center mb-6">
                     <span
                       className={`text-[10px] font-black uppercase tracking-[0.2em] ${hasPoster ? 'text-white/30' : 'text-stone-300 dark:text-stone-700'}`}
                     >
                       Analyse Sensorielle
                     </span>
-                    {movie.smartphoneFactor && movie.smartphoneFactor > 0 && (
-                      <div className="flex items-center gap-2 bg-red-500/20 text-red-500 px-3 py-1 rounded-lg">
-                        <Smartphone size={12} />
-                        <span className="text-[10px] font-black">{movie.smartphoneFactor}%</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {hasRewatches && onToggleDisplayMode && (
+                        <MovieRatingToggle
+                          movie={movie}
+                          onToggle={onToggleDisplayMode}
+                          variant={hasPoster ? 'dark' : 'default'}
+                          compact
+                        />
+                      )}
+                      {movie.smartphoneFactor && movie.smartphoneFactor > 0 && (
+                        <div className="flex items-center gap-1.5 bg-red-500/20 text-red-500 px-2.5 py-1 rounded-lg">
+                          <Smartphone size={11} />
+                          <span className="text-[9px] font-black">{movie.smartphoneFactor}%</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <RatingBar
-                    label="Écriture"
-                    value={movie.ratings.story}
-                    hasPoster={hasPoster}
-                    isExpanded={isExpanded}
-                  />
-                  <RatingBar
-                    label="Esthétique"
-                    value={movie.ratings.visuals}
-                    hasPoster={hasPoster}
-                    isExpanded={isExpanded}
-                  />
-                  <RatingBar
-                    label="Interprétation"
-                    value={movie.ratings.acting}
-                    hasPoster={hasPoster}
-                    isExpanded={isExpanded}
-                  />
-                  <RatingBar
-                    label="Univers Sonore"
-                    value={movie.ratings.sound}
-                    hasPoster={hasPoster}
-                    isExpanded={isExpanded}
-                  />
+                  <RatingBar label="Écriture" value={displayRatings.story} hasPoster={hasPoster} isExpanded={isExpanded} />
+                  <RatingBar label="Esthétique" value={displayRatings.visuals} hasPoster={hasPoster} isExpanded={isExpanded} />
+                  <RatingBar label="Interprétation" value={displayRatings.acting} hasPoster={hasPoster} isExpanded={isExpanded} />
+                  <RatingBar label="Univers Sonore" value={displayRatings.sound} hasPoster={hasPoster} isExpanded={isExpanded} />
                 </div>
               )}
 
@@ -401,7 +397,28 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 )
               )}
 
-              <div className="flex gap-3 mt-4 pb-4">
+              {/* Actions */}
+              <div className="flex gap-3 mt-2 pb-4 flex-wrap">
+                {!isWatchlist && onRewatch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRewatch(movie);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border ${hasPoster ? 'bg-white/10 text-white border-white/10 hover:bg-white/20' : 'bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white border-stone-200 dark:border-white/10 hover:bg-stone-200 dark:hover:bg-[#303030]'}`}
+                  >
+                    <RotateCw size={12} strokeWidth={2.5} />
+                    <span>Rewatch</span>
+                    {hasRewatches && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${hasPoster ? 'bg-white/20 text-white' : 'bg-stone-300 dark:bg-white/20 text-charcoal dark:text-white'}`}
+                      >
+                        ×{movie.watch_count}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 {!isWatchlist && <ShareStoryButtonSimple movie={movie} />}
 
                 {isWatchlist && (
@@ -445,7 +462,6 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             </div>
           )}
 
-          {/* Swipe hint — visible uniquement si la carte n'a pas encore été swipée */}
           {!isExpanded && swipeX === 0 && !showDeleteConfirm && (
             <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div

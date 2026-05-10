@@ -31,6 +31,17 @@ export interface VibeCriteria {
   tension: number;
 }
 
+export type RewatchSentiment = 'better' | 'same' | 'worse' | 'disappointed' | 'discovered' | 'nostalgic';
+
+export interface MovieWatch {
+  id: string;
+  watch_number: number;
+  watched_at: string;
+  ratings: RatingCriteria;
+  review?: string;
+  sentiment?: RewatchSentiment;
+}
+
 export interface Movie {
   id: string;
   tmdbId?: number;
@@ -63,6 +74,13 @@ export interface Movie {
   // Nouveaux champs pour Séries TV
   mediaType?: 'movie' | 'tv';
   numberOfSeasons?: number;
+  // Système rewatch
+  watch_count?: number;
+  watches?: MovieWatch[];
+  first_rating?: number;
+  current_rating?: number;
+  avg_rating?: number;
+  preferred_display_mode?: 'latest' | 'average';
 }
 
 export interface UserProfile {
