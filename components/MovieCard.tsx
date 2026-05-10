@@ -398,14 +398,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 mt-2 pb-4 flex-wrap">
+              <div className="grid grid-cols-2 gap-3 mt-2 pb-4">
                 {!isWatchlist && onRewatch && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onRewatch(movie);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border ${hasPoster ? 'bg-white/10 text-white border-white/10 hover:bg-white/20' : 'bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white border-stone-200 dark:border-white/10 hover:bg-stone-200 dark:hover:bg-[#303030]'}`}
+                    className={`flex items-center justify-center gap-1.5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border ${hasPoster ? 'bg-white/10 text-white border-white/10 hover:bg-white/20' : 'bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white border-stone-200 dark:border-white/10 hover:bg-stone-200 dark:hover:bg-[#303030]'}`}
                   >
                     <RotateCw size={12} strokeWidth={2.5} />
                     <span>Rewatch</span>
@@ -427,7 +427,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                       e.stopPropagation();
                       onMarkAsWatched(movie);
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-forest text-white active:scale-95 transition-all shadow-lg shadow-forest/20"
+                    className="flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-forest text-white active:scale-95 transition-all shadow-lg shadow-forest/20"
                   >
                     <Play size={14} fill="currentColor" /> J'ai vu ça
                   </button>
@@ -438,7 +438,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                     e.stopPropagation();
                     onEdit(movie);
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white dark:bg-[#202020] text-charcoal dark:text-white active:scale-95 transition-all shadow-lg border dark:border-white/5"
+                  className="flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white dark:bg-[#202020] text-charcoal dark:text-white active:scale-95 transition-all shadow-lg border dark:border-white/5"
                 >
                   <Pencil size={14} /> Éditer
                 </button>
@@ -448,9 +448,9 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                     e.stopPropagation();
                     onDelete(movie.id);
                   }}
-                  className="p-4 rounded-2xl bg-white/10 dark:bg-white/5 text-white border border-white/20 dark:border-white/5 active:scale-90 transition-all shadow-lg"
+                  className={`flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-90 border ${hasPoster ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-100 dark:border-red-500/10'}`}
                 >
-                  <Trash2 size={20} />
+                  <Trash2 size={14} /> Supprimer
                 </button>
               </div>
             </div>
