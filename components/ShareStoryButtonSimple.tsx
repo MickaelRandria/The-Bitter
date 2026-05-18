@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Instagram, Loader2, Share2 } from 'lucide-react';
 import { Movie } from '../types';
+import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rating';
 
 interface ShareStoryButtonSimpleProps {
   movie: Movie;
@@ -13,10 +14,9 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 }) => {
   const [isSharing, setIsSharing] = useState(false);
 
-  const globalRating = (
-    (movie.ratings.story + movie.ratings.visuals + movie.ratings.acting + movie.ratings.sound) /
-    4
-  ).toFixed(1);
+  const adaptive = movie.adaptiveRating;
+  const globalRating = getDisplayWeightedRating(movie).toFixed(1);
+  const profileLabel = adaptive?.profile.label;
 
   const generateStoryImage = async (): Promise<string> => {
     // --- CONSTANTES DE DESIGN ---
@@ -122,9 +122,14 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     }
 
     // --- NOUVEAU CALCUL DYNAMIQUE POUR TITLE Y ---
-    // On calcule la hauteur totale que va prendre le bloc (titre + marges + notes = environ 390px fixes)
+    // Hauteur de la zone sous le titre : genre + label + profil + specs (variable selon adaptiveRating)
+    const displayCriteria = getDisplayRatingCriteria(movie);
+    const hasSpecific = displayCriteria.some((c) => c.isSpecific);
+    const specsGap = displayCriteria.length >= 5 ? 56 : 60;
+    const specsBlockHeight = displayCriteria.length * specsGap + (hasSpecific ? 26 : 0);
     const tmdbOffset = movie.tmdbRating && movie.tmdbRating > 0 ? 70 : 0;
-    const totalBlockHeight = lines.length * (fontSize + 10) + 390 + tmdbOffset;
+    // 200 px pour : genre badge (85) + label verdict + profil (62) + marges (~53)
+    const totalBlockHeight = lines.length * (fontSize + 10) + 200 + specsBlockHeight + tmdbOffset;
 
     // On part de la position du footer (CANVAS_H - 250 = 1670)
     // On soustrait la hauteur du bloc, et on enlève 90px pour laisser une belle marge propre au-dessus du footer
@@ -163,16 +168,26 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     ctx.fillText(genreText, MARGIN_X + 30, genreY + 27);
     ctx.textBaseline = 'top';
 
-    // 7. LABEL "MON VERDICT"
+    // 7. LABEL "MON VERDICT" + PROFIL
     const verdictY = genreY + 85;
     ctx.fillStyle = COLOR_TEXT;
     ctx.font = '800 24px "Inter", sans-serif';
-    ctx.letterSpacing = '2px'; // <-- Ajout de l'espacement
+    ctx.letterSpacing = '2px';
     ctx.fillText('MON VERDICT CRITIQUE', MARGIN_X, verdictY);
-    ctx.letterSpacing = '0px'; // <-- Reset obligatoire
+    ctx.letterSpacing = '0px';
+
+    // Petite ligne sous le label "MON VERDICT" : profil utilisé (ou "Notation classique" pour legacy)
+    const profileLineText = profileLabel
+      ? `PROFIL ${profileLabel.toUpperCase()}`
+      : 'NOTATION CLASSIQUE';
+    ctx.fillStyle = COLOR_PRIMARY;
+    ctx.font = '800 16px "Inter", sans-serif';
+    ctx.letterSpacing = '2px';
+    ctx.fillText(profileLineText, MARGIN_X, verdictY + 32);
+    ctx.letterSpacing = '0px';
 
     // 8. NOTE GLOBALE (GAUCHE)
-    const noteY = verdictY + 30;
+    const noteY = verdictY + 60;
     ctx.fillStyle = COLOR_PRIMARY;
 
     const blockX = 630;
@@ -207,51 +222,118 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       ctx.fillText(`\u2605 ${movie.tmdbRating.toFixed(1)}`, MARGIN_X, tmdbY + 26);
     }
 
-    // 9. TECHNICAL SPECS (JAUGES AVEC DÉGRADÉ À DROITE)
+    // 9. CRITÈRES ADAPTATIFS (JAUGES À DROITE)
+    //
+    // Hiérarchie visuelle = importance du critère uniquement (poids du graisse + pips + pastille).
+    // Aucune opacité ne dépend de la valeur de la note : un 3.4 reste aussi lisible qu'un 9.0.
     const specsY = noteY + 15;
-    const blockWidth = CANVAS_W - blockX - MARGIN_X; // Prend l'espace restant jusqu'à la marge droite
-    const gapY = 60;
+    const blockWidth = CANVAS_W - blockX - MARGIN_X;
 
-    const specs = [
-      { label: 'SCRIPT', val: movie.ratings.story },
-      { label: 'ACTING', val: movie.ratings.acting },
-      { label: 'VISUEL', val: movie.ratings.visuals },
-      { label: 'SON', val: movie.ratings.sound },
-    ];
+    // Dessine les pips d'importance (●●●) selon le poids du critère
+    const drawWeightPips = (cx: number, cy: number, weight: number) => {
+      const filled = weight >= 1.7 ? 3 : weight >= 1.3 ? 2 : weight >= 0.9 ? 1 : 0;
+      const pipSize = 5;
+      const pipGap = 4;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(cx + i * (pipSize + pipGap), cy, pipSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = i < filled ? COLOR_PRIMARY : 'rgba(255, 255, 255, 0.2)';
+        ctx.fill();
+      }
+    };
 
-    specs.forEach((spec, i) => {
-      const itemY = specsY + i * gapY;
+    let cursorY = specsY;
+    let firstSpecificRendered = false;
 
-      // Dans la boucle specs.forEach...
+    displayCriteria.forEach((spec) => {
+      // Séparateur léger "CE QUI COMPTE ICI" avant le premier critère spécifique
+      if (spec.isSpecific && !firstSpecificRendered) {
+        firstSpecificRendered = true;
+        ctx.fillStyle = 'rgba(217, 255, 0, 0.35)';
+        ctx.fillRect(blockX, cursorY + 4, 28, 2);
+        ctx.fillStyle = COLOR_PRIMARY;
+        ctx.font = '800 12px "Inter", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.letterSpacing = '2.5px';
+        ctx.fillText('CE QUI COMPTE ICI', blockX + 40, cursorY);
+        ctx.letterSpacing = '0px';
+        cursorY += 26;
+      }
+
+      const itemY = cursorY;
+      const label = spec.label.toUpperCase();
+      const isEssentiel = spec.weightLabel === 'Essentiel';
+      const isImportant = spec.weightLabel === 'Important';
+      const isHighlighted = spec.isHighlighted;
+
+      // Pastille lime à gauche pour Essentiel / Important (importance, pas valeur)
+      if (isHighlighted) {
+        const dotSize = isEssentiel ? 8 : 6;
+        ctx.fillStyle = isEssentiel ? COLOR_PRIMARY : 'rgba(217, 255, 0, 0.7)';
+        ctx.beginPath();
+        ctx.arc(blockX - 16, itemY + 9, dotSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Label critère — graisse selon importance, opacité TOUJOURS pleine
       ctx.fillStyle = COLOR_TEXT;
-      ctx.font = '700 18px "Inter", sans-serif';
+      ctx.font = `${isEssentiel ? 900 : isImportant ? 800 : 700} 18px "Inter", sans-serif`;
       ctx.textAlign = 'left';
-      ctx.letterSpacing = '1.5px'; // <-- Ajout
-      ctx.fillText(spec.label, blockX, itemY);
-      ctx.letterSpacing = '0px'; // <-- Reset
+      ctx.letterSpacing = '1.5px';
+      ctx.fillText(label, blockX, itemY);
+      ctx.letterSpacing = '0px';
 
+      // Largeur réelle du label (pour positionner badge + pips à droite)
+      ctx.font = `${isEssentiel ? 900 : isImportant ? 800 : 700} 18px "Inter", sans-serif`;
+      ctx.letterSpacing = '1.5px';
+      const labelWidth = ctx.measureText(label).width;
+      ctx.letterSpacing = '0px';
+
+      // Mini badge "ESSENTIEL" / "IMPORTANT" après le label (sobre)
+      let cursorAfterLabel = blockX + labelWidth + 14;
+      if (isHighlighted) {
+        ctx.font = '800 11px "Inter", sans-serif';
+        ctx.letterSpacing = '2px';
+        ctx.fillStyle = isEssentiel
+          ? COLOR_PRIMARY
+          : 'rgba(217, 255, 0, 0.75)';
+        const badgeText = isEssentiel ? 'ESSENTIEL' : 'IMPORTANT';
+        ctx.fillText(badgeText, cursorAfterLabel, itemY + 4);
+        const badgeWidth = ctx.measureText(badgeText).width;
+        cursorAfterLabel += badgeWidth + 14;
+        ctx.letterSpacing = '0px';
+      }
+
+      // Pips d'importance (●●● / ●●○ / ●○○ / ○○○)
+      drawWeightPips(cursorAfterLabel, itemY + 9, spec.weight);
+
+      // Valeur à droite — opacité PLEINE, lime, taille constante
       ctx.fillStyle = COLOR_PRIMARY;
       ctx.font = '900 20px "Courier New", monospace';
       ctx.textAlign = 'right';
-      ctx.fillText(spec.val.toFixed(1), blockX + blockWidth, itemY);
+      ctx.fillText(spec.value.toFixed(1), blockX + blockWidth, itemY);
 
-      // Track de la barre
+      // Track de la barre — pleine opacité quelle que soit l'importance
       const barY = itemY + 30;
-      const barHeight = 6;
+      const barHeight = isEssentiel ? 8 : 6;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.fillRect(blockX, barY, blockWidth, barHeight);
 
-      // Remplissage avec dégradé et volume
-      const fillWidth = (spec.val / 10) * blockWidth;
+      // Remplissage de la barre — dégradé lime constant, glow uniquement pour highlight
+      const fillWidth = (spec.value / 10) * blockWidth;
       const barGradient = ctx.createLinearGradient(blockX, barY, blockX + fillWidth, barY);
-      barGradient.addColorStop(0, 'rgba(217, 255, 0, 0.2)');
+      barGradient.addColorStop(0, 'rgba(217, 255, 0, 0.25)');
       barGradient.addColorStop(1, COLOR_PRIMARY);
 
       ctx.fillStyle = barGradient;
-      ctx.shadowColor = 'rgba(217, 255, 0, 0.6)';
-      ctx.shadowBlur = 12;
+      if (isHighlighted) {
+        ctx.shadowColor = 'rgba(217, 255, 0, 0.55)';
+        ctx.shadowBlur = isEssentiel ? 16 : 10;
+      }
       ctx.fillRect(blockX, barY, fillWidth, barHeight);
-      ctx.shadowBlur = 0; // Reset
+      ctx.shadowBlur = 0;
+
+      cursorY += specsGap;
     });
 
     ctx.textAlign = 'left';
@@ -326,6 +408,16 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     setIsSharing(true);
     haptics.medium();
 
+    const downloadFallback = (imageDataUrl: string, fileName: string) => {
+      const link = document.createElement('a');
+      link.href = imageDataUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      alert('📥 Verdict prêt pour ta story !');
+    };
+
     try {
       const imageDataUrl = await generateStoryImage();
       const response = await fetch(imageDataUrl);
@@ -333,23 +425,44 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       const fileName = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `Verdict Bitter: ${movie.title}`,
-          text: `Analyse de ${movie.title} : ${globalRating}/10.`,
-          files: [file],
-        });
+      // Native share API: available on mobile + some desktops, but often fails
+      // on desktop Chrome with AbortError even when canShare() returns true.
+      // We try it first, and fall back to download on any non-cancellation error.
+      const canUseShare =
+        typeof navigator !== 'undefined' &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] });
+
+      if (canUseShare) {
+        try {
+          await navigator.share({
+            title: `Verdict Bitter: ${movie.title}`,
+            text: `Analyse de ${movie.title} : ${globalRating}/10.`,
+            files: [file],
+          });
+        } catch (shareErr) {
+          const isAbort = shareErr instanceof Error && shareErr.name === 'AbortError';
+          // AbortError can mean either "user cancelled" (do nothing) or
+          // "browser refused to open the share sheet" (fall back to download).
+          // We can't reliably distinguish on desktop, so we fall back to download
+          // when the page is focused (= the user hasn't actually interacted with
+          // a native share sheet). On mobile, the share sheet steals focus, so
+          // document.hasFocus() returns false → we correctly treat it as a cancel.
+          if (isAbort && document.hasFocus()) {
+            // Likely the browser couldn't open the share UI at all → download instead
+            downloadFallback(imageDataUrl, fileName);
+          } else if (!isAbort) {
+            throw shareErr;
+          }
+          // else: real user cancel on mobile → do nothing
+        }
       } else {
-        const link = document.createElement('a');
-        link.href = imageDataUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        alert('📥 Verdict prêt pour ta story !');
+        downloadFallback(imageDataUrl, fileName);
       }
     } catch (error) {
-      if (import.meta.env.DEV) console.error('Erreur Story:', error);
+      console.error('Erreur Story:', error);
+      alert(`Impossible de générer la story : ${error instanceof Error ? error.message : 'erreur inconnue'}`);
     } finally {
       setIsSharing(false);
     }

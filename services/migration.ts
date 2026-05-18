@@ -37,6 +37,7 @@ function movieToRow(movie: Movie, userId: string) {
     review: movie.review || null,
     severity_index: null,
     patience_level: null,
+    adaptive_rating: movie.adaptiveRating ?? null,
     created_at: movie.dateAdded ? new Date(movie.dateAdded).toISOString() : new Date().toISOString(),
     rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
   };

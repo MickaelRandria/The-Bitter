@@ -1,5 +1,5 @@
 import React, { useState, memo, useRef } from 'react';
-import { Movie } from '../types';
+import { Movie, WeightLabel } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw } from 'lucide-react';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
 import MovieRatingToggle from './MovieRatingToggle';
@@ -18,23 +18,43 @@ interface MovieCardProps {
   onToggleDisplayMode?: (movieId: string, mode: MovieDisplayMode) => void;
 }
 
-const RatingBar = ({
+const WeightBadgeInline: React.FC<{ label: WeightLabel; hasPoster: boolean }> = ({
   label,
-  value,
   hasPoster,
-  isExpanded,
-}: {
+}) => {
+  if (label === 'Standard') return null;
+  const base = 'text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full';
+  const styles =
+    label === 'Essentiel'
+      ? 'bg-bitter-lime text-charcoal'
+      : label === 'Important'
+        ? hasPoster
+          ? 'bg-white/20 text-white'
+          : 'bg-forest/15 text-forest dark:bg-lime-500/20 dark:text-lime-300'
+        : hasPoster
+          ? 'bg-white/10 text-white/60'
+          : 'bg-stone-200 text-stone-500 dark:bg-white/10 dark:text-stone-400';
+  return <span className={`${base} ${styles}`}>{label}</span>;
+};
+
+const RatingBar: React.FC<{
   label: string;
   value: number;
   hasPoster: boolean;
   isExpanded: boolean;
-}) => (
+  weightLabel?: WeightLabel;
+}> = ({ label, value, hasPoster, isExpanded, weightLabel }) => (
   <div className="flex items-center gap-4 mb-4 group/bar">
-    <span
-      className={`text-[9px] font-black uppercase w-20 tracking-widest ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
-    >
-      {label}
-    </span>
+    <div className="w-20 flex flex-col gap-0.5">
+      <span
+        className={`text-[9px] font-black uppercase tracking-widest leading-tight ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
+      >
+        {label}
+      </span>
+      {weightLabel && weightLabel !== 'Standard' && (
+        <WeightBadgeInline label={weightLabel} hasPoster={hasPoster} />
+      )}
+    </div>
     <div
       className={`flex-1 h-1.5 rounded-full overflow-hidden ${hasPoster ? 'bg-white/10' : 'bg-stone-100 dark:bg-white/5'}`}
     >
@@ -76,9 +96,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
     if (!movie?.ratings) return null;
 
-    const displayRating = getMovieDisplayRating(movie);
+    const adaptive = movie.adaptiveRating;
+    const isLegacyOnly = !adaptive;
+    const displayRating = adaptive?.weightedRating ?? getMovieDisplayRating(movie);
     const globalRating = displayRating.toFixed(1);
     const displayRatings = getDisplayRatings(movie);
+    const profileLabel = adaptive?.profile.label;
     const hasRewatches = (movie.watch_count ?? 1) > 1;
     const hasPoster = !!movie.posterUrl;
     const isWatchlist = movie.status === 'watchlist';
@@ -318,6 +341,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 {movie.director}
               </span>
             </div>
+            {!isWatchlist && profileLabel && (
+              <div
+                className={`mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${hasPoster ? 'bg-white/10 text-white/70' : 'bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400'}`}
+              >
+                <span className="w-1 h-1 rounded-full bg-bitter-lime" />
+                Profil {profileLabel}
+              </div>
+            )}
           </div>
 
           {/* Expanded section */}
@@ -332,11 +363,20 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 >
                   {/* Section header */}
                   <div className="flex justify-between items-center mb-6">
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-[0.2em] ${hasPoster ? 'text-white/30' : 'text-stone-300 dark:text-stone-700'}`}
-                    >
-                      Analyse Sensorielle
-                    </span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-[0.2em] ${hasPoster ? 'text-white/30' : 'text-stone-300 dark:text-stone-700'}`}
+                      >
+                        {profileLabel ? `Analyse · Profil ${profileLabel}` : 'Analyse Sensorielle'}
+                      </span>
+                      {isLegacyOnly && (
+                        <span
+                          className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full self-start ${hasPoster ? 'bg-white/10 text-white/50' : 'bg-stone-200 dark:bg-white/10 text-stone-400 dark:text-stone-500'}`}
+                        >
+                          Ancienne notation
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {hasRewatches && onToggleDisplayMode && (
                         <MovieRatingToggle
@@ -355,10 +395,41 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                     </div>
                   </div>
 
-                  <RatingBar label="Écriture" value={displayRatings.story} hasPoster={hasPoster} isExpanded={isExpanded} />
-                  <RatingBar label="Esthétique" value={displayRatings.visuals} hasPoster={hasPoster} isExpanded={isExpanded} />
-                  <RatingBar label="Interprétation" value={displayRatings.acting} hasPoster={hasPoster} isExpanded={isExpanded} />
-                  <RatingBar label="Univers Sonore" value={displayRatings.sound} hasPoster={hasPoster} isExpanded={isExpanded} />
+                  {adaptive ? (
+                    <>
+                      {adaptive.criteria
+                        .filter((c) => c.group === 'base')
+                        .map((c) => (
+                          <RatingBar
+                            key={c.key}
+                            label={c.label}
+                            value={c.value}
+                            hasPoster={hasPoster}
+                            isExpanded={isExpanded}
+                            weightLabel={c.weightLabel}
+                          />
+                        ))}
+                      {adaptive.criteria
+                        .filter((c) => c.group === 'specific')
+                        .map((c) => (
+                          <RatingBar
+                            key={c.key}
+                            label={c.label}
+                            value={c.value}
+                            hasPoster={hasPoster}
+                            isExpanded={isExpanded}
+                            weightLabel={c.weightLabel}
+                          />
+                        ))}
+                    </>
+                  ) : (
+                    <>
+                      <RatingBar label="Écriture" value={displayRatings.story} hasPoster={hasPoster} isExpanded={isExpanded} />
+                      <RatingBar label="Esthétique" value={displayRatings.visuals} hasPoster={hasPoster} isExpanded={isExpanded} />
+                      <RatingBar label="Interprétation" value={displayRatings.acting} hasPoster={hasPoster} isExpanded={isExpanded} />
+                      <RatingBar label="Univers Sonore" value={displayRatings.sound} hasPoster={hasPoster} isExpanded={isExpanded} />
+                    </>
+                  )}
                 </div>
               )}
 

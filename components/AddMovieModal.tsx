@@ -29,11 +29,24 @@ import {
   VibeCriteria,
   QualityMetrics,
   TMDBSearchResult,
+  AdaptiveRatingData,
+  AdaptiveRatingCriterion,
 } from '../types';
 import { haptics } from '../utils/haptics';
 import { SharedSpace, addMovieToSpace } from '../services/supabase';
 import { getSharedMovieDetails } from '../services/tmdb';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  PROFILE_OPTIONS,
+  RatingProfileId,
+  getRatingProfile,
+} from '../config/ratingProfiles';
+import {
+  buildCriteriaForProfile,
+  calculateWeightedRating,
+  detectRatingProfile,
+} from '../utils/rating';
+import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -160,6 +173,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
   const [isBitterMode, setIsBitterMode] = useState(false);
   const [globalRating, setGlobalRating] = useState(5);
+  const [profileId, setProfileId] = useState<RatingProfileId>('standard');
+  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({});
+  const [profileManuallySet, setProfileManuallySet] = useState(false);
+  const [showProfilePicker, setShowProfilePicker] = useState(false);
   const [searchResults, setSearchResults] = useState<TMDBSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -183,8 +200,32 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             initialData.ratings.sound) /
             4
         );
-        setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics);
+        setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics || !!initialData.adaptiveRating);
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
+        // Restore adaptive rating state when editing
+        if (initialData.adaptiveRating) {
+          const adaptiveProfileId = initialData.adaptiveRating.profile.id;
+          // Only restore if it's a real profile (not legacy)
+          const isLegacyProfile = adaptiveProfileId === 'standard_legacy';
+          const restoredProfile = isLegacyProfile ? detectRatingProfile(initialData.genre) : (adaptiveProfileId as RatingProfileId);
+          setProfileId(restoredProfile);
+          setProfileManuallySet(!isLegacyProfile);
+          const values: Record<string, number> = {};
+          for (const c of initialData.adaptiveRating.criteria) values[c.key] = c.value;
+          setCriteriaValues(values);
+        } else {
+          const detected = detectRatingProfile(initialData.genre);
+          setProfileId(detected);
+          setProfileManuallySet(false);
+          // Seed values from existing qualityMetrics/ratings
+          const qm = initialData.qualityMetrics;
+          setCriteriaValues({
+            scenario: qm?.scenario ?? initialData.ratings.story,
+            image: qm?.visual ?? initialData.ratings.visuals,
+            interpretation: qm?.acting ?? initialData.ratings.acting,
+            sound: qm?.sound ?? initialData.ratings.sound,
+          });
+        }
         if (initialData.dateWatched)
           setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
       } else if (tmdbIdToLoad) {
@@ -201,9 +242,19 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setShowResults(false);
         setSearchType('movie');
         setSelectedDate(new Date().toISOString().split('T')[0]);
+        setProfileId('standard');
+        setProfileManuallySet(false);
+        setCriteriaValues({});
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
+
+  // Auto-detect profile from genre unless user manually overrode it
+  useEffect(() => {
+    if (profileManuallySet) return;
+    const detected = detectRatingProfile(formData.genre);
+    setProfileId((prev) => (prev === detected ? prev : detected));
+  }, [formData.genre, profileManuallySet]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -298,21 +349,63 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     setShowResults(false);
   };
 
+  const adaptiveCriteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile(profileId, criteriaValues);
+  const adaptiveWeightedRating = calculateWeightedRating(adaptiveCriteria);
+
+  const setCriterionValue = (key: string, value: number) => {
+    setCriteriaValues((prev) => ({ ...prev, [key]: Math.min(10, Math.max(0, value)) }));
+  };
+
+  const handleSelectProfile = (id: RatingProfileId) => {
+    haptics.soft();
+    setProfileId(id);
+    setProfileManuallySet(true);
+    setShowProfilePicker(false);
+  };
+
   const handleSubmit = async () => {
     if (isSaving || !formData.title.trim()) return;
     haptics.medium();
     setIsSaving(true);
     const isWatchlist = mode === 'watchlist';
-    const finalRatings = isWatchlist
-      ? { story: 0, visuals: 0, acting: 0, sound: 0 }
-      : isBitterMode
-        ? {
-            story: formData.qualityMetrics?.scenario || 5,
-            visuals: formData.qualityMetrics?.visual || 5,
-            acting: formData.qualityMetrics?.acting || 5,
-            sound: formData.qualityMetrics?.sound || 5,
-          }
-        : { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating };
+
+    let finalAdaptiveRating: AdaptiveRatingData | undefined;
+    let finalRatings;
+    let finalQualityMetrics = formData.qualityMetrics;
+
+    if (isWatchlist) {
+      finalRatings = { story: 0, visuals: 0, acting: 0, sound: 0 };
+    } else if (isBitterMode) {
+      const profile = getRatingProfile(profileId);
+      const legacyAvg =
+        adaptiveCriteria.length > 0
+          ? Math.round(
+              (adaptiveCriteria.reduce((s, c) => s + c.value, 0) / adaptiveCriteria.length) * 10
+            ) / 10
+          : 0;
+      finalAdaptiveRating = {
+        profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
+        criteria: adaptiveCriteria,
+        weightedRating: adaptiveWeightedRating,
+        legacyRating: legacyAvg,
+      };
+      const byKey = new Map(adaptiveCriteria.map((c) => [c.key, c.value]));
+      const scenario = byKey.get('scenario') ?? 5;
+      const image = byKey.get('image') ?? 5;
+      const interpretation = byKey.get('interpretation') ?? 5;
+      const sound = byKey.get('sound') ?? 5;
+      // Use the weighted rating for the legacy ratings so display helpers reflect it
+      finalRatings = {
+        story: adaptiveWeightedRating,
+        visuals: adaptiveWeightedRating,
+        acting: adaptiveWeightedRating,
+        sound: adaptiveWeightedRating,
+      };
+      // Keep qualityMetrics in sync with the 4 base criteria for backward compat
+      finalQualityMetrics = { scenario, acting: interpretation, visual: image, sound };
+    } else {
+      finalRatings = { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating };
+    }
     const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
     if (sharedSpace && currentUserId) {
       try {
@@ -349,7 +442,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       }
       return;
     }
-    onSave({ ...formData, status: mode, ratings: finalRatings, dateWatched: finalDateWatched });
+    onSave({
+      ...formData,
+      status: mode,
+      ratings: finalRatings,
+      dateWatched: finalDateWatched,
+      qualityMetrics: finalQualityMetrics,
+      adaptiveRating: finalAdaptiveRating,
+    });
     haptics.success();
     setIsSaving(false);
   };
@@ -566,30 +666,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
               {isBitterMode ? (
                 <div className="space-y-8">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    {['scenario', 'acting', 'visual', 'sound'].map((c) => (
-                      <RatingStepper
-                        key={c}
-                        label={
-                          c === 'scenario'
-                            ? t('addMovie.writing')
-                            : c === 'acting'
-                              ? t('addMovie.acting')
-                              : c === 'visual'
-                                ? t('addMovie.visual')
-                                : t('addMovie.sound')
-                        }
-                        value={formData.qualityMetrics?.[c as keyof QualityMetrics] || 5}
-                        onChange={(v) =>
-                          setFormData({
-                            ...formData,
-                            qualityMetrics: { ...formData.qualityMetrics!, [c]: v },
-                          })
-                        }
-                        isBitter={true}
-                      />
-                    ))}
-                  </div>
+                  <AdaptiveRatingSection
+                    profileLabel={getRatingProfile(profileId).label}
+                    criteria={adaptiveCriteria}
+                    weightedRating={adaptiveWeightedRating}
+                    onChange={setCriterionValue}
+                    onOpenProfilePicker={() => {
+                      haptics.soft();
+                      setShowProfilePicker(true);
+                    }}
+                  />
                   <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 sm:p-8 rounded-[2rem] shadow-xl transition-all">
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-3">
@@ -774,9 +860,319 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           </button>
         </div>
       </div>
+
+      {showProfilePicker && (
+        <ProfilePicker
+          currentProfileId={profileId}
+          onSelect={handleSelectProfile}
+          onClose={() => setShowProfilePicker(false)}
+        />
+      )}
     </div>
   );
 };
+
+const WeightBadge: React.FC<{ label: AdaptiveRatingCriterion['weightLabel'] }> = ({ label }) => {
+  if (label === 'Standard') return null;
+  const styles =
+    label === 'Essentiel'
+      ? 'bg-bitter-lime text-charcoal'
+      : label === 'Important'
+        ? 'bg-forest text-white dark:bg-lime-500/20 dark:text-lime-300'
+        : 'bg-stone-200 text-stone-500 dark:bg-white/10 dark:text-stone-400';
+  return (
+    <span
+      className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${styles}`}
+    >
+      {label}
+    </span>
+  );
+};
+
+const AdaptiveRatingSection: React.FC<{
+  profileLabel: string;
+  criteria: AdaptiveRatingCriterion[];
+  weightedRating: number;
+  onChange: (key: string, value: number) => void;
+  onOpenProfilePicker: () => void;
+}> = ({ profileLabel, criteria, weightedRating, onChange, onOpenProfilePicker }) => {
+  const [showFormulaHelp, setShowFormulaHelp] = useState(false);
+  const base = criteria.filter((c) => c.group === 'base');
+  const specific = criteria.filter((c) => c.group === 'specific');
+  const reinforcedLabels = criteria
+    .filter((c) => c.weightLabel === 'Essentiel' || c.weightLabel === 'Important')
+    .map((c) => c.label);
+
+  return (
+    <div className="space-y-6">
+      {/* Profile header */}
+      <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              Profil de notation
+            </p>
+            <p className="text-xl font-black text-charcoal dark:text-white tracking-tight mt-1">
+              {profileLabel}
+            </p>
+            <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-2 leading-snug">
+              Choisi automatiquement à partir des genres du film.
+            </p>
+            <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 leading-snug">
+              Cette grille donne plus de poids aux critères essentiels du genre.
+            </p>
+            {reinforcedLabels.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                  Critères renforcés
+                </p>
+                <p className="text-[12px] font-bold text-charcoal dark:text-white mt-0.5 leading-snug">
+                  {reinforcedLabels.join(' · ')}
+                </p>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onOpenProfilePicker}
+            className="shrink-0 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-full bg-stone-100 dark:bg-[#161616] text-charcoal dark:text-white border border-stone-200 dark:border-white/5 active:scale-95 transition-all"
+          >
+            Changer
+          </button>
+        </div>
+      </div>
+
+      {/* Base criteria */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3 ml-1">
+          Critères principaux
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {base.map((c) => (
+            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} />
+          ))}
+        </div>
+      </div>
+
+      {/* Specific criterion */}
+      {specific.length > 0 && (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3 ml-1">
+            Critère spécifique
+          </p>
+          <div className="grid grid-cols-1 gap-3">
+            {specific.map((c) => (
+              <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} showDescription />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Final weighted rating */}
+      <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-6 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+              Note finale
+            </p>
+            <p className="text-[9px] font-bold text-stone-500 mt-1">
+              Calculée selon le profil {profileLabel}.
+            </p>
+          </div>
+          <span className="text-5xl font-black text-bitter-lime tracking-tighter">
+            {weightedRating.toFixed(1)}
+          </span>
+        </div>
+      </div>
+
+      {/* Formula help (collapsible) */}
+      <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            setShowFormulaHelp((v) => !v);
+          }}
+          className="w-full flex items-center justify-between px-4 py-3 text-left active:bg-stone-100 dark:active:bg-[#1f1f1f] transition-colors"
+        >
+          <span className="text-[11px] font-black uppercase tracking-widest text-charcoal dark:text-white">
+            Comment est calculée la note&nbsp;?
+          </span>
+          <span className="text-charcoal dark:text-white text-lg leading-none">
+            {showFormulaHelp ? '−' : '+'}
+          </span>
+        </button>
+        {showFormulaHelp && (
+          <div className="px-4 pb-4 pt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-400 space-y-2">
+            <p>La note finale est une moyenne pondérée des critères du profil.</p>
+            <div className="space-y-1">
+              <p className="flex items-center gap-2">
+                <WeightPips weight={1.8} dark />
+                <span><span className="font-black text-charcoal dark:text-white">Essentiel</span> · influence forte</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <WeightPips weight={1.4} dark />
+                <span><span className="font-black text-charcoal dark:text-white">Important</span> · influence moyenne</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <WeightPips weight={1.0} dark />
+                <span><span className="font-black text-charcoal dark:text-white">Standard</span> · influence normale</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <WeightPips weight={0.7} dark />
+                <span><span className="font-black text-charcoal dark:text-white">Secondaire</span> · influence légère</span>
+              </p>
+            </div>
+            <p className="text-[11px] text-stone-500 dark:text-stone-500">
+              Les poids sont appliqués automatiquement selon le profil de notation choisi.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Mapping weight → pips: Essentiel ●●●, Important ●●○, Standard ●○○, Secondaire ○○○
+const WeightPips: React.FC<{ weight: number; dark?: boolean }> = ({ weight, dark }) => {
+  const filled = weight >= 1.7 ? 3 : weight >= 1.3 ? 2 : weight >= 0.9 ? 1 : 0;
+  const filledClass = dark ? 'bg-charcoal dark:bg-white' : 'bg-bitter-lime';
+  const emptyClass = dark ? 'bg-stone-300 dark:bg-stone-700' : 'bg-stone-200 dark:bg-stone-800';
+  return (
+    <span className="inline-flex items-center gap-0.5 shrink-0" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`w-1.5 h-1.5 rounded-full ${i < filled ? filledClass : emptyClass}`}
+        />
+      ))}
+    </span>
+  );
+};
+
+const AdaptiveCriterionStepper: React.FC<{
+  criterion: AdaptiveRatingCriterion;
+  onChange: (key: string, value: number) => void;
+  showDescription?: boolean;
+}> = ({ criterion, onChange, showDescription }) => {
+  const { key, label, value, weight, weightLabel, description } = criterion;
+  // Circle reflects criterion IMPORTANCE in the profile, not the user's rating value
+  const isReinforced = weight >= 1.3;
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] p-3 border border-stone-100 dark:border-white/10 flex flex-col h-full shadow-sm">
+      <div className="flex justify-between items-start mb-2 gap-1">
+        <span className="text-[8px] font-black text-stone-400 dark:text-stone-600 uppercase tracking-widest leading-none truncate pr-1">
+          {label}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <WeightBadge label={weightLabel} />
+          <div
+            className={`w-1.5 h-1.5 rounded-full ${isReinforced ? 'bg-bitter-lime' : 'bg-stone-200 dark:bg-stone-800'}`}
+            title={`Importance : ${weightLabel}`}
+          />
+        </div>
+      </div>
+      {showDescription && description && (
+        <p className="text-[10px] leading-snug text-stone-500 dark:text-stone-400 mb-3">
+          {description}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-1 flex-1 min-h-[48px]">
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            onChange(key, Math.max(0, value - 0.5));
+          }}
+          className="w-8 h-8 rounded-xl bg-stone-50 dark:bg-[#161616] border border-stone-200 dark:border-white/5 flex items-center justify-center active:scale-90 transition-all shadow-sm shrink-0"
+        >
+          <Minus size={12} strokeWidth={3} className="text-charcoal dark:text-white" />
+        </button>
+        <div className="flex-1 flex justify-center items-center overflow-hidden">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min="0"
+            max="10"
+            value={value === 0 ? '' : value}
+            placeholder="0"
+            onChange={(e) => {
+              const val = parseFloat(e.target.value.replace(',', '.'));
+              if (!isNaN(val)) onChange(key, Math.min(10, Math.max(0, val)));
+              else if (e.target.value === '') onChange(key, 0);
+            }}
+            className="w-full text-center text-2xl font-black tracking-tighter text-charcoal dark:text-white bg-transparent outline-none py-0 appearance-none border-none ring-0 focus:ring-0"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            onChange(key, Math.min(10, value + 0.5));
+          }}
+          className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-all shadow-md shrink-0 bg-bitter-lime text-charcoal"
+        >
+          <Plus size={12} strokeWidth={3} />
+        </button>
+      </div>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100 dark:border-white/5">
+        <span className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+          Importance
+        </span>
+        <WeightPips weight={weight} />
+      </div>
+    </div>
+  );
+};
+
+const ProfilePicker: React.FC<{
+  currentProfileId: RatingProfileId;
+  onSelect: (id: RatingProfileId) => void;
+  onClose: () => void;
+}> = ({ currentProfileId, onSelect, onClose }) => (
+  <div
+    className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
+    onClick={onClose}
+  >
+    <div className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm" />
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="relative bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl max-h-[80vh] overflow-y-auto border-t dark:border-white/10 sm:border dark:border-white/10"
+    >
+      <div className="p-6 border-b border-black/5 dark:border-white/10 flex items-center justify-between">
+        <h3 className="font-black text-lg text-charcoal dark:text-white tracking-tight">
+          Choisir un profil
+        </h3>
+        <button
+          onClick={onClose}
+          className="w-9 h-9 rounded-full bg-stone-100 dark:bg-[#161616] flex items-center justify-center active:scale-90 transition-all"
+        >
+          <X size={16} className="text-charcoal dark:text-white" />
+        </button>
+      </div>
+      <div className="p-3 space-y-1">
+        {PROFILE_OPTIONS.map((opt) => {
+          const selected = opt.id === currentProfileId;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onSelect(opt.id)}
+              className={`w-full text-left px-4 py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${
+                selected
+                  ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal'
+                  : 'bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white border border-stone-100 dark:border-white/10'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+);
 
 const VibeBox: React.FC<{
   icon: any;

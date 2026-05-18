@@ -40,6 +40,33 @@ export interface MovieWatch {
   ratings: RatingCriteria;
   review?: string;
   sentiment?: RewatchSentiment;
+  adaptiveRating?: AdaptiveRatingData;
+}
+
+export type CriterionGroup = 'base' | 'specific';
+export type WeightLabel = 'Essentiel' | 'Important' | 'Standard' | 'Secondaire';
+
+export interface AdaptiveRatingCriterion {
+  key: string;
+  label: string;
+  value: number;
+  weight: number;
+  weightLabel: WeightLabel;
+  group: CriterionGroup;
+  description?: string;
+}
+
+export interface AdaptiveRatingProfileRef {
+  id: string;
+  label: string;
+  version: number;
+}
+
+export interface AdaptiveRatingData {
+  profile: AdaptiveRatingProfileRef;
+  criteria: AdaptiveRatingCriterion[];
+  weightedRating: number;
+  legacyRating?: number;
 }
 
 export interface Movie {
@@ -81,6 +108,8 @@ export interface Movie {
   current_rating?: number;
   avg_rating?: number;
   preferred_display_mode?: 'latest' | 'average';
+  // Système de notation adaptatif (V1)
+  adaptiveRating?: AdaptiveRatingData;
 }
 
 export interface UserProfile {

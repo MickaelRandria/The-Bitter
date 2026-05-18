@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   RotateCw,
   X,
@@ -9,8 +9,18 @@ import {
   ThumbsDown,
   Search,
   Sparkles,
+  Plus,
+  Minus,
 } from 'lucide-react';
-import { Movie, MovieWatch, RewatchSentiment } from '../types';
+import { AdaptiveRatingCriterion, Movie, MovieWatch, RewatchSentiment, WeightLabel } from '../types';
+import {
+  ADAPTIVE_RATING_VERSION,
+  PROFILE_OPTIONS,
+  RatingProfileId,
+  getRatingProfile,
+} from '../config/ratingProfiles';
+import { buildCriteriaForProfile, calculateWeightedRating, detectRatingProfile } from '../utils/rating';
+import { haptics } from '../utils/haptics';
 
 const SENTIMENTS: {
   id: RewatchSentiment;
@@ -36,49 +46,120 @@ interface RewatchModalProps {
   onSave: (watch: MovieWatch) => void;
 }
 
-const CRITERIA = [
-  { key: 'story' as const, label: 'Écriture' },
-  { key: 'visuals' as const, label: 'Esthétique' },
-  { key: 'acting' as const, label: 'Interprétation' },
-  { key: 'sound' as const, label: 'Univers Sonore' },
-];
+const WeightBadge: React.FC<{ label: WeightLabel }> = ({ label }) => {
+  if (label === 'Standard') return null;
+  const base = 'text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full';
+  const styles =
+    label === 'Essentiel'
+      ? 'bg-bitter-lime text-charcoal'
+      : label === 'Important'
+        ? 'bg-forest/15 text-forest dark:bg-lime-500/20 dark:text-lime-300'
+        : 'bg-stone-200 text-stone-500 dark:bg-white/10 dark:text-stone-400';
+  return <span className={`${base} ${styles}`}>{label}</span>;
+};
 
 const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) => {
   const lastWatch = movie.watches?.[movie.watches.length - 1];
-  const lastRatings = lastWatch?.ratings ?? movie.ratings;
-  const lastAvg =
-    (lastRatings.story + lastRatings.visuals + lastRatings.acting + lastRatings.sound) / 4;
   const lastDate = lastWatch?.watched_at
     ? new Date(lastWatch.watched_at)
     : movie.dateWatched
       ? new Date(movie.dateWatched)
       : new Date(movie.dateAdded);
 
-  const [ratings, setRatings] = useState({ ...lastRatings });
+  // Profile resolution: prefer last watch's adaptive profile, then movie's, then detected from genre
+  const previousAdaptive = lastWatch?.adaptiveRating ?? movie.adaptiveRating;
+  const previousProfileId = previousAdaptive?.profile.id;
+  const previousIsLegacy = !previousAdaptive || previousProfileId === 'standard_legacy';
+  const detectedProfile = useMemo(() => detectRatingProfile(movie.genre), [movie.genre]);
+  const initialProfile: RatingProfileId =
+    !previousIsLegacy && previousProfileId
+      ? (previousProfileId as RatingProfileId)
+      : detectedProfile;
+
+  const [profileId, setProfileId] = useState<RatingProfileId>(initialProfile);
+  const [showProfilePicker, setShowProfilePicker] = useState(false);
+  const [keepLegacy, setKeepLegacy] = useState(false);
+
+  const seedValues = useMemo<Record<string, number>>(() => {
+    if (previousAdaptive) {
+      const map: Record<string, number> = {};
+      for (const c of previousAdaptive.criteria) map[c.key] = c.value;
+      return map;
+    }
+    const r = lastWatch?.ratings ?? movie.ratings;
+    return {
+      scenario: r.story,
+      image: r.visuals,
+      interpretation: r.acting,
+      sound: r.sound,
+    };
+  }, [previousAdaptive, lastWatch, movie.ratings]);
+
+  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>(seedValues);
+
+  // Legacy mode: stay on the old 4 ratings sliders
+  const [legacyRatings, setLegacyRatings] = useState(() => ({ ...(lastWatch?.ratings ?? movie.ratings) }));
+  const lastRatings = lastWatch?.ratings ?? movie.ratings;
+  const lastAvg =
+    (lastRatings.story + lastRatings.visuals + lastRatings.acting + lastRatings.sound) / 4;
+
   const [sentiment, setSentiment] = useState<RewatchSentiment | null>(null);
   const [review, setReview] = useState('');
 
-  const currentAvg = (ratings.story + ratings.visuals + ratings.acting + ratings.sound) / 4;
-  const globalDiff = currentAvg - lastAvg;
+  const useLegacyMode = previousIsLegacy && keepLegacy;
+
+  const criteria: AdaptiveRatingCriterion[] = useLegacyMode
+    ? []
+    : buildCriteriaForProfile(profileId, criteriaValues);
+  const weightedRating = useLegacyMode
+    ? (legacyRatings.story + legacyRatings.visuals + legacyRatings.acting + legacyRatings.sound) / 4
+    : calculateWeightedRating(criteria);
+  const globalDiff = weightedRating - lastAvg;
   const watchNumber = (movie.watch_count ?? 1) + 1;
+
+  const setCriterionValue = (key: string, value: number) => {
+    setCriteriaValues((prev) => ({ ...prev, [key]: Math.min(10, Math.max(0, value)) }));
+  };
 
   const handleSave = () => {
     if (!sentiment) return;
+    let ratings;
+    let adaptiveRating;
+    if (useLegacyMode) {
+      ratings = {
+        story: Math.round(legacyRatings.story * 2) / 2,
+        visuals: Math.round(legacyRatings.visuals * 2) / 2,
+        acting: Math.round(legacyRatings.acting * 2) / 2,
+        sound: Math.round(legacyRatings.sound * 2) / 2,
+      };
+    } else {
+      const profile = getRatingProfile(profileId);
+      adaptiveRating = {
+        profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
+        criteria,
+        weightedRating,
+      };
+      ratings = {
+        story: weightedRating,
+        visuals: weightedRating,
+        acting: weightedRating,
+        sound: weightedRating,
+      };
+    }
     const watch: MovieWatch = {
       id: crypto.randomUUID(),
       watch_number: watchNumber,
       watched_at: new Date().toISOString(),
-      ratings: {
-        story: Math.round(ratings.story * 2) / 2,
-        visuals: Math.round(ratings.visuals * 2) / 2,
-        acting: Math.round(ratings.acting * 2) / 2,
-        sound: Math.round(ratings.sound * 2) / 2,
-      },
+      ratings,
       review: review.trim() || undefined,
       sentiment,
+      adaptiveRating,
     };
     onSave(watch);
   };
+
+  const baseCriteria = criteria.filter((c) => c.group === 'base');
+  const specificCriteria = criteria.filter((c) => c.group === 'specific');
 
   return (
     <div
@@ -122,7 +203,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
               <div className="flex items-center gap-1.5">
                 <Star size={14} fill="#D9FF00" className="text-bitter-lime" />
                 <span className="font-black text-base text-charcoal dark:text-white">
-                  {lastAvg.toFixed(1)}
+                  {(previousAdaptive?.weightedRating ?? lastAvg).toFixed(1)}
                 </span>
               </div>
               <span className="text-[11px] text-stone-400 dark:text-stone-600 font-medium">
@@ -134,6 +215,48 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
               </span>
             </div>
           </div>
+
+          {/* Legacy bridge */}
+          {previousIsLegacy && (
+            <div className="bg-amber-50 dark:bg-amber-500/5 border border-amber-200/60 dark:border-amber-500/20 rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 mb-2">
+                Ce film a été noté avec l’ancien système
+              </p>
+              <p className="text-[11px] text-amber-700/80 dark:text-amber-200/80 leading-snug mb-3">
+                Tu peux conserver l’ancien système ou passer au nouveau profil.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.soft();
+                    setKeepLegacy(true);
+                  }}
+                  className={`flex-1 text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl active:scale-95 transition-all border ${
+                    useLegacyMode
+                      ? 'bg-charcoal text-white border-charcoal dark:bg-bitter-lime dark:text-charcoal dark:border-bitter-lime'
+                      : 'bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white border-stone-200 dark:border-white/10'
+                  }`}
+                >
+                  Garder l’ancien
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.soft();
+                    setKeepLegacy(false);
+                  }}
+                  className={`flex-1 text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl active:scale-95 transition-all border ${
+                    !useLegacyMode
+                      ? 'bg-charcoal text-white border-charcoal dark:bg-bitter-lime dark:text-charcoal dark:border-bitter-lime'
+                      : 'bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white border-stone-200 dark:border-white/10'
+                  }`}
+                >
+                  Nouveau profil
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Sentiments */}
           <div>
@@ -163,76 +286,95 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
           </div>
 
           {/* Notation */}
-          <div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white mb-3">
-              Nouvelle notation
-            </h3>
-            <div className="space-y-4">
-              {CRITERIA.map(({ key, label }) => {
-                const criterionDiff = ratings[key] - lastRatings[key];
-                return (
-                  <div key={key}>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-                        {label}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-black text-charcoal dark:text-white">
-                          {ratings[key].toFixed(1)}
-                        </span>
-                        {Math.abs(criterionDiff) >= 0.05 && (
-                          <span
-                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                              criterionDiff > 0
-                                ? 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
-                                : 'bg-stone-200 dark:bg-white/10 text-stone-500 dark:text-stone-400'
-                            }`}
-                          >
-                            {criterionDiff > 0 ? '+' : ''}
-                            {criterionDiff.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      step="0.5"
-                      value={ratings[key]}
-                      onChange={(e) =>
-                        setRatings((prev) => ({ ...prev, [key]: parseFloat(e.target.value) }))
-                      }
-                      className="w-full accent-forest dark:accent-bitter-lime"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Moyenne globale en temps réel */}
-            <div className="mt-4 p-3 bg-forest/10 dark:bg-bitter-lime/10 rounded-2xl border border-forest/20 dark:border-bitter-lime/20">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-bitter-lime">
-                  Moyenne actuelle
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-black text-forest dark:text-bitter-lime">
-                    {currentAvg.toFixed(1)}
-                  </span>
-                  {Math.abs(globalDiff) >= 0.05 && (
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        globalDiff > 0
-                          ? 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
-                          : 'bg-stone-200 dark:bg-white/10 text-stone-500 dark:text-stone-400'
-                      }`}
-                    >
-                      {globalDiff > 0 ? '+' : ''}
-                      {globalDiff.toFixed(1)}
-                    </span>
-                  )}
+          {useLegacyMode ? (
+            <LegacyRatings
+              values={legacyRatings}
+              lastRatings={lastRatings}
+              onChange={(key, value) =>
+                setLegacyRatings((prev) => ({ ...prev, [key]: value }))
+              }
+            />
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+                    Profil utilisé
+                  </p>
+                  <p className="font-black text-base text-charcoal dark:text-white mt-1 truncate">
+                    {getRatingProfile(profileId).label}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.soft();
+                    setShowProfilePicker(true);
+                  }}
+                  className="shrink-0 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-full bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white border border-stone-200 dark:border-white/10 active:scale-95 transition-all"
+                >
+                  Changer
+                </button>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3">
+                  Critères principaux
+                </p>
+                <div className="space-y-3">
+                  {baseCriteria.map((c) => (
+                    <RewatchCriterionRow
+                      key={c.key}
+                      criterion={c}
+                      previousValue={previousAdaptive?.criteria.find((x) => x.key === c.key)?.value}
+                      onChange={setCriterionValue}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {specificCriteria.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3">
+                    Critère spécifique
+                  </p>
+                  <div className="space-y-3">
+                    {specificCriteria.map((c) => (
+                      <RewatchCriterionRow
+                        key={c.key}
+                        criterion={c}
+                        previousValue={previousAdaptive?.criteria.find((x) => x.key === c.key)?.value}
+                        onChange={setCriterionValue}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Note finale */}
+          <div className="p-4 bg-forest/10 dark:bg-bitter-lime/10 rounded-2xl border border-forest/20 dark:border-bitter-lime/20">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-bitter-lime">
+                Note finale
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-forest dark:text-bitter-lime">
+                  {weightedRating.toFixed(1)}
+                </span>
+                {Math.abs(globalDiff) >= 0.05 && (
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      globalDiff > 0
+                        ? 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
+                        : 'bg-stone-200 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+                    }`}
+                  >
+                    {globalDiff > 0 ? '+' : ''}
+                    {globalDiff.toFixed(1)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -261,8 +403,176 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
           </button>
         </div>
       </div>
+
+      {showProfilePicker && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
+          onClick={() => setShowProfilePicker(false)}
+        >
+          <div className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm" />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white dark:bg-[#0c0c0c] w-full sm:max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl max-h-[80vh] overflow-y-auto border-t dark:border-white/10 sm:border dark:border-white/10"
+          >
+            <div className="p-6 border-b border-black/5 dark:border-white/10 flex items-center justify-between">
+              <h3 className="font-black text-lg text-charcoal dark:text-white tracking-tight">
+                Choisir un profil
+              </h3>
+              <button
+                onClick={() => setShowProfilePicker(false)}
+                className="w-9 h-9 rounded-full bg-stone-100 dark:bg-[#161616] flex items-center justify-center active:scale-90 transition-all"
+              >
+                <X size={16} className="text-charcoal dark:text-white" />
+              </button>
+            </div>
+            <div className="p-3 space-y-1">
+              {PROFILE_OPTIONS.map((opt) => {
+                const selected = opt.id === profileId;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      haptics.soft();
+                      setProfileId(opt.id);
+                      setShowProfilePicker(false);
+                    }}
+                    className={`w-full text-left px-4 py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${
+                      selected
+                        ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal'
+                        : 'bg-stone-50 dark:bg-[#1a1a1a] text-charcoal dark:text-white border border-stone-100 dark:border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+const RewatchCriterionRow: React.FC<{
+  criterion: AdaptiveRatingCriterion;
+  previousValue?: number;
+  onChange: (key: string, value: number) => void;
+}> = ({ criterion, previousValue, onChange }) => {
+  const { key, label, value, weightLabel } = criterion;
+  const diff = previousValue != null ? value - previousValue : 0;
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-1.5 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400 truncate">
+            {label}
+          </span>
+          <WeightBadge label={weightLabel} />
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => onChange(key, Math.max(0, value - 0.5))}
+            className="w-7 h-7 rounded-lg bg-stone-100 dark:bg-[#202020] flex items-center justify-center active:scale-90 transition-all"
+          >
+            <Minus size={11} strokeWidth={3} className="text-charcoal dark:text-white" />
+          </button>
+          <span className="text-[11px] font-black text-charcoal dark:text-white w-7 text-center">
+            {value.toFixed(1)}
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange(key, Math.min(10, value + 0.5))}
+            className="w-7 h-7 rounded-lg bg-bitter-lime flex items-center justify-center active:scale-90 transition-all"
+          >
+            <Plus size={11} strokeWidth={3} className="text-charcoal" />
+          </button>
+          {Math.abs(diff) >= 0.05 && (
+            <span
+              className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                diff > 0
+                  ? 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
+                  : 'bg-stone-200 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+              }`}
+            >
+              {diff > 0 ? '+' : ''}
+              {diff.toFixed(1)}
+            </span>
+          )}
+        </div>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="10"
+        step="0.5"
+        value={value}
+        onChange={(e) => onChange(key, parseFloat(e.target.value))}
+        className="w-full accent-forest dark:accent-bitter-lime"
+      />
+    </div>
+  );
+};
+
+const LEGACY_CRITERIA = [
+  { key: 'story' as const, label: 'Écriture' },
+  { key: 'visuals' as const, label: 'Esthétique' },
+  { key: 'acting' as const, label: 'Interprétation' },
+  { key: 'sound' as const, label: 'Univers Sonore' },
+];
+
+const LegacyRatings: React.FC<{
+  values: { story: number; visuals: number; acting: number; sound: number };
+  lastRatings: { story: number; visuals: number; acting: number; sound: number };
+  onChange: (key: 'story' | 'visuals' | 'acting' | 'sound', value: number) => void;
+}> = ({ values, lastRatings, onChange }) => (
+  <div>
+    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white mb-3">
+      Nouvelle notation (système classique)
+    </h3>
+    <div className="space-y-4">
+      {LEGACY_CRITERIA.map(({ key, label }) => {
+        const diff = values[key] - lastRatings[key];
+        return (
+          <div key={key}>
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                {label}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black text-charcoal dark:text-white">
+                  {values[key].toFixed(1)}
+                </span>
+                {Math.abs(diff) >= 0.05 && (
+                  <span
+                    className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                      diff > 0
+                        ? 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
+                        : 'bg-stone-200 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+                    }`}
+                  >
+                    {diff > 0 ? '+' : ''}
+                    {diff.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="10"
+              step="0.5"
+              value={values[key]}
+              onChange={(e) => onChange(key, parseFloat(e.target.value))}
+              className="w-full accent-forest dark:accent-bitter-lime"
+            />
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
 
 export default RewatchModal;
