@@ -18,23 +18,37 @@ interface MovieCardProps {
   onToggleDisplayMode?: (movieId: string, mode: MovieDisplayMode) => void;
 }
 
-const WeightBadgeInline: React.FC<{ label: WeightLabel; hasPoster: boolean }> = ({
-  label,
-  hasPoster,
-}) => {
-  if (label === 'Standard') return null;
-  const base = 'text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full';
-  const styles =
-    label === 'Essentiel'
-      ? 'bg-bitter-lime text-charcoal'
-      : label === 'Important'
-        ? hasPoster
-          ? 'bg-white/20 text-white'
-          : 'bg-forest/15 text-forest dark:bg-lime-500/20 dark:text-lime-300'
-        : hasPoster
-          ? 'bg-white/10 text-white/60'
-          : 'bg-stone-200 text-stone-500 dark:bg-white/10 dark:text-stone-400';
-  return <span className={`${base} ${styles}`}>{label}</span>;
+const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
+  Essentiel: 'Influence forte dans la note finale',
+  Important: 'Influence moyenne dans la note finale',
+  Standard: 'Influence normale dans la note finale',
+  Secondaire: 'Influence légère dans la note finale',
+};
+
+const WeightPipsInline: React.FC<{
+  weight: number;
+  weightLabel?: WeightLabel;
+  hasPoster: boolean;
+}> = ({ weight, weightLabel, hasPoster }) => {
+  const filled = weight >= 1.7 ? 3 : weight >= 1.3 ? 2 : weight >= 0.9 ? 1 : 0;
+  const filledClass = hasPoster ? 'bg-white' : 'bg-bitter-lime dark:bg-bitter-lime';
+  const emptyClass = hasPoster
+    ? 'bg-white/20'
+    : 'bg-stone-200 dark:bg-white/15';
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 shrink-0"
+      role="img"
+      aria-label={weightLabel ? PIP_A11Y_LABEL[weightLabel] : undefined}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`w-1 h-1 rounded-full ${i < filled ? filledClass : emptyClass}`}
+        />
+      ))}
+    </span>
+  );
 };
 
 const RatingBar: React.FC<{
@@ -42,17 +56,18 @@ const RatingBar: React.FC<{
   value: number;
   hasPoster: boolean;
   isExpanded: boolean;
+  weight?: number;
   weightLabel?: WeightLabel;
-}> = ({ label, value, hasPoster, isExpanded, weightLabel }) => (
+}> = ({ label, value, hasPoster, isExpanded, weight, weightLabel }) => (
   <div className="flex items-center gap-4 mb-4 group/bar">
-    <div className="w-20 flex flex-col gap-0.5">
+    <div className="w-20 flex flex-col gap-1">
       <span
-        className={`text-[9px] font-black uppercase tracking-widest leading-tight ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
+        className={`text-[9px] font-black uppercase tracking-widest leading-tight break-words ${hasPoster ? 'text-white/40' : 'text-stone-400 dark:text-stone-500'}`}
       >
         {label}
       </span>
-      {weightLabel && weightLabel !== 'Standard' && (
-        <WeightBadgeInline label={weightLabel} hasPoster={hasPoster} />
+      {weight !== undefined && (
+        <WeightPipsInline weight={weight} weightLabel={weightLabel} hasPoster={hasPoster} />
       )}
     </div>
     <div
@@ -341,12 +356,20 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 {movie.director}
               </span>
             </div>
-            {!isWatchlist && profileLabel && (
+            {!isWatchlist && !isLegacyOnly && (
               <div
                 className={`mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${hasPoster ? 'bg-white/10 text-white/70' : 'bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400'}`}
               >
                 <span className="w-1 h-1 rounded-full bg-bitter-lime" />
-                Profil {profileLabel}
+                {profileLabel ? `Bitter+ · ${profileLabel}` : 'Bitter+'}
+              </div>
+            )}
+            {!isWatchlist && isLegacyOnly && (
+              <div
+                className={`mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${hasPoster ? 'bg-white/10 text-white/70' : 'bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400'}`}
+              >
+                <span className="w-1 h-1 rounded-full bg-bitter-lime" />
+                Bitter
               </div>
             )}
           </div>
@@ -367,15 +390,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                       <span
                         className={`text-[10px] font-black uppercase tracking-[0.2em] ${hasPoster ? 'text-white/30' : 'text-stone-300 dark:text-stone-700'}`}
                       >
-                        {profileLabel ? `Analyse · Profil ${profileLabel}` : 'Analyse Sensorielle'}
+                        {isLegacyOnly
+                          ? 'Notation Bitter'
+                          : profileLabel
+                            ? `Bitter+ · ${profileLabel}`
+                            : 'Notation Bitter+'}
                       </span>
-                      {isLegacyOnly && (
-                        <span
-                          className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full self-start ${hasPoster ? 'bg-white/10 text-white/50' : 'bg-stone-200 dark:bg-white/10 text-stone-400 dark:text-stone-500'}`}
-                        >
-                          Ancienne notation
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {hasRewatches && onToggleDisplayMode && (
@@ -406,6 +426,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                             value={c.value}
                             hasPoster={hasPoster}
                             isExpanded={isExpanded}
+                            weight={c.weight}
                             weightLabel={c.weightLabel}
                           />
                         ))}
@@ -418,6 +439,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                             value={c.value}
                             hasPoster={hasPoster}
                             isExpanded={isExpanded}
+                            weight={c.weight}
                             weightLabel={c.weightLabel}
                           />
                         ))}

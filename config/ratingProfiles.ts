@@ -8,7 +8,24 @@ export type RatingProfileId =
   | 'science_fiction'
   | 'thriller'
   | 'music'
-  | 'documentary';
+  | 'documentary'
+  | 'custom';
+
+/** Available weight levels for a custom profile. */
+export const CUSTOM_WEIGHT_LEVELS = [
+  { weight: 0.7, label: 'Secondaire' as const },
+  { weight: 1.0, label: 'Standard' as const },
+  { weight: 1.4, label: 'Important' as const },
+  { weight: 1.8, label: 'Essentiel' as const },
+];
+
+/** Default weights for a freshly created custom profile (all Standard). */
+export const DEFAULT_CUSTOM_WEIGHTS: Record<string, number> = {
+  scenario: 1.0,
+  image: 1.0,
+  interpretation: 1.0,
+  sound: 1.0,
+};
 
 export type LegacyProfileId = 'standard_legacy';
 export type AnyProfileId = RatingProfileId | LegacyProfileId;
@@ -198,6 +215,13 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       },
     ],
   },
+  custom: {
+    id: 'custom',
+    label: 'Profil perso',
+    // Default weights — all Standard. The user overrides them at rating time and
+    // the chosen weights are persisted alongside the criteria. See buildCriteriaForProfile.
+    criteria: buildBase({ scenario: 1.0, image: 1.0, interpretation: 1.0, sound: 1.0 }),
+  },
 };
 
 export const PROFILE_OPTIONS: { id: RatingProfileId; label: string }[] = [
@@ -211,6 +235,7 @@ export const PROFILE_OPTIONS: { id: RatingProfileId; label: string }[] = [
   { id: 'thriller', label: 'Thriller' },
   { id: 'music', label: 'Musical / Musique' },
   { id: 'documentary', label: 'Documentaire' },
+  { id: 'custom', label: 'Profil perso' },
 ];
 
 // Ordre de priorité : Documentary > Horror > Animation > Comedy > Action > SF > Thriller > Romance > Music

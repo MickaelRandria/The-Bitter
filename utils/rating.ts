@@ -27,18 +27,23 @@ export function detectRatingProfile(genres: string | string[] | undefined | null
 
 export function buildCriteriaForProfile(
   profileId: RatingProfileId,
-  existingValues?: Record<string, number>
+  existingValues?: Record<string, number>,
+  customWeights?: Record<string, number>
 ): AdaptiveRatingCriterion[] {
   const profile = getRatingProfile(profileId);
-  return profile.criteria.map<AdaptiveRatingCriterion>((c: CriterionDefinition) => ({
-    key: c.key,
-    label: c.label,
-    value: existingValues?.[c.key] ?? 5,
-    weight: c.weight,
-    weightLabel: getWeightLabel(c.weight),
-    group: c.group,
-    description: c.description,
-  }));
+  const overrideWeights = profileId === 'custom' && customWeights;
+  return profile.criteria.map<AdaptiveRatingCriterion>((c: CriterionDefinition) => {
+    const weight = overrideWeights ? customWeights![c.key] ?? c.weight : c.weight;
+    return {
+      key: c.key,
+      label: c.label,
+      value: existingValues?.[c.key] ?? 5,
+      weight,
+      weightLabel: getWeightLabel(weight),
+      group: c.group,
+      description: c.description,
+    };
+  });
 }
 
 export function calculateWeightedRating(criteria: AdaptiveRatingCriterion[]): number {
@@ -52,10 +57,11 @@ export function calculateWeightedRating(criteria: AdaptiveRatingCriterion[]): nu
 export function buildAdaptiveRating(
   profileId: RatingProfileId,
   values: Record<string, number>,
-  legacyRating?: number
+  legacyRating?: number,
+  customWeights?: Record<string, number>
 ): AdaptiveRatingData {
   const profile = getRatingProfile(profileId);
-  const criteria = buildCriteriaForProfile(profileId, values);
+  const criteria = buildCriteriaForProfile(profileId, values, customWeights);
   const weightedRating = calculateWeightedRating(criteria);
   return {
     profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },

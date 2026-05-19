@@ -20,6 +20,9 @@ import {
   Film,
   Calendar,
   Gauge,
+  Hourglass,
+  Equal,
+  FastForward,
 } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import {
@@ -40,6 +43,8 @@ import {
   PROFILE_OPTIONS,
   RatingProfileId,
   getRatingProfile,
+  CUSTOM_WEIGHT_LEVELS,
+  DEFAULT_CUSTOM_WEIGHTS,
 } from '../config/ratingProfiles';
 import {
   buildCriteriaForProfile,
@@ -171,10 +176,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const { t } = useLanguage();
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
-  const [isBitterMode, setIsBitterMode] = useState(false);
-  const [globalRating, setGlobalRating] = useState(5);
+  // Bitter+ = advanced adaptive rating. Bitter = simple 4-criteria average (default).
+  const [useBitterPlus, setUseBitterPlus] = useState(false);
   const [profileId, setProfileId] = useState<RatingProfileId>('standard');
   const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({});
+  const [customWeights, setCustomWeights] = useState<Record<string, number>>({ ...DEFAULT_CUSTOM_WEIGHTS });
   const [profileManuallySet, setProfileManuallySet] = useState(false);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
   const [searchResults, setSearchResults] = useState<TMDBSearchResult[]>([]);
@@ -193,14 +199,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         skipSearchRef.current = true;
         setFormData({ ...initialData, comment: initialData.comment || '' });
         setMode(initialData.status || 'watched');
-        setGlobalRating(
-          (initialData.ratings.story +
-            initialData.ratings.visuals +
-            initialData.ratings.acting +
-            initialData.ratings.sound) /
-            4
-        );
-        setIsBitterMode(!!initialData.vibe || !!initialData.qualityMetrics || !!initialData.adaptiveRating);
+        // Bitter+ when the saved data contains an adaptive rating (advanced grid).
+        // Otherwise, default to Bitter (simple 4-criteria average).
+        setUseBitterPlus(!!initialData.adaptiveRating);
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
         // Restore adaptive rating state when editing
         if (initialData.adaptiveRating) {
@@ -213,6 +214,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           const values: Record<string, number> = {};
           for (const c of initialData.adaptiveRating.criteria) values[c.key] = c.value;
           setCriteriaValues(values);
+          // Restore custom weights from stored criteria when the saved profile is custom
+          if (restoredProfile === 'custom') {
+            const weights: Record<string, number> = { ...DEFAULT_CUSTOM_WEIGHTS };
+            for (const c of initialData.adaptiveRating.criteria) weights[c.key] = c.weight;
+            setCustomWeights(weights);
+          } else {
+            setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
+          }
         } else {
           const detected = detectRatingProfile(initialData.genre);
           setProfileId(detected);
@@ -245,6 +254,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setProfileId('standard');
         setProfileManuallySet(false);
         setCriteriaValues({});
+        setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
+        setUseBitterPlus(false);
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
@@ -349,8 +360,26 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     setShowResults(false);
   };
 
-  const adaptiveCriteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile(profileId, criteriaValues);
+  const adaptiveCriteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile(
+    profileId,
+    criteriaValues,
+    customWeights
+  );
   const adaptiveWeightedRating = calculateWeightedRating(adaptiveCriteria);
+
+  // Bitter (simple) mode: 4 base criteria, equal weights, simple average.
+  const bitterCriteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile('standard', criteriaValues);
+  const bitterFinalRating =
+    bitterCriteria.length === 0
+      ? 0
+      : Math.round(
+          (bitterCriteria.reduce((s, c) => s + c.value, 0) / bitterCriteria.length) * 10
+        ) / 10;
+
+  const setCustomWeight = (key: string, weight: number) => {
+    haptics.soft();
+    setCustomWeights((prev) => ({ ...prev, [key]: weight }));
+  };
 
   const setCriterionValue = (key: string, value: number) => {
     setCriteriaValues((prev) => ({ ...prev, [key]: Math.min(10, Math.max(0, value)) }));
@@ -375,7 +404,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
     if (isWatchlist) {
       finalRatings = { story: 0, visuals: 0, acting: 0, sound: 0 };
-    } else if (isBitterMode) {
+    } else if (useBitterPlus) {
+      // Bitter+ : full adaptive rating with profile, weights, specific criterion.
       const profile = getRatingProfile(profileId);
       const legacyAvg =
         adaptiveCriteria.length > 0
@@ -404,7 +434,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       // Keep qualityMetrics in sync with the 4 base criteria for backward compat
       finalQualityMetrics = { scenario, acting: interpretation, visual: image, sound };
     } else {
-      finalRatings = { story: globalRating, visuals: globalRating, acting: globalRating, sound: globalRating };
+      // Bitter : 4 base criteria, simple average. No adaptiveRating, no profile.
+      finalRatings = {
+        story: criteriaValues.scenario ?? 5,
+        visuals: criteriaValues.image ?? 5,
+        acting: criteriaValues.interpretation ?? 5,
+        sound: criteriaValues.sound ?? 5,
+      };
+      finalAdaptiveRating = undefined;
     }
     const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
     if (sharedSpace && currentUserId) {
@@ -637,54 +674,80 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
           {mode === 'watched' && !sharedSpace && (
             <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
-              <div
-                onClick={() => {
-                  haptics.medium();
-                  setIsBitterMode(!isBitterMode);
-                }}
-                className={`p-5 rounded-[2rem] border-2 transition-all duration-300 cursor-pointer flex items-center justify-between shadow-lg ${isBitterMode ? 'bg-bitter-lime border-bitter-lime text-charcoal scale-[1.02]' : 'bg-[#0c0c0c] border-bitter-lime text-white'}`}
-              >
-                <div className="flex items-center gap-4">
-                  <FlaskConical
-                    size={24}
-                    strokeWidth={2.5}
-                    className={isBitterMode ? 'text-charcoal' : 'text-bitter-lime'}
-                  />
-                  <div>
-                    <p className="font-black text-xs uppercase tracking-tight">{t('addMovie.bitterAnalysis')}</p>
-                    <p
-                      className={`text-[8px] font-bold uppercase tracking-widest ${isBitterMode ? 'text-charcoal/70' : 'text-stone-400'}`}
-                    >
-                      {t('addMovie.bitterSubtitle')}
-                    </p>
-                  </div>
+              {/* Bitter / Bitter+ mode switch — Bitter is the default, Bitter+ opens the advanced grid */}
+              <div className="bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-[2rem] p-2 shadow-sm">
+                <div className="flex items-stretch gap-1" role="tablist" aria-label="Mode de notation">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={!useBitterPlus}
+                    onClick={() => {
+                      if (useBitterPlus) {
+                        haptics.soft();
+                        setUseBitterPlus(false);
+                      }
+                    }}
+                    className={`flex-1 py-3 px-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] ${
+                      !useBitterPlus
+                        ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal shadow-md'
+                        : 'bg-transparent text-stone-400 dark:text-stone-500'
+                    }`}
+                  >
+                    {t('addMovie.bitterMode')}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={useBitterPlus}
+                    onClick={() => {
+                      if (!useBitterPlus) {
+                        haptics.soft();
+                        setUseBitterPlus(true);
+                      }
+                    }}
+                    className={`flex-1 py-3 px-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] ${
+                      useBitterPlus
+                        ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal shadow-md'
+                        : 'bg-transparent text-stone-400 dark:text-stone-500'
+                    }`}
+                  >
+                    {t('addMovie.bitterPlusMode')}
+                  </button>
                 </div>
-                <div className={isBitterMode ? 'text-charcoal' : 'text-stone-600'}>
-                  {isBitterMode ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                </div>
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-3 mb-1 ml-2 leading-snug">
+                  {useBitterPlus ? t('addMovie.bitterPlusModeHint') : t('addMovie.bitterModeHint')}
+                </p>
               </div>
 
-              {isBitterMode ? (
+              {useBitterPlus ? (
                 <div className="space-y-8">
                   <AdaptiveRatingSection
+                    profileId={profileId}
                     profileLabel={getRatingProfile(profileId).label}
                     criteria={adaptiveCriteria}
                     weightedRating={adaptiveWeightedRating}
+                    customWeights={customWeights}
                     onChange={setCriterionValue}
+                    onChangeCustomWeight={setCustomWeight}
                     onOpenProfilePicker={() => {
                       haptics.soft();
                       setShowProfilePicker(true);
                     }}
                   />
                   <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 sm:p-8 rounded-[2rem] shadow-xl transition-all">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-3">
-                        <Smartphone size={20} className="text-bitter-lime" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-                          {t('addMovie.distraction')}
-                        </span>
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <Smartphone size={20} className="text-bitter-lime shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                            {t('addMovie.distraction')}
+                          </p>
+                          <p className="text-[11px] font-medium text-stone-300 dark:text-stone-500 mt-1 leading-snug">
+                            {t('addMovie.distractionDesc')}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-2xl font-black text-bitter-lime">
+                      <span className="text-2xl font-black text-bitter-lime shrink-0">
                         {formData.smartphoneFactor || 0}%
                       </span>
                     </div>
@@ -706,8 +769,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   <div className="bg-white dark:bg-[#202020] rounded-[2rem] p-5 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl">
-                          <Zap size={16} className="text-amber-400" />
+                        <div className="p-2 bg-forest/10 dark:bg-bitter-lime/10 rounded-xl">
+                          <Zap size={16} className="text-forest dark:text-bitter-lime" />
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
@@ -747,8 +810,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   {/* Pacing */}
                   <div className="bg-white dark:bg-[#202020] rounded-[2rem] p-5 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 bg-purple-50 dark:bg-purple-500/10 rounded-xl">
-                        <Gauge size={16} className="text-purple-500" />
+                      <div className="p-2 bg-forest/10 dark:bg-bitter-lime/10 rounded-xl">
+                        <Gauge size={16} className="text-forest dark:text-bitter-lime" />
                       </div>
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
@@ -762,11 +825,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     <div className="grid grid-cols-3 gap-2">
                       {(
                         [
-                          ['slow', '🐌', 'addMovie.slow'],
-                          ['perfect', '⚖️', 'addMovie.perfect'],
-                          ['fast', '⚡', 'addMovie.fast'],
+                          ['slow', Hourglass, 'addMovie.slow'],
+                          ['perfect', Equal, 'addMovie.perfect'],
+                          ['fast', FastForward, 'addMovie.fast'],
                         ] as const
-                      ).map(([val, emoji, labelKey]) => (
+                      ).map(([val, Icon, labelKey]) => (
                         <button
                           key={val}
                           type="button"
@@ -774,14 +837,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                             haptics.soft();
                             setFormData({ ...formData, pacing: val });
                           }}
-                          className={`py-3 rounded-xl text-center transition-all ${
+                          className={`py-3 rounded-xl text-center transition-all flex flex-col items-center gap-1.5 ${
                             formData.pacing === val
-                              ? 'bg-charcoal text-white dark:bg-purple-500/20 dark:text-purple-300'
+                              ? 'bg-charcoal text-white dark:bg-bitter-lime/15 dark:text-bitter-lime'
                               : 'bg-stone-50 dark:bg-[#161616] text-stone-400 border border-stone-100 dark:border-white/5'
                           }`}
                         >
-                          <div className="text-lg leading-none">{emoji}</div>
-                          <div className="text-[9px] font-black uppercase tracking-wider mt-1">
+                          <Icon size={18} strokeWidth={2.25} />
+                          <div className="text-[9px] font-black uppercase tracking-wider">
                             {t(labelKey)}
                           </div>
                         </button>
@@ -825,14 +888,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="py-4">
-                  <RatingStepper
-                    label={t('addMovie.globalRating')}
-                    value={globalRating}
-                    onChange={setGlobalRating}
-                    isBitter={false}
-                  />
-                </div>
+                <BitterRatingSection
+                  criteria={bitterCriteria}
+                  finalRating={bitterFinalRating}
+                  onChange={setCriterionValue}
+                  onSwitchToBitterPlus={() => {
+                    haptics.soft();
+                    setUseBitterPlus(true);
+                  }}
+                />
               )}
 
               <div className="space-y-4">
@@ -872,33 +936,195 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   );
 };
 
-const WeightBadge: React.FC<{ label: AdaptiveRatingCriterion['weightLabel'] }> = ({ label }) => {
-  if (label === 'Standard') return null;
-  const styles =
-    label === 'Essentiel'
-      ? 'bg-bitter-lime text-charcoal'
-      : label === 'Important'
-        ? 'bg-forest text-white dark:bg-lime-500/20 dark:text-lime-300'
-        : 'bg-stone-200 text-stone-500 dark:bg-white/10 dark:text-stone-400';
+// Mapping weight → pips: Essentiel ●●●, Important ●●○, Standard ●○○, Secondaire ○○○
+const weightToPipCount = (weight: number): number =>
+  weight >= 1.7 ? 3 : weight >= 1.3 ? 2 : weight >= 0.9 ? 1 : 0;
+
+const PIP_A11Y_LABEL: Record<AdaptiveRatingCriterion['weightLabel'], string> = {
+  Essentiel: 'Influence forte dans la note finale',
+  Important: 'Influence moyenne dans la note finale',
+  Standard: 'Influence normale dans la note finale',
+  Secondaire: 'Influence légère dans la note finale',
+};
+
+const WeightPips: React.FC<{
+  weight: number;
+  weightLabel?: AdaptiveRatingCriterion['weightLabel'];
+  variant?: 'lime' | 'mono';
+  size?: 'sm' | 'md';
+}> = ({ weight, weightLabel, variant = 'lime', size = 'md' }) => {
+  const filled = weightToPipCount(weight);
+  const filledClass =
+    variant === 'mono' ? 'bg-charcoal dark:bg-white' : 'bg-bitter-lime dark:bg-bitter-lime';
+  const emptyClass =
+    variant === 'mono'
+      ? 'bg-stone-300 dark:bg-stone-700'
+      : 'bg-stone-200 dark:bg-white/15';
+  const dot = size === 'sm' ? 'w-1.5 h-1.5' : 'w-2 h-2';
   return (
     <span
-      className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${styles}`}
+      className="inline-flex items-center gap-1 shrink-0"
+      role="img"
+      aria-label={weightLabel ? PIP_A11Y_LABEL[weightLabel] : undefined}
     >
-      {label}
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`${dot} rounded-full ${i < filled ? filledClass : emptyClass}`}
+        />
+      ))}
     </span>
   );
 };
 
+const BitterRatingSection: React.FC<{
+  criteria: AdaptiveRatingCriterion[];
+  finalRating: number;
+  onChange: (key: string, value: number) => void;
+  onSwitchToBitterPlus: () => void;
+}> = ({ criteria, finalRating, onChange, onSwitchToBitterPlus }) => {
+  const [showFormulaHelp, setShowFormulaHelp] = useState(false);
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
+          Critères de notation
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {criteria.map((c) => (
+            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} hideImportance />
+          ))}
+        </div>
+      </div>
+
+      {/* Final rating (simple average) */}
+      <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-6 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+            Note finale
+          </p>
+          <span className="text-5xl font-black text-bitter-lime tracking-tighter shrink-0">
+            {finalRating.toFixed(1)}
+          </span>
+        </div>
+      </div>
+
+      {/* Discreet upgrade CTA */}
+      <button
+        type="button"
+        onClick={onSwitchToBitterPlus}
+        className="w-full bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-2xl p-4 text-left active:scale-[0.98] transition-all flex items-center justify-between gap-3 shadow-sm"
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white">
+            Passer en Bitter+
+          </p>
+          <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 leading-snug">
+            Une grille adaptée au type d’expérience du film, avec profil et critères renforcés.
+          </p>
+        </div>
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-full bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white">
+          Activer
+        </span>
+      </button>
+
+      {/* Formula help */}
+      <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            setShowFormulaHelp((v) => !v);
+          }}
+          className="w-full flex items-center justify-between px-4 py-3 text-left active:bg-stone-100 dark:active:bg-[#1f1f1f] transition-colors"
+        >
+          <span className="text-[11px] font-black uppercase tracking-widest text-charcoal dark:text-white">
+            Comment est calculée la note&nbsp;?
+          </span>
+          <span className="text-charcoal dark:text-white text-lg leading-none">
+            {showFormulaHelp ? '−' : '+'}
+          </span>
+        </button>
+        {showFormulaHelp && (
+          <div className="px-4 pb-4 pt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-400 space-y-2">
+            <p>La note finale est la moyenne des 4 critères.</p>
+            <p>
+              Chaque critère compte autant : <span className="font-bold text-charcoal dark:text-white">Scénario</span>,{' '}
+              <span className="font-bold text-charcoal dark:text-white">Image</span>,{' '}
+              <span className="font-bold text-charcoal dark:text-white">Interprétation</span> et{' '}
+              <span className="font-bold text-charcoal dark:text-white">Sonore</span>.
+            </p>
+            <p className="text-[11px] text-stone-500 dark:text-stone-500">
+              Pour adapter le poids des critères au type de film, passe en Bitter+.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CustomWeightRow: React.FC<{
+  label: string;
+  selectedWeight: number;
+  onSelect: (weight: number) => void;
+}> = ({ label, selectedWeight, onSelect }) => (
+  <div className="flex items-center justify-between gap-3">
+    <span className="text-[11px] font-black uppercase tracking-widest text-charcoal dark:text-white leading-tight flex-1 min-w-0 break-words">
+      {label}
+    </span>
+    <div className="inline-flex items-center gap-1 shrink-0">
+      {CUSTOM_WEIGHT_LEVELS.map((opt) => {
+        const isSelected = Math.abs(selectedWeight - opt.weight) < 0.001;
+        return (
+          <button
+            key={opt.label}
+            type="button"
+            aria-label={`Définir comme ${opt.label.toLowerCase()}`}
+            aria-pressed={isSelected}
+            onClick={() => onSelect(opt.weight)}
+            className={`h-8 px-2 rounded-lg flex items-center justify-center transition-all active:scale-90 border ${
+              isSelected
+                ? 'bg-charcoal text-white border-charcoal dark:bg-bitter-lime/15 dark:border-bitter-lime/40'
+                : 'bg-stone-50 dark:bg-[#161616] border-stone-200 dark:border-white/5'
+            }`}
+          >
+            <WeightPips
+              weight={opt.weight}
+              weightLabel={opt.label}
+              variant="lime"
+              size="sm"
+            />
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const AdaptiveRatingSection: React.FC<{
+  profileId: RatingProfileId;
   profileLabel: string;
   criteria: AdaptiveRatingCriterion[];
   weightedRating: number;
+  customWeights: Record<string, number>;
   onChange: (key: string, value: number) => void;
+  onChangeCustomWeight: (key: string, weight: number) => void;
   onOpenProfilePicker: () => void;
-}> = ({ profileLabel, criteria, weightedRating, onChange, onOpenProfilePicker }) => {
+}> = ({
+  profileId,
+  profileLabel,
+  criteria,
+  weightedRating,
+  customWeights,
+  onChange,
+  onChangeCustomWeight,
+  onOpenProfilePicker,
+}) => {
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
   const base = criteria.filter((c) => c.group === 'base');
   const specific = criteria.filter((c) => c.group === 'specific');
+  const isCustom = profileId === 'custom';
   const reinforcedLabels = criteria
     .filter((c) => c.weightLabel === 'Essentiel' || c.weightLabel === 'Important')
     .map((c) => c.label);
@@ -916,12 +1142,11 @@ const AdaptiveRatingSection: React.FC<{
               {profileLabel}
             </p>
             <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-2 leading-snug">
-              Choisi automatiquement à partir des genres du film.
+              {isCustom
+                ? 'Choisis les critères qui comptent le plus dans ta manière de noter ce film.'
+                : 'La grille est adaptée automatiquement au type d’expérience du film, mais tu peux la changer.'}
             </p>
-            <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 leading-snug">
-              Cette grille donne plus de poids aux critères essentiels du genre.
-            </p>
-            {reinforcedLabels.length > 0 && (
+            {!isCustom && reinforcedLabels.length > 0 && (
               <div className="mt-3">
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
                   Critères renforcés
@@ -940,12 +1165,25 @@ const AdaptiveRatingSection: React.FC<{
             Changer
           </button>
         </div>
+
+        {isCustom && (
+          <div className="mt-5 pt-5 border-t border-stone-100 dark:border-white/5 space-y-3">
+            {base.map((c) => (
+              <CustomWeightRow
+                key={c.key}
+                label={c.label}
+                selectedWeight={customWeights[c.key] ?? 1.0}
+                onSelect={(w) => onChangeCustomWeight(c.key, w)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Base criteria */}
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3 ml-1">
-          Critères principaux
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
+          Critères de notation
         </p>
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {base.map((c) => (
@@ -957,8 +1195,11 @@ const AdaptiveRatingSection: React.FC<{
       {/* Specific criterion */}
       {specific.length > 0 && (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 mb-3 ml-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
             Critère spécifique
+          </p>
+          <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 ml-1 mb-3 leading-snug">
+            L’élément clé pour évaluer ce type de film.
           </p>
           <div className="grid grid-cols-1 gap-3">
             {specific.map((c) => (
@@ -970,16 +1211,11 @@ const AdaptiveRatingSection: React.FC<{
 
       {/* Final weighted rating */}
       <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-6 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
-              Note finale
-            </p>
-            <p className="text-[9px] font-bold text-stone-500 mt-1">
-              Calculée selon le profil {profileLabel}.
-            </p>
-          </div>
-          <span className="text-5xl font-black text-bitter-lime tracking-tighter">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+            Note finale
+          </p>
+          <span className="text-5xl font-black text-bitter-lime tracking-tighter shrink-0">
             {weightedRating.toFixed(1)}
           </span>
         </div>
@@ -1003,28 +1239,44 @@ const AdaptiveRatingSection: React.FC<{
           </span>
         </button>
         {showFormulaHelp && (
-          <div className="px-4 pb-4 pt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-400 space-y-2">
-            <p>La note finale est une moyenne pondérée des critères du profil.</p>
-            <div className="space-y-1">
-              <p className="flex items-center gap-2">
-                <WeightPips weight={1.8} dark />
-                <span><span className="font-black text-charcoal dark:text-white">Essentiel</span> · influence forte</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <WeightPips weight={1.4} dark />
-                <span><span className="font-black text-charcoal dark:text-white">Important</span> · influence moyenne</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <WeightPips weight={1.0} dark />
-                <span><span className="font-black text-charcoal dark:text-white">Standard</span> · influence normale</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <WeightPips weight={0.7} dark />
-                <span><span className="font-black text-charcoal dark:text-white">Secondaire</span> · influence légère</span>
-              </p>
+          <div className="px-4 pb-4 pt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-400 space-y-3">
+            <p>
+              La note finale est une moyenne pondérée. Chaque critère n’a pas toujours le même
+              poids selon le profil de notation choisi.
+            </p>
+            <p>Les points indiquent l’influence du critère dans la note finale&nbsp;:</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3">
+                  <WeightPips weight={1.8} variant="mono" />
+                  <span className="font-bold text-charcoal dark:text-white">Critère essentiel</span>
+                </span>
+                <span className="font-black text-charcoal dark:text-white tabular-nums">×1.8</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3">
+                  <WeightPips weight={1.4} variant="mono" />
+                  <span className="font-bold text-charcoal dark:text-white">Critère important</span>
+                </span>
+                <span className="font-black text-charcoal dark:text-white tabular-nums">×1.4</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3">
+                  <WeightPips weight={1.0} variant="mono" />
+                  <span className="font-bold text-charcoal dark:text-white">Critère standard</span>
+                </span>
+                <span className="font-black text-charcoal dark:text-white tabular-nums">×1.0</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3">
+                  <WeightPips weight={0.7} variant="mono" />
+                  <span className="font-bold text-charcoal dark:text-white">Critère secondaire</span>
+                </span>
+                <span className="font-black text-charcoal dark:text-white tabular-nums">×0.7</span>
+              </div>
             </div>
             <p className="text-[11px] text-stone-500 dark:text-stone-500">
-              Les poids sont appliqués automatiquement selon le profil de notation choisi.
+              Les poids sont appliqués automatiquement selon le profil de notation.
             </p>
           </div>
         )}
@@ -1033,53 +1285,41 @@ const AdaptiveRatingSection: React.FC<{
   );
 };
 
-// Mapping weight → pips: Essentiel ●●●, Important ●●○, Standard ●○○, Secondaire ○○○
-const WeightPips: React.FC<{ weight: number; dark?: boolean }> = ({ weight, dark }) => {
-  const filled = weight >= 1.7 ? 3 : weight >= 1.3 ? 2 : weight >= 0.9 ? 1 : 0;
-  const filledClass = dark ? 'bg-charcoal dark:bg-white' : 'bg-bitter-lime';
-  const emptyClass = dark ? 'bg-stone-300 dark:bg-stone-700' : 'bg-stone-200 dark:bg-stone-800';
-  return (
-    <span className="inline-flex items-center gap-0.5 shrink-0" aria-hidden>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className={`w-1.5 h-1.5 rounded-full ${i < filled ? filledClass : emptyClass}`}
-        />
-      ))}
-    </span>
-  );
-};
-
 const AdaptiveCriterionStepper: React.FC<{
   criterion: AdaptiveRatingCriterion;
   onChange: (key: string, value: number) => void;
   showDescription?: boolean;
-}> = ({ criterion, onChange, showDescription }) => {
+  hideImportance?: boolean;
+}> = ({ criterion, onChange, showDescription, hideImportance }) => {
   const { key, label, value, weight, weightLabel, description } = criterion;
-  // Circle reflects criterion IMPORTANCE in the profile, not the user's rating value
-  const isReinforced = weight >= 1.3;
   return (
-    <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] p-3 border border-stone-100 dark:border-white/10 flex flex-col h-full shadow-sm">
-      <div className="flex justify-between items-start mb-2 gap-1">
-        <span className="text-[8px] font-black text-stone-400 dark:text-stone-600 uppercase tracking-widest leading-none truncate pr-1">
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] p-3 sm:p-4 border border-stone-100 dark:border-white/10 flex flex-col h-full shadow-sm">
+      {/* Top row: label (full width, never truncated) + value */}
+      <div className="flex justify-between items-start gap-2">
+        <span className="text-[10px] sm:text-[11px] font-black text-charcoal dark:text-white uppercase tracking-widest leading-tight break-words flex-1 min-w-0">
           {label}
         </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <WeightBadge label={weightLabel} />
-          <div
-            className={`w-1.5 h-1.5 rounded-full ${isReinforced ? 'bg-bitter-lime' : 'bg-stone-200 dark:bg-stone-800'}`}
-            title={`Importance : ${weightLabel}`}
-          />
-        </div>
+        <span className="text-2xl font-black tracking-tighter text-charcoal dark:text-white shrink-0 leading-none tabular-nums">
+          {value.toFixed(1)}
+        </span>
       </div>
+      {/* Importance pips (hidden in Bitter mode) */}
+      {!hideImportance && (
+        <div className="mt-2">
+          <WeightPips weight={weight} weightLabel={weightLabel} size="sm" />
+        </div>
+      )}
+      {/* Optional description (specific criteria) */}
       {showDescription && description && (
-        <p className="text-[10px] leading-snug text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-[11px] leading-snug text-stone-500 dark:text-stone-400 mt-3">
           {description}
         </p>
       )}
-      <div className="flex items-center justify-between gap-1 flex-1 min-h-[48px]">
+      {/* Stepper control */}
+      <div className="flex items-center justify-between gap-1 mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
         <button
           type="button"
+          aria-label="Diminuer la note"
           onClick={() => {
             haptics.soft();
             onChange(key, Math.max(0, value - 0.5));
@@ -1088,25 +1328,25 @@ const AdaptiveCriterionStepper: React.FC<{
         >
           <Minus size={12} strokeWidth={3} className="text-charcoal dark:text-white" />
         </button>
-        <div className="flex-1 flex justify-center items-center overflow-hidden">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            min="0"
-            max="10"
-            value={value === 0 ? '' : value}
-            placeholder="0"
-            onChange={(e) => {
-              const val = parseFloat(e.target.value.replace(',', '.'));
-              if (!isNaN(val)) onChange(key, Math.min(10, Math.max(0, val)));
-              else if (e.target.value === '') onChange(key, 0);
-            }}
-            className="w-full text-center text-2xl font-black tracking-tighter text-charcoal dark:text-white bg-transparent outline-none py-0 appearance-none border-none ring-0 focus:ring-0"
-          />
-        </div>
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.5"
+          min="0"
+          max="10"
+          aria-label={`Note pour ${label}`}
+          value={value === 0 ? '' : value}
+          placeholder="0"
+          onChange={(e) => {
+            const val = parseFloat(e.target.value.replace(',', '.'));
+            if (!isNaN(val)) onChange(key, Math.min(10, Math.max(0, val)));
+            else if (e.target.value === '') onChange(key, 0);
+          }}
+          className="flex-1 min-w-0 text-center text-base font-bold tracking-tight text-stone-500 dark:text-stone-400 bg-transparent outline-none py-0 appearance-none border-none ring-0 focus:ring-0"
+        />
         <button
           type="button"
+          aria-label="Augmenter la note"
           onClick={() => {
             haptics.soft();
             onChange(key, Math.min(10, value + 0.5));
@@ -1115,12 +1355,6 @@ const AdaptiveCriterionStepper: React.FC<{
         >
           <Plus size={12} strokeWidth={3} />
         </button>
-      </div>
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100 dark:border-white/5">
-        <span className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-          Importance
-        </span>
-        <WeightPips weight={weight} />
       </div>
     </div>
   );
