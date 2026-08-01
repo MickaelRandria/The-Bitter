@@ -19,10 +19,12 @@ import {
   Globe,
   Users,
   ChevronDown,
+  Smartphone,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { dominantGenre } from '../utils/movieStats';
+import HowItWorksModal from './HowItWorksModal';
 import { RELEASE_HISTORY } from '../constants/changelog';
 import {
   NotificationPrefs,
@@ -81,6 +83,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   const locale = language === 'en' ? 'en-US' : 'fr-FR';
   const joinDate = new Date(profile.createdAt).toLocaleDateString(locale, {
@@ -488,6 +491,28 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </button>
 
             <button
+              onClick={() => {
+                haptics.soft();
+                setShowHowItWorks(true);
+              }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                  <Smartphone size={14} />
+                </div>
+                <div className="text-left">
+                  <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('howItWorks.title')}
+                  </span>
+                  <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
+                    {t('howItWorks.subtitle')}
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            <button
               onClick={handleExport}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
             >
@@ -547,6 +572,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </p>
         </div>
       </div>
+
+      {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
     </div>
   );
 };

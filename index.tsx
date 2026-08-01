@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+// Doit être importé tôt : Chrome émet `beforeinstallprompt` juste après le chargement
+import './utils/pwaInstall';
 import App from './App';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';

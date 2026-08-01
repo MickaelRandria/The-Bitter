@@ -49,15 +49,67 @@ export const en: Record<string, string> = {
   'auth.resetLinkSent': 'A reset link has been sent to:',
   'auth.checkSpam': 'Also check your spam folder. The link expires in 1 hour.',
 
+  // ── How it works (onboarding carousel) ───────────────────────────────────
+  'howItWorks.title': 'How it works',
+  'howItWorks.subtitle': 'No account, on your device',
+  'howItWorks.next': 'Next',
+  'howItWorks.ios': 'iPhone / iPad',
+  'howItWorks.android': 'Android',
+  'howItWorks.yourDevice': 'you',
+
+  // Slide 1 — your data
+  'howItWorks.s1.badge': '100% local',
+  'howItWorks.s1.title1': 'Your Cinema,',
+  'howItWorks.s1.title2': 'Your Data.',
+  'howItWorks.s1.desc':
+    'No account, no server. Your collection, ratings and stats live only in this device’s browser.',
+  'howItWorks.s1.alertTitle': 'Never in private browsing',
+  'howItWorks.s1.alertDesc':
+    'In private mode the browser wipes everything the second you close the window. Your entire collection is gone, for good.',
+  'howItWorks.s1.cacheTitle': 'Do not clear your cache.',
+  'howItWorks.s1.cacheDesc':
+    '“Clear browsing data” resets the app, just like uninstalling it or switching phones.',
+  'howItWorks.s1.exportTitle': 'Export now and then.',
+  'howItWorks.s1.exportDesc':
+    'From your profile, “Export my data” saves a backup you can keep somewhere safe.',
+
+  // Slide 2 — install
+  'howItWorks.s2.badge': 'Home screen',
+  'howItWorks.s2.title1': 'Install the app',
+  'howItWorks.s2.title2': "(it's better).",
+  'howItWorks.s2.desc':
+    'For a full-screen experience — and so you don’t lose your data in Safari or Chrome — add The Bitter to your home screen.',
+  'howItWorks.s2.hintIos': 'Safari → Share → Add to Home Screen',
+  'howItWorks.s2.hintAndroid': 'Chrome → ⋮ menu → Install app',
+  'howItWorks.s2.alreadyInstalled': 'The app is already installed',
+  'howItWorks.iosSafariOnly': 'You are not in Safari: reopen this page in Safari to install it.',
+  'howItWorks.installNow': 'Install the app',
+  'howItWorks.installFirst':
+    'Tip: install the app before building your collection. On iPhone, the home-screen app may not find films you entered earlier in Safari.',
+
+  // Slide 3 — get started
+  'howItWorks.s3.title1': 'Ready to',
+  'howItWorks.s3.title2': 'judge?',
+  'howItWorks.s3.desc': 'Start your collection.',
+  'howItWorks.s3.quote': 'Remember: a rating is not objective — it belongs to you.',
+  'howItWorks.s3.cta': 'Start rating',
+
+  // Home-screen trigger
+  'howItWorks.learnMore': 'How does it work?',
+  'howItWorks.localOnly': 'No account · your films stay on this device',
+  'howItWorks.triggerTitle': 'Read this before you start',
+  'howItWorks.triggerDesc': 'Where your films live · install the app · 30 seconds',
+  'howItWorks.triggerSeen': 'See how it works again',
+
   // ── Welcome ──────────────────────────────────────────────────────────────
   'welcome.tagline': 'Cinematic Heritage.',
   'welcome.myProfiles': 'My Profiles',
-  'welcome.newAccount': 'New Account',
+  'welcome.newAccount': 'New profile',
   'welcome.start': 'Start the Journey',
   'welcome.backWelcome': 'Welcome Back.',
   'welcome.chooseProfile': 'Choose your logbook.',
   'welcome.noProfiles': 'No profiles found',
-  'welcome.noProfilesDesc': 'Start your cinematic heritage by creating your first account.',
+  'welcome.noProfilesDesc': 'Start your cinematic heritage by creating your first profile.',
   'welcome.createProfile': 'Create a profile',
   'welcome.deleteTitle': 'Are you sure?',
   'welcome.deleteDesc': 'This will permanently delete the profile and all its history. This cannot be undone.',
@@ -65,7 +117,7 @@ export const en: Record<string, string> = {
   'welcome.films': 'FILMS',
 
   // ── Create profile form ──────────────────────────────────────────────────
-  'createProfile.title': 'Registration.',
+  'createProfile.title': 'New profile.',
   'createProfile.subtitle': 'YOUR CINEPHILE IDENTITY',
   'createProfile.firstName': 'First Name',
   'createProfile.lastName': 'Last Name',
@@ -100,7 +152,7 @@ export const en: Record<string, string> = {
 
   // ── Profile Modal ─────────────────────────────────────────────────────────
   'profileModal.title': 'My Profile',
-  'profileModal.guest': 'Guest Account',
+  'profileModal.guest': 'Local profile',
   'profileModal.memberSince': 'Member since {date}',
   'profileModal.confirmed': 'Confirmed',
   'profileModal.provisional': 'Provisional',
