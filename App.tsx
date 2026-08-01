@@ -1,4 +1,4 @@
-import {
+﻿import {
   Plus,
   Search,
   SlidersHorizontal,
@@ -64,7 +64,6 @@ import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
-import AuthScreen from './components/AuthScreen';
 import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
@@ -294,7 +293,6 @@ const App: React.FC = () => {
 
   const [session, setSession] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isGuestMode, setIsGuestMode] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showProfileLinking, setShowProfileLinking] = useState(false);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -674,7 +672,6 @@ const App: React.FC = () => {
 
       if (event === 'SIGNED_OUT') {
         setActiveProfileId(null);
-        setIsGuestMode(false);
       }
 
       if (event === 'PASSWORD_RECOVERY') {
@@ -1202,7 +1199,6 @@ const App: React.FC = () => {
     haptics.medium();
     setShowSignOutConfirm(false);
     if (session) await (supabase?.auth as any).signOut();
-    setIsGuestMode(false);
     setActiveProfileId(null);
     setSession(null);
     setShowWelcome(true);
@@ -1218,8 +1214,9 @@ const App: React.FC = () => {
         <Loader2 size={32} className="animate-spin text-forest" />
       </div>
     );
-  if (!session && !isGuestMode && !activeProfileId)
-    return <AuthScreen onContinueAsGuest={() => setIsGuestMode(true)} />;
+  // Plus d'écran de connexion : l'app est 100% locale, on arrive directement sur
+  // le choix / la création de profil. AuthScreen est conservé pour le jour où la
+  // synchronisation de comptes sera de nouveau au point.
   if (showWelcome && !activeProfileId)
     return (
       <div className="relative min-h-screen">
@@ -1311,11 +1308,6 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {isGuestMode && (
-                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-stone-100 dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-white/5">
-                  {t('feed.guest')}
-                </span>
-              )}
               <ThemeToggle />
               <NotificationCenter movies={activeProfile?.movies || []} />
               <button

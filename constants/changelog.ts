@@ -14,6 +14,25 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.86',
+    date: '1 Août 2026',
+    title: '100% Local & Nouvel Onboarding',
+    changes: [
+      {
+        type: 'feature',
+        text: "Plus de compte — En attendant que la synchronisation soit au point, The Bitter fonctionne entièrement sans compte : ta collection reste sur ton appareil, sans serveur ni inscription.",
+      },
+      {
+        type: 'feature',
+        text: "« Comment ça marche » — Un nouveau guide en 3 écrans t'explique où vivent tes données, pourquoi éviter la navigation privée, et comment installer l'app sur ton écran d'accueil (iPhone et Android). Accessible dès l'accueil et depuis ton profil.",
+      },
+      {
+        type: 'fix',
+        text: "Profil local — L'écran de connexion a été retiré du parcours. Le profil affiche désormais « Profil local » à la place du statut de compte invité.",
+      },
+    ],
+  },
+  {
     version: 'v0.85',
     date: '1 Août 2026',
     title: 'Performance, Cohérence & Accessibilité',

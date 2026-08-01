@@ -14,11 +14,16 @@ import {
   Ticket,
   Clapperboard,
   ChevronLeft,
+  Smartphone,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import ThemeToggle from './ThemeToggle';
+import HowItWorksModal from './HowItWorksModal';
+
+/** Le guide n'est mis en avant qu'à la première visite. */
+const GUIDE_SEEN_KEY = 'the_bitter_guide_seen';
 
 interface WelcomePageProps {
   existingProfiles: UserProfile[];
@@ -72,6 +77,17 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   const [lastProfileId, setLastProfileId] = useState<string | null>(null);
   const [isManaging, setIsManaging] = useState(false);
   const [profileToDelete, setProfileToDelete] = useState<string | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [hasSeenGuide, setHasSeenGuide] = useState(
+    () => localStorage.getItem(GUIDE_SEEN_KEY) === '1'
+  );
+
+  const openGuide = () => setShowHowItWorks(true);
+  const closeGuide = () => {
+    setShowHowItWorks(false);
+    localStorage.setItem(GUIDE_SEEN_KEY, '1');
+    setHasSeenGuide(true);
+  };
 
   useEffect(() => {
     const last = localStorage.getItem('the_bitter_last_profile');
@@ -171,6 +187,50 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
             <p className="text-stone-400 font-bold mb-14 text-[11px] uppercase tracking-[0.3em] opacity-80">
               {t('welcome.tagline')}
             </p>
+
+            {/*
+              Déclencheur de l'onboarding. À la première visite il devient le point
+              focal de la page : bloc lime pleine largeur, halo pulsant, au-dessus
+              du CTA principal. Une fois lu, il retombe en lien discret.
+            */}
+            {!hasSeenGuide ? (
+              <button
+                onClick={() => {
+                  haptics.medium();
+                  openGuide();
+                }}
+                className="mb-8 w-full max-w-sm sm:max-w-md group relative flex items-center gap-4 px-6 py-5 rounded-[2rem] bg-lime-400 text-black text-left shadow-2xl shadow-lime-400/30 animate-pulse-glow active:scale-[0.97] transition-transform"
+              >
+                <span className="absolute -inset-1 rounded-[2.25rem] border-2 border-lime-400/40 animate-ping pointer-events-none" />
+                <span className="w-11 h-11 shrink-0 rounded-2xl bg-black/10 flex items-center justify-center">
+                  <AlertTriangle size={20} strokeWidth={2.5} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[12px] font-black uppercase tracking-widest leading-tight">
+                    {t('howItWorks.triggerTitle')}
+                  </span>
+                  <span className="block text-[10px] font-bold opacity-70 mt-1 leading-tight">
+                    {t('howItWorks.triggerDesc')}
+                  </span>
+                </span>
+                <ArrowRight
+                  size={20}
+                  strokeWidth={3}
+                  className="shrink-0 group-hover:translate-x-1 transition-transform"
+                />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  openGuide();
+                }}
+                className="mb-8 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-charcoal dark:hover:text-white transition-colors"
+              >
+                <Smartphone size={13} />
+                {t('howItWorks.triggerSeen')}
+              </button>
+            )}
 
             <div className="space-y-5 w-full max-w-sm sm:max-w-md">
               {existingProfiles.length > 0 ? (
@@ -478,6 +538,8 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
           </div>
         </div>
       )}
+
+      {showHowItWorks && <HowItWorksModal onClose={closeGuide} />}
     </div>
   );
 };

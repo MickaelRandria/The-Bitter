@@ -16,7 +16,12 @@ export default defineConfig({
       devOptions: {
         enabled: false,
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: [
+        'favicon_io/favicon.ico',
+        'favicon_io/apple-touch-icon.png',
+        'favicon_io/android-chrome-192x192.png',
+        'favicon_io/android-chrome-512x512.png',
+      ],
       manifest: {
         name: 'The Bitter',
         short_name: 'Bitter',
@@ -28,17 +33,17 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'favicon_io/android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'favicon_io/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'favicon_io/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',

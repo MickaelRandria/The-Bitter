@@ -49,10 +49,63 @@ export const fr: Record<string, string> = {
   'auth.resetLinkSent': 'Un lien de réinitialisation a été envoyé à :',
   'auth.checkSpam': 'Vérifie aussi tes spams. Le lien expire dans 1 heure.',
 
+  // ── Comment ça marche (carousel d'onboarding) ────────────────────────────
+  'howItWorks.title': 'Comment ça marche',
+  'howItWorks.subtitle': 'Sans compte, sur ton appareil',
+  'howItWorks.next': 'Suivant',
+  'howItWorks.ios': 'iPhone / iPad',
+  'howItWorks.android': 'Android',
+  'howItWorks.yourDevice': 'toi',
+
+  // Slide 1 — les données
+  'howItWorks.s1.badge': '100% local',
+  'howItWorks.s1.title1': 'Ton Cinéma,',
+  'howItWorks.s1.title2': 'Tes Données.',
+  'howItWorks.s1.desc':
+    "Aucun compte, aucun serveur. Ta collection, tes notes et tes statistiques vivent uniquement dans le navigateur de cet appareil.",
+  'howItWorks.s1.alertTitle': 'Jamais en navigation privée',
+  'howItWorks.s1.alertDesc':
+    "En mode privé, le navigateur efface tout à la seconde où tu fermes la fenêtre. Ta collection entière disparaît, sans retour possible.",
+  'howItWorks.s1.cacheTitle': 'Ne vide pas le cache.',
+  'howItWorks.s1.cacheDesc':
+    "« Effacer les données de navigation » remet l'app à zéro, comme désinstaller l'app ou changer de téléphone.",
+  'howItWorks.s1.exportTitle': 'Exporte de temps en temps.',
+  'howItWorks.s1.exportDesc':
+    "Depuis ton profil, « Exporter mes données » enregistre une sauvegarde que tu peux garder de côté.",
+
+  // Slide 2 — installation
+  'howItWorks.s2.badge': 'Écran d’accueil',
+  'howItWorks.s2.title1': "Installe l'app",
+  'howItWorks.s2.title2': "(C'est mieux).",
+  'howItWorks.s2.desc':
+    "Pour une expérience plein écran et pour ne pas perdre tes données dans Safari ou Chrome, ajoute The Bitter à ton écran d'accueil.",
+  'howItWorks.s2.hintIos': 'Safari → Partager → Sur l’écran d’accueil',
+  'howItWorks.s2.hintAndroid': 'Chrome → menu ⋮ → Installer l’application',
+  'howItWorks.s2.alreadyInstalled': "L'app est déjà installée",
+  'howItWorks.iosSafariOnly':
+    "Tu n'es pas dans Safari : rouvre cette page dans Safari pour pouvoir l'installer.",
+  'howItWorks.installNow': "Installer l'app",
+  'howItWorks.installFirst':
+    "Conseil : installe l'app avant de commencer ta collection. Sur iPhone, l'app ajoutée à l'écran d'accueil peut ne pas retrouver les films saisis auparavant dans Safari.",
+
+  // Slide 3 — c'est parti
+  'howItWorks.s3.title1': 'Prêt à',
+  'howItWorks.s3.title2': 'juger ?',
+  'howItWorks.s3.desc': 'Commence ta collection.',
+  'howItWorks.s3.quote': "N'oublie pas : la note n'est pas objective, elle t'appartient.",
+  'howItWorks.s3.cta': 'Commencer à noter',
+
+  // Déclencheur sur l'écran d'accueil
+  'howItWorks.learnMore': 'Comment ça marche ?',
+  'howItWorks.localOnly': 'Aucun compte · tes films restent sur cet appareil',
+  'howItWorks.triggerTitle': 'À lire avant de commencer',
+  'howItWorks.triggerDesc': 'Où vivent tes films · installer l’app · 30 secondes',
+  'howItWorks.triggerSeen': 'Revoir le fonctionnement',
+
   // ── Welcome ──────────────────────────────────────────────────────────────
   'welcome.tagline': 'Héritage Cinématographique.',
   'welcome.myProfiles': 'Mes Profils',
-  'welcome.newAccount': 'Nouveau Compte',
+  'welcome.newAccount': 'Nouveau profil',
   'welcome.start': "Commencer l'aventure",
   'welcome.backWelcome': 'Re-Bienvenue.',
   'welcome.chooseProfile': 'Choisis ton carnet de bord.',
@@ -65,7 +118,7 @@ export const fr: Record<string, string> = {
   'welcome.films': 'FILMS',
 
   // ── Create profile form ──────────────────────────────────────────────────
-  'createProfile.title': 'Inscription.',
+  'createProfile.title': 'Nouveau profil.',
   'createProfile.subtitle': 'TON IDENTITÉ CINÉPHILE',
   'createProfile.firstName': 'Prénom',
   'createProfile.lastName': 'Nom',
@@ -100,7 +153,7 @@ export const fr: Record<string, string> = {
 
   // ── Profile Modal ─────────────────────────────────────────────────────────
   'profileModal.title': 'Mon Profil',
-  'profileModal.guest': 'Compte Invité',
+  'profileModal.guest': 'Profil local',
   'profileModal.memberSince': 'Membre depuis {date}',
   'profileModal.confirmed': 'Confirmé',
   'profileModal.provisional': 'Provisoire',
