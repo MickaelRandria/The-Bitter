@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   X,
   LogOut,
-  Info,
   SlidersHorizontal,
   Repeat,
   Calendar,
@@ -13,6 +12,7 @@ import {
   Film,
   PieChart,
   Download,
+  Upload,
   Bell,
   BellOff,
   Send,
@@ -22,6 +22,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { UserProfile } from '../types';
+import { createBackup, parseBackup, TheBitterBackup } from '../utils/dataBackup';
 import { haptics } from '../utils/haptics';
 import { dominantGenre } from '../utils/movieStats';
 import HowItWorksModal from './HowItWorksModal';
@@ -41,7 +42,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onSwitchProfile: () => void;
   onRecalibrate: () => void;
-  onShowTutorial: () => void;
+  onImportBackup: (backup: TheBitterBackup) => void;
   onSignOut: () => void;
   onOpenSpaces: () => void;
   onLetterboxdImport?: () => void;
@@ -72,7 +73,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onSwitchProfile,
   onRecalibrate,
-  onShowTutorial,
+  onImportBackup,
   onSignOut,
   onOpenSpaces,
   onLetterboxdImport,
@@ -84,6 +85,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const locale = language === 'en' ? 'en-US' : 'fr-FR';
   const joinDate = new Date(profile.createdAt).toLocaleDateString(locale, {
@@ -108,27 +110,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleExport = () => {
     haptics.success();
-    const data = {
-      profile: {
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        role: profile.role,
-        severityIndex: profile.severityIndex,
-        patienceLevel: profile.patienceLevel,
-        favoriteGenres: profile.favoriteGenres,
-        createdAt: new Date(profile.createdAt).toISOString(),
-      },
-      movies: profile.movies.map((m) => ({
-        title: m.title,
-        director: m.director,
-        year: m.year,
-        genre: m.genre,
-        status: m.status,
-        ratings: m.ratings,
-        dateWatched: m.dateWatched ? new Date(m.dateWatched).toISOString() : null,
-      })),
-      exportedAt: new Date().toISOString(),
-    };
+    const data = createBackup(profile);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -136,6 +118,28 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     a.download = `the-bitter-${profile.firstName?.toLowerCase() || 'export'}-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Permet de sélectionner à nouveau le même fichier après une annulation ou une erreur.
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const backup = parseBackup(JSON.parse(await file.text()));
+      if (!backup) throw new Error('invalid-backup');
+
+      const confirmed = window.confirm(t('profileModal.importConfirm', { name: backup.profile.firstName }));
+      if (!confirmed) return;
+
+      haptics.success();
+      window.alert(t('profileModal.importSuccess'));
+      onImportBackup(backup);
+    } catch {
+      haptics.error();
+      window.alert(t('profileModal.importError'));
+    }
   };
 
   const stats = useMemo(() => {
@@ -476,16 +480,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </button>
 
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              className="hidden"
+            />
             <button
-              onClick={() => { haptics.soft(); onShowTutorial(); }}
+              onClick={() => { haptics.soft(); importInputRef.current?.click(); }}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
             >
               <div className="flex items-center gap-4">
                 <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Info size={14} />
+                  <Upload size={14} />
                 </div>
                 <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.tutorial')}
+                  {t('profileModal.import')}
                 </span>
               </div>
             </button>

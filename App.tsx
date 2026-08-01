@@ -50,6 +50,7 @@ import { resizeTmdbImage } from './utils/tmdbImage';
 import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
+import { restoreBackupPreferences, TheBitterBackup } from './utils/dataBackup';
 import { getAdvancedArchetype } from './utils/archetypes';
 import {
   getSmartTonightPick,
@@ -1195,6 +1196,26 @@ const App: React.FC = () => {
     setShowSignOutConfirm(true);
   };
 
+  const handleImportBackup = (backup: TheBitterBackup) => {
+    if (!activeProfileId) return;
+
+    // Le profil importé remplace le profil local actif. On conserve son ID local :
+    // il peut être lié à un compte Supabase et ne fait pas partie des données cinéma à restaurer.
+    const restoredProfile: UserProfile = { ...backup.profile, id: activeProfileId };
+    const nextProfiles = profiles.map((profile) =>
+      profile.id === activeProfileId ? restoredProfile : profile
+    );
+
+    restoreBackupPreferences(backup.preferences);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProfiles));
+    localStorage.setItem(LAST_PROFILE_ID_KEY, activeProfileId);
+    setProfiles(nextProfiles);
+    setShowProfile(false);
+    // Thème et langue sont initialisés par leurs Contexts : un rechargement les applique
+    // immédiatement avec toutes les autres préférences restaurées.
+    window.setTimeout(() => window.location.reload(), 0);
+  };
+
   const handleSignOutConfirmed = async () => {
     haptics.medium();
     setShowSignOutConfirm(false);
@@ -2121,7 +2142,7 @@ const App: React.FC = () => {
               setShowCalibration(true);
             }}
             onSignOut={handleSignOut}
-            onShowTutorial={() => { setShowProfile(false); setShowNewFeatures(true); }}
+            onImportBackup={handleImportBackup}
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}
           />
