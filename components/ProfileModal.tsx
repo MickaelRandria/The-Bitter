@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
+import { dominantGenre } from '../utils/movieStats';
 import { RELEASE_HISTORY } from '../constants/changelog';
 import {
   NotificationPrefs,
@@ -30,6 +31,7 @@ import {
   sendTestNotification,
 } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -74,6 +76,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onLetterboxdImport,
 }) => {
   const { t, language, setLanguage } = useLanguage();
+  const dialog = useDialog(onClose, t('profileModal.title'));
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
@@ -134,13 +137,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const stats = useMemo(() => {
     const watched = profile.movies.filter((m) => m.status === 'watched');
-    const genreCounts: Record<string, number> = {};
-    watched.forEach((m) => {
-      if (m.genre) genreCounts[m.genre] = (genreCounts[m.genre] || 0) + 1;
-    });
-    const dominantGenre =
-      Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
-    return { watchedCount: watched.length, dominantGenre };
+    return { watchedCount: watched.length, dominantGenre: dominantGenre(watched) ?? '—' };
   }, [profile.movies]);
 
   const archetypeIcon = profile.role ? ARCHETYPE_ICONS[profile.role] : null;
@@ -148,7 +145,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const isArchetypeConfirmed = stats.watchedCount >= 10;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6">
       <div
         className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}
@@ -358,27 +355,40 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
           {/* SECTION 6: NOTIFICATIONS (accordéon) */}
           <div className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden">
-            <button
-              onClick={() => setNotifOpen(o => !o)}
-              className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5"
-            >
-              <div className="flex items-center gap-3">
+            {/* Le bouton « notif test » est un frère du bouton d'accordéon :
+                un <button> dans un <button> est du HTML invalide et casse le clavier */}
+            <div className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5">
+              <button
+                onClick={() => setNotifOpen(o => !o)}
+                aria-expanded={notifOpen}
+                className="flex items-center gap-3 flex-1 text-left"
+              >
                 <Bell size={15} className="text-stone-400 dark:text-stone-500" />
                 <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
                   {t('profileModal.notifications')}
                 </span>
-              </div>
+              </button>
               <div className="flex items-center gap-2">
+                {/* Outil de debug : pas dans la build de production */}
+                {import.meta.env.DEV && (
+                  <button
+                    onClick={handleTestNotif}
+                    className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
+                  >
+                    <Send size={11} />
+                    {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
+                  </button>
+                )}
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleTestNotif(); }}
-                  className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
+                  onClick={() => setNotifOpen(o => !o)}
+                  aria-expanded={notifOpen}
+                  aria-label={t('profileModal.notifications')}
+                  className="p-0.5"
                 >
-                  <Send size={11} />
-                  {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
+                  <ChevronDown size={14} className={`text-stone-400 transition-transform duration-200 ${notifOpen ? 'rotate-180' : ''}`} />
                 </button>
-                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-200 ${notifOpen ? 'rotate-180' : ''}`} />
               </div>
-            </button>
+            </div>
 
             {notifOpen && (
               <div className="px-3 pb-3 space-y-1.5 border-t border-stone-100 dark:border-white/5 pt-2">

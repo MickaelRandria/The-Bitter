@@ -5,6 +5,7 @@ import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../u
 import MovieRatingToggle from './MovieRatingToggle';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
 import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface MovieCardProps {
   movie: Movie;
@@ -102,6 +103,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onRewatch,
     onToggleDisplayMode,
   }) => {
+    const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(false);
     const [swipeX, setSwipeX] = useState(0);
     const [isSwiping, setIsSwiping] = useState(false);
@@ -120,7 +122,10 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const hasRewatches = (movie.watch_count ?? 1) > 1;
     const hasPoster = !!movie.posterUrl;
     const isWatchlist = movie.status === 'watchlist';
-    const baseHeight = index % 3 === 0 ? 'h-80' : 'h-64';
+    // Le rythme visuel dépend du film, pas de sa position : sinon la même carte
+    // change de taille dès qu'on filtre ou qu'on trie la liste.
+    const heightSeed = movie.id.charCodeAt(movie.id.length - 1) + movie.id.length;
+    const baseHeight = heightSeed % 3 === 0 ? 'h-80' : 'h-64';
     const isTv = movie.mediaType === 'tv';
 
     const SWIPE_THRESHOLD = 80;
@@ -293,6 +298,12 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                   )}
                   <div className="flex items-center gap-1.5">
                     <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+                    {/* Sans ce libellé, rien ne distinguait la note TMDB de la tienne */}
+                    <span
+                      className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300 dark:text-stone-700'}`}
+                    >
+                      {t('feed.yourRating')}
+                    </span>
                     <span className="text-xs font-black text-bitter-lime">{globalRating}</span>
                     {hasRewatches && (
                       <span
@@ -555,20 +566,9 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             </div>
           )}
 
-          {!isExpanded && swipeX === 0 && !showDeleteConfirm && (
-            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <div
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${hasPoster ? 'bg-white/10 text-white/40' : 'bg-stone-100 dark:bg-white/5 text-stone-300 dark:text-stone-700'}`}
-              >
-                <Pencil size={9} /> Éditer
-              </div>
-              <div
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${hasPoster ? 'bg-red-500/20 text-red-400' : 'bg-red-50 dark:bg-red-500/10 text-red-300 dark:text-red-700'}`}
-              >
-                Sup. <Trash2 size={9} />
-              </div>
-            </div>
-          )}
+          {/* Les indices « Éditer / Sup. » au survol ont été retirés : ils n'existaient
+              pas au doigt et faisaient une troisième affordance concurrente du swipe
+              et des boutons de la carte dépliée. */}
         </div>
       </div>
     );

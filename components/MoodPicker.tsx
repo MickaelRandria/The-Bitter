@@ -12,6 +12,10 @@ interface MoodPickerProps {
   onSelectVibeSort: (axis: VibeAxis | null) => void;
   /** Nombre de films matchés par le mood actif */
   matchCount?: number;
+  /** Nombre de films de la watchlist dont l'ambiance a réellement été renseignée */
+  vibeCount: number;
+  /** Seuil à partir duquel les moods deviennent exploitables */
+  minVibes: number;
 }
 
 const VIBE_AXES: { key: VibeAxis; emoji: string }[] = [
@@ -28,9 +32,12 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
   activeVibeSort,
   onSelectVibeSort,
   matchCount,
+  vibeCount,
+  minVibes,
 }) => {
   const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
+  const isUnlocked = vibeCount >= minVibes;
 
   const handleMoodSelect = (moodId: MoodPreset) => {
     haptics.soft();
@@ -61,12 +68,15 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Toggle bar */}
+      {/* Toggle bar — le bouton « effacer » est un frère, pas un enfant :
+          un <button> dans un <button> est du HTML invalide et casse le clavier */}
+      <div className="relative">
       <button
         onClick={() => {
           haptics.soft();
           setIsExpanded((e) => !e);
         }}
+        aria-expanded={isExpanded}
         className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all ${
           hasActiveFilter
             ? 'bg-bitter-lime/10 dark:bg-bitter-lime/5 border-bitter-lime/30 dark:border-bitter-lime/20'
@@ -91,17 +101,7 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {hasActiveFilter && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleReset();
-              }}
-              className="p-1 rounded-full hover:bg-stone-200 dark:hover:bg-white/10 transition-colors"
-            >
-              <X size={12} strokeWidth={3} className="text-stone-400" />
-            </button>
-          )}
+          {hasActiveFilter && <span className="w-6" aria-hidden="true" />}
           <svg
             width="10"
             height="10"
@@ -120,20 +120,43 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
           </svg>
         </div>
       </button>
+      {hasActiveFilter && (
+        <button
+          onClick={handleReset}
+          aria-label={t('feed.clearFilter')}
+          className="absolute right-9 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-stone-200 dark:hover:bg-white/10 transition-colors"
+        >
+          <X size={12} strokeWidth={3} className="text-stone-400" />
+        </button>
+      )}
+      </div>
 
-      {/* Expanded content */}
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
+      {/* Expanded content — démonté quand replié : sinon les boutons restent
+          focusables au clavier et annoncés par les lecteurs d'écran */}
+      {isExpanded && (
+      <div className="animate-[fadeIn_0.25s_ease-out]">
+        {!isUnlocked && (
+          <div className="mb-4 px-4 py-3 rounded-2xl bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5">
+            <p className="text-[10px] font-bold text-stone-500 dark:text-stone-400 leading-relaxed">
+              {t('feed.moodLocked', {
+                n: String(minVibes - vibeCount),
+                s: minVibes - vibeCount > 1 ? 's' : '',
+              })}
+            </p>
+          </div>
+        )}
+
         {/* Mood presets grid */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div
+          className={`grid grid-cols-3 gap-2 mb-4 ${isUnlocked ? '' : 'opacity-40 pointer-events-none'}`}
+        >
           {MOOD_PRESETS.map((mood) => {
             const isActive = selectedMood === mood.id;
             return (
               <button
                 key={mood.id}
+                disabled={!isUnlocked}
+                aria-pressed={isActive}
                 onClick={() => handleMoodSelect(mood.id)}
                 className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-2xl border transition-all active:scale-95 ${
                   isActive
@@ -151,7 +174,7 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
         </div>
 
         {/* Vibe axis sort pills */}
-        <div className="space-y-2">
+        <div className={`space-y-2 ${isUnlocked ? '' : 'opacity-40 pointer-events-none'}`}>
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={11} className="text-stone-400" />
             <span className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
@@ -164,6 +187,8 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
               return (
                 <button
                   key={key}
+                  disabled={!isUnlocked}
+                  aria-pressed={isActive}
                   onClick={() => handleVibeSortSelect(key)}
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
                     isActive
@@ -179,6 +204,7 @@ const MoodPicker: React.FC<MoodPickerProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

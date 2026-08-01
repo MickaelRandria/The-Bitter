@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ChevronDown, ChevronUp, Sparkles, Palette, Wrench } from 'lucide-react';
 import { RELEASE_HISTORY, ChangeEntry, ChangeType } from '../constants/changelog';
+import { useDialog } from '../utils/useDialog';
 
 interface ChangelogModalProps {
   isOpen: boolean;
@@ -76,13 +77,14 @@ const CategorizedChanges = ({ changes }: { changes: ChangeEntry[] }) => {
 };
 
 const ChangelogModal: React.FC<ChangelogModalProps> = ({ isOpen, onClose }) => {
+  const dialog = useDialog(onClose);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(
     RELEASE_HISTORY[0]?.version || null
   );
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
       <div
         className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}

@@ -13,9 +13,11 @@ import {
   Loader2,
   ChevronRight,
 } from 'lucide-react';
-import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
+import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
+import { tmdbImage } from '../utils/tmdbImage';
 import { MovieStatus } from '../types';
 import { haptics } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 interface MovieDetailModalProps {
   tmdbId: number;
@@ -88,6 +90,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   collectionUserRating,
   onUpdateTmdbRating,
 }) => {
+  const dialog = useDialog(onClose);
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [reviews, setReviews] = useState<TMDBReview[]>([]);
   const [reviewFilter, setReviewFilter] = useState<'good' | 'bad' | 'matching'>('good');
@@ -309,13 +312,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
   const getAvatarUrl = (r: TMDBReview) => {
     if (!r.author_details.avatar_path) return null;
-    return r.author_details.avatar_path.startsWith('/https')
-      ? r.author_details.avatar_path.slice(1)
-      : `${TMDB_IMAGE_URL}${r.author_details.avatar_path}`;
+    return tmdbImage(r.author_details.avatar_path, 'w92');
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center pointer-events-none">
+    <div {...dialog.props} className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center pointer-events-none">
       <div
         className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto"
         onClick={onClose}
@@ -333,8 +334,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               <img
                 src={
                   movie.backdrop_path
-                    ? `${TMDB_IMAGE_URL}${movie.backdrop_path}`
-                    : `${TMDB_IMAGE_URL}${movie.poster_path}`
+                    ? tmdbImage(movie.backdrop_path, 'w780')
+                    : tmdbImage(movie.poster_path, 'w780')
                 }
                 className="w-full h-full object-cover"
                 alt={title}
@@ -369,9 +370,10 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               <div className="flex gap-5 mb-8">
                 <div className="w-24 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white shrink-0 -mt-8 bg-stone-200">
                   <img
-                    src={`${TMDB_IMAGE_URL}${movie.poster_path}`}
+                    src={tmdbImage(movie.poster_path, 'w342')}
                     className="w-full h-full object-cover"
                     alt=""
+                    decoding="async"
                   />
                 </div>
                 <div className="flex-1 pt-2">
@@ -433,9 +435,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                         className="flex items-center gap-2 bg-white border border-stone-100 pr-3 rounded-xl p-1 shadow-sm"
                       >
                         <img
-                          src={`${TMDB_IMAGE_URL}${p.logo_path}`}
+                          src={tmdbImage(p.logo_path, 'w92')}
                           className="w-6 h-6 rounded-lg"
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                         />
                         <span className="text-[10px] font-bold text-charcoal whitespace-nowrap">
                           {p.provider_name}
@@ -569,9 +573,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       <div className="w-16 h-16 rounded-2xl overflow-hidden bg-stone-100 shadow-sm">
                         {person.profile_path ? (
                           <img
-                            src={`${TMDB_IMAGE_URL}${person.profile_path}`}
+                            src={tmdbImage(person.profile_path, 'w185')}
                             className="w-full h-full object-cover"
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-stone-300">

@@ -1,4 +1,5 @@
 import { Movie, VibeCriteria } from '../types';
+import { hasCustomVibe } from './movieStats';
 
 // ============================================
 // 🎲 TONIGHT PICK INTELLIGENT — The Bitter V2
@@ -253,9 +254,11 @@ export const filterByMoodPreset = (movies: Movie[], moodId: MoodPreset): Movie[]
   const moodConfig = MOOD_PRESETS.find((m) => m.id === moodId);
   if (!moodConfig) return movies;
 
-  // Scorer et trier
+  // Scorer et trier — uniquement les films dont l'ambiance a réellement été
+  // renseignée (un film resté à 5 partout est la valeur par défaut du formulaire,
+  // le classer reviendrait à inventer un résultat).
   const scored = movies
-    .filter((m) => m.vibe) // Seulement les films avec vibes renseignées
+    .filter(hasCustomVibe)
     .map((movie) => {
       const vibeKeys: (keyof VibeCriteria)[] = ['story', 'emotion', 'fun', 'visual', 'tension'];
       let moodScore = 0;
@@ -276,20 +279,19 @@ export const filterByMoodPreset = (movies: Movie[], moodId: MoodPreset): Movie[]
     })
     .sort((a, b) => b.relevance - a.relevance);
 
-  // Retourner les films triés + ceux sans vibes à la fin
-  const withVibes = scored.map((s) => s.movie);
-  const withoutVibes = movies.filter((m) => !m.vibe);
+  // Aucune ambiance exploitable : on ne prétend pas filtrer, on rend la liste telle quelle.
+  // (L'UI empêche normalement d'arriver ici, cf. MIN_MOVIES_FOR_VIBES.)
+  if (scored.length === 0) return movies;
 
-  return [...withVibes, ...withoutVibes];
+  return scored.map((s) => s.movie);
 };
 
 /**
  * Tri de la watchlist par score d'un axe vibe spécifique (décroissant).
  */
 export const sortByVibeAxis = (movies: Movie[], axis: VibeAxis): Movie[] => {
-  return [...movies].sort((a, b) => {
-    const scoreA = a.vibe ? a.vibe[axis] : 0;
-    const scoreB = b.vibe ? b.vibe[axis] : 0;
-    return scoreB - scoreA;
-  });
+  // Les films sans ambiance renseignée finissent en bas plutôt que de se retrouver
+  // mélangés au milieu du classement avec une valeur par défaut.
+  const score = (m: Movie) => (hasCustomVibe(m) && m.vibe ? m.vibe[axis] : -1);
+  return [...movies].sort((a, b) => score(b) - score(a));
 };

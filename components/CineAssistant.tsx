@@ -4,6 +4,7 @@ import { Sparkles, Send, Loader2, X, BrainCircuit } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
 import { callCineAssistant } from '../services/ai';
+import { useDialog } from '../utils/useDialog';
 
 interface CineAssistantProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface Message {
 }
 
 const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProfile }) => {
+  const dialog = useDialog(onClose);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +84,7 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-6">
       <div
         className="absolute inset-0 bg-charcoal/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}

@@ -6,6 +6,7 @@ import {
   Smartphone,
   FlaskConical,
   Zap,
+  Aperture,
   BrainCircuit,
   Smile,
   Heart,
@@ -36,6 +37,7 @@ import {
   AdaptiveRatingCriterion,
 } from '../types';
 import { haptics } from '../utils/haptics';
+import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { SharedSpace, addMovieToSpace } from '../services/supabase';
 import { getSharedMovieDetails } from '../services/tmdb';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -52,6 +54,7 @@ import {
   detectRatingProfile,
 } from '../utils/rating';
 import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
+import { useDialog } from '../utils/useDialog';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -174,6 +177,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   onToast,
 }) => {
   const { t } = useLanguage();
+  const dialog = useDialog(onClose, t('addMovie.newVerdict'));
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
   // Bitter+ = advanced adaptive rating. Bitter = simple 4-criteria average (default).
@@ -494,7 +498,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center">
+    <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center">
       <div
         className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300"
         onClick={onClose}
@@ -574,7 +578,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             <div className="flex gap-4 bg-white dark:bg-[#202020] rounded-[2rem] p-4 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
               {formData.posterUrl && (
                 <div className="w-20 h-28 rounded-2xl overflow-hidden shrink-0 shadow-md">
-                  <img src={formData.posterUrl} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={resizeTmdbImage(formData.posterUrl, 'w342')}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    decoding="async"
+                  />
                 </div>
               )}
               <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -643,9 +652,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                           >
                             <div className="w-10 h-14 bg-stone-100 dark:bg-[#202020] rounded-lg shrink-0 overflow-hidden">
                               <img
-                                src={`${TMDB_IMAGE_URL}${m.poster_path}`}
+                                src={tmdbImage(m.poster_path, 'w154')}
                                 className="w-full h-full object-cover"
                                 alt=""
+                                loading="lazy"
+                                decoding="async"
                               />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -885,6 +896,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                         setFormData({ ...formData, vibe: { ...formData.vibe!, story: v } })
                       }
                     />
+                    <div className="col-span-2">
+                      <VibeBox
+                        icon={<Aperture size={14} />}
+                        label={t('addMovie.visual')}
+                        value={formData.vibe?.visual || 5}
+                        onChange={(v) =>
+                          setFormData({ ...formData, vibe: { ...formData.vibe!, visual: v } })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (

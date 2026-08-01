@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Star, Loader2, Film } from 'lucide-react';
-import { TMDB_IMAGE_URL } from '../constants';
+import { tmdbImage } from '../utils/tmdbImage';
 import { getDirectorMovies, searchPerson } from '../services/tmdb';
 import { TMDBSearchResult } from '../types';
 import { haptics } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 interface DirectorMoviesModalProps {
   directorName: string;
@@ -18,6 +19,7 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
   onClose,
   onSelectMovie,
 }) => {
+  const dialog = useDialog(onClose);
   const [movies, setMovies] = useState<TMDBSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
   }, [directorName, directorId]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.3s_ease-out]">
+    <div {...dialog.props} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.3s_ease-out]">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-2xl bg-[#0c0c0c] text-white rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[90vh] sm:max-h-[80vh] animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
@@ -103,9 +105,11 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
                   <div className="w-16 aspect-[2/3] rounded-xl overflow-hidden bg-stone-900 shrink-0 shadow-lg">
                     {movie.poster_path ? (
                       <img
-                        src={`${TMDB_IMAGE_URL}${movie.poster_path}`}
+                        src={tmdbImage(movie.poster_path, 'w185')}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/10">

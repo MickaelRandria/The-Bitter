@@ -1,6 +1,7 @@
 import React from 'react';
 import { Globe } from 'lucide-react';
 import { UserProfile } from '../types';
+import { useDialog } from '../utils/useDialog';
 
 interface Props {
   profiles: UserProfile[];
@@ -9,8 +10,9 @@ interface Props {
 }
 
 export default function ProfileLinkingModal({ profiles, onLink, onSkip }: Props) {
+  const dialog = useDialog(onSkip);
   return (
-    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+    <div {...dialog.props} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
       <div className="relative bg-white dark:bg-[#1a1a1a] w-full sm:max-w-md rounded-t-[3rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-sand dark:border-white/10">
 
         {/* Drag handle */}

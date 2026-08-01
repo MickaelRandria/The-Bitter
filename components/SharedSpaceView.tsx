@@ -45,6 +45,7 @@ import {
   MovieVote,
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
+import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import MemberProfileModal from './MemberProfileModal';
 
@@ -495,9 +496,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       <div className="w-16 aspect-[2/3] bg-stone-200 dark:bg-[#161616] rounded-2xl overflow-hidden shadow-md shrink-0 border border-white dark:border-white/10">
                         {movie.poster_url ? (
                           <img
-                            src={movie.poster_url}
+                            src={resizeTmdbImage(movie.poster_url, 'w185')}
                             className="w-full h-full object-cover"
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-stone-400 dark:text-stone-700">

@@ -46,6 +46,8 @@ import { migrateLocalStorageToSupabase, syncMovieToSupabase, resyncAllMoviesToSu
 import { Movie, MovieFormData, MovieStatus, MovieWatch, UserProfile } from './types';
 import RewatchModal from './components/RewatchModal';
 import { MovieDisplayMode } from './utils/movieDisplay';
+import { resizeTmdbImage } from './utils/tmdbImage';
+import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
 import { getAdvancedArchetype } from './utils/archetypes';
@@ -101,7 +103,7 @@ const BottomNav = memo(
     feedTab,
     setInitialStatusForAdd,
     movieCount,
-    onFeedback,
+    t,
   }: {
     viewMode: ViewMode;
     setViewMode: (v: ViewMode) => void;
@@ -109,6 +111,7 @@ const BottomNav = memo(
     feedTab: FeedTab;
     setInitialStatusForAdd: (s: MovieStatus) => void;
     movieCount: number;
+    t: (key: string, params?: Record<string, string | number>) => string;
   }) => {
     const navItemClass = (isActive: boolean) =>
       `p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm opacity-100 scale-105' : 'text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100'}`;
@@ -127,6 +130,8 @@ const BottomNav = memo(
               haptics.soft();
               setViewMode('Feed');
             }}
+            aria-label={t('nav.feed')}
+            aria-current={viewMode === 'Feed' ? 'page' : undefined}
             className={navItemClass(viewMode === 'Feed')}
           >
             <LayoutGrid size={22} />
@@ -136,6 +141,8 @@ const BottomNav = memo(
               haptics.soft();
               setViewMode('Discover');
             }}
+            aria-label={t('nav.discover')}
+            aria-current={viewMode === 'Discover' ? 'page' : undefined}
             className={navItemClass(viewMode === 'Discover')}
           >
             <Clapperboard size={22} />
@@ -146,6 +153,7 @@ const BottomNav = memo(
               setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
               setIsModalOpen(true);
             }}
+            aria-label={t('nav.add')}
             className={`bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}
           >
             <Plus size={24} strokeWidth={3} />
@@ -155,6 +163,8 @@ const BottomNav = memo(
               haptics.soft();
               setViewMode('Analytics');
             }}
+            aria-label={t('nav.analytics')}
+            aria-current={viewMode === 'Analytics' ? 'page' : undefined}
             className={navItemClass(viewMode === 'Analytics')}
           >
             <PieChart size={22} />
@@ -164,6 +174,8 @@ const BottomNav = memo(
               haptics.soft();
               setViewMode('Calendar');
             }}
+            aria-label={t('nav.calendar')}
+            aria-current={viewMode === 'Calendar' ? 'page' : undefined}
             className={navItemClass(viewMode === 'Calendar')}
           >
             <CalendarDays size={22} />
@@ -174,11 +186,109 @@ const BottomNav = memo(
   }
 );
 
+/**
+ * Menu de tri maison : le <select> natif ouvrait le picker système d'iOS au milieu
+ * d'une interface entièrement dessinée, et n'affichait pas l'option active.
+ */
+const SortMenu = memo(
+  ({
+    value,
+    onChange,
+    options,
+  }: {
+    value: SortOption;
+    onChange: (v: SortOption) => void;
+    options: { value: SortOption; label: string }[];
+  }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      if (!open) return;
+      const onPointerDown = (e: MouseEvent) => {
+        if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      };
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setOpen(false);
+      };
+      document.addEventListener('mousedown', onPointerDown);
+      document.addEventListener('keydown', onKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', onPointerDown);
+        document.removeEventListener('keydown', onKeyDown);
+      };
+    }, [open]);
+
+    const current = options.find((o) => o.value === value) ?? options[0];
+
+    return (
+      <div className="relative shrink-0" ref={ref}>
+        <button
+          onClick={() => {
+            haptics.soft();
+            setOpen((o) => !o);
+          }}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="flex items-center gap-1.5 bg-stone-100 dark:bg-[#1a1a1a] px-3 py-2 rounded-full"
+        >
+          <SlidersHorizontal size={12} className="text-stone-400" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal dark:text-white">
+            {current.label}
+          </span>
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 10 10"
+            fill="none"
+            className={`text-stone-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          >
+            <path
+              d="M2 3.5L5 6.5L8 3.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        {open && (
+          <div
+            role="listbox"
+            className="absolute right-0 top-full mt-2 z-50 min-w-[150px] bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden animate-[fadeIn_0.15s_ease-out]"
+          >
+            {options.map((o) => (
+              <button
+                key={o.value}
+                role="option"
+                aria-selected={o.value === value}
+                onClick={() => {
+                  haptics.soft();
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  o.value === value
+                    ? 'bg-stone-100 dark:bg-white/10 text-charcoal dark:text-white'
+                    : 'text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
 const App: React.FC = () => {
   const { t } = useLanguage();
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
   const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';
+  const HIDE_NEW_FEATURES_KEY = 'the_bitter_hide_new_features';
   const SEEN_TOOLTIPS_KEY = 'the_bitter_seen_tooltips';
   const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
@@ -191,7 +301,9 @@ const App: React.FC = () => {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
-  const [showFeedStats, setShowFeedStats] = useState(false);
+  // null = l'utilisateur n'a pas encore tranché : on ouvre le bloc dès que la
+  // collection est assez fournie pour que les stats disent quelque chose.
+  const [showFeedStats, setShowFeedStats] = useState<boolean | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('Date');
   const [searchQuery, setSearchQuery] = useState('');
@@ -276,7 +388,8 @@ const App: React.FC = () => {
       }
     }
     const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
-    if (lastSeenVersion !== RELEASE_HISTORY[0].version) {
+    const hideNewFeatures = localStorage.getItem(HIDE_NEW_FEATURES_KEY) === '1';
+    if (!hideNewFeatures && lastSeenVersion !== RELEASE_HISTORY[0].version) {
       setShowNewFeatures(true);
     }
 
@@ -884,6 +997,13 @@ const App: React.FC = () => {
     return Array.from(new Map(activeProfile.movies.map((m) => [m.id, m])).values());
   }, [activeProfile]);
 
+  // Films de la watchlist dont l'ambiance a réellement été renseignée : en dessous
+  // du seuil, les moods ne peuvent rien classer et restent verrouillés.
+  const watchlistVibeCount = useMemo(
+    () => countCustomVibes(uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist')),
+    [uniqueMovies]
+  );
+
   const historyGenres = useMemo(() => {
     return [
       ...new Set(
@@ -906,10 +1026,39 @@ const App: React.FC = () => {
           acc + (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4,
         0
       ) / watchedCount;
-    const totalHours = Math.round(watched.reduce((acc, m) => acc + (m.runtime || 0), 0) / 60);
+    const totalHours = totalWatchHours(watched);
     const queueCount = uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist').length;
     return { watchedCount, avgRating, totalHours, queueCount };
   }, [uniqueMovies, activeProfile]);
+
+  const sortOptions = useMemo(
+    () =>
+      [
+        { value: 'Date' as SortOption, label: t('feed.sortRecent') },
+        ...(feedTab === 'history'
+          ? [{ value: 'Rating' as SortOption, label: t('feed.sortRating') }]
+          : []),
+        { value: 'Year' as SortOption, label: t('feed.sortYear') },
+        { value: 'Title' as SortOption, label: t('feed.sortAlpha') },
+      ],
+    [feedTab, t]
+  );
+
+  const AUTO_OPEN_STATS_FROM = 5;
+  const feedStatsOpen = showFeedStats ?? (feedStats?.watchedCount ?? 0) >= AUTO_OPEN_STATS_FROM;
+
+  // Stats de la file d'attente : sur l'onglet « À voir », le nombre d'heures déjà
+  // vues et la moyenne des notes n'ont rien à y faire.
+  const queueStats = useMemo(() => {
+    const queue = uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist');
+    if (queue.length === 0) return null;
+    const oldest = queue.reduce((min, m) => Math.min(min, m.dateAdded), Date.now());
+    return {
+      count: queue.length,
+      totalHours: totalWatchHours(queue),
+      waitingDays: Math.max(0, Math.floor((Date.now() - oldest) / 86400000)),
+    };
+  }, [uniqueMovies]);
 
   const isAIUnlocked = (feedStats?.watchedCount ?? 0) >= 10;
   const lastWatchedMovie = useMemo(() => {
@@ -1005,6 +1154,12 @@ const App: React.FC = () => {
     () => filteredAndSortedMovies.slice(0, feedPage * 20),
     [filteredAndSortedMovies, feedPage]
   );
+
+  // « Note » n'est proposé que sur l'historique : sans ça, passer sur la file
+  // laissait un tri actif absent du menu.
+  useEffect(() => {
+    if (feedTab === 'queue' && sortBy === 'Rating') setSortBy('Date');
+  }, [feedTab, sortBy]);
 
   useEffect(() => {
     setFeedPage(1);
@@ -1131,6 +1286,7 @@ const App: React.FC = () => {
                 {viewMode !== 'Feed' && (
                   <button
                     onClick={handleBackToFeed}
+                    aria-label={t('nav.back')}
                     className="w-8 h-8 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all mr-1"
                   >
                     <ChevronLeft
@@ -1167,6 +1323,7 @@ const App: React.FC = () => {
                   haptics.soft();
                   setShowFeedbackModal(true);
                 }}
+                aria-label={t('nav.feedback')}
                 className="relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all bg-white dark:bg-[#1a1a1a] border-sand dark:border-white/10 text-charcoal dark:text-white"
               >
                 <MessageSquareText size={20} />
@@ -1176,6 +1333,7 @@ const App: React.FC = () => {
                   haptics.soft();
                   setShowProfile(true);
                 }}
+                aria-label={t('nav.profile')}
                 className="w-10 h-10 rounded-full bg-forest text-white flex items-center justify-center font-black text-sm shadow-md active:scale-90 transition-all shadow-forest/20"
               >
                 {activeProfile?.firstName?.[0]?.toUpperCase() ?? '?'}
@@ -1288,13 +1446,14 @@ const App: React.FC = () => {
                     onAddMovie={() => setIsModalOpen(true)}
                   />
                   <div className="space-y-2">
-                    {feedStats && (
+                    {(feedTab === 'history' ? feedStats : queueStats) && (
                     <div className="flex flex-col items-center">
                       <button
                         onClick={() => {
                           haptics.soft();
-                          setShowFeedStats((s) => !s);
+                          setShowFeedStats(!feedStatsOpen);
                         }}
+                        aria-expanded={feedStatsOpen}
                         className="flex items-center gap-1.5 py-1 px-3 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
                       >
                         <span className="text-[9px] font-black uppercase tracking-widest">
@@ -1305,7 +1464,7 @@ const App: React.FC = () => {
                           height="10"
                           viewBox="0 0 10 10"
                           fill="none"
-                          className={`transition-transform duration-300 ${showFeedStats ? 'rotate-180' : ''}`}
+                          className={`transition-transform duration-300 ${feedStatsOpen ? 'rotate-180' : ''}`}
                         >
                           <path
                             d="M2 3.5L5 6.5L8 3.5"
@@ -1317,35 +1476,68 @@ const App: React.FC = () => {
                         </svg>
                       </button>
                       <div
-                        className={`w-full overflow-hidden transition-all duration-300 ease-in-out ${showFeedStats ? 'max-h-32 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}
+                        className={`w-full overflow-hidden transition-all duration-300 ease-in-out ${feedStatsOpen ? 'max-h-32 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}
                       >
                         <div className="flex justify-center items-center gap-6 py-3 px-5 bg-stone-50 dark:bg-[#161616] rounded-t-2xl border border-b-0 border-stone-100 dark:border-white/5">
-                          <div className="text-center">
-                            <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
-                              {feedStats.watchedCount}
-                            </p>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              {t('feed.filmsLabel')}
-                            </p>
-                          </div>
-                          <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
-                          <div className="text-center">
-                            <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
-                              {feedStats.avgRating.toFixed(1)}
-                            </p>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              {t('feed.avgLabel')}
-                            </p>
-                          </div>
-                          <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
-                          <div className="text-center">
-                            <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
-                              {feedStats.totalHours}h
-                            </p>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                              {t('feed.watchedHours')}
-                            </p>
-                          </div>
+                          {feedTab === 'history' && feedStats ? (
+                            <>
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {feedStats.watchedCount}
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.filmsLabel')}
+                                </p>
+                              </div>
+                              <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {feedStats.avgRating.toFixed(1)}
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.avgLabel')}
+                                </p>
+                              </div>
+                              <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {feedStats.totalHours}h
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.watchedHours')}
+                                </p>
+                              </div>
+                            </>
+                          ) : queueStats ? (
+                            <>
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {queueStats.count}
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.filmsLabel')}
+                                </p>
+                              </div>
+                              <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {queueStats.totalHours}h
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.queueHours')}
+                                </p>
+                              </div>
+                              <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
+                              <div className="text-center">
+                                <p className="text-base font-black tracking-tight text-charcoal dark:text-white">
+                                  {queueStats.waitingDays}j
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  {t('feed.queueOldest')}
+                                </p>
+                              </div>
+                            </>
+                          ) : null}
                         </div>
                         <button
                           onClick={() => {
@@ -1420,13 +1612,6 @@ const App: React.FC = () => {
                     activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist')
                       .length > 0 && (
                       <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
-                        <MoodPicker
-                          selectedMood={selectedMood}
-                          onSelectMood={setSelectedMood}
-                          activeVibeSort={activeVibeSort}
-                          onSelectVibeSort={setActiveVibeSort}
-                          matchCount={filteredAndSortedMovies.length}
-                        />
                         <button
                           onClick={handleTonightPick}
                           className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
@@ -1441,9 +1626,11 @@ const App: React.FC = () => {
                             {tonightPick.posterUrl && (
                               <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg">
                                 <img
-                                  src={tonightPick.posterUrl}
+                                  src={resizeTmdbImage(tonightPick.posterUrl, 'w185')}
                                   alt={tonightPick.title}
                                   className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                               </div>
                             )}
@@ -1462,12 +1649,22 @@ const App: React.FC = () => {
                             </div>
                             <button
                               onClick={() => setTonightPick(null)}
+                              aria-label={t('common.close')}
                               className="p-2 text-stone-500 hover:text-white transition-colors"
                             >
                               <X size={16} />
                             </button>
                           </div>
                         )}
+                        <MoodPicker
+                          selectedMood={selectedMood}
+                          onSelectMood={setSelectedMood}
+                          activeVibeSort={activeVibeSort}
+                          onSelectVibeSort={setActiveVibeSort}
+                          matchCount={filteredAndSortedMovies.length}
+                          vibeCount={watchlistVibeCount}
+                          minVibes={MIN_MOVIES_FOR_VIBES}
+                        />
                         {watchlistGenres.length > 1 && (
                           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                             <button
@@ -1515,19 +1712,11 @@ const App: React.FC = () => {
                         {feedTab === 'history' ? t('feed.filmsWatched') : t('feed.toWatchLabel')} (
                         {filteredAndSortedMovies.length})
                       </h2>
-                      <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-[#1a1a1a] px-3 py-2 rounded-full shrink-0">
-                        <SlidersHorizontal size={12} className="text-stone-400" />
-                        <select
-                          value={sortBy}
-                          onChange={(e) => setSortBy(e.target.value as SortOption)}
-                          className="bg-transparent text-[10px] font-bold uppercase text-charcoal dark:text-white outline-none cursor-pointer tracking-widest appearance-none pr-1"
-                        >
-                          <option value="Date">{t('feed.sortRecent')}</option>
-                          {feedTab === 'history' && <option value="Rating">{t('feed.sortRating')}</option>}
-                          <option value="Year">{t('feed.sortYear')}</option>
-                          <option value="Title">{t('feed.sortAlpha')}</option>
-                        </select>
-                      </div>
+                      <SortMenu
+                        value={sortBy}
+                        onChange={setSortBy}
+                        options={sortOptions}
+                      />
                     </div>
                     <div className="relative">
                       <Search
@@ -1726,6 +1915,7 @@ const App: React.FC = () => {
         feedTab={feedTab}
         setInitialStatusForAdd={setInitialStatusForAdd}
         movieCount={activeProfile?.movies.length || 0}
+        t={t}
       />
 
       {/* Cine Assistant Button removed for now */}
@@ -1782,6 +1972,9 @@ const App: React.FC = () => {
             onNeverShowAgain={() => {
               setShowNewFeatures(false);
               localStorage.setItem(LAST_SEEN_VERSION_KEY, RELEASE_HISTORY[0].version);
+              // Opt-out durable : plus aucune ouverture automatique, y compris aux
+              // prochaines versions (le tutoriel reste accessible depuis le profil).
+              localStorage.setItem(HIDE_NEW_FEATURES_KEY, '1');
             }}
           />
         )}
@@ -2018,7 +2211,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
+      {showFeedbackModal && (
+        <FeedbackModal isOpen onClose={() => setShowFeedbackModal(false)} />
+      )}
 
       {showProfileLinking && session && (
         <ProfileLinkingModal

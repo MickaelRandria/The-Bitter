@@ -14,6 +14,7 @@ import { haptics } from '../utils/haptics';
 import { getArchetypeFromOnboarding, inferDepthFromGenres } from '../utils/archetypes';
 import { supabase } from '../services/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 interface OnboardingModalProps {
   initialName: string;
@@ -39,6 +40,7 @@ const GENRES_LIST = [
 ];
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, onComplete }) => {
+  const dialog = useDialog(undefined);
   const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [name] = useState(initialName);
@@ -97,7 +99,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
 
   if (isAnalyzing) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-white/90 dark:bg-black/90 backdrop-blur-xl transition-colors">
+      <div {...dialog.props} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-white/90 dark:bg-black/90 backdrop-blur-xl transition-colors">
         <div className="flex flex-col items-center animate-[fadeIn_0.5s_ease-out]">
           <Loader2
             size={48}
@@ -113,7 +115,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-white/80 dark:bg-black/80 backdrop-blur-md transition-colors">
+    <div {...dialog.props} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-white/80 dark:bg-black/80 backdrop-blur-md transition-colors">
       <div className="w-full max-w-lg bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] shadow-2xl dark:shadow-black/60 p-8 sm:p-10 relative overflow-hidden animate-[scaleIn_0.4s_cubic-bezier(0.16,1,0.3,1)] border border-stone-100 dark:border-white/10 transition-all">
         {step <= totalSteps && (
           <div className="absolute top-0 left-0 h-1.5 bg-stone-100 dark:bg-[#202020] w-full">

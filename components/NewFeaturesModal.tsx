@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  ArrowRight,
+  X,
   Instagram,
-  Share2,
   EyeOff,
   BarChart3,
   Radar,
@@ -12,22 +11,17 @@ import {
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 interface NewFeaturesModalProps {
   onClose: () => void;
+  /** Opt-out durable : la modale ne se rouvrira plus, même après une mise à jour. */
   onNeverShowAgain?: () => void;
 }
 
-const TOTAL_STEPS = 5;
-
 const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverShowAgain }) => {
   const { t } = useLanguage();
-  const [step, setStep] = useState(0);
-
-  const handleNext = () => {
-    haptics.medium();
-    setStep((prev) => prev + 1);
-  };
+  const dialog = useDialog(onClose, t('newFeatures.newBadge'));
 
   const handleComplete = () => {
     haptics.success();
@@ -39,259 +33,101 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
     if (onNeverShowAgain) onNeverShowAgain();
   };
 
+  // Un seul écran : tout est listé, on ne force plus 5 étapes avant d'accéder à l'app.
+  const features = [
+    {
+      key: 'step4',
+      icon: MessageSquareText,
+      accent: 'text-bitter-lime',
+      badge: t('newFeatures.newBadge'),
+    },
+    {
+      key: 'step0',
+      icon: Sparkles,
+      accent: 'text-bitter-lime',
+      badge: t('newFeatures.newBadge'),
+    },
+    { key: 'step1', icon: Globe, accent: 'text-white', badge: t('newFeatures.step1.badge') },
+    { key: 'step2', icon: BarChart3, accent: 'text-white', badge: t('newFeatures.step2.badge') },
+    { key: 'step3', icon: Instagram, accent: 'text-pink-400', badge: t('newFeatures.step3.badge') },
+  ];
+
   return (
-    <div className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-[#0c0c0c] sm:bg-[#0c0c0c]/90 sm:backdrop-blur-xl animate-[fadeIn_0.3s_ease-out]">
-      <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-md bg-[#0c0c0c] sm:rounded-[3rem] flex flex-col relative overflow-hidden animate-[scaleIn_0.4s_cubic-bezier(0.16,1,0.3,1)] border border-white/10">
+    <div
+      {...dialog.props}
+      className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-[#0c0c0c] sm:bg-[#0c0c0c]/90 sm:backdrop-blur-xl animate-[fadeIn_0.3s_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-md bg-[#0c0c0c] sm:rounded-[3rem] flex flex-col relative overflow-hidden animate-[scaleIn_0.4s_cubic-bezier(0.16,1,0.3,1)] border border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Background Gradients */}
         <div className="absolute top-[-20%] left-[-20%] w-[300px] h-[300px] bg-[#a3e635]/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[250px] h-[250px] bg-white/5 rounded-full blur-[100px] pointer-events-none" />
 
-        <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-10">
+        {/* Fermer — toujours accessible, dès l'ouverture */}
+        <button
+          onClick={onClose}
+          aria-label={t('common.close')}
+          className="absolute top-6 right-6 z-20 w-10 h-10 rounded-full bg-white/10 border border-white/10 text-white flex items-center justify-center active:scale-90 transition-all hover:bg-white/20"
+        >
+          <X size={18} strokeWidth={2.5} />
+        </button>
 
-          {/* STEP 0: FEEDBACK */}
-          {step === 0 && (
-            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
-                  <MessageSquareText size={12} />
-                  {t('newFeatures.newBadge')}
-                </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step4.title1')}
-                  <br />
-                  <span className="text-bitter-lime">{t('newFeatures.step4.title2')}</span>
-                </h2>
-
-                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="w-16 h-16 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-5 shadow-2xl relative">
-                    <MessageSquareText size={28} strokeWidth={2} />
-                  </div>
-                  <p
-                    className="text-stone-300 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step4.desc') }}
-                  />
-                  <div className="flex items-center gap-3 mt-6 p-4 bg-[#0c0c0c] rounded-2xl border border-white/10">
-                    <div className="flex gap-2">
-                      <span className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20">🐛 Bug</span>
-                      <span className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-500/20">💡 Idée</span>
-                      <span className="px-3 py-1.5 bg-white/10 text-stone-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10">❤️ Autre</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 shrink-0">
-                <button
-                  onClick={handleNext}
-                  className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
-                >
-                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
-                </button>
-              </div>
+        <div className="flex-1 flex flex-col min-h-0 p-8 sm:p-10 pt-16 sm:pt-12">
+          <div className="shrink-0 mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-4">
+              <Sparkles size={12} />
+              {t('newFeatures.newBadge')}
             </div>
-          )}
+            <h2 className="text-4xl font-black text-white tracking-tighter leading-[0.95]">
+              {t('newFeatures.recapTitle1')}{' '}
+              <span className="text-bitter-lime">{t('newFeatures.recapTitle2')}</span>
+            </h2>
+          </div>
 
-          {/* STEP 1: RECOS PERSO */}
-          {step === 1 && (
-            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a3e635]/30 bg-[#a3e635]/10 text-[#a3e635] text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Sparkles size={12} />
-                  {t('newFeatures.newBadge')}
-                </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step0.title1')}
-                  <br />
-                  <span className="text-bitter-lime">{t('newFeatures.step0.title2')}</span>
-                </h2>
-
-                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="w-16 h-16 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-5 shadow-2xl relative">
-                    <Sparkles size={28} strokeWidth={2} />
-                  </div>
-                  <p
-                    className="text-stone-300 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step0.desc') }}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 shrink-0">
-                <button
-                  onClick={handleNext}
-                  className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
-                >
-                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: MODE ANGLAIS */}
-          {step === 2 && (
-            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Globe size={12} />
-                  {t('newFeatures.step1.badge')}
-                </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step1.title1')}
-                  <br />
-                  <span className="text-bitter-lime">{t('newFeatures.step1.title2')}</span>
-                </h2>
-
-                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-6 mx-auto shadow-2xl">
-                    <Globe size={32} strokeWidth={2} />
-                  </div>
-                  <p
-                    className="text-stone-300 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step1.desc') }}
-                  />
-                  <div className="flex justify-center gap-3 mt-6">
-                    <div className="px-4 py-2 bg-bitter-lime text-black rounded-xl text-xs font-black uppercase tracking-widest">FR</div>
-                    <div className="px-4 py-2 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-widest border border-white/10">EN</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 shrink-0">
-                <button
-                  onClick={handleNext}
-                  className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
-                >
-                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: ANALYTICS */}
-          {step === 3 && (
-            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-stone-100/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-widest mb-6">
-                  <BarChart3 size={12} />
-                  {t('newFeatures.step2.badge')}
-                </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step2.title1')}
-                  <br />
-                  <span className="text-bitter-lime">{t('newFeatures.step2.title2')}</span>
-                </h2>
-
-                <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-bitter-lime/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="w-20 h-20 bg-[#0c0c0c] border border-white/10 rounded-3xl flex items-center justify-center text-bitter-lime mb-6 mx-auto shadow-2xl relative">
-                    <Radar size={32} strokeWidth={2} />
-                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-bitter-lime rounded-full border-2 border-[#0c0c0c]" />
-                  </div>
-                  <p
-                    className="text-stone-300 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step2.desc') }}
-                  />
-                  <div className="flex justify-center gap-3 mt-6">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="w-12 h-8 bg-white/5 rounded-lg flex items-end justify-center gap-0.5 p-1 border border-white/10">
-                        <div className="w-1.5 h-2 bg-orange-400 rounded-t-sm" />
-                        <div className="w-1.5 h-4 bg-stone-500 rounded-t-sm" />
-                        <div className="w-1.5 h-6 bg-bitter-lime rounded-t-sm" />
-                      </div>
-                      <span className="text-[7px] font-black uppercase text-stone-500">
-                        Distribution
-                      </span>
-                    </div>
-                    <div className="w-px h-8 bg-white/10 self-center" />
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="w-12 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10">
-                        <Radar size={14} className="text-bitter-lime" />
-                      </div>
-                      <span className="text-[7px] font-black uppercase text-stone-500">
-                        Radar ADN
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 shrink-0">
-                <button
-                  onClick={handleNext}
-                  className="w-full bg-white text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 transition-all hover:bg-stone-200"
-                >
-                  {t('newFeatures.next')} <ArrowRight size={16} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: INSTAGRAM STORIES */}
-          {step === 4 && (
-            <div className="flex flex-col h-full min-h-0 justify-between animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-500 text-[9px] font-black uppercase tracking-widest mb-6">
-                  <Instagram size={12} />
-                  {t('newFeatures.step3.badge')}
-                </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter leading-[0.9] mb-4">
-                  {t('newFeatures.step3.title1')}
-                  <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]">
-                    {t('newFeatures.step3.title2')}
-                  </span>
-                </h2>
-
-                <div className="bg-gradient-to-tr from-[#833ab4]/10 via-[#fd1d1d]/10 to-[#fcb045]/10 border border-white/10 p-8 rounded-[2.5rem] mt-8 mb-8 text-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-[#833ab4]/20 via-transparent to-[#fcb045]/20 blur-2xl opacity-50" />
-                  <div className="w-20 h-20 bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] rounded-3xl flex items-center justify-center text-white mb-6 mx-auto shadow-2xl rotate-[-3deg]">
-                    <Share2 size={36} strokeWidth={2.5} />
-                  </div>
-                  <p
-                    className="text-stone-200 text-sm font-medium leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: t('newFeatures.step3.desc') }}
-                  />
-                  <p className="text-pink-400 text-[10px] font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
-                    <Instagram size={12} /> {t('newFeatures.step3.available')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 shrink-0">
-                <button
-                  onClick={handleComplete}
-                  className="w-full bg-[#a3e635] text-black py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
-                >
-                  {t('newFeatures.close')}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Controls */}
-          <div className="mt-8 shrink-0 flex flex-col items-center gap-6 pb-4 sm:pb-0">
-            <div className="flex justify-center gap-2">
-              {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-3">
+            {features.map(({ key, icon: Icon, accent, badge }) => (
+              <div
+                key={key}
+                className="bg-[#1a1a1a] border border-white/10 p-5 rounded-[1.75rem] flex gap-4"
+              >
                 <div
-                  key={i}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    step === i
-                      ? i === 4
-                        ? 'bg-pink-500 w-6'
-                        : 'bg-bitter-lime w-6'
-                      : 'bg-white/20 w-2'
-                  }`}
-                />
-              ))}
-            </div>
+                  className={`w-11 h-11 shrink-0 bg-[#0c0c0c] border border-white/10 rounded-2xl flex items-center justify-center ${accent}`}
+                >
+                  <Icon size={20} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap mb-1">
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">
+                      {t(`newFeatures.${key}.title1`)} {t(`newFeatures.${key}.title2`)}
+                    </h3>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-stone-500">
+                      {badge}
+                    </span>
+                  </div>
+                  <p
+                    className="text-stone-400 text-xs font-medium leading-relaxed [&_b]:text-stone-200"
+                    dangerouslySetInnerHTML={{ __html: t(`newFeatures.${key}.desc`) }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 shrink-0 flex flex-col items-center gap-4 pb-4 sm:pb-0">
+            <button
+              onClick={handleComplete}
+              className="w-full bg-[#a3e635] text-black py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all hover:bg-[#8ec72e] shadow-xl shadow-[#a3e635]/20"
+            >
+              {t('newFeatures.close')}
+            </button>
 
             {onNeverShowAgain && (
               <button
                 onClick={handleNeverShowAgain}
-                className="flex items-center gap-2 text-[10px] font-bold text-stone-600 hover:text-stone-400 uppercase tracking-widest transition-colors opacity-60 hover:opacity-100"
+                className="flex items-center gap-2 text-[10px] font-bold text-stone-400 hover:text-white uppercase tracking-widest transition-colors"
               >
                 <EyeOff size={12} />
                 {t('newFeatures.neverShow')}

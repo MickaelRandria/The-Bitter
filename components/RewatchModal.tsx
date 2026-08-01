@@ -23,6 +23,7 @@ import {
 } from '../config/ratingProfiles';
 import { buildCriteriaForProfile, calculateWeightedRating, detectRatingProfile } from '../utils/rating';
 import { haptics } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 const SENTIMENTS: {
   id: RewatchSentiment;
@@ -85,6 +86,7 @@ const WeightPips: React.FC<{ weight: number; weightLabel?: WeightLabel }> = ({
 };
 
 const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) => {
+  const dialog = useDialog(onClose);
   const lastWatch = movie.watches?.[movie.watches.length - 1];
   const lastDate = lastWatch?.watched_at
     ? new Date(lastWatch.watched_at)
@@ -210,6 +212,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
 
   return (
     <div
+      {...dialog.props}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-6"
       onClick={onClose}
     >

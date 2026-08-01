@@ -1,8 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Movie, UserProfile } from '../types';
+import { resizeTmdbImage } from '../utils/tmdbImage';
+import {
+  countCustomVibes,
+  dominantGenre,
+  MIN_MOVIES_FOR_VIBES,
+  totalWatchHours,
+} from '../utils/movieStats';
 import {
   Smartphone,
   Brain,
+  Radar,
   Zap,
   Heart,
   Aperture,
@@ -269,8 +277,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       rhythmIndex: userProfile?.patienceLevel || 5,
     });
 
-    const totalMinutes = watched.reduce((acc, m) => acc + (m.runtime || 0), 0);
-    const totalHours = Math.floor(totalMinutes / 60);
+    const totalHours = totalWatchHours(watched);
 
     // --- SÉVÉRITÉ ---
     const moviesWithTmdb = watched.filter((m) => m.tmdbRating && m.tmdbRating > 0);
@@ -369,9 +376,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     Object.keys(genreRatings).forEach((g) => {
       genreRatings[g].avg = Number((genreRatings[g].sum / genreRatings[g].count).toFixed(1));
     });
+    // Classement pondéré par l'effectif : sans ça un genre vu 1 fois passe devant
+    // un genre vu 10 fois pour un dixième de point. La moyenne affichée reste la vraie,
+    // seul l'ordre est lissé vers la moyenne générale tant que l'échantillon est maigre.
+    const GENRE_PRIOR = 3;
+    const globalAvg = ratingAverages.global;
     const genreRatingsSorted = Object.entries(genreRatings)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.avg - a.avg);
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        rank: (data.sum + GENRE_PRIOR * globalAvg) / (data.count + GENRE_PRIOR),
+      }))
+      .sort((a, b) => b.rank - a.rank || b.count - a.count);
 
     // --- MOIS LE PLUS ACTIF ---
     const monthCounts: Record<string, number> = {};
@@ -493,6 +509,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       averages,
       ratingAverages,
       totalHours,
+      favoriteGenre: dominantGenre(watched),
+      vibeCount: countCustomVibes(watched),
       bestRated,
       worstRated,
       advancedArchetype,
@@ -571,6 +589,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     averages,
     criteriaScores,
     totalHours,
+    vibeCount,
     bestRated,
     worstRated,
     advancedArchetype,
@@ -971,7 +990,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         fill="currentColor"
                         className="text-stone-400 dark:text-stone-600 uppercase"
                       >
-                        {w.monthLabel.slice(0, 3)}
+                        {w.monthLabel.replace('.', '').slice(0, 4)}
                       </text>
                     ))}
                   </svg>
@@ -988,7 +1007,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
               <div className="w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
                 {bestRated?.posterUrl ? (
-                  <img src={bestRated.posterUrl} className="w-full h-full object-cover" alt="" />
+                  <img
+                    src={resizeTmdbImage(bestRated.posterUrl, 'w185')}
+                    className="w-full h-full object-cover"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-white/20">
                     <Film size={20} />
@@ -1024,9 +1049,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div className="w-16 aspect-[2/3] bg-stone-100 dark:bg-[#161616] rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
                 {worstRated?.posterUrl ? (
                   <img
-                    src={worstRated.posterUrl}
+                    src={resizeTmdbImage(worstRated.posterUrl, 'w185')}
                     className="w-full h-full object-cover opacity-50 grayscale"
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-700">
@@ -1038,7 +1065,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <div className="flex items-center gap-2 mb-1 text-orange-400">
                   <ThumbsDown size={12} fill="currentColor" />
                   <span className="text-[9px] font-black uppercase tracking-widest">
-                    {t('analytics.worst')}
+                    {/* « Douleur visuelle » sur un film noté 7,8 n'a aucun sens :
+                        le label sévère n'apparaît que si la note l'est vraiment. */}
+                    {getAvgRating(worstRated) < 5 ? t('analytics.worst') : t('analytics.lowest')}
                   </span>
                 </div>
                 <h4 className="font-black text-stone-500 dark:text-stone-400 truncate leading-tight">
@@ -1078,9 +1107,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
                       {biggestSurprise.posterUrl ? (
                         <img
-                          src={biggestSurprise.posterUrl}
+                          src={resizeTmdbImage(biggestSurprise.posterUrl, 'w185')}
                           className="w-full h-full object-cover"
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-stone-300">
@@ -1115,9 +1146,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
                       {biggestDisappointment.posterUrl ? (
                         <img
-                          src={biggestDisappointment.posterUrl}
+                          src={resizeTmdbImage(biggestDisappointment.posterUrl, 'w185')}
                           className="w-full h-full object-cover opacity-60 grayscale"
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-stone-300">
@@ -1134,6 +1167,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       </p>
                       <div className="mt-2 inline-flex items-center gap-1 bg-orange-400/10 text-orange-400 px-2 py-0.5 rounded-full">
                         <span className="text-[9px] font-black">
+                          {biggestDisappointment.userVsTmdb > 0 ? '+' : ''}
                           {biggestDisappointment.userVsTmdb} vs TMDB
                         </span>
                       </div>
@@ -1159,9 +1193,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <div className="w-14 h-14 rounded-2xl bg-stone-100 dark:bg-[#161616] flex items-center justify-center overflow-hidden shrink-0">
                   {favoriteDirector.posterUrl ? (
                     <img
-                      src={favoriteDirector.posterUrl}
+                      src={resizeTmdbImage(favoriteDirector.posterUrl, 'w185')}
                       className="w-full h-full object-cover opacity-60 grayscale"
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <User size={24} className="text-stone-300 dark:text-stone-600" />
@@ -1404,7 +1440,36 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       {/* ─── TAB : ADN ─── */}
       {activeTab === 'psycho' && (
         <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-          {/* RADAR CHART */}
+          {/* Pas assez d'ambiances renseignées : le radar serait plat et mensonger */}
+          {vibeCount < MIN_MOVIES_FOR_VIBES ? (
+            <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-8 rounded-[2.5rem] shadow-sm dark:shadow-black/20 text-center">
+              <div className="w-16 h-16 mx-auto bg-stone-50 dark:bg-[#161616] rounded-3xl flex items-center justify-center text-stone-300 dark:text-stone-600 mb-5">
+                <Radar size={28} />
+              </div>
+              <h3 className="text-lg font-black tracking-tighter text-charcoal dark:text-white mb-2">
+                {t('analytics.vibesLocked')}
+              </h3>
+              <p className="text-xs font-medium text-stone-500 dark:text-stone-400 leading-relaxed max-w-xs mx-auto mb-6">
+                {t('analytics.vibesLockedDesc', {
+                  n: String(MIN_MOVIES_FOR_VIBES - vibeCount),
+                  s: MIN_MOVIES_FOR_VIBES - vibeCount > 1 ? 's' : '',
+                })}
+              </p>
+              <div className="w-full max-w-[200px] mx-auto bg-stone-100 dark:bg-[#161616] h-2 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-forest dark:bg-lime-500 transition-all duration-700"
+                  style={{ width: `${(vibeCount / MIN_MOVIES_FOR_VIBES) * 100}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                {t('analytics.vibesProgress', {
+                  done: String(vibeCount),
+                  total: String(MIN_MOVIES_FOR_VIBES),
+                })}
+              </p>
+            </div>
+          ) : (
+          /* RADAR CHART */
           <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
             <RadarChart
               data={[
@@ -1437,6 +1502,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 rounded-[2.5rem] relative overflow-hidden shadow-xl dark:shadow-black/40 transition-all">
             <div className="absolute top-0 right-0 w-32 h-32 bg-forest/20 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -1558,7 +1624,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           ))}
         </div>
-        {stats.genreRatingsSorted[0] && (
+        {stats.favoriteGenre && (
           <div
             style={{
               marginTop: '16px',
@@ -1569,7 +1635,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               letterSpacing: '0.12em',
             }}
           >
-            {t('analytics.favGenre', { name: stats.genreRatingsSorted[0].name })}
+            {t('analytics.favGenre', { name: stats.favoriteGenre })}
           </div>
         )}
       </div>

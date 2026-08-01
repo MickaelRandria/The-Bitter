@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import DOMPurify from 'dompurify';
-import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
+import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
+import { tmdbImage } from '../utils/tmdbImage';
 import {
   Loader2,
   Plus,
@@ -523,17 +524,32 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                 >
                   <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-black/20 group-hover:shadow-xl dark:group-hover:shadow-black/40 group-hover:-translate-y-1 transition-all duration-500 bg-stone-100 dark:bg-[#161616]">
                     <img
-                      src={`${TMDB_IMAGE_URL}${item.poster_path}`}
+                      src={tmdbImage(item.poster_path, 'w342')}
                       className={`w-full h-full object-cover ${isInCollection ? 'opacity-80' : ''}`}
                       alt=""
                       loading="lazy"
+                      decoding="async"
                     />
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Cible clavier : la tuile était un <div onClick>, donc
+                        inatteignable au clavier et invisible pour un lecteur d'écran.
+                        Les boutons d'action (z-20) restent au-dessus. */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        haptics.medium();
+                        onPreview(item.id, mediaType);
+                      }}
+                      aria-label={item.title || item.name}
+                      className="absolute inset-0 z-[5] rounded-[2.5rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest dark:focus-visible:ring-lime-400 focus-visible:ring-offset-2"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                     <div className="absolute top-3 left-3 z-10">
                       <StreamingBadge
                         mediaId={item.id}
                         mediaType={mediaType}
                         releaseDate={item.release_date || item.first_air_date}
+                        hideCinemaBadge={streamingFilter === 'cinema'}
                       />
                     </div>
                     {/* TMDB rating */}

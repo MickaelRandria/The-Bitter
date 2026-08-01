@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, Star, Film } from 'lucide-react';
 import { SpaceMember, getMemberTopFilms, getMemberStats } from '../services/supabase';
+import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 interface Props {
   member: SpaceMember;
@@ -9,6 +11,7 @@ interface Props {
 }
 
 export default function MemberProfileModal({ member, onClose }: Props) {
+  const dialog = useDialog(onClose);
   const { t } = useLanguage();
   const [topFilms, setTopFilms] = useState<
     { id: string; title: string; poster_url?: string; year: number; director: string; avg_rating: number }[]
@@ -32,7 +35,7 @@ export default function MemberProfileModal({ member, onClose }: Props) {
   const isOwner = member.role === 'owner';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+    <div {...dialog.props} className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
       <div className="relative bg-white dark:bg-[#1a1a1a] w-full sm:max-w-md rounded-t-[3rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-sand dark:border-white/10">
         {/* Header */}
         <div className="p-8 border-b border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] flex items-center justify-between">
@@ -133,7 +136,13 @@ export default function MemberProfileModal({ member, onClose }: Props) {
                   >
                     <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 w-4 text-center shrink-0">{i + 1}</span>
                     {film.poster_url ? (
-                      <img src={film.poster_url} alt="" className="w-8 rounded-md object-cover aspect-[2/3] shrink-0" />
+                      <img
+                        src={resizeTmdbImage(film.poster_url, 'w154')}
+                        alt=""
+                        className="w-8 rounded-md object-cover aspect-[2/3] shrink-0"
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       <div className="w-8 aspect-[2/3] bg-stone-200 dark:bg-[#252525] rounded-md shrink-0 flex items-center justify-center">
                         <Film size={12} className="text-stone-400" />

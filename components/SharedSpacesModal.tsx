@@ -7,6 +7,7 @@ import {
   joinSpaceByCode,
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 interface SharedSpacesModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   userId,
   onSelectSpace,
 }) => {
+  const dialog = useDialog(onClose);
   const [spaces, setSpaces] = useState<SharedSpace[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
@@ -136,7 +138,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6">
       <div
         className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}

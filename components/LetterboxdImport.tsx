@@ -8,6 +8,7 @@ import {
 import { supabase } from '../services/supabase';
 import { searchMovieForImport } from '../services/tmdb';
 import { Movie, MovieFormData } from '../types';
+import { useDialog } from '../utils/useDialog';
 
 interface Props {
   userId: string;
@@ -216,6 +217,7 @@ const FILE_CARDS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 function LetterboxdImport({ userId, onImportMovies, onClose }: Props) {
+  const dialog = useDialog(onClose);
   const [phase, setPhase] = useState<'upload' | 'preview' | 'processing' | 'done'>('upload');
   const [uploadTab, setUploadTab] = useState<'tuto' | 'files'>('tuto');
   const [mergedRows, setMergedRows] = useState<MergedRow[]>([]);
@@ -332,7 +334,7 @@ function LetterboxdImport({ userId, onImportMovies, onClose }: Props) {
   const progressPct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6">
       <div
         className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm"
         onClick={phase === 'processing' ? undefined : onClose}

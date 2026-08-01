@@ -37,7 +37,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let str = map[key] ?? translations.fr[key] ?? key;
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
-        str = str.replace(`{${k}}`, String(v));
+        // split/join plutôt que replace : replace ne remplace que la 1re occurrence,
+        // or certaines chaînes utilisent le même token deux fois ('{count} film{s} vu{s}').
+        str = str.split(`{${k}}`).join(String(v));
       });
     }
     return str;

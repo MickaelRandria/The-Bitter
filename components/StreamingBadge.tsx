@@ -6,6 +6,11 @@ interface StreamingBadgeProps {
   mediaId: number;
   mediaType: 'movie' | 'tv';
   releaseDate?: string;
+  /**
+   * La liste est déjà filtrée sur les sorties en salle : répéter « AU CINÉMA »
+   * sur chaque vignette n'apporte plus aucune information.
+   */
+  hideCinemaBadge?: boolean;
 }
 
 const PROVIDER_STYLES: Record<number, string> = {
@@ -22,7 +27,12 @@ const PROVIDER_NAMES: Record<number, string> = {
   381: 'CANAL+',
 };
 
-const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, releaseDate }) => {
+const StreamingBadge: React.FC<StreamingBadgeProps> = ({
+  mediaId,
+  mediaType,
+  releaseDate,
+  hideCinemaBadge = false,
+}) => {
   const [badge, setBadge] = useState<{
     type: 'provider' | 'cinema';
     label: string;
@@ -127,6 +137,7 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({ mediaId, mediaType, rel
   }, [mediaId, mediaType, releaseDate]);
 
   if (!badge) return null;
+  if (badge.type === 'cinema' && hideCinemaBadge) return null;
 
   if (badge.type === 'cinema') {
     return (

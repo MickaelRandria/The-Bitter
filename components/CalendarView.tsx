@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Movie } from '../types';
+import { resizeTmdbImage } from '../utils/tmdbImage';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,35 +22,22 @@ interface CalendarItem {
   type: 'watched' | 'release';
 }
 
-const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-const MONTHS = [
-  'Janvier',
-  'Février',
-  'Mars',
-  'Avril',
-  'Mai',
-  'Juin',
-  'Juillet',
-  'Août',
-  'Septembre',
-  'Octobre',
-  'Novembre',
-  'Décembre',
-];
-const MONTHS_SHORT = [
-  'Jan',
-  'Fév',
-  'Mar',
-  'Avr',
-  'Mai',
-  'Jun',
-  'Jul',
-  'Aoû',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Déc',
-];
+/**
+ * Noms de jours et de mois dérivés de la langue active (le calendrier était
+ * entièrement codé en français, y compris pour un utilisateur en anglais).
+ * Le 1er janvier 2024 est un lundi : la semaine reste bien lundi → dimanche.
+ */
+const buildCalendarLabels = (locale: string) => ({
+  days: Array.from({ length: 7 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(2024, 0, 1 + i))
+  ),
+  months: Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, i, 1))
+  ),
+  monthsShort: Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2024, i, 1)).replace('.', '')
+  ),
+});
 
 const DayDetailModal: React.FC<{
   day: number;
@@ -88,7 +77,13 @@ const DayDetailModal: React.FC<{
             >
               <div className="w-16 h-24 rounded-xl overflow-hidden shadow-sm shrink-0 bg-stone-200 dark:bg-[#252525] border dark:border-white/5 transition-colors">
                 {item.movie.posterUrl ? (
-                  <img src={item.movie.posterUrl} className="w-full h-full object-cover" alt="" />
+                  <img
+                    src={resizeTmdbImage(item.movie.posterUrl, 'w185')}
+                    className="w-full h-full object-cover"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Film size={20} className="text-stone-300 dark:text-stone-700" />
@@ -126,6 +121,12 @@ const DayDetailModal: React.FC<{
 };
 
 const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
+  const { t, language } = useLanguage();
+  const locale = language === 'fr' ? 'fr-FR' : 'en-US';
+  const { days: DAYS, months: MONTHS, monthsShort: MONTHS_SHORT } = useMemo(
+    () => buildCalendarLabels(locale),
+    [locale]
+  );
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<{ day: number; items: CalendarItem[] } | null>(
     null
@@ -252,11 +253,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
               }
             />
             <span className="text-[11px] font-black text-charcoal dark:text-white">
-              {streakData.currentStreak > 0 ? `${streakData.currentStreak} sem` : '0 sem'}
+              {t('calendar.streak', { count: String(streakData.currentStreak) })}
             </span>
             <span className="text-stone-200 dark:text-stone-700">·</span>
             <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500">
-              Record {streakData.bestStreak} sem
+              {t('calendar.streakRecord', { count: String(streakData.bestStreak) })}
             </span>
           </div>
         </div>
@@ -287,7 +288,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                   {MONTHS[month]} {year}
                 </h2>
                 <div className="text-[9px] font-bold text-stone-300 dark:text-stone-500 mt-1 uppercase tracking-widest">
-                  {monthData.watchedCount} Séances
+                  {t('calendar.screenings', {
+                    count: String(monthData.watchedCount),
+                    s: monthData.watchedCount > 1 ? 's' : '',
+                  })}
                 </div>
               </>
             ) : (
@@ -324,7 +328,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${viewMode === 'heatmap' ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal' : 'bg-stone-100 dark:bg-[#252525] text-stone-400 dark:text-stone-500'}`}
           >
             {viewMode === 'heatmap' ? <CalendarDays size={10} /> : <LayoutGrid size={10} />}
-            {viewMode === 'heatmap' ? 'Vue mois' : 'Vue année'}
+            {viewMode === 'heatmap' ? t('calendar.monthView') : t('calendar.yearView')}
           </button>
         </div>
       </div>
@@ -362,7 +366,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                 onClick={() => setSelectedGenre(null)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${selectedGenre === null ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal' : 'bg-stone-100 dark:bg-[#252525] text-stone-400 dark:text-stone-500'}`}
               >
-                Tous
+                {t('common.all')}
               </button>
               {monthData.genres.map((genre) => (
                 <button
@@ -377,9 +381,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
           )}
 
           <div className="grid grid-cols-7 mb-4">
-            {DAYS.map((day) => (
+            {/* clé sur l'index : DAYS contient deux « M » (mardi/mercredi) */}
+            {DAYS.map((day, i) => (
               <div
-                key={day}
+                key={i}
                 className="text-center text-[10px] font-black text-stone-300 dark:text-stone-600 opacity-50 dark:opacity-100"
               >
                 {day}
@@ -412,9 +417,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
                       )}
                       {items[0].movie.posterUrl ? (
                         <img
-                          src={items[0].movie.posterUrl}
+                          src={resizeTmdbImage(items[0].movie.posterUrl, 'w154')}
                           className="w-full h-full object-cover rounded-xl shadow-md transition-shadow"
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-charcoal dark:bg-forest text-white rounded-xl shadow-md transition-colors">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { useDialog } from '../utils/useDialog';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface FeedbackModalProps {
 const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mpqoqjnn';
 
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
+  const dialog = useDialog(onClose);
   const [type, setType] = useState<'bug' | 'suggestion' | 'other'>('bug');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -58,7 +60,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div {...dialog.props} className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}

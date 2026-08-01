@@ -30,7 +30,7 @@ interface AuthScreenProps {
 type AuthMode = 'login' | 'signup' | 'forgot';
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,8 +118,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
         style={{ animationDelay: '-5s' }}
       />
 
-      {/* Dark mode toggle */}
-      <div className="absolute top-6 right-6 z-50">
+      {/* Thème + langue : le sélecteur de langue n'était accessible que dans la
+          modale profil, donc après la création d'un compte. */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-2">
+        <button
+          onClick={() => {
+            haptics.soft();
+            setLanguage(language === 'fr' ? 'en' : 'fr');
+          }}
+          aria-label={language === 'fr' ? 'Switch to English' : 'Passer en français'}
+          className="w-10 h-10 rounded-2xl border border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white text-[10px] font-black tracking-widest flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all"
+        >
+          {language === 'fr' ? 'EN' : 'FR'}
+        </button>
         <ThemeToggle />
       </div>
 
@@ -239,13 +250,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 <div className="flex gap-2">
                   <div className="flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 bg-forest/8 dark:bg-forest/10 rounded-[1.25rem] text-center">
                     <Globe size={15} className="text-forest" strokeWidth={2} />
-                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">Avec compte</p>
-                    <p className="text-[9px] text-stone-400 leading-tight">Accès aux<br />Espaces Partagés</p>
+                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">
+                      {t('auth.withAccount')}
+                    </p>
+                    <p className="text-[9px] text-stone-400 leading-tight">
+                      {t('auth.withAccountDesc')}
+                    </p>
                   </div>
                   <div className="flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 bg-stone-100/80 dark:bg-white/5 rounded-[1.25rem] text-center">
                     <Smartphone size={15} className="text-stone-400 dark:text-stone-500" strokeWidth={2} />
-                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">Sans compte</p>
-                    <p className="text-[9px] text-stone-400 leading-tight">Expérience identique<br />sauf espaces partagés</p>
+                    <p className="text-[10px] font-black text-charcoal dark:text-white leading-none">
+                      {t('auth.withoutAccount')}
+                    </p>
+                    <p className="text-[9px] text-stone-400 leading-tight">
+                      {t('auth.withoutAccountDesc')}
+                    </p>
                   </div>
                 </div>
                 <div className="w-full px-4 py-3 bg-stone-100/60 dark:bg-white/5 rounded-[1.25rem] flex items-start gap-2.5">
@@ -401,7 +420,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 <Ghost size={18} className="shrink-0" />
                 <div className="text-left">
                   <span className="block text-[10px] font-black uppercase tracking-[0.2em]">{t('auth.guestMode')}</span>
-                  <span className="block text-[9px] font-medium text-stone-400 mt-0.5">Crée un profil local · 100% privé</span>
+                  <span className="block text-[9px] font-medium text-stone-400 mt-0.5">
+                    {t('auth.guestModeDesc')}
+                  </span>
                 </div>
               </button>
             )}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScanEye, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 interface ConsentModalProps {
   onAccept: () => void;
@@ -8,8 +9,9 @@ interface ConsentModalProps {
 
 const ConsentModal: React.FC<ConsentModalProps> = ({ onAccept }) => {
   const { t } = useLanguage();
+  const dialog = useDialog(undefined, t('consent.title'));
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 sm:p-6">
+    <div {...dialog.props} className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-charcoal/90 backdrop-blur-md animate-[fadeIn_0.5s_ease-out]" />
 
       <div className="relative z-10 bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)] border border-stone-100">

@@ -14,6 +14,45 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.85',
+    date: '1 Août 2026',
+    title: 'Performance, Cohérence & Accessibilité',
+    changes: [
+      {
+        type: 'fix',
+        text: 'Chargement allégé — Tailwind est désormais compilé au build au lieu d\'être chargé depuis un CDN, et les outils de mesure d\'audience ne sont téléchargés qu\'après ton consentement. Environ 180 Ko de moins au premier chargement, et les affiches sont demandées à la taille réellement affichée.',
+      },
+      {
+        type: 'fix',
+        text: 'Des chiffres qui concordent — Le nombre d\'heures visionnées et le genre favori étaient calculés différemment selon l\'écran. Feed, statistiques et profil affichent maintenant la même valeur.',
+      },
+      {
+        type: 'fix',
+        text: 'Pluriels et signes — Correction d\'un bug d\'affichage qui laissait apparaître « {s} » dans les textes, du signe manquant sur ta déception vs TMDB, et des mois « juin » et « juillet » devenus indistinguables sur les graphiques.',
+      },
+      {
+        type: 'feature',
+        text: 'Ambiances fiables — Le 5ᵉ axe « Visuel » est enfin saisissable au moment de noter. Le radar ADN et les moods restent verrouillés tant que trop peu de films ont une ambiance renseignée, au lieu d\'afficher un profil neutre inventé. Sélectionner un mood filtre désormais réellement ta file d\'attente.',
+      },
+      {
+        type: 'feature',
+        text: 'File d\'attente plus lisible — « Ce soir ? » remonte en haut de l\'onglet À voir, et les statistiques affichées concernent la file (films, durée totale, temps d\'attente) plutôt que les films déjà vus.',
+      },
+      {
+        type: 'feature',
+        text: 'Accessibilité — Libellés sur toute la navigation, fermeture au clavier et focus correctement piégé dans les fenêtres, vignettes Discover atteignables au clavier. Le classement des genres tient compte du nombre de films vus.',
+      },
+      {
+        type: 'style',
+        text: 'Nouveautés en un écran — La présentation des nouveautés ne fait plus défiler cinq étapes : tout est listé d\'un coup, avec une croix dès l\'ouverture et un « ne plus afficher » qui tient vraiment.',
+      },
+      {
+        type: 'style',
+        text: 'Cohérence éditoriale — L\'application te tutoie partout. Le calendrier et l\'écran de connexion sont enfin traduits en anglais, et le sélecteur de langue est accessible dès le premier écran.',
+      },
+    ],
+  },
+  {
     version: 'v0.84',
     date: '28 Mars 2026',
     title: 'Feedback, Recos & Optimisations',

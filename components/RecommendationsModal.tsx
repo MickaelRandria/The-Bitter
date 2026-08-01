@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Sparkles, Plus, Check, Loader2, Calendar, ChevronLeft, Search } from 'lucide-react';
 import { Movie, MovieFormData } from '../types';
 import { getRecommendations, getTopRatedRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
-import { TMDB_IMAGE_URL } from '../constants';
 import { haptics } from '../utils/haptics';
+import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 
 const MIN_MOVIES_FOR_AI = 10;
 
@@ -26,6 +27,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   movies = [],
 }) => {
   const { t } = useLanguage();
+  const dialog = useDialog(onClose, t('reco.title'));
   const watchedMovies = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const watchedCount = watchedMovies.length;
 
@@ -122,7 +124,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   // ── Unlock screen ──────────────────────────────────────────────────────────
   if (watchedCount < MIN_MOVIES_FOR_AI) {
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+      <div {...dialog.props} className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
         <div
           className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
           onClick={onClose}
@@ -169,7 +171,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   // ── Picker (mode pick, no movie selected) ─────────────────────────────────
   if (mode === 'pick' && !selectedMovie) {
     return (
-      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+      <div {...dialog.props} className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
         <div
           className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
           onClick={onClose}
@@ -231,9 +233,11 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                     <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2 relative shadow-sm group-active:scale-95 transition-transform">
                       {movie.posterUrl ? (
                         <img
-                          src={movie.posterUrl}
+                          src={resizeTmdbImage(movie.posterUrl, 'w342')}
                           alt={movie.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-600">
@@ -288,9 +292,11 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               )}
               {isPickWithMovie && selectedMovie.posterUrl && (
                 <img
-                  src={selectedMovie.posterUrl}
+                  src={resizeTmdbImage(selectedMovie.posterUrl, 'w154')}
                   alt={selectedMovie.title}
                   className="w-10 h-14 rounded-xl object-cover shrink-0 shadow-sm"
+                  loading="lazy"
+                  decoding="async"
                 />
               )}
               <div className="min-w-0">
@@ -382,9 +388,11 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                   >
                     <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2 shadow-sm relative">
                       <img
-                        src={`${TMDB_IMAGE_URL}${movie.poster_path}`}
+                        src={tmdbImage(movie.poster_path, 'w342')}
                         alt={movie.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        loading="lazy"
+                        decoding="async"
                       />
                       <div
                         className={`absolute inset-0 bg-black/40 transition-opacity duration-300 flex items-center justify-center ${isAdding ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
