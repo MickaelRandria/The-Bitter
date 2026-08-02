@@ -62,14 +62,13 @@ const getVibePhrase = (key: string, value: number, t: (k: string) => string): st
   return t(`vibe.phrase.${key}.${tier}`);
 };
 
-/** Un point de la courbe de tendance : une semaine ou un mois selon la granularité. */
+/** Un point de la courbe de tendance : une semaine. */
 interface TrendPoint {
   weekIndex: number;
   weekStart: Date;
   avg: number | null;
   count: number;
   monthLabel: string;
-  isFirstOfMonth: boolean;
 }
 
 /**
@@ -97,11 +96,23 @@ const TrendChart: React.FC<{ points: TrendPoint[]; expanded?: boolean }> = ({
     points.length === 1 ? PAD_L + plotW / 2 : PAD_L + (i / lastIndex) * plotW;
   const yOf = (v: number) => PAD_T + plotH - (v / 10) * plotH;
 
-  const active = points.filter((p) => p.avg !== null);
-  // Ligne unique traversant les trous : une période sans film ne coupe pas la courbe.
-  const polyline = active.map((p) => `${xOf(p.weekIndex).toFixed(1)},${yOf(p.avg ?? 0).toFixed(1)}`);
-  const labels = points.filter((p) => p.isFirstOfMonth);
+  // On indexe sur la position de rendu : les tableaux reçus sont des tranches,
+  // leur weekIndex d'origine ne repart pas de zéro.
+  const drawn = points.map((p, i) => ({ point: p, x: xOf(i), y: yOf(p.avg ?? 0) }));
+  const active = drawn.filter((d) => d.point.avg !== null);
+  // Ligne unique traversant les trous : une semaine sans film ne coupe pas la courbe.
+  const polyline = active.map((d) => `${d.x.toFixed(1)},${d.y.toFixed(1)}`);
   const showValues = expanded && active.length <= 26;
+
+  // ~6 repères d'axe quel que soit le nombre de points, sans libellé répété :
+  // deux repères espacés de 4 semaines peuvent tomber dans le même mois.
+  const labelStep = Math.max(1, Math.ceil(points.length / 6));
+  let lastLabel = '';
+  const labels = drawn.filter((d, i) => {
+    if (i % labelStep !== 0 || d.point.monthLabel === lastLabel) return false;
+    lastLabel = d.point.monthLabel;
+    return true;
+  });
 
   return (
     <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full overflow-visible">
@@ -144,35 +155,35 @@ const TrendChart: React.FC<{ points: TrendPoint[]; expanded?: boolean }> = ({
         />
       )}
 
-      {active.map((p) => (
-        <g key={p.weekIndex}>
+      {active.map((d) => (
+        <g key={d.point.weekIndex}>
           <circle
-            cx={xOf(p.weekIndex).toFixed(1)}
-            cy={yOf(p.avg ?? 0).toFixed(1)}
+            cx={d.x.toFixed(1)}
+            cy={d.y.toFixed(1)}
             r={expanded ? 3 : 2.5}
             fill="currentColor"
             className="text-forest dark:text-lime-500"
           />
           {showValues && (
             <text
-              x={xOf(p.weekIndex).toFixed(1)}
-              y={(yOf(p.avg ?? 0) - 7).toFixed(1)}
+              x={d.x.toFixed(1)}
+              y={(d.y - 7).toFixed(1)}
               textAnchor="middle"
               fontSize={6}
               fontWeight="800"
               fill="currentColor"
               className="text-charcoal dark:text-white"
             >
-              {p.avg}
+              {d.point.avg}
             </text>
           )}
         </g>
       ))}
 
-      {labels.map((p) => (
+      {labels.map((d) => (
         <text
-          key={p.weekIndex}
-          x={xOf(p.weekIndex).toFixed(1)}
+          key={d.point.weekIndex}
+          x={d.x.toFixed(1)}
           y={SVG_H - 4}
           textAnchor="middle"
           fontSize={expanded ? 7 : 6}
@@ -180,26 +191,31 @@ const TrendChart: React.FC<{ points: TrendPoint[]; expanded?: boolean }> = ({
           fill="currentColor"
           className="text-stone-400 dark:text-stone-600 uppercase"
         >
-          {p.monthLabel.replace('.', '')}
+          {d.point.monthLabel.replace('.', '')}
         </text>
       ))}
     </svg>
   );
 };
 
-/** Vue agrandie : la courbe en grand, les repères, puis le détail période par période. */
+/**
+ * Vue agrandie : la courbe des 26 dernières semaines en grand, puis tout
+ * l'historique semaine par semaine — c'est le seul endroit où les notes
+ * antérieures à la fenêtre restent consultables.
+ */
 const TrendDetailModal: React.FC<{
-  points: TrendPoint[];
-  granularity: 'week' | 'month';
+  windowPoints: TrendPoint[];
+  historyPoints: TrendPoint[];
   rangeLabel: string;
   delta: number | null;
   locale: string;
   onClose: () => void;
-}> = ({ points, granularity, rangeLabel, delta, locale, onClose }) => {
+}> = ({ windowPoints, historyPoints, rangeLabel, delta, locale, onClose }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('analytics.trendTitle'));
 
-  const active: TrendPoint[] = points.filter((p) => p.avg !== null);
+  // Les repères portent sur tout l'historique, pas sur la seule fenêtre affichée.
+  const active: TrendPoint[] = historyPoints.filter((p) => p.avg !== null);
   const byScore = [...active].sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0));
   const best = byScore[0] ?? null;
   const worst = byScore.length > 1 ? byScore[byScore.length - 1] : null;
@@ -209,9 +225,11 @@ const TrendDetailModal: React.FC<{
     : 0;
 
   const formatPeriod = (date: Date) =>
-    granularity === 'week'
-      ? `${t('analytics.weekOf')} ${date.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}`
-      : date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+    `${t('analytics.weekOf')} ${date.toLocaleDateString(locale, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })}`;
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -237,7 +255,7 @@ const TrendDetailModal: React.FC<{
               {t('analytics.trendTitle')}
             </h3>
             <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mt-1.5">
-              {t('analytics.trendSince', { date: rangeLabel })}
+              {t('analytics.trendWindow')}
             </p>
           </div>
           <button
@@ -252,7 +270,7 @@ const TrendDetailModal: React.FC<{
 
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-7 pb-7">
           <div className="bg-stone-50 dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.75rem] p-4 mb-4">
-            <TrendChart points={points} expanded />
+            <TrendChart points={windowPoints} expanded />
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -295,7 +313,15 @@ const TrendDetailModal: React.FC<{
             ))}
           </div>
 
-          {/* Détail : uniquement les périodes où tu as noté quelque chose */}
+          {/* Historique complet — au-delà de la fenêtre affichée sur la courbe */}
+          <div className="flex items-baseline justify-between gap-3 mb-2.5 mt-6">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+              {t('analytics.trendHistory')}
+            </h4>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-stone-300 dark:text-stone-600 truncate">
+              {t('analytics.trendSince', { date: rangeLabel })}
+            </span>
+          </div>
           <div className="space-y-1.5">
             {[...active].reverse().map((p) => (
               <div
@@ -715,10 +741,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     });
     const maxRatingCount = Math.max(...Object.values(ratingDist), 1);
 
-    // --- TENDANCE DES NOTES (depuis la toute première note) ---
-    // La fenêtre partait des 26 dernières semaines : tout l'historique antérieur
-    // était invisible. Elle démarre maintenant à la première note, et bascule en
-    // buckets mensuels au-delà de ~7 mois pour que la courbe reste lisible.
+    // --- TENDANCE DES NOTES ---
+    // L'historique complet est calculé et conservé (liste du détail), mais la
+    // courbe n'affiche que les 26 dernières semaines : au-delà, les points se
+    // tassent et la tuile devient illisible.
     const getWeekStart = (d: Date): number => {
       const copy = new Date(d);
       const day = copy.getDay();
@@ -727,82 +753,61 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       copy.setDate(copy.getDate() + diff);
       return copy.getTime();
     };
-    const getMonthStart = (d: Date): number =>
-      new Date(d.getFullYear(), d.getMonth(), 1).getTime();
 
     const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-    const MAX_WEEKLY_BUCKETS = 30;
+    const TREND_WINDOW_WEEKS = 26;
 
     // Repli sur dateAdded : les fiches les plus anciennes n'ont pas toujours de
     // date de visionnage, et sans repli elles disparaissent purement et
-    // simplement de la courbe au lieu d'être datées approximativement.
+    // simplement de l'historique au lieu d'être datées approximativement.
     const trendDateOf = (m: Movie): number | null => m.dateWatched ?? m.dateAdded ?? null;
     const datedWatched = watched.filter((m) => trendDateOf(m) !== null);
     const firstWatchedAt = datedWatched.length
       ? Math.min(...datedWatched.map((m) => trendDateOf(m) as number))
       : now.getTime();
 
-    const spanInWeeks =
-      Math.floor((getWeekStart(now) - getWeekStart(new Date(firstWatchedAt))) / WEEK_MS) + 1;
-    const trendGranularity: 'week' | 'month' =
-      spanInWeeks <= MAX_WEEKLY_BUCKETS ? 'week' : 'month';
-    const bucketOf = trendGranularity === 'week' ? getWeekStart : getMonthStart;
-
     const trendMap: Record<number, { sum: number; count: number }> = {};
     datedWatched.forEach((m) => {
-      const key = bucketOf(new Date(trendDateOf(m) as number));
+      const key = getWeekStart(new Date(trendDateOf(m) as number));
       if (!trendMap[key]) trendMap[key] = { sum: 0, count: 0 };
       const mAvg = (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
       trendMap[key].sum += mAvg;
       trendMap[key].count += 1;
     });
 
-    // Bornes incluses : chaque période vide compte comme un trou dans la courbe,
-    // pas comme une période absente (sinon l'axe des temps se compresse).
+    // Semaines bornes incluses depuis la toute première note : une semaine sans
+    // film reste un trou dans la courbe, elle ne compresse pas l'axe du temps.
     const bucketStarts: number[] = [];
-    if (trendGranularity === 'week') {
-      const first = getWeekStart(new Date(firstWatchedAt));
-      const last = getWeekStart(now);
-      for (let ts = first; ts <= last; ts += WEEK_MS) bucketStarts.push(ts);
-    } else {
-      const cursor = new Date(firstWatchedAt);
-      cursor.setDate(1);
-      cursor.setHours(0, 0, 0, 0);
-      const last = getMonthStart(now);
-      while (cursor.getTime() <= last) {
-        bucketStarts.push(cursor.getTime());
-        cursor.setMonth(cursor.getMonth() + 1);
-      }
+    for (
+      let ts = getWeekStart(new Date(firstWatchedAt)), last = getWeekStart(now);
+      ts <= last;
+      ts += WEEK_MS
+    ) {
+      bucketStarts.push(ts);
     }
 
-    // ~6 libellés d'axe quel que soit le nombre de points, sinon ils se chevauchent.
-    // Un libellé identique au précédent est sauté : en semaines, deux repères
-    // espacés de 5 semaines peuvent tomber dans le même mois.
-    const labelStep = Math.max(1, Math.ceil(bucketStarts.length / 6));
-    let lastAxisLabel = '';
     const weeklyTrend = bucketStarts.map((ts, i) => {
       const data = trendMap[ts];
       const d = new Date(ts);
-      const label = d.toLocaleDateString(
-        locale,
-        trendGranularity === 'week' ? { month: 'short' } : { month: 'short', year: '2-digit' }
-      );
-      const showLabel = i % labelStep === 0 && label !== lastAxisLabel;
-      if (showLabel) lastAxisLabel = label;
-
       return {
         weekIndex: i,
         weekStart: d,
         avg: data ? Number((data.sum / data.count).toFixed(1)) : null,
         count: data?.count || 0,
-        monthLabel: label,
-        isFirstOfMonth: showLabel,
+        monthLabel: d.toLocaleDateString(locale, { month: 'short' }),
       };
     });
 
-    const midpoint = Math.ceil(weeklyTrend.length / 2);
-    const firstHalf = weeklyTrend.slice(0, midpoint).filter((w) => w.avg !== null);
-    const secondHalf = weeklyTrend.slice(midpoint).filter((w) => w.avg !== null);
+    // Fenêtre affichée : les 26 dernières semaines. La version repliée est en
+    // plus rognée à gauche jusqu'à la première note, pour ne pas ouvrir sur du vide.
+    const trendWindow = weeklyTrend.slice(-TREND_WINDOW_WEEKS);
+    const firstWithData = trendWindow.findIndex((w) => w.avg !== null);
+    const trendCompact = firstWithData > 0 ? trendWindow.slice(firstWithData) : trendWindow;
+
+    // Le badge d'évolution porte sur ce qui est affiché, pas sur tout l'historique.
+    const midpoint = Math.ceil(trendWindow.length / 2);
+    const firstHalf = trendWindow.slice(0, midpoint).filter((w) => w.avg !== null);
+    const secondHalf = trendWindow.slice(midpoint).filter((w) => w.avg !== null);
     const firstHalfAvg =
       firstHalf.length > 0
         ? firstHalf.reduce((s, w) => s + (w.avg ?? 0), 0) / firstHalf.length
@@ -815,7 +820,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       firstHalfAvg !== null && secondHalfAvg !== null
         ? Number((secondHalfAvg - firstHalfAvg).toFixed(1))
         : null;
-    const hasWeeklyData = weeklyTrend.some((w) => w.count > 0);
+    const hasWeeklyData = trendCompact.some((w) => w.count > 0);
 
     const hypeReality = computeHypeReality(watched);
     const pacingInsight = computePacingInsight(watched);
@@ -848,9 +853,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       ratingDist,
       maxRatingCount,
       weeklyTrend,
+      trendWindow,
+      trendCompact,
       weeklyTrendDelta,
       hasWeeklyData,
-      trendGranularity,
       trendRangeLabel: weeklyTrend[0]
         ? weeklyTrend[0].weekStart.toLocaleDateString(locale, {
             month: 'long',
@@ -933,9 +939,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     ratingDist,
     maxRatingCount,
     weeklyTrend,
+    trendWindow,
+    trendCompact,
     weeklyTrendDelta,
     hasWeeklyData,
-    trendGranularity,
     trendRangeLabel,
     hypeReality,
     pacingInsight,
@@ -1220,7 +1227,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       {t('analytics.trendTitle')}
                     </h3>
                     <p className="text-[9px] font-bold uppercase tracking-widest text-stone-300 dark:text-stone-600 mt-0.5 truncate">
-                      {t('analytics.trendSince', { date: trendRangeLabel })}
+                      {t('analytics.trendWindow')}
                     </p>
                   </div>
                 </div>
@@ -1245,7 +1252,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   </span>
                 </div>
               </div>
-              <TrendChart points={weeklyTrend} />
+              <TrendChart points={trendCompact} />
             </button>
           )}
 
@@ -1789,8 +1796,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <TrendDetailModal
-            points={weeklyTrend}
-            granularity={trendGranularity}
+            windowPoints={trendWindow}
+            historyPoints={weeklyTrend}
             rangeLabel={trendRangeLabel}
             delta={weeklyTrendDelta}
             locale={locale}
