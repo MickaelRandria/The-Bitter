@@ -1,24 +1,161 @@
 import React, { useState } from 'react';
-import { Instagram, Loader2, Share2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowRight, Instagram, LayoutTemplate, Loader2, Share2, Sparkles, X } from 'lucide-react';
 import { Movie } from '../types';
 import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rating';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
+
+type StoryFormat = 'classic' | 'editorial';
 
 interface ShareStoryButtonSimpleProps {
   movie: Movie;
   compact?: boolean;
 }
 
+/**
+ * Feuille de choix du visuel. Rendue dans un portail : la MovieCard applique un
+ * `transform` (swipe) sur un parent, ce qui piègerait un `position: fixed` rendu
+ * en place. Les événements React remontent quand même l'arbre des composants,
+ * d'où les stopPropagation sur l'overlay (sinon la carte se replie ou swipe).
+ */
+const StoryFormatSheet: React.FC<{
+  onSelect: (format: StoryFormat) => void;
+  onClose: () => void;
+}> = ({ onSelect, onClose }) => {
+  const { t } = useLanguage();
+  const dialog = useDialog(onClose, t('story.pickTitle'));
+
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/80 backdrop-blur-xl animate-[fadeIn_0.25s_ease-out]"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      onTouchStart={stop}
+      onTouchMove={stop}
+      onTouchEnd={stop}
+    >
+      <div
+        {...dialog.props}
+        onClick={stop}
+        className="relative w-full sm:max-w-md bg-[#0c0c0c] rounded-t-[3rem] sm:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] px-7 pt-7"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)' }}
+      >
+        <div className="absolute top-[-30%] right-[-20%] w-[260px] h-[260px] bg-lime-400/10 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="relative z-10 flex items-start justify-between gap-4 mb-6">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-black text-white tracking-tighter leading-tight">
+              {t('story.pickTitle')}
+            </h2>
+            <p className="text-[11px] font-medium text-stone-400 mt-1 leading-relaxed">
+              {t('story.pickDesc')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            aria-label={t('common.close')}
+            className="w-9 h-9 shrink-0 rounded-full bg-white/10 border border-white/10 text-white flex items-center justify-center active:scale-90 transition-all hover:bg-white/20"
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="relative z-10 space-y-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect('classic');
+            }}
+            className="w-full flex items-start gap-4 text-left p-5 rounded-[1.75rem] border border-white/10 bg-white/5 active:scale-[0.98] transition-all hover:bg-white/10 group"
+          >
+            <span className="w-11 h-11 shrink-0 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center">
+              <LayoutTemplate size={19} strokeWidth={2} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[12px] font-black uppercase tracking-widest text-white leading-tight">
+                {t('story.classic')}
+              </span>
+              <span className="block text-[11px] font-medium text-stone-400 mt-1.5 leading-relaxed">
+                {t('story.classicDesc')}
+              </span>
+            </span>
+            <ArrowRight
+              size={18}
+              strokeWidth={2.5}
+              className="shrink-0 mt-1 text-stone-500 group-hover:translate-x-1 group-hover:text-white transition-all"
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect('editorial');
+            }}
+            className="w-full flex items-start gap-4 text-left p-5 rounded-[1.75rem] border border-lime-400/30 bg-lime-400/10 active:scale-[0.98] transition-all hover:bg-lime-400/15 group"
+          >
+            <span className="w-11 h-11 shrink-0 rounded-2xl bg-lime-400 text-black flex items-center justify-center">
+              <Sparkles size={19} strokeWidth={2.2} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="flex items-center gap-2 flex-wrap">
+                <span className="text-[12px] font-black uppercase tracking-widest text-white leading-tight">
+                  {t('story.variant')}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-lime-400 text-black text-[9px] font-black uppercase tracking-widest">
+                  {t('story.beta')}
+                </span>
+              </span>
+              <span className="block text-[11px] font-medium text-stone-400 mt-1.5 leading-relaxed">
+                {t('story.variantDesc')}
+              </span>
+            </span>
+            <ArrowRight
+              size={18}
+              strokeWidth={2.5}
+              className="shrink-0 mt-1 text-lime-400/60 group-hover:translate-x-1 group-hover:text-lime-400 transition-all"
+            />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="relative z-10 w-full mt-4 py-4 text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-white transition-colors"
+        >
+          {t('common.cancel')}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   movie,
   compact = false,
 }) => {
+  const { t } = useLanguage();
   const [isSharing, setIsSharing] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
   const adaptive = movie.adaptiveRating;
   const globalRating = getDisplayWeightedRating(movie).toFixed(1);
   const profileLabel = adaptive?.profile.label;
 
-  const generateStoryImage = async (): Promise<string> => {
+  const generateClassicStoryImage = async (): Promise<string> => {
     // --- CONSTANTES DE DESIGN ---
     const CANVAS_W = 1080;
     const CANVAS_H = 1920;
@@ -403,8 +540,428 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     return canvas.toDataURL('image/png', 1.0);
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
+  const generateEditorialStoryImage = async (): Promise<string> => {
+    const CANVAS_W = 1080;
+    const CANVAS_H = 1920;
+    const CENTER_X = CANVAS_W / 2;
+    const CONTENT_X = 92;
+    const CONTENT_RIGHT = 528;
+    const SAFE_TOP = 200;
+    const SAFE_BOTTOM = 220;
+    const COLOR_TEXT = '#F4F2EC';
+    const COLOR_ACCENT = '#D9FF00';
+    const COLOR_META = 'rgba(244, 242, 236, 0.62)';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) throw new Error('Canvas non supporté');
+
+    // Canvas measures and draws only after the requested faces are ready.
+    if ('fonts' in document) {
+      const fontSet = document.fonts;
+      await Promise.all([
+        fontSet.load('700 76px "Inter"', 'B'),
+        fontSet.load('700 52px "Inter"', movie.title || 'THE BITTER'),
+        fontSet.load('600 250px "Inter"', globalRating),
+        fontSet.load('400 25px "Inter"', 'Scénario'),
+        fontSet.load('800 25px "Inter"', '8.2'),
+      ]).catch(() => undefined);
+      await fontSet.ready;
+    }
+
+    // L'affiche devient le visuel plein écran de la story.
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Cadrage manuel type object-fit: cover sur l'intégralité du canvas.
+    if (movie.posterUrl) {
+      try {
+        const originalPosterUrl = movie.posterUrl.replace(
+          /\/t\/p\/[^/]+\//,
+          '/t/p/original/',
+        );
+        const posterCandidates = Array.from(
+          new Set([originalPosterUrl, movie.posterUrl].filter(Boolean)),
+        );
+
+        const loadPoster = async (url: string): Promise<HTMLImageElement | null> =>
+          new Promise((resolve) => {
+            const candidate = new Image();
+            candidate.crossOrigin = 'anonymous';
+            let settled = false;
+            const finish = (image: HTMLImageElement | null) => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(timeoutId);
+              resolve(image);
+            };
+            const timeoutId = window.setTimeout(() => finish(null), 10000);
+
+            candidate.onload = () =>
+              finish(candidate.naturalWidth > 0 && candidate.naturalHeight > 0 ? candidate : null);
+            candidate.onerror = () => finish(null);
+            candidate.src = url;
+          });
+
+        let img: HTMLImageElement | null = null;
+        for (const posterUrl of posterCandidates) {
+          img = await loadPoster(posterUrl);
+          if (img) break;
+        }
+
+        if (img) {
+          const scale = Math.max(CANVAS_W / img.naturalWidth, CANVAS_H / img.naturalHeight);
+          const drawWidth = img.naturalWidth * scale;
+          const drawHeight = img.naturalHeight * scale;
+          // Biais vertical légèrement haut : il préserve mieux les visages sur les
+          // affiches très longues, tout en gardant un centrage horizontal neutre.
+          const offsetX = (CANVAS_W - drawWidth) * 0.5;
+          const offsetY = (CANVAS_H - drawHeight) * 0.38;
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            img.naturalWidth,
+            img.naturalHeight,
+            offsetX,
+            offsetY,
+            drawWidth,
+            drawHeight,
+          );
+        }
+      } catch (err) {
+        console.warn('Erreur affiche éditoriale:', err);
+      }
+    }
+
+    // Texture the image layer before overlays and typography so all generated copy stays crisp.
+    const patternCanvas = document.createElement('canvas');
+    const patternSize = 100;
+    patternCanvas.width = patternSize;
+    patternCanvas.height = patternSize;
+    const pCtx = patternCanvas.getContext('2d');
+
+    if (pCtx) {
+      const imgData = pCtx.createImageData(patternSize, patternSize);
+      const data = imgData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = Math.random() * 255;
+        data[i] = noise;
+        data[i + 1] = noise;
+        data[i + 2] = noise;
+        data[i + 3] = 18;
+      }
+      pCtx.putImageData(imgData, 0, 0);
+
+      const pattern = ctx.createPattern(patternCanvas, 'repeat');
+      if (pattern) {
+        ctx.save();
+        ctx.fillStyle = pattern;
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.globalAlpha = 0.22;
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.restore();
+      }
+    }
+
+    // Voiles cinématographiques : l'image reste lisible en haut et se fond dans
+    // un noir légèrement pétrole derrière les informations.
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.07)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    const lowerShade = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    lowerShade.addColorStop(0.44, 'rgba(0, 0, 0, 0)');
+    lowerShade.addColorStop(0.53, 'rgba(0, 30, 26, 0.22)');
+    lowerShade.addColorStop(0.7, 'rgba(0, 24, 20, 0.6)');
+    lowerShade.addColorStop(0.86, 'rgba(0, 10, 8, 0.9)');
+    lowerShade.addColorStop(1, 'rgba(0, 0, 0, 0.97)');
+    ctx.fillStyle = lowerShade;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    const sideShade = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
+    sideShade.addColorStop(0, 'rgba(0, 35, 31, 0.04)');
+    sideShade.addColorStop(0.58, 'rgba(0, 12, 10, 0.08)');
+    sideShade.addColorStop(1, 'rgba(0, 0, 0, 0.38)');
+    ctx.fillStyle = sideShade;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    const vignette = ctx.createRadialGradient(CENTER_X - 90, 650, 220, CENTER_X, 920, 1220);
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(0.68, 'rgba(0, 0, 0, 0.03)');
+    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.28)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+
+    const measureTrackedText = (text: string, tracking: number) => {
+      const characters = Array.from(text);
+      return (
+        characters.reduce((width, character) => width + ctx.measureText(character).width, 0) +
+        Math.max(0, characters.length - 1) * tracking
+      );
+    };
+
+    const drawTrackedText = (text: string, x: number, y: number, tracking: number) => {
+      const previousAlign = ctx.textAlign;
+      ctx.textAlign = 'left';
+      let cursorX = x;
+
+      Array.from(text).forEach((character, index, characters) => {
+        ctx.fillText(character, cursorX, y);
+        cursorX += ctx.measureText(character).width;
+        if (index < characters.length - 1) cursorX += tracking;
+      });
+
+      ctx.textAlign = previousAlign;
+    };
+
+    // Monogramme minimal avec contraste automatique sur les affiches claires.
+    const logoY = SAFE_TOP;
+    let logoLuminance = 0;
+    try {
+      const logoSample = ctx.getImageData(CONTENT_X - 12, logoY - 12, 128, 96).data;
+      let luminanceSum = 0;
+      let sampleCount = 0;
+      for (let i = 0; i < logoSample.length; i += 32) {
+        luminanceSum +=
+          logoSample[i] * 0.2126 + logoSample[i + 1] * 0.7152 + logoSample[i + 2] * 0.0722;
+        sampleCount += 1;
+      }
+      logoLuminance = sampleCount ? luminanceSum / sampleCount : 0;
+    } catch {
+      // Le blanc cassé reste le fallback sûr si le canvas ne permet pas l'échantillonnage.
+    }
+
+    const logoOnLightBackground = logoLuminance > 176;
+    const logoColor = logoOnLightBackground ? 'rgba(10, 18, 15, 0.9)' : COLOR_TEXT;
+    ctx.font = '700 76px "Inter", sans-serif';
+    const monogramWidth = ctx.measureText('B').width;
+
+    ctx.save();
+    ctx.fillStyle = logoColor;
+    ctx.shadowColor = logoOnLightBackground
+      ? 'rgba(255, 255, 255, 0.22)'
+      : 'rgba(0, 0, 0, 0.42)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 1;
+    ctx.fillText('B', CONTENT_X, logoY);
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = COLOR_ACCENT;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(CONTENT_X + monogramWidth + 11, logoY + 59, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const displayCriteria = getDisplayRatingCriteria(movie);
+    const footerSloganY = CANVAS_H - SAFE_BOTTOM - 18;
+    const footerBrandY = footerSloganY - 44;
+    const footerRuleY = footerBrandY - 30;
+    const criteriaGap =
+      displayCriteria.length <= 4 ? 62 : displayCriteria.length === 5 ? 50 : 44;
+    const lastCriteriaY = footerRuleY - 72;
+    const firstCriteriaY = displayCriteria.length
+      ? lastCriteriaY - (displayCriteria.length - 1) * criteriaGap
+      : lastCriteriaY;
+    const metadataY = firstCriteriaY - 314;
+    const scoreBaselineY = firstCriteriaY - 46;
+
+    const title = movie.title.trim().toUpperCase() || 'SANS TITRE';
+    const titleMaxWidth = CANVAS_W - CONTENT_X - 80;
+    let titleFontSize = 52;
+    let titleTracking = 10;
+
+    const wrapTitle = () => {
+      ctx.font = `700 ${titleFontSize}px "Inter", sans-serif`;
+      const words = title.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = '';
+
+      words.forEach((word) => {
+        const candidate = currentLine ? `${currentLine} ${word}` : word;
+        if (currentLine && measureTrackedText(candidate, titleTracking) > titleMaxWidth) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = candidate;
+        }
+      });
+
+      if (currentLine) lines.push(currentLine);
+      return lines;
+    };
+
+    let titleLines = wrapTitle();
+    while (
+      (titleLines.length > 2 ||
+        titleLines.some((line) => measureTrackedText(line, titleTracking) > titleMaxWidth)) &&
+      titleFontSize > 30
+    ) {
+      titleFontSize -= 2;
+      titleTracking = Math.max(5, titleTracking - 0.75);
+      titleLines = wrapTitle();
+    }
+
+    if (titleLines.length > 2) {
+      const firstLine = titleLines[0];
+      let secondLine = titleLines.slice(1).join(' ');
+      while (
+        measureTrackedText(`${secondLine}…`, titleTracking) > titleMaxWidth &&
+        secondLine.length > 1
+      ) {
+        secondLine = secondLine.slice(0, -1).trimEnd();
+      }
+      titleLines = [firstLine, `${secondLine}…`];
+    }
+
+    const titleLineHeight = Math.round(titleFontSize * 1.18);
+    const titleY = metadataY - 18 - titleLines.length * titleLineHeight;
+    ctx.save();
+    ctx.fillStyle = COLOR_TEXT;
+    ctx.font = `700 ${titleFontSize}px "Inter", sans-serif`;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.34)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    titleLines.forEach((line, index) => {
+      drawTrackedText(line, CONTENT_X, titleY + index * titleLineHeight, titleTracking);
+    });
+    ctx.restore();
+
+    const director = movie.director.trim();
+    const hasDirector = director && !/^(inconnu|unknown|n\/?a)$/i.test(director);
+    let metadata = [String(movie.year), hasDirector ? director.toUpperCase() : '']
+      .filter(Boolean)
+      .join(' · ');
+    let metadataFontSize = 16;
+    let metadataTracking = 6;
+    const metadataMaxWidth = CANVAS_W - CONTENT_X - 130;
+    ctx.font = `500 ${metadataFontSize}px "Inter", sans-serif`;
+
+    while (
+      measureTrackedText(metadata, metadataTracking) > metadataMaxWidth &&
+      (metadataTracking > 3 || metadataFontSize > 12)
+    ) {
+      if (metadataTracking > 3) metadataTracking -= 0.5;
+      else metadataFontSize -= 1;
+      ctx.font = `500 ${metadataFontSize}px "Inter", sans-serif`;
+    }
+
+    if (measureTrackedText(metadata, metadataTracking) > metadataMaxWidth) {
+      while (
+        measureTrackedText(`${metadata}…`, metadataTracking) > metadataMaxWidth &&
+        metadata.length > 1
+      ) {
+        metadata = metadata.slice(0, -1).trimEnd();
+      }
+      metadata = `${metadata}…`;
+    }
+
+    ctx.save();
+    ctx.fillStyle = COLOR_META;
+    ctx.font = `500 ${metadataFontSize}px "Inter", sans-serif`;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 5;
+    drawTrackedText(metadata, CONTENT_X, metadataY, metadataTracking);
+    ctx.restore();
+
+    // Note monumentale, sans suffixe /10, terminée par le point lime de la marque.
+    let scoreFontSize = 232;
+    const scoreDotRadius = 12;
+    const scoreGap = 14;
+    const scoreMaxWidth =
+      CONTENT_RIGHT - CONTENT_X - scoreGap - scoreDotRadius * 2;
+    ctx.font = `600 ${scoreFontSize}px "Inter", sans-serif`;
+    while (ctx.measureText(globalRating).width > scoreMaxWidth && scoreFontSize > 160) {
+      scoreFontSize -= 2;
+      ctx.font = `600 ${scoreFontSize}px "Inter", sans-serif`;
+    }
+
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = COLOR_TEXT;
+    ctx.fillText(globalRating, CONTENT_X, scoreBaselineY);
+    const scoreWidth = ctx.measureText(globalRating).width;
+    ctx.fillStyle = COLOR_ACCENT;
+    ctx.beginPath();
+    ctx.arc(
+      CONTENT_X + scoreWidth + scoreGap + scoreDotRadius,
+      scoreBaselineY - scoreDotRadius,
+      scoreDotRadius,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+    ctx.textBaseline = 'top';
+
+    // Liste en colonnes avec séparateurs horizontaux, comme une fiche éditoriale.
+    const criteriaFontSize = displayCriteria.length >= 5 ? 22 : 24;
+    displayCriteria.forEach((criterion, index) => {
+      const rowY = firstCriteriaY + index * criteriaGap;
+      let labelFontSize = criteriaFontSize;
+      ctx.font = `400 ${labelFontSize}px "Inter", sans-serif`;
+      while (
+        ctx.measureText(criterion.label).width > CONTENT_RIGHT - CONTENT_X - 92 &&
+        labelFontSize > 15
+      ) {
+        labelFontSize -= 1;
+        ctx.font = `400 ${labelFontSize}px "Inter", sans-serif`;
+      }
+
+      ctx.fillStyle = COLOR_TEXT;
+      ctx.textAlign = 'left';
+      ctx.fillText(criterion.label, CONTENT_X, rowY);
+
+      ctx.fillStyle = COLOR_ACCENT;
+      ctx.font = `800 ${criteriaFontSize}px "Inter", sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(criterion.value.toFixed(1), CONTENT_RIGHT, rowY);
+
+      if (index < displayCriteria.length - 1) {
+        ctx.strokeStyle = 'rgba(217, 255, 0, 0.13)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(CONTENT_X, rowY + criteriaGap - 11);
+        ctx.lineTo(CONTENT_RIGHT, rowY + criteriaGap - 11);
+        ctx.stroke();
+      }
+    });
+
+    // Signature basse, entièrement alignée sur la grille gauche.
+    ctx.textAlign = 'left';
+    ctx.fillStyle = COLOR_ACCENT;
+    ctx.fillRect(CONTENT_X + 2, footerRuleY, 50, 3);
+
+    ctx.fillStyle = COLOR_TEXT;
+    ctx.font = '500 22px "Inter", sans-serif';
+    drawTrackedText('THE BITTER', CONTENT_X + 2, footerBrandY, 10);
+
+    ctx.fillStyle = COLOR_ACCENT;
+    ctx.font = '500 16px "Inter", sans-serif';
+    drawTrackedText('JUDGE. RATE. HATE.', CONTENT_X + 2, footerSloganY, 8);
+
+    return canvas.toDataURL('image/png', 1.0);
+  };
+
+  const handleOpenOptions = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
+    haptics.medium();
+    setShowOptions(true);
+  };
+
+  const closeOptions = () => setShowOptions(false);
+
+  const handleShare = async (type: StoryFormat) => {
+    setShowOptions(false);
     setIsSharing(true);
     haptics.medium();
 
@@ -419,7 +976,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     };
 
     try {
-      const imageDataUrl = await generateStoryImage();
+      const imageDataUrl =
+        type === 'classic' ? await generateClassicStoryImage() : await generateEditorialStoryImage();
       const response = await fetch(imageDataUrl);
       const blob = await response.blob();
       const fileName = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
@@ -470,22 +1028,27 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
   const gradientStyles = 'bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045]';
 
-  if (compact) {
-    return (
-      <button
-        onClick={handleShare}
-        disabled={isSharing}
-        className={`p-4 rounded-2xl ${gradientStyles} text-white active:scale-90 transition-all duration-150 shadow-lg disabled:opacity-50`}
-      >
-        {isSharing ? <Loader2 size={20} className="animate-spin" /> : <Share2 size={20} />}
-      </button>
-    );
-  }
-
-  return (
+  // Le bouton garde toujours sa place dans la grille : le choix du visuel passe
+  // par une feuille modale, jamais par un remplacement du déclencheur.
+  const trigger = compact ? (
     <button
-      onClick={handleShare}
+      type="button"
+      onClick={handleOpenOptions}
       disabled={isSharing}
+      aria-haspopup="dialog"
+      aria-expanded={showOptions}
+      aria-label={t('story.pickTitle')}
+      className={`p-4 rounded-2xl ${gradientStyles} text-white active:scale-90 transition-all duration-150 shadow-lg disabled:opacity-50`}
+    >
+      {isSharing ? <Loader2 size={20} className="animate-spin" /> : <Share2 size={20} />}
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={handleOpenOptions}
+      disabled={isSharing}
+      aria-haspopup="dialog"
+      aria-expanded={showOptions}
       className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${gradientStyles} text-white active:scale-95 transition-all duration-150 shadow-lg disabled:opacity-50 disabled:scale-100`}
     >
       {isSharing ? (
@@ -498,6 +1061,18 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
         </>
       )}
     </button>
+  );
+
+  return (
+    <>
+      {trigger}
+      {showOptions &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <StoryFormatSheet onSelect={handleShare} onClose={closeOptions} />,
+          document.body,
+        )}
+    </>
   );
 };
 

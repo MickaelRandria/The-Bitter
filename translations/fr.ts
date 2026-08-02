@@ -374,26 +374,32 @@ export const fr: Record<string, string> = {
   'tooltip.feed.content': "Glisse une carte vers la gauche pour supprimer, vers la droite pour éditer. Utilise le bouton + pour ajouter.",
 
   // ── New Features Modal ───────────────────────────────────────────────────
+  'newFeatures.newBadge': 'Nouveau v0.87',
+
+  'newFeatures.recap.title1': 'LE WEEKLY',
+  'newFeatures.recap.title2': 'RECAP.',
+  'newFeatures.recap.desc':
+    "Fais le bilan de ta semaine ciné ! Une toute nouvelle <b>story générée sur mesure</b> avec tes statistiques et les films que tu as vus (tu peux même <b>choisir les stats à afficher</b> en touchant l'écran).",
+
+  'newFeatures.editorial.badge': 'Bêta v0.87',
+  'newFeatures.editorial.title1': 'STORY',
+  'newFeatures.editorial.title2': 'ÉDITORIALE.',
+  'newFeatures.editorial.desc':
+    "Une nouvelle <b>direction artistique</b> plus sombre, plus immersive et digne d'une vraie affiche de cinéma pour partager tes notes.",
+
+  'newFeatures.polish.title1': 'AMÉLIORATIONS',
+  'newFeatures.polish.title2': "DE L'INTERFACE.",
+  'newFeatures.polish.desc':
+    "Correction de bugs gênants lors de la navigation (notamment la <b>fermeture inattendue des menus</b>) pour rendre l'expérience plus fluide.",
+
+  'newFeatures.step4.badge': 'Nouveau v0.84',
   'newFeatures.step4.title1': 'TON AVIS',
   'newFeatures.step4.title2': 'COMPTE.',
   'newFeatures.step4.desc': 'Tu vois le bouton <b>💬 dans la navbar</b> ? C\'est pour toi. Bug à signaler, idée à partager, message à nous laisser — <b>on lit tout</b>. Ton feedback est le moteur principal des prochaines versions de The Bitter.',
-  'newFeatures.newBadge': 'Nouveau v0.84',
+  'newFeatures.step0.badge': 'Nouveau v0.84',
   'newFeatures.step0.title1': 'RECOS',
   'newFeatures.step0.title2': 'PERSO.',
   'newFeatures.step0.desc': "L'app analyse tes <b>10 films les mieux notés</b> pour te recommander des œuvres qui correspondent vraiment à tes goûts. Tu peux aussi cibler les recos à partir d'un <b>film précis</b> avec le mode Par film.",
-  'newFeatures.step1.badge': 'Nouveau v0.83',
-  'newFeatures.step1.title1': "L'APP EST",
-  'newFeatures.step1.title2': 'EN ANGLAIS.',
-  'newFeatures.step1.desc': 'Bascule entre le <b>français</b> et l\'<b>anglais</b> directement depuis le header. Le changement de langue est instantané et s\'applique à toute l\'app.',
-  'newFeatures.step2.badge': 'Analytics v0.78',
-  'newFeatures.step2.title1': 'ANALYSE',
-  'newFeatures.step2.title2': 'VISUELLE.',
-  'newFeatures.step2.desc': 'Découvre ton <b>Radar ADN</b> et la <b>Distribution</b> de tes notes. Une vision macro de ton identité de cinéphile.',
-  'newFeatures.step3.badge': 'NOUVEAUTÉ BETA',
-  'newFeatures.step3.title1': 'PARTAGE TES',
-  'newFeatures.step3.title2': 'VERDICTS.',
-  'newFeatures.step3.desc': "Partage tes notes, que ce soit pour tes films ou bien tes series, fais une <b>Stories Instagram</b>. Affiche ton expertise auprès de ta communauté.",
-  'newFeatures.step3.available': 'Disponible sur tes films/series notés',
   'newFeatures.recapTitle1': 'DU NEUF',
   'newFeatures.recapTitle2': "DANS L'APP.",
   'newFeatures.next': 'Suivant',
@@ -583,4 +589,55 @@ export const fr: Record<string, string> = {
   'story.avgTmdb': 'moy. tmdb',
   'story.putDownPhone': 'Lâchez ce téléphone.',
   'story.certifiedAnalysis': 'Analyse Certifiée',
+
+  // ── Choix du visuel de story ──────────────────────────────────────────────
+  'story.pickTitle': 'Choisis ton visuel',
+  'story.pickDesc': 'Deux mises en page pour le même verdict.',
+  'story.classic': 'Classique',
+  'story.classicDesc': 'Fond noir, verdict détaillé. La version stable.',
+  'story.variant': 'Variante',
+  'story.variantDesc':
+    "Affiche en plein écran, mise en page éditoriale. Encore en test : le cadrage peut varier d'une affiche à l'autre.",
+  'story.beta': 'Bêta',
+
+  // ── Bilan de la semaine ───────────────────────────────────────────────────
+  'recap.button': 'Bilan de la semaine',
+  'recap.generating': 'Bilan...',
+  'recap.header': 'BILAN DE LA SEMAINE',
+  'recap.bestOfWeek': 'LE MEILLEUR',
+  'recap.thisWeek': 'CETTE SEMAINE',
+  // Statistiques cyclables (ordre du cycle)
+  'recap.watchtime': 'WATCHTIME',
+  'recap.watchtimeCaption': 'DEVANT UN ÉCRAN',
+  'recap.director': 'RÉALISATEUR',
+  'recap.directorCaptionFilms': '{count} FILMS CETTE SEMAINE',
+  'recap.bestAspect': 'MEILLEUR ASPECT',
+  'recap.bestAspectCaption': '{value} SUR 10',
+  'recap.vsPublic': 'VS LE PUBLIC',
+  'recap.vsPublicCaption': 'MOYENNE TMDB {value}',
+  'recap.genre': 'GENRE DOMINANT',
+  'recap.genreCaptionFilm': '{count} FILM',
+  'recap.genreCaptionFilms': '{count} FILMS',
+  'recap.avgScore': 'NOTE MOYENNE',
+  'recap.avgScoreCaption': 'SUR 10 POINTS',
+  'recap.optionRandom': 'ALÉATOIRE',
+  'recap.randomCaption': 'SURPRISE AU PARTAGE',
+
+  // Prévisualisation
+  'recap.previewTitle': 'Ton bilan',
+  'recap.previewHint': 'Touche les carrés gris pour changer de statistique.',
+  'recap.share': 'Partager la story',
+
+  // Aide
+  'recap.help': 'Comment ça marche ?',
+  'recap.helpTitle': 'Comment ça marche ?',
+  'recap.help1': 'Génère ton bilan hebdomadaire en un clic.',
+  'recap.help2': 'Il affiche 3 films maximum : tes mieux notés de la semaine.',
+  'recap.help3':
+    "S'il te manque des films, touche les carrés gris pour personnaliser tes statistiques avant de partager.",
+
+  'recap.shareTitle': 'Mon bilan Bitter',
+  'recap.shareText': 'Ma semaine de cinéma, jugée.',
+  'recap.downloaded': '📥 Ton bilan est prêt pour ta story !',
+  'recap.error': 'Impossible de générer le bilan :',
 };

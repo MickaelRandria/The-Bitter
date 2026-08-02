@@ -3,10 +3,9 @@ import {
   X,
   Instagram,
   EyeOff,
-  BarChart3,
-  Radar,
   Sparkles,
-  Globe,
+  CalendarRange,
+  MousePointerClick,
   MessageSquareText,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
@@ -34,22 +33,38 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
   };
 
   // Un seul écran : tout est listé, on ne force plus 5 étapes avant d'accéder à l'app.
+  // Les nouveautés de la version en cours d'abord, les précédentes ensuite.
   const features = [
+    {
+      key: 'recap',
+      icon: CalendarRange,
+      accent: 'text-bitter-lime',
+      badge: t('newFeatures.newBadge'),
+    },
+    {
+      key: 'editorial',
+      icon: Instagram,
+      accent: 'text-pink-400',
+      badge: t('newFeatures.editorial.badge'),
+    },
+    {
+      key: 'polish',
+      icon: MousePointerClick,
+      accent: 'text-white',
+      badge: t('newFeatures.newBadge'),
+    },
     {
       key: 'step4',
       icon: MessageSquareText,
-      accent: 'text-bitter-lime',
-      badge: t('newFeatures.newBadge'),
+      accent: 'text-white',
+      badge: t('newFeatures.step4.badge'),
     },
     {
       key: 'step0',
       icon: Sparkles,
-      accent: 'text-bitter-lime',
-      badge: t('newFeatures.newBadge'),
+      accent: 'text-white',
+      badge: t('newFeatures.step0.badge'),
     },
-    { key: 'step1', icon: Globe, accent: 'text-white', badge: t('newFeatures.step1.badge') },
-    { key: 'step2', icon: BarChart3, accent: 'text-white', badge: t('newFeatures.step2.badge') },
-    { key: 'step3', icon: Instagram, accent: 'text-pink-400', badge: t('newFeatures.step3.badge') },
   ];
 
   return (

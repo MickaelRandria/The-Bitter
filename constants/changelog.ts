@@ -14,6 +14,25 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.87',
+    date: '2 Août 2026',
+    title: 'Weekly Recap & Story Éditoriale',
+    changes: [
+      {
+        type: 'feature',
+        text: "Le Weekly Recap — Fais le bilan de ta semaine ciné ! Une toute nouvelle story générée sur mesure avec tes statistiques et les films que tu as vus (tu peux même choisir les stats à afficher en touchant l'écran). Disponible depuis l'onglet Calendrier.",
+      },
+      {
+        type: 'feature',
+        text: "Story Éditoriale (Bêta) — Une nouvelle direction artistique plus sombre, plus immersive et digne d'une vraie affiche de cinéma pour partager tes notes. Au moment de partager, choisis entre le visuel Classique et la Variante.",
+      },
+      {
+        type: 'fix',
+        text: "Améliorations de l'interface — Correction de bugs gênants lors de la navigation (notamment la fermeture inattendue des menus) pour rendre l'expérience plus fluide.",
+      },
+    ],
+  },
+  {
     version: 'v0.86',
     date: '1 Août 2026',
     title: '100% Local & Nouvel Onboarding',

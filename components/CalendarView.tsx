@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
+import WeeklyRecapStory from './WeeklyRecapStory';
 import {
   ChevronLeft,
   ChevronRight,
@@ -185,6 +186,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
     return { currentStreak, bestStreak };
   }, [movies]);
 
+  // --- Bilan de la semaine (7 jours glissants) ---
+  // Fenêtre glissante et non semaine calendaire : un lundi matin, une semaine
+  // Lundi→dimanche serait vide et le bouton disparaîtrait juste après le
+  // week-end, au moment où il y a justement quelque chose à raconter.
+  const weekRecap = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
+
+    return {
+      start,
+      end,
+      movies: movies.filter(
+        (m) => m.status === 'watched' && m.dateWatched && m.dateWatched >= start.getTime()
+      ),
+    };
+  }, [movies]);
+
   // --- Year heatmap data ---
   const yearData = useMemo(() => {
     const counts: number[] = Array(12).fill(0);
@@ -260,6 +280,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
               {t('calendar.streakRecord', { count: String(streakData.bestStreak) })}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Bilan de la semaine — masqué s'il n'y a rien à raconter */}
+      {weekRecap.movies.length > 0 && (
+        <div className="px-6 pt-4 flex justify-center">
+          <WeeklyRecapStory
+            movies={weekRecap.movies}
+            weekStart={weekRecap.start}
+            weekEnd={weekRecap.end}
+            className="w-full max-w-sm"
+          />
         </div>
       )}
 

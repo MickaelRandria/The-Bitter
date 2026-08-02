@@ -373,26 +373,32 @@ export const en: Record<string, string> = {
   'tooltip.feed.content': 'Swipe a card left to delete, right to edit. Use the + button to add.',
 
   // ── New Features Modal ───────────────────────────────────────────────────
+  'newFeatures.newBadge': 'New v0.87',
+
+  'newFeatures.recap.title1': 'THE WEEKLY',
+  'newFeatures.recap.title2': 'RECAP.',
+  'newFeatures.recap.desc':
+    'Wrap up your week at the movies! A brand new <b>story generated just for you</b>, with your stats and the films you watched (you can even <b>pick which stats to show</b> by tapping the screen).',
+
+  'newFeatures.editorial.badge': 'Beta v0.87',
+  'newFeatures.editorial.title1': 'EDITORIAL',
+  'newFeatures.editorial.title2': 'STORY.',
+  'newFeatures.editorial.desc':
+    'A new <b>art direction</b> — darker, more immersive and worthy of a real movie poster — to share your ratings.',
+
+  'newFeatures.polish.title1': 'INTERFACE',
+  'newFeatures.polish.title2': 'IMPROVEMENTS.',
+  'newFeatures.polish.desc':
+    'Fixed annoying navigation bugs (notably <b>menus closing unexpectedly</b>) to make the experience smoother.',
+
+  'newFeatures.step4.badge': 'New v0.84',
   'newFeatures.step4.title1': 'YOUR VOICE',
   'newFeatures.step4.title2': 'MATTERS.',
   'newFeatures.step4.desc': 'See the <b>💬 button in the navbar</b>? It\'s for you. Report a bug, share an idea, drop us a message — <b>we read everything</b>. Your feedback is the main driver of future The Bitter updates.',
-  'newFeatures.newBadge': 'New v0.84',
+  'newFeatures.step0.badge': 'New v0.84',
   'newFeatures.step0.title1': 'PERSONAL',
   'newFeatures.step0.title2': 'RECS.',
   'newFeatures.step0.desc': 'The app analyses your <b>10 best-rated films</b> to recommend titles that truly match your taste. You can also target recs from a <b>specific film</b> with the By film mode.',
-  'newFeatures.step1.badge': 'New v0.83',
-  'newFeatures.step1.title1': 'NOW IN',
-  'newFeatures.step1.title2': 'ENGLISH.',
-  'newFeatures.step1.desc': 'Switch between <b>French</b> and <b>English</b> directly from the header. The language change is instant and applies across the whole app.',
-  'newFeatures.step2.badge': 'Analytics v0.78',
-  'newFeatures.step2.title1': 'VISUAL',
-  'newFeatures.step2.title2': 'ANALYTICS.',
-  'newFeatures.step2.desc': 'Discover your <b>DNA Radar</b> and your <b>Rating Distribution</b>. A macro view of your cinephile identity.',
-  'newFeatures.step3.badge': 'BETA FEATURE',
-  'newFeatures.step3.title1': 'SHARE YOUR',
-  'newFeatures.step3.title2': 'VERDICTS.',
-  'newFeatures.step3.desc': 'Share your ratings for films and series — create an <b>Instagram Story</b> and show your expertise to your community.',
-  'newFeatures.step3.available': 'Available on your rated films/series',
   'newFeatures.recapTitle1': "WHAT'S",
   'newFeatures.recapTitle2': 'NEW.',
   'newFeatures.next': 'Next',
@@ -582,4 +588,55 @@ export const en: Record<string, string> = {
   'story.avgTmdb': 'tmdb avg.',
   'story.putDownPhone': 'Put down your phone.',
   'story.certifiedAnalysis': 'Certified Analysis',
+
+  // ── Story layout picker ───────────────────────────────────────────────────
+  'story.pickTitle': 'Pick your layout',
+  'story.pickDesc': 'Two layouts, the same verdict.',
+  'story.classic': 'Classic',
+  'story.classicDesc': 'Black background, detailed verdict. The stable one.',
+  'story.variant': 'Variant',
+  'story.variantDesc':
+    'Full-bleed poster, editorial layout. Still in testing: framing may vary from one poster to another.',
+  'story.beta': 'Beta',
+
+  // ── Weekly recap ──────────────────────────────────────────────────────────
+  'recap.button': 'Weekly recap',
+  'recap.generating': 'Recap...',
+  'recap.header': 'WEEKLY RECAP',
+  'recap.bestOfWeek': 'BEST OF THE WEEK',
+  'recap.thisWeek': 'THIS WEEK',
+  // Cyclable stats (cycle order)
+  'recap.watchtime': 'WATCHTIME',
+  'recap.watchtimeCaption': 'IN FRONT OF A SCREEN',
+  'recap.director': 'DIRECTOR',
+  'recap.directorCaptionFilms': '{count} FILMS THIS WEEK',
+  'recap.bestAspect': 'BEST ASPECT',
+  'recap.bestAspectCaption': '{value} OUT OF 10',
+  'recap.vsPublic': 'VS THE PUBLIC',
+  'recap.vsPublicCaption': 'TMDB AVERAGE {value}',
+  'recap.genre': 'TOP GENRE',
+  'recap.genreCaptionFilm': '{count} FILM',
+  'recap.genreCaptionFilms': '{count} FILMS',
+  'recap.avgScore': 'AVG SCORE',
+  'recap.avgScoreCaption': 'OUT OF 10 POINTS',
+  'recap.optionRandom': 'RANDOM',
+  'recap.randomCaption': 'SURPRISE ON SHARE',
+
+  // Preview
+  'recap.previewTitle': 'Your recap',
+  'recap.previewHint': 'Tap the grey squares to change a statistic.',
+  'recap.share': 'Share the story',
+
+  // Help
+  'recap.help': 'How does it work?',
+  'recap.helpTitle': 'How does it work?',
+  'recap.help1': 'Generate your weekly recap in one tap.',
+  'recap.help2': 'It shows 3 films max: your best-rated ones of the week.',
+  'recap.help3':
+    'If you are missing films, tap the grey squares to customise your statistics before sharing.',
+
+  'recap.shareTitle': 'My Bitter recap',
+  'recap.shareText': 'My week at the movies, judged.',
+  'recap.downloaded': '📥 Your recap is ready for your story!',
+  'recap.error': 'Could not generate the recap:',
 };
