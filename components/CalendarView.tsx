@@ -186,24 +186,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
     return { currentStreak, bestStreak };
   }, [movies]);
 
-  // --- Bilan de la semaine (7 jours glissants) ---
-  // Fenêtre glissante et non semaine calendaire : un lundi matin, une semaine
-  // Lundi→dimanche serait vide et le bouton disparaîtrait juste après le
-  // week-end, au moment où il y a justement quelque chose à raconter.
-  const weekRecap = useMemo(() => {
-    const end = new Date();
-    const start = new Date(end);
-    start.setDate(start.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
-
-    return {
-      start,
-      end,
-      movies: movies.filter(
-        (m) => m.status === 'watched' && m.dateWatched && m.dateWatched >= start.getTime()
-      ),
-    };
-  }, [movies]);
+  // Le configurateur Weekly a besoin de tout l'historique pour laisser
+  // l'utilisateur choisir sa semaine, pas seulement les 7 derniers jours.
+  const recapMovies = useMemo(
+    () => movies.filter((movie) => movie.status === 'watched' && movie.dateWatched),
+    [movies]
+  );
 
   // --- Year heatmap data ---
   const yearData = useMemo(() => {
@@ -284,12 +272,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
       )}
 
       {/* Bilan de la semaine — masqué s'il n'y a rien à raconter */}
-      {weekRecap.movies.length > 0 && (
+      {recapMovies.length > 0 && (
         <div className="px-6 pt-4 flex justify-center">
           <WeeklyRecapStory
-            movies={weekRecap.movies}
-            weekStart={weekRecap.start}
-            weekEnd={weekRecap.end}
+            movies={recapMovies}
             className="w-full max-w-sm"
           />
         </div>

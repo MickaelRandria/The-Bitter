@@ -741,8 +741,12 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
     const logoOnLightBackground = logoLuminance > 176;
     const logoColor = logoOnLightBackground ? 'rgba(10, 18, 15, 0.9)' : COLOR_TEXT;
-    ctx.font = '700 76px "Inter", sans-serif';
-    const monogramWidth = ctx.measureText('B').width;
+    ctx.font = '700 86px "Inter", sans-serif';
+    const monogramMetrics = ctx.measureText('B');
+    const monogramWidth = monogramMetrics.width;
+    // Correction optique explicite : le bord visible du B suit exactement
+    // le même axe gauche que la première lettre du titre.
+    const logoX = CONTENT_X - monogramMetrics.actualBoundingBoxLeft - 10;
 
     ctx.save();
     ctx.fillStyle = logoColor;
@@ -751,7 +755,7 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       : 'rgba(0, 0, 0, 0.42)';
     ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 1;
-    ctx.fillText('B', CONTENT_X, logoY);
+    ctx.fillText('B', logoX, logoY);
     ctx.restore();
 
     ctx.save();
@@ -759,17 +763,19 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
     ctx.shadowBlur = 4;
     ctx.beginPath();
-    ctx.arc(CONTENT_X + monogramWidth + 11, logoY + 59, 8, 0, Math.PI * 2);
+    ctx.arc(logoX + monogramWidth + 12, logoY + 67, 9, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
     const displayCriteria = getDisplayRatingCriteria(movie);
-    const footerSloganY = CANVAS_H - SAFE_BOTTOM - 18;
-    const footerBrandY = footerSloganY - 44;
+    const footerSloganY = CANVAS_H - SAFE_BOTTOM + 152;
+    const footerBrandY = footerSloganY - 48;
     const footerRuleY = footerBrandY - 30;
     const criteriaGap =
       displayCriteria.length <= 4 ? 62 : displayCriteria.length === 5 ? 50 : 44;
-    const lastCriteriaY = footerRuleY - 72;
+    // Les notes gardent leur position indépendamment du footer afin de créer
+    // un vrai espace de respiration entre les deux blocs.
+    const lastCriteriaY = CANVAS_H - SAFE_BOTTOM - 128;
     const firstCriteriaY = displayCriteria.length
       ? lastCriteriaY - (displayCriteria.length - 1) * criteriaGap
       : lastCriteriaY;
@@ -778,8 +784,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
     const title = movie.title.trim().toUpperCase() || 'SANS TITRE';
     const titleMaxWidth = CANVAS_W - CONTENT_X - 80;
-    let titleFontSize = 52;
-    let titleTracking = 10;
+    let titleFontSize = 58;
+    let titleTracking = 7.5;
 
     const wrapTitle = () => {
       ctx.font = `700 ${titleFontSize}px "Inter", sans-serif`;
@@ -805,10 +811,10 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     while (
       (titleLines.length > 2 ||
         titleLines.some((line) => measureTrackedText(line, titleTracking) > titleMaxWidth)) &&
-      titleFontSize > 30
+      titleFontSize > 34
     ) {
       titleFontSize -= 2;
-      titleTracking = Math.max(5, titleTracking - 0.75);
+      titleTracking = Math.max(4, titleTracking - 0.75);
       titleLines = wrapTitle();
     }
 
@@ -825,7 +831,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     }
 
     const titleLineHeight = Math.round(titleFontSize * 1.18);
-    const titleY = metadataY - 18 - titleLines.length * titleLineHeight;
+    const genre = movie.genre.trim().toUpperCase();
+    const titleY = metadataY - 22 - titleLines.length * titleLineHeight;
     ctx.save();
     ctx.fillStyle = COLOR_TEXT;
     ctx.font = `700 ${titleFontSize}px "Inter", sans-serif`;
@@ -839,19 +846,19 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
     const director = movie.director.trim();
     const hasDirector = director && !/^(inconnu|unknown|n\/?a)$/i.test(director);
-    let metadata = [String(movie.year), hasDirector ? director.toUpperCase() : '']
+    let metadata = [genre, String(movie.year), hasDirector ? director.toUpperCase() : '']
       .filter(Boolean)
       .join(' · ');
-    let metadataFontSize = 16;
-    let metadataTracking = 6;
+    let metadataFontSize = 18;
+    let metadataTracking = 4.5;
     const metadataMaxWidth = CANVAS_W - CONTENT_X - 130;
     ctx.font = `500 ${metadataFontSize}px "Inter", sans-serif`;
 
     while (
       measureTrackedText(metadata, metadataTracking) > metadataMaxWidth &&
-      (metadataTracking > 3 || metadataFontSize > 12)
+      (metadataTracking > 2.5 || metadataFontSize > 12)
     ) {
-      if (metadataTracking > 3) metadataTracking -= 0.5;
+      if (metadataTracking > 2.5) metadataTracking -= 0.5;
       else metadataFontSize -= 1;
       ctx.font = `500 ${metadataFontSize}px "Inter", sans-serif`;
     }
@@ -876,14 +883,14 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
     // Note monumentale, sans suffixe /10, terminée par le point lime de la marque.
     let scoreFontSize = 232;
-    const scoreDotRadius = 12;
     const scoreGap = 14;
-    const scoreMaxWidth =
-      CONTENT_RIGHT - CONTENT_X - scoreGap - scoreDotRadius * 2;
     ctx.font = `600 ${scoreFontSize}px "Inter", sans-serif`;
+    let scoreDotRadius = 14;
+    let scoreMaxWidth = CONTENT_RIGHT - CONTENT_X - scoreGap - scoreDotRadius * 2;
     while (ctx.measureText(globalRating).width > scoreMaxWidth && scoreFontSize > 160) {
       scoreFontSize -= 2;
       ctx.font = `600 ${scoreFontSize}px "Inter", sans-serif`;
+      scoreMaxWidth = CONTENT_RIGHT - CONTENT_X - scoreGap - scoreDotRadius * 2;
     }
 
     ctx.textBaseline = 'alphabetic';
@@ -892,8 +899,9 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     const scoreWidth = ctx.measureText(globalRating).width;
     ctx.fillStyle = COLOR_ACCENT;
     ctx.beginPath();
+    const scoreDotCenterX = CONTENT_X + scoreWidth + scoreGap + scoreDotRadius;
     ctx.arc(
-      CONTENT_X + scoreWidth + scoreGap + scoreDotRadius,
+      scoreDotCenterX,
       scoreBaselineY - scoreDotRadius,
       scoreDotRadius,
       0,
@@ -902,8 +910,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     ctx.fill();
     ctx.textBaseline = 'top';
 
-    // Liste en colonnes avec séparateurs horizontaux, comme une fiche éditoriale.
-    const criteriaFontSize = displayCriteria.length >= 5 ? 22 : 24;
+    // Liste en colonnes, sans séparateurs, alignée sur le point de la note finale.
+    const criteriaFontSize = displayCriteria.length >= 5 ? 26 : 28;
     displayCriteria.forEach((criterion, index) => {
       const rowY = firstCriteriaY + index * criteriaGap;
       let labelFontSize = criteriaFontSize;
@@ -922,31 +930,23 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
       ctx.fillStyle = COLOR_ACCENT;
       ctx.font = `800 ${criteriaFontSize}px "Inter", sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.fillText(criterion.value.toFixed(1), CONTENT_RIGHT, rowY);
-
-      if (index < displayCriteria.length - 1) {
-        ctx.strokeStyle = 'rgba(217, 255, 0, 0.13)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(CONTENT_X, rowY + criteriaGap - 11);
-        ctx.lineTo(CONTENT_RIGHT, rowY + criteriaGap - 11);
-        ctx.stroke();
-      }
+      ctx.textAlign = 'left';
+      const criterionValue = criterion.value.toFixed(1);
+      ctx.fillText(criterionValue, scoreDotCenterX + scoreDotRadius, rowY);
     });
 
     // Signature basse, entièrement alignée sur la grille gauche.
     ctx.textAlign = 'left';
     ctx.fillStyle = COLOR_ACCENT;
-    ctx.fillRect(CONTENT_X + 2, footerRuleY, 50, 3);
+    ctx.fillRect(CONTENT_X + 2, footerRuleY, 64, 4);
 
     ctx.fillStyle = COLOR_TEXT;
-    ctx.font = '500 22px "Inter", sans-serif';
-    drawTrackedText('THE BITTER', CONTENT_X + 2, footerBrandY, 10);
+    ctx.font = '700 30px "Inter", sans-serif';
+    drawTrackedText('THE BITTER', CONTENT_X + 2, footerBrandY, 6);
 
     ctx.fillStyle = COLOR_ACCENT;
-    ctx.font = '500 16px "Inter", sans-serif';
-    drawTrackedText('JUDGE. RATE. HATE.', CONTENT_X + 2, footerSloganY, 8);
+    ctx.font = '700 22px "Inter", sans-serif';
+    drawTrackedText('JUDGE. RATE. HATE.', CONTENT_X + 2, footerSloganY, 5);
 
     return canvas.toDataURL('image/png', 1.0);
   };

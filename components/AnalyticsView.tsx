@@ -71,6 +71,72 @@ interface TrendPoint {
   monthLabel: string;
 }
 
+type TrendViewMode = 'default' | 'lastWeek' | 'last4Weeks' | 'all' | 'period' | 'custom';
+type TrendPeriodType = 'month' | 'quarter' | 'semester';
+
+interface ActiveTrendPeriod {
+  key: string;
+  start: Date;
+  end: Date;
+  label: string;
+  count: number;
+}
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const calculateTrendDelta = (points: TrendPoint[]): number | null => {
+  const midpoint = Math.ceil(points.length / 2);
+  const firstHalf = points.slice(0, midpoint).filter((point) => point.avg !== null);
+  const secondHalf = points.slice(midpoint).filter((point) => point.avg !== null);
+  if (!firstHalf.length || !secondHalf.length) return null;
+  const firstAvg = firstHalf.reduce((sum, point) => sum + (point.avg ?? 0), 0) / firstHalf.length;
+  const secondAvg =
+    secondHalf.reduce((sum, point) => sum + (point.avg ?? 0), 0) / secondHalf.length;
+  return Number((secondAvg - firstAvg).toFixed(1));
+};
+
+const buildActiveTrendPeriods = (
+  points: TrendPoint[],
+  type: TrendPeriodType,
+  locale: string
+): ActiveTrendPeriod[] => {
+  const periods = new Map<string, ActiveTrendPeriod>();
+
+  points.forEach((point) => {
+    const year = point.weekStart.getFullYear();
+    const month = point.weekStart.getMonth();
+    const periodIndex = type === 'month' ? month : type === 'quarter' ? Math.floor(month / 3) : Math.floor(month / 6);
+    const startMonth = type === 'month' ? periodIndex : type === 'quarter' ? periodIndex * 3 : periodIndex * 6;
+    const monthSpan = type === 'month' ? 1 : type === 'quarter' ? 3 : 6;
+    const key = `${year}-${type}-${periodIndex}`;
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, startMonth + monthSpan, 0, 23, 59, 59, 999);
+    const label =
+      type === 'month'
+        ? start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+        : type === 'quarter'
+          ? `${locale === 'fr-FR' ? 'T' : 'Q'}${periodIndex + 1} ${year}`
+          : `${locale === 'fr-FR' ? 'S' : 'H'}${periodIndex + 1} ${year}`;
+    const current = periods.get(key);
+    periods.set(key, {
+      key,
+      start,
+      end,
+      label,
+      count: (current?.count ?? 0) + point.count,
+    });
+  });
+
+  return [...periods.values()]
+    .filter((period) => period.count > 0)
+    .sort((a, b) => b.count - a.count || b.start.getTime() - a.start.getTime());
+};
+
 /**
  * Courbe des notes. Même composant pour la tuile et la vue agrandie : seule la
  * densité change (valeurs chiffrées et repères ne s'affichent qu'en grand, où
@@ -207,10 +273,45 @@ const TrendDetailModal: React.FC<{
   windowPoints: TrendPoint[];
   historyPoints: TrendPoint[];
   rangeLabel: string;
+  windowLabel: string;
+  viewMode: TrendViewMode;
+  onViewModeChange: (mode: TrendViewMode) => void;
+  periodType: TrendPeriodType;
+  onPeriodTypeChange: (type: TrendPeriodType) => void;
+  periodOptions: ActiveTrendPeriod[];
+  selectedPeriodKey: string;
+  onPeriodChange: (key: string) => void;
+  startDate: string;
+  endDate: string;
+  minDate: string;
+  maxDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
   delta: number | null;
   locale: string;
   onClose: () => void;
-}> = ({ windowPoints, historyPoints, rangeLabel, delta, locale, onClose }) => {
+}> = ({
+  windowPoints,
+  historyPoints,
+  rangeLabel,
+  windowLabel,
+  viewMode,
+  onViewModeChange,
+  periodType,
+  onPeriodTypeChange,
+  periodOptions,
+  selectedPeriodKey,
+  onPeriodChange,
+  startDate,
+  endDate,
+  minDate,
+  maxDate,
+  onStartDateChange,
+  onEndDateChange,
+  delta,
+  locale,
+  onClose,
+}) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('analytics.trendTitle'));
 
@@ -255,7 +356,7 @@ const TrendDetailModal: React.FC<{
               {t('analytics.trendTitle')}
             </h3>
             <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mt-1.5">
-              {t('analytics.trendWindow')}
+              {windowLabel}
             </p>
           </div>
           <button
@@ -269,6 +370,102 @@ const TrendDetailModal: React.FC<{
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-7 pb-7">
+          <div className="mb-4 space-y-4 rounded-[1.75rem] border border-sand dark:border-white/10 bg-stone-50 dark:bg-[#202020] p-4">
+            <div>
+              <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-stone-400">
+                {t('analytics.trendQuick')}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { mode: 'lastWeek' as TrendViewMode, label: t('analytics.trendLastWeek') },
+                  { mode: 'last4Weeks' as TrendViewMode, label: t('analytics.trendLast4Weeks') },
+                  { mode: 'all' as TrendViewMode, label: t('analytics.trendAll') },
+                ].map((item) => (
+                  <button
+                    key={item.mode}
+                    type="button"
+                    onClick={() => onViewModeChange(item.mode)}
+                    className={`rounded-xl px-2 py-2.5 text-[8px] font-black uppercase tracking-wider transition-colors ${viewMode === item.mode ? 'bg-charcoal text-white dark:bg-lime-500 dark:text-charcoal' : 'bg-white text-stone-400 dark:bg-[#161616] dark:text-stone-500'}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[8px] font-black uppercase tracking-[0.18em] text-stone-400">
+                {t('analytics.trendActivePeriods')}
+              </p>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {(['month', 'quarter', 'semester'] as TrendPeriodType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onPeriodTypeChange(type)}
+                    className={`rounded-xl px-2 py-2 text-[8px] font-black uppercase tracking-wider transition-colors ${periodType === type ? 'bg-forest text-white dark:bg-lime-500 dark:text-charcoal' : 'bg-white text-stone-400 dark:bg-[#161616] dark:text-stone-500'}`}
+                  >
+                    {t(`analytics.trendPeriod.${type}`)}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={selectedPeriodKey}
+                onChange={(event) => onPeriodChange(event.target.value)}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[10px] font-black text-charcoal outline-none dark:border-white/10 dark:bg-[#161616] dark:text-white"
+              >
+                <option value="">{t('analytics.trendChooseActive')}</option>
+                {periodOptions.map((period) => (
+                  <option key={period.key} value={period.key}>
+                    {period.label.toUpperCase()} · {t('analytics.trendFilms', { count: String(period.count) })}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => onViewModeChange(viewMode === 'custom' ? 'default' : 'custom')}
+                className="text-[8px] font-black uppercase tracking-widest text-stone-400 hover:text-charcoal dark:hover:text-white transition-colors"
+              >
+                {viewMode === 'custom'
+                  ? t('analytics.trendHideCustom')
+                  : t('analytics.trendShowCustom')}
+              </button>
+              {viewMode === 'custom' && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <label className="rounded-xl bg-white dark:bg-[#161616] px-3 py-2">
+                    <span className="block text-[8px] font-black uppercase tracking-widest text-stone-400 mb-1">
+                      {t('analytics.trendFrom')}
+                    </span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={minDate}
+                      max={endDate || maxDate}
+                      onChange={(event) => onStartDateChange(event.target.value)}
+                      className="w-full bg-transparent text-[10px] font-black text-charcoal dark:text-white outline-none"
+                    />
+                  </label>
+                  <label className="rounded-xl bg-white dark:bg-[#161616] px-3 py-2">
+                    <span className="block text-[8px] font-black uppercase tracking-widest text-stone-400 mb-1">
+                      {t('analytics.trendTo')}
+                    </span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      min={startDate || minDate}
+                      max={maxDate}
+                      onChange={(event) => onEndDateChange(event.target.value)}
+                      className="w-full bg-transparent text-[10px] font-black text-charcoal dark:text-white outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-stone-50 dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.75rem] p-4 mb-4">
             <TrendChart points={windowPoints} expanded />
           </div>
@@ -283,7 +480,7 @@ const TrendDetailModal: React.FC<{
               {
                 label: t('analytics.trendDelta'),
                 value: delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}`,
-                sub: t('analytics.trendDeltaSub'),
+                sub: windowLabel,
               },
               {
                 label: t('analytics.trendBest'),
@@ -452,6 +649,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   const [isSharing, setIsSharing] = useState(false);
   const [showTrendDetail, setShowTrendDetail] = useState(false);
+  const [trendViewMode, setTrendViewMode] = useState<TrendViewMode>('default');
+  const [trendPeriodType, setTrendPeriodType] = useState<TrendPeriodType>('semester');
+  const [selectedTrendPeriodKey, setSelectedTrendPeriodKey] = useState('');
+  const [trendStartDate, setTrendStartDate] = useState('');
+  const [trendEndDate, setTrendEndDate] = useState('');
   const shareCardRef = useRef<HTMLDivElement>(null);
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
 
@@ -939,7 +1141,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     ratingDist,
     maxRatingCount,
     weeklyTrend,
-    trendWindow,
     trendCompact,
     weeklyTrendDelta,
     hasWeeklyData,
@@ -949,6 +1150,52 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   } = stats;
 
   const maxDecadeCount = Math.max(...decadeData.map((d) => d.count), 1);
+  const trendMinDate = weeklyTrend[0] ? toDateInputValue(weeklyTrend[0].weekStart) : '';
+  const trendMaxDate = weeklyTrend.at(-1) ? toDateInputValue(weeklyTrend.at(-1)!.weekStart) : '';
+  const activeTrendPeriods = buildActiveTrendPeriods(weeklyTrend, trendPeriodType, locale);
+  const selectedTrendPeriod =
+    activeTrendPeriods.find((period) => period.key === selectedTrendPeriodKey) ?? null;
+  const customTrendPoints = weeklyTrend.filter((point) => {
+    const value = toDateInputValue(point.weekStart);
+    return (!trendStartDate || value >= trendStartDate) && (!trendEndDate || value <= trendEndDate);
+  });
+  const periodTrendPoints = selectedTrendPeriod
+    ? weeklyTrend.filter(
+        (point) =>
+          point.weekStart >= selectedTrendPeriod.start && point.weekStart <= selectedTrendPeriod.end
+      )
+    : [];
+  const trimLeadingEmpty = (points: TrendPoint[]) => {
+    const firstWithData = points.findIndex((point) => point.avg !== null);
+    return firstWithData > 0 ? points.slice(firstWithData) : points;
+  };
+  const displayedTrendPoints = trimLeadingEmpty(
+    trendViewMode === 'lastWeek'
+      ? weeklyTrend.slice(-2, -1)
+      : trendViewMode === 'last4Weeks'
+        ? weeklyTrend.slice(-4)
+        : trendViewMode === 'all'
+          ? weeklyTrend
+          : trendViewMode === 'period'
+            ? periodTrendPoints
+            : trendViewMode === 'custom'
+              ? customTrendPoints
+              : trendCompact
+  );
+  const displayedTrendDelta =
+    trendViewMode === 'default' ? weeklyTrendDelta : calculateTrendDelta(displayedTrendPoints);
+  const trendViewLabel =
+    trendViewMode === 'lastWeek'
+      ? t('analytics.trendLastWeek')
+      : trendViewMode === 'last4Weeks'
+        ? t('analytics.trendLast4Weeks')
+        : trendViewMode === 'all'
+          ? t('analytics.trendAll')
+          : trendViewMode === 'period' && selectedTrendPeriod
+            ? selectedTrendPeriod.label
+            : trendViewMode === 'custom'
+              ? t('analytics.trendCustom')
+              : t('analytics.trendWindow');
 
   return (
     <div className="pb-24 animate-[fadeIn_0.3s_ease-out]">
@@ -1208,16 +1455,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
           {/* TENDANCE DES NOTES — cliquable pour agrandir */}
           {hasWeeklyData && (
-            <button
-              type="button"
-              onClick={() => {
-                haptics.soft();
-                setShowTrendDetail(true);
-              }}
-              aria-haspopup="dialog"
-              className="w-full text-left bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all active:scale-[0.99] hover:border-stone-300 dark:hover:border-white/20"
-            >
-              <div className="flex items-center justify-between mb-5">
+            <div className="w-full text-left bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all hover:border-stone-300 dark:hover:border-white/20">
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.soft();
+                  setShowTrendDetail(true);
+                }}
+                aria-haspopup="dialog"
+                className="w-full flex items-center justify-between mb-4 text-left active:scale-[0.99] transition-transform"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white shrink-0">
                     <TrendingUp size={18} />
@@ -1227,33 +1474,44 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       {t('analytics.trendTitle')}
                     </h3>
                     <p className="text-[9px] font-bold uppercase tracking-widest text-stone-300 dark:text-stone-600 mt-0.5 truncate">
-                      {t('analytics.trendWindow')}
+                      {trendViewLabel}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {weeklyTrendDelta !== null && (
+                  {displayedTrendDelta !== null && (
                     <div
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${weeklyTrendDelta > 0 ? 'bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400' : weeklyTrendDelta < 0 ? 'bg-orange-400/10 text-orange-400' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${displayedTrendDelta > 0 ? 'bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400' : displayedTrendDelta < 0 ? 'bg-orange-400/10 text-orange-400' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`}
                     >
-                      {weeklyTrendDelta > 0 ? (
+                      {displayedTrendDelta > 0 ? (
                         <TrendingUp size={10} />
-                      ) : weeklyTrendDelta < 0 ? (
+                      ) : displayedTrendDelta < 0 ? (
                         <TrendingDown size={10} />
                       ) : (
                         <Minus size={10} />
                       )}
-                      {weeklyTrendDelta > 0 ? '+' : ''}
-                      {weeklyTrendDelta}
+                      {displayedTrendDelta > 0 ? '+' : ''}
+                      {displayedTrendDelta}
                     </div>
                   )}
                   <span className="w-7 h-7 rounded-full bg-stone-100 dark:bg-[#161616] text-stone-400 flex items-center justify-center">
                     <Maximize2 size={12} strokeWidth={2.5} />
                   </span>
                 </div>
-              </div>
-              <TrendChart points={trendCompact} />
-            </button>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.soft();
+                  setShowTrendDetail(true);
+                }}
+                aria-label={t('analytics.trendOpen')}
+                className="w-full active:scale-[0.99] transition-transform"
+              >
+                <TrendChart points={displayedTrendPoints} />
+              </button>
+            </div>
           )}
 
           {/* LE PALMARÈS */}
@@ -1796,10 +2054,40 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <TrendDetailModal
-            windowPoints={trendWindow}
+            windowPoints={displayedTrendPoints}
             historyPoints={weeklyTrend}
             rangeLabel={trendRangeLabel}
-            delta={weeklyTrendDelta}
+            windowLabel={trendViewLabel}
+            viewMode={trendViewMode}
+            onViewModeChange={(mode) => {
+              setTrendViewMode(mode);
+              if (mode !== 'period') setSelectedTrendPeriodKey('');
+            }}
+            periodType={trendPeriodType}
+            onPeriodTypeChange={(type) => {
+              setTrendPeriodType(type);
+              setSelectedTrendPeriodKey('');
+              setTrendViewMode('default');
+            }}
+            periodOptions={activeTrendPeriods}
+            selectedPeriodKey={selectedTrendPeriodKey}
+            onPeriodChange={(key) => {
+              setSelectedTrendPeriodKey(key);
+              if (key) setTrendViewMode('period');
+            }}
+            startDate={trendStartDate}
+            endDate={trendEndDate}
+            minDate={trendMinDate}
+            maxDate={trendMaxDate}
+            onStartDateChange={(value) => {
+              setTrendStartDate(value);
+              setTrendViewMode('custom');
+            }}
+            onEndDateChange={(value) => {
+              setTrendEndDate(value);
+              setTrendViewMode('custom');
+            }}
+            delta={displayedTrendDelta}
             locale={locale}
             onClose={() => setShowTrendDetail(false)}
           />,

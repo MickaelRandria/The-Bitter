@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarRange, HelpCircle, Loader2, Shuffle, X } from 'lucide-react';
 import { Movie } from '../types';
@@ -28,11 +28,8 @@ import { shareImage } from '../utils/shareImage';
  */
 
 interface WeeklyRecapStoryProps {
-  /** Films notés sur la période. Le top 3 est calculé ici, les stats portent sur tout le tableau. */
+  /** Historique des films vus. Le configurateur les regroupe par semaine calendaire. */
   movies: Movie[];
-  /** Bornes de la période, pour l'étiquette de dates. Défaut : les 7 derniers jours. */
-  weekStart?: Date;
-  weekEnd?: Date;
   className?: string;
 }
 
@@ -209,14 +206,15 @@ const buildStatOptions = (
 };
 
 // ── Police d'affichage ──────────────────────────────────────────────────────
-const DISPLAY_FAMILY = 'Bebas Neue';
-const DISPLAY_FONT_HREF = 'https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap';
+// Même famille que la story Variante afin de garder une identité de marque
+// cohérente entre les deux formats.
+const DISPLAY_FAMILY = 'Inter';
 
 let displayFontPromise: Promise<boolean> | null = null;
 
 /**
- * Bebas Neue n'est pas dans le bundle de l'app : on l'injecte au moment de
- * générer l'image, pas au démarrage. Mémoïsé — une seule injection par session.
+ * Inter est déjà chargée par l'app. On attend simplement qu'elle soit prête
+ * avant de dessiner le canvas pour éviter un export avec la police de secours.
  */
 const ensureDisplayFont = (): Promise<boolean> => {
   if (displayFontPromise) return displayFontPromise;
@@ -224,21 +222,12 @@ const ensureDisplayFont = (): Promise<boolean> => {
   displayFontPromise = (async () => {
     if (typeof document === 'undefined' || !('fonts' in document)) return false;
 
-    if (!document.querySelector('link[data-font="bebas-neue"]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = DISPLAY_FONT_HREF;
-      link.crossOrigin = 'anonymous';
-      link.dataset.font = 'bebas-neue';
-      document.head.appendChild(link);
-    }
-
     try {
       await Promise.race([
-        document.fonts.load(`400 120px "${DISPLAY_FAMILY}"`, 'THE BITTER'),
+        document.fonts.load(`700 120px "${DISPLAY_FAMILY}"`, 'THE BITTER'),
         new Promise((resolve) => window.setTimeout(resolve, 4000)),
       ]);
-      return document.fonts.check(`400 120px "${DISPLAY_FAMILY}"`);
+      return document.fonts.check(`700 120px "${DISPLAY_FAMILY}"`);
     } catch {
       return false;
     }
@@ -328,43 +317,84 @@ const formatRange = (start: Date, end: Date, language: Language) => {
   return `${day} — ${dayMonth}`.replace(/\./g, '').toUpperCase();
 };
 
+interface WeekOption {
+  key: string;
+  start: Date;
+  end: Date;
+  movies: Movie[];
+  label: string;
+}
+
+const getCalendarWeekStart = (date: Date) => {
+  const start = new Date(date);
+  const day = start.getDay();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+  return start;
+};
+
+const buildWeekOptions = (movies: Movie[], language: Language): WeekOption[] => {
+  const groups = new Map<number, Movie[]>();
+
+  movies
+    .filter((movie) => movie.status === 'watched' && movie.dateWatched)
+    .forEach((movie) => {
+      const start = getCalendarWeekStart(new Date(movie.dateWatched!));
+      const key = start.getTime();
+      groups.set(key, [...(groups.get(key) ?? []), movie]);
+    });
+
+  return [...groups.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([timestamp, weekMovies]) => {
+      const start = new Date(timestamp);
+      const end = new Date(timestamp);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return {
+        key: String(timestamp),
+        start,
+        end,
+        movies: weekMovies,
+        label: formatRange(start, end, language),
+      };
+    });
+};
+
+const getDefaultFrameIds = (movies: Movie[]): (string | null)[] => {
+  const ranked = [...movies].sort(
+    (a, b) => getDisplayWeightedRating(b) - getDisplayWeightedRating(a)
+  );
+  return [ranked[0]?.id ?? null, ranked[1]?.id ?? null, ranked[2]?.id ?? null];
+};
+
 // ── Typographie canvas ──────────────────────────────────────────────────────
 
 type DisplayText = ReturnType<typeof createDisplayText>;
 
 /**
- * Titres et chiffres. Avec Bebas Neue on dessine tel quel ; sans elle, on
- * comprime Inter Black horizontalement pour garder la même densité.
+ * Titres et chiffres en Inter, avec une graisse adaptée à leur hiérarchie.
  */
 const createDisplayText = (ctx: CanvasRenderingContext2D, hasDisplayFont: boolean) => {
-  const squeeze = hasDisplayFont ? 1 : 0.74;
-  const apply = (size: number) => {
+  const apply = (size: number, weight = 700) => {
     ctx.font = hasDisplayFont
-      ? `400 ${size}px "${DISPLAY_FAMILY}", sans-serif`
-      : `900 ${size}px "Inter", sans-serif`;
+      ? `${weight} ${size}px "${DISPLAY_FAMILY}", sans-serif`
+      : `${weight} ${size}px Arial, sans-serif`;
   };
 
   return {
     /** Hauteur de capitale : sert à empiler les blocs à partir de la ligne de base. */
-    capHeight: (size: number) => size * (hasDisplayFont ? 0.73 : 0.72),
-    lineHeight: (size: number) => Math.round(size * (hasDisplayFont ? 0.86 : 0.94)),
-    measure: (text: string, size: number) => {
-      apply(size);
-      return ctx.measureText(text).width * squeeze;
+    capHeight: (size: number) => size * 0.72,
+    lineHeight: (size: number) => Math.round(size * 0.94),
+    measure: (text: string, size: number, weight = 700) => {
+      apply(size, weight);
+      return ctx.measureText(text).width;
     },
-    draw: (text: string, x: number, baseline: number, size: number) => {
-      apply(size);
+    draw: (text: string, x: number, baseline: number, size: number, weight = 700) => {
+      apply(size, weight);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      if (squeeze === 1) {
-        ctx.fillText(text, x, baseline);
-        return;
-      }
-      ctx.save();
-      ctx.translate(x, baseline);
-      ctx.scale(squeeze, 1);
-      ctx.fillText(text, 0, 0);
-      ctx.restore();
+      ctx.fillText(text, x, baseline);
     },
   };
 };
@@ -412,15 +442,59 @@ const drawTrackedFit = (
   drawTracked(ctx, output, x, y, tracking);
 };
 
-const truncateToWidth = (display: DisplayText, text: string, maxWidth: number, size: number) => {
+const measureDisplayTracked = (
+  display: DisplayText,
+  text: string,
+  size: number,
+  tracking: number,
+  weight = 700
+) =>
+  Array.from(text).reduce((width, char) => width + display.measure(char, size, weight), 0) +
+  Math.max(0, Array.from(text).length - 1) * tracking;
+
+const drawDisplayTracked = (
+  display: DisplayText,
+  text: string,
+  x: number,
+  baseline: number,
+  size: number,
+  tracking: number,
+  weight = 700
+) => {
+  let cursor = x;
+  Array.from(text).forEach((char, index, chars) => {
+    display.draw(char, cursor, baseline, size, weight);
+    cursor += display.measure(char, size, weight);
+    if (index < chars.length - 1) cursor += tracking;
+  });
+};
+
+const truncateToWidth = (
+  display: DisplayText,
+  text: string,
+  maxWidth: number,
+  size: number,
+  tracking = 0,
+  weight = 700
+) => {
   let result = text;
-  while (result.length > 1 && display.measure(`${result}…`, size) > maxWidth) {
+  while (
+    result.length > 1 &&
+    measureDisplayTracked(display, `${result}…`, size, tracking, weight) > maxWidth
+  ) {
     result = result.slice(0, -1).trimEnd();
   }
   return `${result}…`;
 };
 
-const wrapDisplay = (display: DisplayText, text: string, maxWidth: number, size: number) => {
+const wrapDisplay = (
+  display: DisplayText,
+  text: string,
+  maxWidth: number,
+  size: number,
+  tracking = 0,
+  weight = 700
+) => {
   const lines: string[] = [];
   let current = '';
 
@@ -429,7 +503,10 @@ const wrapDisplay = (display: DisplayText, text: string, maxWidth: number, size:
     .filter(Boolean)
     .forEach((word) => {
       const candidate = current ? `${current} ${word}` : word;
-      if (current && display.measure(candidate, size) > maxWidth) {
+      if (
+        current &&
+        measureDisplayTracked(display, candidate, size, tracking, weight) > maxWidth
+      ) {
         lines.push(current);
         current = word;
       } else {
@@ -448,20 +525,30 @@ const fitDisplayLines = (
   maxWidth: number,
   maxLines: number,
   maxSize: number,
-  minSize: number
+  minSize: number,
+  tracking = 0,
+  weight = 700
 ) => {
   for (let size = maxSize; size > minSize; size -= 4) {
-    const lines = wrapDisplay(display, text, maxWidth, size);
-    if (lines.length <= maxLines && lines.every((l) => display.measure(l, size) <= maxWidth)) {
+    const lines = wrapDisplay(display, text, maxWidth, size, tracking, weight);
+    if (
+      lines.length <= maxLines &&
+      lines.every(
+        (line) => measureDisplayTracked(display, line, size, tracking, weight) <= maxWidth
+      )
+    ) {
       return { lines, size };
     }
   }
 
-  const lines = wrapDisplay(display, text, maxWidth, minSize);
+  const lines = wrapDisplay(display, text, maxWidth, minSize, tracking, weight);
   const kept = lines.slice(0, maxLines).map((line, index) => {
     const isLast = index === maxLines - 1 && lines.length > maxLines;
-    if (isLast || display.measure(line, minSize) > maxWidth) {
-      return truncateToWidth(display, line, maxWidth, minSize);
+    if (
+      isLast ||
+      measureDisplayTracked(display, line, minSize, tracking, weight) > maxWidth
+    ) {
+      return truncateToWidth(display, line, maxWidth, minSize, tracking, weight);
     }
     return line;
   });
@@ -548,13 +635,13 @@ const drawHeroBlock = (
     const scoreValue = getDisplayWeightedRating(movie).toFixed(1);
 
     ctx.fillStyle = COLOR_LIME;
-    display.draw(scoreValue, left, scoreBaseline, scoreSize);
+    display.draw(scoreValue, left, scoreBaseline, scoreSize, 600);
 
     ctx.fillStyle = COLOR_TEXT;
     ctx.font = '800 40px "Inter", sans-serif';
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
-    ctx.fillText('/10', left + display.measure(scoreValue, scoreSize) + 14, scoreBaseline);
+    ctx.fillText('/10', left + display.measure(scoreValue, scoreSize, 600) + 14, scoreBaseline);
 
     const metaBaseline = scoreBaseline - display.capHeight(scoreSize) - 30;
     const meta = [
@@ -569,27 +656,37 @@ const drawHeroBlock = (
     ctx.textBaseline = 'alphabetic';
     drawTrackedFit(ctx, meta, left, metaBaseline, 6, innerWidth);
 
-    const title = fitDisplayLines(display, movie.title.toUpperCase(), innerWidth, 3, 172, 84);
+    // Le film principal reste dominant grâce au bloc et à la note, mais son
+    // titre ne concurrence plus toute la composition.
+    const titleTracking = 7.5;
+    const titleWeight = 300;
+    const title = fitDisplayLines(
+      display,
+      movie.title.toUpperCase(),
+      innerWidth,
+      3,
+      92,
+      46,
+      titleTracking,
+      titleWeight
+    );
     const lineHeight = display.lineHeight(title.size);
     const titleBaseline = metaBaseline - 44;
 
     ctx.fillStyle = COLOR_TEXT;
     title.lines.forEach((line, index) => {
       const offset = (title.lines.length - 1 - index) * lineHeight;
-      display.draw(line, left, titleBaseline - offset, title.size);
+      drawDisplayTracked(
+        display,
+        line,
+        left,
+        titleBaseline - offset,
+        title.size,
+        titleTracking,
+        titleWeight
+      );
     });
 
-    // Signature, discrète, en bas à droite du bloc
-    ctx.fillStyle = COLOR_LIME;
-    ctx.font = '700 17px "Inter", sans-serif';
-    ctx.textBaseline = 'alphabetic';
-    drawTracked(
-      ctx,
-      'THE BITTER',
-      HERO.x + HERO.w - pad - measureTracked(ctx, 'THE BITTER', 8),
-      HERO.y + HERO.h - pad - 4,
-      8
-    );
   });
 };
 
@@ -598,7 +695,8 @@ const drawMovieTile = (
   display: DisplayText,
   rect: Rect,
   movie: Movie,
-  poster: HTMLImageElement | null
+  poster: HTMLImageElement | null,
+  rank: 2 | 3
 ) => {
   withBlock(ctx, rect, RADIUS_TILE, () => {
     if (poster) {
@@ -617,28 +715,55 @@ const drawMovieTile = (
 
     const pad = 30;
     const left = rect.x + pad;
-    const scoreSize = 92;
+    // Le deuxième film garde une présence éditoriale nette. Le troisième est
+    // volontairement plus compact pour rendre le classement lisible au
+    // premier regard, même lorsque leurs affiches ont un contraste proche.
+    const scoreSize = rank === 2 ? 88 : 70;
     const scoreBaseline = rect.y + rect.h - pad - 2;
     const scoreValue = getDisplayWeightedRating(movie).toFixed(1);
 
     ctx.fillStyle = COLOR_LIME;
-    display.draw(scoreValue, left, scoreBaseline, scoreSize);
+    display.draw(scoreValue, left, scoreBaseline, scoreSize, 600);
 
     ctx.fillStyle = COLOR_TEXT;
-    ctx.font = '800 24px "Inter", sans-serif';
+    ctx.font = `800 ${rank === 2 ? 23 : 19}px "Inter", sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('/10', left + display.measure(scoreValue, scoreSize) + 9, scoreBaseline);
+    ctx.fillText('/10', left + display.measure(scoreValue, scoreSize, 600) + 9, scoreBaseline);
 
-    const title = fitDisplayLines(display, movie.title.toUpperCase(), rect.w - pad * 2, 2, 62, 34);
+    const titleTracking = rank === 2 ? 5 : 4;
+    const titleWeight = 300;
+    const title = fitDisplayLines(
+      display,
+      movie.title.toUpperCase(),
+      rect.w - pad * 2,
+      2,
+      rank === 2 ? 42 : 32,
+      rank === 2 ? 25 : 21,
+      titleTracking,
+      titleWeight
+    );
     const lineHeight = display.lineHeight(title.size);
     const titleBaseline = scoreBaseline - display.capHeight(scoreSize) - 26;
 
     ctx.fillStyle = COLOR_TEXT;
     title.lines.forEach((line, index) => {
       const offset = (title.lines.length - 1 - index) * lineHeight;
-      display.draw(line, left, titleBaseline - offset, title.size);
+      drawDisplayTracked(
+        display,
+        line,
+        left,
+        titleBaseline - offset,
+        title.size,
+        titleTracking,
+        titleWeight
+      );
     });
+
+    ctx.fillStyle = rank === 2 ? COLOR_TEXT : COLOR_MUTED;
+    ctx.font = `800 ${rank === 2 ? 17 : 15}px "Inter", sans-serif`;
+    ctx.textBaseline = 'top';
+    drawTracked(ctx, `0${rank}`, rect.x + rect.w - pad - measureTracked(ctx, `0${rank}`, 5), rect.y + pad, 5);
   });
 };
 
@@ -761,6 +886,7 @@ const renderRecapCanvas = async ({
   if ('fonts' in document) {
     await Promise.all([
       document.fonts.load('800 30px "Inter"', 'WEEKLY RECAP'),
+      document.fonts.load('300 92px "Inter"', hero.title || 'FILM'),
       document.fonts.load('600 20px "Inter"', rangeLabel),
       document.fonts.load('800 40px "Inter"', '/10'),
     ]).catch(() => undefined);
@@ -778,6 +904,18 @@ const renderRecapCanvas = async ({
   const headerLabel = t('recap.header');
   drawTracked(ctx, headerLabel, (CANVAS_W - measureTracked(ctx, headerLabel, 18)) / 2, HEADER_Y, 18);
 
+  // Monogramme de marque, calé sur la marge gauche de la grille.
+  ctx.fillStyle = COLOR_TEXT;
+  ctx.font = '800 48px "Inter", sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  ctx.fillText('B', MARGIN, HEADER_Y - 12);
+  const logoWidth = ctx.measureText('B').width;
+  ctx.fillStyle = COLOR_LIME;
+  ctx.beginPath();
+  ctx.arc(MARGIN + logoWidth + 7, HEADER_Y + 25, 5, 0, Math.PI * 2);
+  ctx.fill();
+
   const [heroPoster, ...slotPosters] = await Promise.all([
     loadPoster(hero),
     ...slots.map((slot) => (slot ? loadPoster(slot) : Promise.resolve(null))),
@@ -789,7 +927,7 @@ const renderRecapCanvas = async ({
   [TILE_LEFT, TILE_RIGHT].forEach((rect, index) => {
     const movie = slots[index];
     if (movie) {
-      drawMovieTile(ctx, display, rect, movie, slotPosters[index]);
+      drawMovieTile(ctx, display, rect, movie, slotPosters[index], index === 0 ? 2 : 3);
       return;
     }
     const stat = stats[statIndex];
@@ -870,6 +1008,12 @@ const HelpSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 interface PreviewSheetProps {
   hero: Movie;
   slots: (Movie | null)[];
+  weekOptions: WeekOption[];
+  selectedWeekKey: string;
+  onWeekChange: (weekKey: string) => void;
+  availableMovies: Movie[];
+  frameMovieIds: (string | null)[];
+  onFrameChange: (frameIndex: number, movieId: string | null) => void;
   options: StatTile[];
   selections: StatSelection[];
   onCycle: (slotIndex: number) => void;
@@ -885,6 +1029,12 @@ interface PreviewSheetProps {
 const PreviewSheet: React.FC<PreviewSheetProps> = ({
   hero,
   slots,
+  weekOptions,
+  selectedWeekKey,
+  onWeekChange,
+  availableMovies,
+  frameMovieIds,
+  onFrameChange,
   options,
   selections,
   onCycle,
@@ -961,6 +1111,65 @@ const PreviewSheet: React.FC<PreviewSheetProps> = ({
 
         {/* Aperçu de la grille bento, aux proportions du canvas */}
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-7 pb-4">
+          <div className="mb-5 space-y-4 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+            <label className="block">
+              <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.18em] text-stone-500">
+                {t('recap.selectWeek')}
+              </span>
+              <select
+                value={selectedWeekKey}
+                onChange={(event) => onWeekChange(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#171717] px-4 py-3 text-[11px] font-black uppercase tracking-wider text-white outline-none focus:border-lime-400/60"
+              >
+                {weekOptions.map((week) => (
+                  <option key={week.key} value={week.key}>
+                    {week.label} · {week.movies.length} {t(week.movies.length > 1 ? 'recap.films' : 'recap.film')}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div>
+              <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.18em] text-stone-500">
+                {t('recap.assignFrames')}
+              </span>
+              <div className="grid grid-cols-1 gap-2">
+                {[t('recap.heroFrame'), t('recap.leftFrame'), t('recap.rightFrame')].map(
+                  (label, frameIndex) => (
+                    <label
+                      key={label}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111] px-3 py-2.5"
+                    >
+                      <span className="w-24 shrink-0 text-[9px] font-black uppercase tracking-wider text-stone-500">
+                        {label}
+                      </span>
+                      <select
+                        value={frameMovieIds[frameIndex] ?? ''}
+                        onChange={(event) =>
+                          onFrameChange(frameIndex, event.target.value || null)
+                        }
+                        className="min-w-0 flex-1 bg-transparent text-[11px] font-bold text-white outline-none"
+                      >
+                        {frameIndex > 0 && <option value="">{t('recap.statFrame')}</option>}
+                        {availableMovies.map((movie) => {
+                          const usedElsewhere = frameMovieIds.some(
+                            (selectedId, selectedIndex) =>
+                              selectedIndex !== frameIndex && selectedId === movie.id
+                          );
+                          return (
+                            <option key={movie.id} value={movie.id} disabled={usedElsewhere}>
+                              {movie.title} · {getDisplayWeightedRating(movie).toFixed(1)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2 aspect-[9/16] w-full bg-black rounded-3xl p-2">
             <div
               className="relative rounded-2xl overflow-hidden bg-[#111] p-4 flex flex-col justify-end"
@@ -969,7 +1178,7 @@ const PreviewSheet: React.FC<PreviewSheetProps> = ({
               <span className="absolute top-4 left-4 text-[7px] font-black uppercase tracking-[0.2em] text-white">
                 {t('recap.bestOfWeek')}
               </span>
-              <span className="text-[15px] font-black uppercase text-white leading-[0.9] tracking-tight line-clamp-3">
+              <span className="text-[11px] font-light uppercase text-white leading-[1.05] tracking-[0.12em] line-clamp-3">
                 {hero.title}
               </span>
               <span className="text-[26px] font-black text-lime-400 leading-none mt-1">
@@ -986,7 +1195,7 @@ const PreviewSheet: React.FC<PreviewSheetProps> = ({
                     className="flex-1 rounded-2xl overflow-hidden bg-[#111] p-3 flex flex-col justify-end"
                     style={posterStyle(movie, 'w185')}
                   >
-                    <span className="text-[9px] font-black uppercase text-white leading-[0.95] line-clamp-2">
+                    <span className={`font-light uppercase text-white leading-[1.05] tracking-[0.1em] line-clamp-2 ${index === 0 ? 'text-[8px]' : 'text-[7px]'}`}>
                       {movie.title}
                     </span>
                     <span className="text-[15px] font-black text-lime-400 leading-none mt-0.5">
@@ -1073,8 +1282,6 @@ const StatPreviewTile: React.FC<{
 
 const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
   movies,
-  weekStart,
-  weekEnd,
   className = '',
 }) => {
   const { t, language } = useLanguage();
@@ -1083,28 +1290,63 @@ const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
   const [showHelp, setShowHelp] = useState(false);
   const [selections, setSelections] = useState<StatSelection[]>([RANDOM_ID, RANDOM_ID]);
 
+  const weekOptions = useMemo(() => buildWeekOptions(movies, language), [movies, language]);
+  const [selectedWeekKey, setSelectedWeekKey] = useState(() => weekOptions[0]?.key ?? '');
+  const selectedWeek =
+    weekOptions.find((week) => week.key === selectedWeekKey) ?? weekOptions[0] ?? null;
+  const [frameMovieIds, setFrameMovieIds] = useState<(string | null)[]>(() =>
+    getDefaultFrameIds(weekOptions[0]?.movies ?? [])
+  );
+
+  useEffect(() => {
+    if (!selectedWeek) return;
+    if (selectedWeek.key !== selectedWeekKey) {
+      setSelectedWeekKey(selectedWeek.key);
+      setFrameMovieIds(getDefaultFrameIds(selectedWeek.movies));
+    }
+  }, [selectedWeek, selectedWeekKey]);
+
+  const handleWeekChange = (weekKey: string) => {
+    const nextWeek = weekOptions.find((week) => week.key === weekKey);
+    if (!nextWeek) return;
+    setSelectedWeekKey(weekKey);
+    setFrameMovieIds(getDefaultFrameIds(nextWeek.movies));
+    setSelections([RANDOM_ID, RANDOM_ID]);
+  };
+
+  const handleFrameChange = (frameIndex: number, movieId: string | null) => {
+    if (frameIndex === 0 && !movieId) return;
+    setFrameMovieIds((current) =>
+      current.map((selectedId, index) => {
+        if (index === frameIndex) return movieId;
+        if (movieId && selectedId === movieId) return null;
+        return selectedId;
+      })
+    );
+  };
+
   const recap = useMemo(() => {
-    const ranked = [...movies].sort(
+    const activeMovies = selectedWeek?.movies ?? [];
+    const ranked = [...activeMovies].sort(
       (a, b) => getDisplayWeightedRating(b) - getDisplayWeightedRating(a)
     );
-    const top = ranked.slice(0, 3);
-    const slots: (Movie | null)[] = [top[1] ?? null, top[2] ?? null];
+    const findMovie = (movieId: string | null | undefined) =>
+      activeMovies.find((movie) => movie.id === movieId) ?? null;
+    const hero = findMovie(frameMovieIds[0]) ?? ranked[0] ?? null;
+    const slots: (Movie | null)[] = [findMovie(frameMovieIds[1]), findMovie(frameMovieIds[2])];
     const statSlotCount = slots.filter((slot) => !slot).length;
 
-    const end = weekEnd ?? new Date();
-    const start = weekStart ?? new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
-
     return {
-      hero: top[0] ?? null,
+      hero,
       slots,
       statSlotCount,
-      rangeLabel: formatRange(start, end, language),
+      rangeLabel: selectedWeek?.label ?? '',
       // « Note moyenne » n'a de sens qu'à partir de 2 films : à 1 film elle
       // répète la note déjà affichée en grand dans le bloc du haut.
-      options: buildStatOptions(movies, ranked, movies.length >= 2, t, language),
+      options: buildStatOptions(activeMovies, ranked, activeMovies.length >= 2, t, language),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movies, weekStart, weekEnd, language]);
+  }, [selectedWeek, frameMovieIds, language]);
 
   /**
    * Cycle : les stats disponibles puis « Aléatoire », en sautant celle déjà
@@ -1217,6 +1459,12 @@ const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
           <PreviewSheet
             hero={recap.hero}
             slots={recap.slots}
+            weekOptions={weekOptions}
+            selectedWeekKey={selectedWeek?.key ?? ''}
+            onWeekChange={handleWeekChange}
+            availableMovies={selectedWeek?.movies ?? []}
+            frameMovieIds={frameMovieIds}
+            onFrameChange={handleFrameChange}
             options={recap.options}
             selections={selections}
             onCycle={handleCycle}
