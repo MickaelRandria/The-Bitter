@@ -14,6 +14,33 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.88',
+    date: '3 Août 2026',
+    title: 'Stories sur mesure & Analytics',
+    changes: [
+      {
+        type: 'feature',
+        text: "Weekly Recap personnalisable : choisis la semaine à raconter, puis sélectionne précisément le film à afficher dans chacun des trois cadres. Les emplacements secondaires peuvent aussi accueillir une statistique.",
+      },
+      {
+        type: 'feature',
+        text: "Tendance des notes enrichie : ouvre la tuile Analytics en grand et analyse la semaine passée, les 4 dernières semaines, tout l'historique ou une plage personnalisée. Les mois, trimestres et semestres les plus actifs sont classés selon le nombre de films notés.",
+      },
+      {
+        type: 'style',
+        text: "Weekly Story retravaillée : logo ajouté, titres en Inter Light et hiérarchie typographique renforcée entre le film principal, le deuxième et le troisième. Les notes restent l'élément le plus visible.",
+      },
+      {
+        type: 'style',
+        text: "Story Variante affinée : titre, logo, métadonnées, note principale, sous-notes et point vert sont mieux alignés. Le genre rejoint l'année et le réalisateur, tandis que le footer gagne en respiration.",
+      },
+      {
+        type: 'fix',
+        text: "Exports plus propres : suppression des séparateurs entre les sous-notes et du doublon de marque sur le film principal de la Weekly.",
+      },
+    ],
+  },
+  {
     version: 'v0.87',
     date: '2 Août 2026',
     title: 'Weekly Recap & Story Éditoriale',
