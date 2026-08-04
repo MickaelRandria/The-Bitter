@@ -14,6 +14,37 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.89',
+    date: '4 Août 2026',
+    title: 'Visite guidée & Profil rangé',
+    changes: [
+      {
+        type: 'feature',
+        text: "Visite guidée à la création du profil. 17 étapes qui éclairent les vrais boutons de l'app, page par page, sans fausses données de démonstration. À chaque geste utile, c'est toi qui cliques et le tuto avance tout seul.",
+      },
+      {
+        type: 'feature',
+        text: "Parcours notation au premier ajout. 8 étapes consacrées aux critères et au mode Bitter+ : profil détecté d'après le genre, poids de chaque critère, critère spécifique au genre et note pondérée.",
+      },
+      {
+        type: 'feature',
+        text: 'Le tuto est proposé, jamais imposé. Une question avant de commencer, avec le nombre d’étapes et la durée annoncés. Relançable à tout moment depuis Profil puis Paramètres.',
+      },
+      {
+        type: 'feature',
+        text: 'Profil rangé. Toutes les options sont regroupées sous un bouton Paramètres repliable, et le retour au feed y a été déplacé pour dégager de la place dans le header.',
+      },
+      {
+        type: 'style',
+        text: '« Comment ça marche » devient « Les bonnes pratiques » et remonte au-dessus de l’import de données.',
+      },
+      {
+        type: 'style',
+        text: 'Textes resserrés dans toute l’application : phrases plus courtes, listes à puces plutôt que des pavés, et plus aucun tiret cadratin.',
+      },
+    ],
+  },
+  {
     version: 'v0.88',
     date: '3 Août 2026',
     title: 'Stories sur mesure & Analytics',
@@ -47,15 +78,15 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: "Le Weekly Recap — Fais le bilan de ta semaine ciné ! Une toute nouvelle story générée sur mesure avec tes statistiques et les films que tu as vus (tu peux même choisir les stats à afficher en touchant l'écran). Disponible depuis l'onglet Calendrier.",
+        text: "Le Weekly Recap. Fais le bilan de ta semaine ciné ! Une toute nouvelle story générée sur mesure avec tes statistiques et les films que tu as vus (tu peux même choisir les stats à afficher en touchant l'écran). Disponible depuis l'onglet Calendrier.",
       },
       {
         type: 'feature',
-        text: "Story Éditoriale (Bêta) — Une nouvelle direction artistique plus sombre, plus immersive et digne d'une vraie affiche de cinéma pour partager tes notes. Au moment de partager, choisis entre le visuel Classique et la Variante.",
+        text: "Story Éditoriale (Bêta). Une nouvelle direction artistique plus sombre, plus immersive et digne d'une vraie affiche de cinéma pour partager tes notes. Au moment de partager, choisis entre le visuel Classique et la Variante.",
       },
       {
         type: 'fix',
-        text: "Améliorations de l'interface — Correction de bugs gênants lors de la navigation (notamment la fermeture inattendue des menus) pour rendre l'expérience plus fluide.",
+        text: "Améliorations de l'interface. Correction de bugs gênants lors de la navigation (notamment la fermeture inattendue des menus) pour rendre l'expérience plus fluide.",
       },
     ],
   },
@@ -66,15 +97,15 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: "Plus de compte — En attendant que la synchronisation soit au point, The Bitter fonctionne entièrement sans compte : ta collection reste sur ton appareil, sans serveur ni inscription.",
+        text: "Plus de compte. En attendant que la synchronisation soit au point, The Bitter fonctionne entièrement sans compte : ta collection reste sur ton appareil, sans serveur ni inscription.",
       },
       {
         type: 'feature',
-        text: "« Comment ça marche » — Un nouveau guide en 3 écrans t'explique où vivent tes données, pourquoi éviter la navigation privée, et comment installer l'app sur ton écran d'accueil (iPhone et Android). Accessible dès l'accueil et depuis ton profil.",
+        text: "« Comment ça marche ». Un nouveau guide en 3 écrans t'explique où vivent tes données, pourquoi éviter la navigation privée, et comment installer l'app sur ton écran d'accueil (iPhone et Android). Accessible dès l'accueil et depuis ton profil.",
       },
       {
         type: 'fix',
-        text: "Profil local — L'écran de connexion a été retiré du parcours. Le profil affiche désormais « Profil local » à la place du statut de compte invité.",
+        text: "Profil local. L'écran de connexion a été retiré du parcours. Le profil affiche désormais « Profil local » à la place du statut de compte invité.",
       },
     ],
   },
@@ -85,35 +116,35 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'fix',
-        text: 'Chargement allégé — Tailwind est désormais compilé au build au lieu d\'être chargé depuis un CDN, et les outils de mesure d\'audience ne sont téléchargés qu\'après ton consentement. Environ 180 Ko de moins au premier chargement, et les affiches sont demandées à la taille réellement affichée.',
+        text: 'Chargement allégé. Tailwind est désormais compilé au build au lieu d\'être chargé depuis un CDN, et les outils de mesure d\'audience ne sont téléchargés qu\'après ton consentement. Environ 180 Ko de moins au premier chargement, et les affiches sont demandées à la taille réellement affichée.',
       },
       {
         type: 'fix',
-        text: 'Des chiffres qui concordent — Le nombre d\'heures visionnées et le genre favori étaient calculés différemment selon l\'écran. Feed, statistiques et profil affichent maintenant la même valeur.',
+        text: 'Des chiffres qui concordent. Le nombre d\'heures visionnées et le genre favori étaient calculés différemment selon l\'écran. Feed, statistiques et profil affichent maintenant la même valeur.',
       },
       {
         type: 'fix',
-        text: 'Pluriels et signes — Correction d\'un bug d\'affichage qui laissait apparaître « {s} » dans les textes, du signe manquant sur ta déception vs TMDB, et des mois « juin » et « juillet » devenus indistinguables sur les graphiques.',
+        text: 'Pluriels et signes. Correction d\'un bug d\'affichage qui laissait apparaître « {s} » dans les textes, du signe manquant sur ta déception vs TMDB, et des mois « juin » et « juillet » devenus indistinguables sur les graphiques.',
       },
       {
         type: 'feature',
-        text: 'Ambiances fiables — Le 5ᵉ axe « Visuel » est enfin saisissable au moment de noter. Le radar ADN et les moods restent verrouillés tant que trop peu de films ont une ambiance renseignée, au lieu d\'afficher un profil neutre inventé. Sélectionner un mood filtre désormais réellement ta file d\'attente.',
+        text: 'Ambiances fiables. Le 5ᵉ axe « Visuel » est enfin saisissable au moment de noter. Le radar ADN et les moods restent verrouillés tant que trop peu de films ont une ambiance renseignée, au lieu d\'afficher un profil neutre inventé. Sélectionner un mood filtre désormais réellement ta file d\'attente.',
       },
       {
         type: 'feature',
-        text: 'File d\'attente plus lisible — « Ce soir ? » remonte en haut de l\'onglet À voir, et les statistiques affichées concernent la file (films, durée totale, temps d\'attente) plutôt que les films déjà vus.',
+        text: 'File d\'attente plus lisible, « Ce soir ? » remonte en haut de l\'onglet À voir, et les statistiques affichées concernent la file (films, durée totale, temps d\'attente) plutôt que les films déjà vus.',
       },
       {
         type: 'feature',
-        text: 'Accessibilité — Libellés sur toute la navigation, fermeture au clavier et focus correctement piégé dans les fenêtres, vignettes Discover atteignables au clavier. Le classement des genres tient compte du nombre de films vus.',
+        text: 'Accessibilité. Libellés sur toute la navigation, fermeture au clavier et focus correctement piégé dans les fenêtres, vignettes Discover atteignables au clavier. Le classement des genres tient compte du nombre de films vus.',
       },
       {
         type: 'style',
-        text: 'Nouveautés en un écran — La présentation des nouveautés ne fait plus défiler cinq étapes : tout est listé d\'un coup, avec une croix dès l\'ouverture et un « ne plus afficher » qui tient vraiment.',
+        text: 'Nouveautés en un écran. La présentation des nouveautés ne fait plus défiler cinq étapes : tout est listé d\'un coup, avec une croix dès l\'ouverture et un « ne plus afficher » qui tient vraiment.',
       },
       {
         type: 'style',
-        text: 'Cohérence éditoriale — L\'application te tutoie partout. Le calendrier et l\'écran de connexion sont enfin traduits en anglais, et le sélecteur de langue est accessible dès le premier écran.',
+        text: 'Cohérence éditoriale. L\'application te tutoie partout. Le calendrier et l\'écran de connexion sont enfin traduits en anglais, et le sélecteur de langue est accessible dès le premier écran.',
       },
     ],
   },
@@ -124,23 +155,23 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: 'Feedback intégré — Un bouton 💬 dans la navbar te permet de signaler un bug, proposer une amélioration ou envoyer un message directement à l\'équipe. Tes retours nous sont précieux pour faire évoluer l\'app.',
+        text: 'Feedback intégré. Un bouton 💬 dans la navbar te permet de signaler un bug, proposer une amélioration ou envoyer un message directement à l\'équipe. Tes retours nous sont précieux pour faire évoluer l\'app.',
       },
       {
         type: 'feature',
-        text: 'Recos Perso — Un widget intelligent analyse tes 10 films les mieux notés pour te suggérer des œuvres qui correspondent vraiment à tes goûts. Mode "Par film" disponible aussi.',
+        text: 'Recos Perso. Un widget intelligent analyse tes 10 films les mieux notés pour te suggérer des œuvres qui correspondent vraiment à tes goûts. Mode "Par film" disponible aussi.',
       },
       {
         type: 'feature',
-        text: 'Version anglaise — L\'application est désormais disponible en anglais. Bascule entre FR et EN depuis le header.',
+        text: 'Version anglaise. L\'application est désormais disponible en anglais. Bascule entre FR et EN depuis le header.',
       },
       {
         type: 'fix',
-        text: 'Optimisation du code — Pagination du feed (20 films par page), debounce sur les filtres Discover, recalcul automatique de l\'archétype à chaque ajout de film (≥ 10 vus), et sécurisation des clés API.',
+        text: 'Optimisation du code. Pagination du feed (20 films par page), debounce sur les filtres Discover, recalcul automatique de l\'archétype à chaque ajout de film (≥ 10 vus), et sécurisation des clés API.',
       },
       {
         type: 'fix',
-        text: 'Dark mode complet — Les écrans de connexion, d\'inscription et de création de profil sont maintenant entièrement compatibles dark mode.',
+        text: 'Dark mode complet. Les écrans de connexion, d\'inscription et de création de profil sont maintenant entièrement compatibles dark mode.',
       },
     ],
   },
@@ -151,23 +182,23 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: '🔔 Centre de notifications — Cloche dans le header avec badge non-lu : streak, récap hebdo, rappel watchlist, stats mensuelles.',
+        text: '🔔 Centre de notifications. Cloche dans le header avec badge non-lu : streak, récap hebdo, rappel watchlist, stats mensuelles.',
       },
       {
         type: 'feature',
-        text: 'Préférences granulaires — Active ou désactive chaque type de notif individuellement depuis ton profil.',
+        text: 'Préférences granulaires. Active ou désactive chaque type de notif individuellement depuis ton profil.',
       },
       {
         type: 'feature',
-        text: 'Notif test — Envoie immédiatement une notification navigateur (films vus cette semaine) depuis le profil.',
+        text: 'Notif test. Envoie immédiatement une notification navigateur (films vus cette semaine) depuis le profil.',
       },
       {
         type: 'feature',
-        text: 'Recherche globale étendue — Titre, réalisateur, acteurs et genre avec raccourci ⌘K.',
+        text: 'Recherche globale étendue. Titre, réalisateur, acteurs et genre avec raccourci ⌘K.',
       },
       {
         type: 'feature',
-        text: 'Filtres avancés — Slider note minimum et plage d\'années dans le feed.',
+        text: 'Filtres avancés. Slider note minimum et plage d\'années dans le feed.',
       },
       {
         type: 'fix',
@@ -182,39 +213,39 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: 'Calendrier : Streak hebdomadaire — un compteur de semaines consécutives avec au moins 1 film vu, et ton record personnel.',
+        text: 'Calendrier : Streak hebdomadaire. un compteur de semaines consécutives avec au moins 1 film vu, et ton record personnel.',
       },
       {
         type: 'feature',
-        text: 'Calendrier : Vue annuelle (heatmap) — bascule entre la grille mensuelle et une vue 12 mois colorée par intensité (clic sur un mois pour y revenir).',
+        text: 'Calendrier : Vue annuelle (heatmap). bascule entre la grille mensuelle et une vue 12 mois colorée par intensité (clic sur un mois pour y revenir).',
       },
       {
         type: 'feature',
-        text: "Calendrier : Filtre par genre — chips scrollables pour n'afficher que les jours d'un genre précis dans le mois courant.",
+        text: "Calendrier : Filtre par genre. chips scrollables pour n'afficher que les jours d'un genre précis dans le mois courant.",
       },
       {
         type: 'feature',
-        text: 'Analytics : Partage de ton archétype — bouton "Partager" dans l\'onglet Profil pour générer une carte image (PNG) à envoyer sur Instagram ou à télécharger.',
+        text: 'Analytics : Partage de ton archétype. bouton "Partager" dans l\'onglet Profil pour générer une carte image (PNG) à envoyer sur Instagram ou à télécharger.',
       },
       {
         type: 'feature',
-        text: "Analytics : Tendance des notes semaine par semaine — courbe SVG sur 26 semaines glissantes dans l'onglet Goûts, avec indicateur de progression (hausse / baisse).",
+        text: "Analytics : Tendance des notes semaine par semaine. courbe SVG sur 26 semaines glissantes dans l'onglet Goûts, avec indicateur de progression (hausse / baisse).",
       },
       {
         type: 'feature',
-        text: 'Feed : Bandeau "Ta collection" — films vus, note moyenne et heures totales en un coup d\'œil au-dessus des onglets.',
+        text: 'Feed : Bandeau "Ta collection". films vus, note moyenne et heures totales en un coup d\'œil au-dessus des onglets.',
       },
       {
         type: 'feature',
-        text: "Feed : Compteurs dans les onglets — le nombre de films s'affiche directement dans Vu (n) et À voir (n).",
+        text: "Feed : Compteurs dans les onglets. le nombre de films s'affiche directement dans Vu (n) et À voir (n).",
       },
       {
         type: 'feature',
-        text: "Feed : Filtre par genre sur l'onglet Vu — chips scrollables identiques à celles de la watchlist.",
+        text: "Feed : Filtre par genre sur l'onglet Vu. chips scrollables identiques à celles de la watchlist.",
       },
       {
         type: 'feature',
-        text: 'Feed : Bouton "Surprise ?" sur l\'onglet Vu — tire un film au hasard dans ta collection pour une séance de redécouverte.',
+        text: 'Feed : Bouton "Surprise ?" sur l\'onglet Vu. tire un film au hasard dans ta collection pour une séance de redécouverte.',
       },
     ],
   },
@@ -229,7 +260,7 @@ export const RELEASE_HISTORY: Release[] = [
       },
       {
         type: 'fix',
-        text: "Erreurs visibles : TMDB indisponible, ajout collab échoué ou Discover vide — l'app t'informe maintenant via un toast au lieu de rester silencieuse.",
+        text: "Erreurs visibles : TMDB indisponible, ajout collab échoué ou Discover vide. l'app t'informe maintenant via un toast au lieu de rester silencieuse.",
       },
       {
         type: 'feature',
@@ -237,7 +268,7 @@ export const RELEASE_HISTORY: Release[] = [
       },
       {
         type: 'fix',
-        text: 'Onboarding : Bouton "Retour" ajouté entre chaque étape du calibrage — plus de blocage si tu veux corriger une réponse.',
+        text: 'Onboarding : Bouton "Retour" ajouté entre chaque étape du calibrage. plus de blocage si tu veux corriger une réponse.',
       },
       {
         type: 'style',
@@ -329,7 +360,7 @@ export const RELEASE_HISTORY: Release[] = [
     changes: [
       {
         type: 'feature',
-        text: "Page Profil : Accède à ton identité complète depuis l'avatar en haut à droite — archétype, stats clés, genres favoris et indices de calibration.",
+        text: "Page Profil : Accède à ton identité complète depuis l'avatar en haut à droite. archétype, stats clés, genres favoris et indices de calibration.",
       },
       {
         type: 'feature',
@@ -341,7 +372,7 @@ export const RELEASE_HISTORY: Release[] = [
       },
       {
         type: 'style',
-        text: 'Header Épuré : Le header passe à 3 actions — Thème, Espaces, Profil. Les options secondaires (tutoriel, déconnexion) vivent désormais dans la page Profil.',
+        text: 'Header Épuré : Le header passe à 3 actions. Thème, Espaces, Profil. Les options secondaires (tutoriel, déconnexion) vivent désormais dans la page Profil.',
       },
       {
         type: 'style',

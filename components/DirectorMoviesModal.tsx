@@ -131,7 +131,7 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
                     <div className="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10">
                       <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
                       <span className="text-sm font-black text-white">
-                        {movie.vote_average ? movie.vote_average.toFixed(1) : '—'}
+                        {movie.vote_average ? movie.vote_average.toFixed(1) : '-'}
                       </span>
                     </div>
                     <span className="text-[8px] font-black uppercase tracking-widest text-stone-600">

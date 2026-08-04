@@ -506,7 +506,7 @@ function LetterboxdImport({ userId, onImportMovies, onClose }: Props) {
                       <CheckCircle size={10} className="text-forest dark:text-lime-400" />
                     </div>
                     <p className="text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
-                      Dépose les 2 fichiers en même temps — The Bitter les fusionne automatiquement. Aucun doublon possible.
+                      Dépose les 2 fichiers en même temps. The Bitter les fusionne automatiquement, aucun doublon possible.
                     </p>
                   </div>
                 </div>

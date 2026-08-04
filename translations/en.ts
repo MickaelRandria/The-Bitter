@@ -50,14 +50,14 @@ export const en: Record<string, string> = {
   'auth.checkSpam': 'Also check your spam folder. The link expires in 1 hour.',
 
   // ── How it works (onboarding carousel) ───────────────────────────────────
-  'howItWorks.title': 'How it works',
+  'howItWorks.title': 'Best practices',
   'howItWorks.subtitle': 'No account, on your device',
   'howItWorks.next': 'Next',
   'howItWorks.ios': 'iPhone / iPad',
   'howItWorks.android': 'Android',
   'howItWorks.yourDevice': 'you',
 
-  // Slide 1 — your data
+  // Slide 1: your data
   'howItWorks.s1.badge': '100% local',
   'howItWorks.s1.title1': 'Your Cinema,',
   'howItWorks.s1.title2': 'Your Data.',
@@ -73,12 +73,12 @@ export const en: Record<string, string> = {
   'howItWorks.s1.exportDesc':
     'From your profile, “Export my data” saves a backup you can keep somewhere safe.',
 
-  // Slide 2 — install
+  // Slide 2: install
   'howItWorks.s2.badge': 'Home screen',
   'howItWorks.s2.title1': 'Install the app',
   'howItWorks.s2.title2': "(it's better).",
   'howItWorks.s2.desc':
-    'For a full-screen experience — and so you don’t lose your data in Safari or Chrome — add The Bitter to your home screen.',
+    'For a full-screen experience, and so you don’t lose your data in Safari or Chrome, add The Bitter to your home screen.',
   'howItWorks.s2.hintIos': 'Safari → Share → Add to Home Screen',
   'howItWorks.s2.hintAndroid': 'Chrome → ⋮ menu → Install app',
   'howItWorks.s2.alreadyInstalled': 'The app is already installed',
@@ -87,11 +87,11 @@ export const en: Record<string, string> = {
   'howItWorks.installFirst':
     'Tip: install the app before building your collection. On iPhone, the home-screen app may not find films you entered earlier in Safari.',
 
-  // Slide 3 — get started
+  // Slide 3: get started
   'howItWorks.s3.title1': 'Ready to',
   'howItWorks.s3.title2': 'judge?',
   'howItWorks.s3.desc': 'Start your collection.',
-  'howItWorks.s3.quote': 'Remember: a rating is not objective — it belongs to you.',
+  'howItWorks.s3.quote': 'Remember: a rating is not objective, it belongs to you.',
   'howItWorks.s3.cta': 'Start rating',
 
   // Home-screen trigger
@@ -179,6 +179,9 @@ export const en: Record<string, string> = {
   'profileModal.importSuccess': 'Backup restored. The app will now reload.',
   'profileModal.importError': 'This file is not a valid or complete The Bitter backup.',
   'profileModal.export': 'Export my data',
+  'profileModal.replayTour': 'Take the tour',
+  'profileModal.settings': 'Settings',
+  'profileModal.backToFeed': 'Back to feed',
   'profileModal.signOut': 'Sign out',
   'profileModal.language': 'Language',
 
@@ -191,7 +194,7 @@ export const en: Record<string, string> = {
   // ── Archetype descriptions ────────────────────────────────────────────────
   'archetype.Le Déchiffreur': "You don't watch a film, you solve it.",
   "archetype.L'Éponge Émotionnelle": 'You seek catharsis and pure emotion.',
-  "archetype.L'Hédoniste": 'Cinema is a feast — pleasure above all.',
+  "archetype.L'Hédoniste": 'Cinema is a feast, pleasure above all.',
   "archetype.L'Esthète": 'Form takes precedence over substance.',
   "archetype.L'Adrénaline Junkie": 'You live for the thrill and the tension.',
   'archetype.Le Stratège Noir': 'Intelligence meets darkness.',
@@ -372,8 +375,156 @@ export const en: Record<string, string> = {
   'tooltip.feed.title': 'Your Collection',
   'tooltip.feed.content': 'Swipe a card left to delete, right to edit. Use the + button to add.',
 
+  // ── Tour prompt ──────────────────────────────────────────────────────────
+  'tourPrompt.accept': 'Take the tour',
+  'tourPrompt.decline': 'Later',
+  'tourPrompt.later': 'You can start it any time from Profile, then Settings.',
+  'tourPrompt.main.title': 'Shall we look around?',
+  'tourPrompt.main.body':
+    'A guided tour of the app, page by page, on your real screen. You do the clicking, we just point.',
+  'tourPrompt.main.duration': '{count} steps, about 2 minutes',
+  'tourPrompt.rating.title': 'Want to see how rating works?',
+  'tourPrompt.rating.body':
+    'This is your first add. We can take a moment on the criteria and Bitter+ mode, or you can just rate.',
+  'tourPrompt.rating.duration': '{count} steps, about 1 minute',
+
+  // ── Guided tour ──────────────────────────────────────────────────────────
+  'tour.skip': 'Skip the tour',
+  'tour.skipStep': 'Skip this step',
+
+  'tour.intro.title': 'Welcome to The Bitter',
+  'tour.intro.body': 'Your profile is ready. One minute to look around, and you do the clicking.',
+
+  'tour.feed-empty.title': 'Your collection',
+  'tour.feed-empty.body': 'Your films land here. The screen fills up from the first one you add.',
+  'tour.feed-empty.b1': 'The Watched and Watchlist tabs',
+  'tour.feed-empty.b2': 'Your viewing streak',
+  'tour.feed-empty.b3': 'Your weekly recap',
+
+  'tour.nav-add.title': 'The + button',
+  'tour.nav-add.body':
+    'Everything starts here: find a film, rate it, file it. We come back to this in detail on your first add.',
+
+  'tour.nav-discover.title': 'Explore',
+  'tour.nav-discover.body':
+    'No idea what to watch tonight? This tab pulls up current releases and your platforms’ catalogue.',
+  'tour.nav-discover.cta': 'Tap Explore',
+
+  'tour.discover-search.title': 'Search a title',
+  'tour.discover-search.body':
+    'Type a film or series to jump straight to it. Deep Info gives you a detailed read on it.',
+
+  'tour.discover-period.title': 'Filter by period',
+  'tour.discover-period.body': 'This month, the current year, or the whole catalogue.',
+  'tour.discover-period.cta': 'Pick a period',
+
+  'tour.discover-platform.title': 'Filter by platform',
+  'tour.discover-platform.body': 'Keep only what you can actually watch tonight.',
+  'tour.discover-platform.cta': 'Pick a platform',
+
+  'tour.nav-calendar.title': 'Your calendar',
+  'tour.nav-calendar.body':
+    'Every film you watch lands on its date. It’s the memory of your cinema year.',
+  'tour.nav-calendar.cta': 'Tap Calendar',
+
+  'tour.calendar-toggle.title': 'Month or year',
+  'tour.calendar-toggle.body':
+    'The month view breaks it down day by day. The year view shows your busiest stretches at a glance.',
+  'tour.calendar-toggle.cta': 'Switch the view',
+
+  'tour.calendar-grid.title': 'Move through time',
+  'tour.calendar-grid.body':
+    'The arrows step through periods. The counter shows how many screenings are in view.',
+  'tour.calendar-grid.cta': 'Change period',
+
+  'tour.nav-analytics.title': 'Your stats',
+  'tour.nav-analytics.body': 'What your ratings say about your taste, with no flattery.',
+  'tour.nav-analytics.cta': 'Tap Stats',
+
+  'tour.analytics-locked.title': 'Still locked',
+  'tour.analytics-locked.body':
+    'It takes 5 rated films. Below that, any analysis would be bluffing.',
+  'tour.analytics-locked.b1': 'Favourite genres and directors',
+  'tour.analytics-locked.b2': 'How harsh your ratings really run',
+  'tour.analytics-locked.b3': 'Your viewer archetype',
+
+  'tour.nav-profile.title': 'Your profile',
+  'tour.nav-profile.body': 'This avatar opens your settings and your personal summary.',
+  'tour.nav-profile.cta': 'Tap your avatar',
+
+  'tour.profile-calibration.title': 'Your calibration',
+  'tour.profile-calibration.body': 'Two markers that tune your recommendations.',
+  'tour.profile-calibration.b1': 'Strictness: how hard you rate',
+  'tour.profile-calibration.b2': 'Rhythm: how many films you get through',
+
+  'tour.profile-notifications.title': 'Your reminders',
+  'tour.profile-notifications.body':
+    'Ongoing streak, weekly recap, films left unrated, monthly summary. All of it can be turned off.',
+  'tour.profile-notifications.cta': 'Open the notifications',
+
+  'tour.profile-export.title': 'Your data is yours',
+  'tour.profile-export.body':
+    'One file with your whole history in it, importable on another device.',
+
+  'tour.outro.title': 'Over to you',
+  'tour.outro.body':
+    'Add your first film and we’ll step back in to explain rating. This tour stays right here, under “Replay the tour”.',
+
+  // ── Guided tour: rating ──────────────────────────────────────────────────
+  'tour.add-status.title': 'Watched, or to watch?',
+  'tour.add-status.body': 'First time on this screen: let’s take two minutes on rating.',
+  'tour.add-status.b1': 'Watched: the rating grid opens',
+  'tour.add-status.b2': 'To watch: the film goes to your watchlist, unrated',
+
+  'tour.add-search.title': 'Find the film',
+  'tour.add-search.body':
+    'Type the title: poster, director, year and genre fill themselves in. That genre is what tailors your grid.',
+
+  'tour.rating-mode.title': 'Two ways to rate',
+  'tour.rating-mode.body':
+    'Bitter: 4 criteria, simple average, thirty seconds. Bitter+: same base, weighted for the film.',
+  'tour.rating-mode.cta': 'Tap Bitter+',
+
+  'tour.bitterplus-profile.title': 'The rating profile',
+  'tour.bitterplus-profile.body':
+    'Bitter+ infers it from the film’s genre. No film is entered here, so we show a comedy as an example.',
+  'tour.bitterplus-profile.b1': 'It decides which criteria carry the most weight',
+  'tour.bitterplus-profile.b2': '“Change” to force a different one',
+  'tour.bitterplus-profile.b3': 'Custom profile to set the weights yourself',
+
+  'tour.bitterplus-criteria.title': 'The 4 core criteria',
+  'tour.bitterplus-criteria.body':
+    'The pips next to each name give its weight: Secondary, Standard, Important or Essential.',
+  'tour.bitterplus-criteria.b1': 'Screenplay: story, structure, dialogue',
+  'tour.bitterplus-criteria.b2': 'Image: cinematography, framing, art direction',
+  'tour.bitterplus-criteria.b3': 'Performance: acting, presence, credibility',
+  'tour.bitterplus-criteria.b4': 'Sound: score, mix, atmosphere',
+  'tour.bitterplus-criteria.cta': 'Rate a criterion to see',
+
+  'tour.bitterplus-specific.title': 'The genre criterion',
+  'tour.bitterplus-specific.body':
+    'Every profile adds a 5th criterion, always Essential. It stops you judging a comedy like a drama.',
+  'tour.bitterplus-specific.b1': 'Fear factor for horror, Humour for comedy',
+  'tour.bitterplus-specific.b2': 'Chemistry for romance, Suspense for thrillers',
+  'tour.bitterplus-specific.b3': 'World-building for sci-fi, Impact for documentaries',
+
+  'tour.bitterplus-score.title': 'The final score',
+  'tour.bitterplus-score.body':
+    'Each criterion is multiplied by its weight before being averaged: an Essential one counts nearly three times a Secondary one. The breakdown unfolds just below.',
+
+  'tour.rating-context.title': 'Viewing context',
+  'tour.rating-context.body':
+    'Bitter+ also records how you watched the film. It doesn’t feed the score, it explains it.',
+  'tour.rating-context.b1': 'Distraction: how much you drifted off',
+  'tour.rating-context.b2': 'Hype: what you expected going in',
+  'tour.rating-context.b3': 'Pacing: the tempo as you felt it',
+
   // ── New Features Modal ───────────────────────────────────────────────────
-  'newFeatures.newBadge': 'New v0.87',
+  'newFeatures.newBadge': 'New v0.89',
+  'newFeatures.tour.title1': 'GUIDED',
+  'newFeatures.tour.title2': 'TOUR',
+  'newFeatures.tour.desc':
+    'An <b>interactive walkthrough</b> that lights up the real buttons and lets you do the tapping. A second run covers <b>rating and Bitter+ mode</b> on your first add. Restartable from Profile, then Settings.',
 
   'newFeatures.recap.title1': 'THE WEEKLY',
   'newFeatures.recap.title2': 'RECAP.',
@@ -384,7 +535,7 @@ export const en: Record<string, string> = {
   'newFeatures.editorial.title1': 'EDITORIAL',
   'newFeatures.editorial.title2': 'STORY.',
   'newFeatures.editorial.desc':
-    'A new <b>art direction</b> — darker, more immersive and worthy of a real movie poster — to share your ratings.',
+    'A new <b>art direction</b> to share your ratings: darker, more immersive and worthy of a real movie poster.',
 
   'newFeatures.polish.title1': 'INTERFACE',
   'newFeatures.polish.title2': 'IMPROVEMENTS.',
@@ -394,7 +545,7 @@ export const en: Record<string, string> = {
   'newFeatures.step4.badge': 'New v0.84',
   'newFeatures.step4.title1': 'YOUR VOICE',
   'newFeatures.step4.title2': 'MATTERS.',
-  'newFeatures.step4.desc': 'See the <b>💬 button in the navbar</b>? It\'s for you. Report a bug, share an idea, drop us a message — <b>we read everything</b>. Your feedback is the main driver of future The Bitter updates.',
+  'newFeatures.step4.desc': 'See the <b>💬 button in the navbar</b>? It\'s for you. Report a bug, share an idea, drop us a message. <b>We read everything</b>. Your feedback is the main driver of future The Bitter updates.',
   'newFeatures.step0.badge': 'New v0.84',
   'newFeatures.step0.title1': 'PERSONAL',
   'newFeatures.step0.title2': 'RECS.',

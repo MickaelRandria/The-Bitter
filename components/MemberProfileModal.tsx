@@ -90,7 +90,7 @@ export default function MemberProfileModal({ member, onClose }: Props) {
               </div>
               <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5 text-center">
                 <p className="text-2xl font-black text-charcoal dark:text-white">
-                  {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}
+                  {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '-'}
                 </p>
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
                   Moyenne /10

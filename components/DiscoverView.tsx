@@ -289,6 +289,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             <Search size={20} strokeWidth={3} />
           </div>
           <input
+            data-tour="discover-search"
             type="text"
             placeholder={t('discover.search')}
             className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
@@ -399,7 +400,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2">
               <Clock size={12} /> {t('feed.period')}
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div data-tour="discover-period" className="grid grid-cols-3 gap-3">
               {[
                 { id: 'this_month', l: t('discover.month'), i: <Calendar size={18} /> },
                 { id: 'this_year', l: new Date().getFullYear().toString(), i: <Zap size={18} /> },
@@ -424,7 +425,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1">
               {t('discover.platform')}
             </h3>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+            <div data-tour="discover-platform" className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
               {PROVIDERS.map((provider) => {
                 if (mediaType === 'tv' && provider.id === 'cinema') return null;
                 const isActive = streamingFilter === provider.id;
