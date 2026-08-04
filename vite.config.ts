@@ -21,6 +21,9 @@ export default defineConfig({
         'favicon_io/apple-touch-icon.png',
         'favicon_io/android-chrome-192x192.png',
         'favicon_io/android-chrome-512x512.png',
+        // Le splash de lancement doit être peint immédiatement, dès le premier
+        // démarrage en standalone et hors ligne : il ne peut pas dépendre du réseau.
+        'icons/BitterLoadingScreen.png',
       ],
       manifest: {
         name: 'The Bitter',

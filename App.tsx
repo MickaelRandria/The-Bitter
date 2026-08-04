@@ -74,6 +74,7 @@ import FeedbackModal from './components/FeedbackModal';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
+import { notifySplashReady } from './utils/splash';
 import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
 
 // Lazy loading components
@@ -301,6 +302,10 @@ const App: React.FC = () => {
 
   const [session, setSession] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  // Amorçage complet : vérification de session PUIS migration éventuelle. Distinct
+  // de `authLoading`, qui retombe dès la session connue pour ne pas retenir l'UI
+  // pendant une migration réseau. Sert uniquement à retirer le splash.
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showProfileLinking, setShowProfileLinking] = useState(false);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -470,6 +475,12 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(SEEN_TOOLTIPS_KEY, JSON.stringify(seenTooltips));
   }, [seenTooltips]);
+
+  // Amorçage terminé : le splash peut s'effacer. Il gère lui-même sa durée
+  // plancher, donc on signale simplement dès que possible.
+  useEffect(() => {
+    if (!bootstrapping) notifySplashReady();
+  }, [bootstrapping]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -741,6 +752,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!supabase) {
       setAuthLoading(false);
+      setBootstrapping(false);
       return;
     }
 
@@ -764,7 +776,11 @@ const App: React.FC = () => {
           }
         }
       }
-    });
+    })
+      // Le callback ci-dessus étant async, `finally` attend bien la fin de la
+      // migration. Il se déclenche aussi en cas d'échec : le splash ne doit jamais
+      // rester coincé sur une erreur réseau.
+      .finally(() => setBootstrapping(false));
 
     // Écouter les changements d'état
     const {

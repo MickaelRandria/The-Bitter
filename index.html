@@ -36,9 +36,96 @@
         background-color: #0c0c0c;
         color: #FFFFFF;
       }
+
+      /*
+        Splash de lancement, réservé au mode standalone (app installée sur l'écran
+        d'accueil). En onglet classique on est déjà dans un navigateur, un écran de
+        chargement plein écran n'y aurait aucun sens.
+
+        L'affichage est piloté par une media query plutôt que par du JS : le splash
+        est ainsi peint dès la première frame, sans le flash qu'on aurait en
+        l'ajoutant après coup. L'image passe par `background-image` pour qu'un
+        fichier manquant laisse simplement le fond noir, sans icône d'image cassée.
+      */
+      #splash {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background-color: #0c0c0c;
+        background-image: url('/icons/BitterLoadingScreen.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 1;
+        transition: opacity 420ms ease;
+      }
+
+      @media (display-mode: standalone) {
+        #splash { display: block; }
+      }
+
+      /* iOS ajouté à l'écran d'accueil : display-mode n'est pas toujours fiable. */
+      html.is-standalone #splash { display: block; }
+
+      #splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
     </style>
+
+    <script>
+      // Doit rester avant la première peinture, sinon le splash apparaîtrait en retard.
+      if (window.navigator.standalone === true) {
+        document.documentElement.classList.add('is-standalone');
+      }
+    </script>
   </head>
   <body>
+    <div id="splash" aria-hidden="true"></div>
+    <script>
+      (function () {
+        var splash = document.getElementById('splash');
+        if (!splash) return;
+
+        var standalone =
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          window.navigator.standalone === true;
+
+        if (!standalone) {
+          splash.parentNode.removeChild(splash);
+          return;
+        }
+
+        // Durée plancher pour que le logo soit vu même quand tout charge vite,
+        // plafond de sécurité pour ne jamais bloquer l'app derrière le splash.
+        var MIN_VISIBLE_MS = 1200;
+        var MAX_VISIBLE_MS = 5000;
+        var FADE_MS = 420;
+        var shownAt = Date.now();
+        var hidden = false;
+
+        function hide() {
+          if (hidden) return;
+          hidden = true;
+          splash.classList.add('is-hidden');
+          setTimeout(function () {
+            if (splash.parentNode) splash.parentNode.removeChild(splash);
+          }, FADE_MS);
+        }
+
+        // Appelé par l'app une fois l'amorçage terminé (voir utils/splash.ts).
+        function onReady() {
+          setTimeout(hide, Math.max(0, MIN_VISIBLE_MS - (Date.now() - shownAt)));
+        }
+        window.__bitterSplashReady = onReady;
+
+        // Filet : l'app a pu se déclarer prête avant l'exécution de ce script.
+        if (window.__bitterAppReady === true) onReady();
+
+        setTimeout(hide, MAX_VISIBLE_MS);
+      })();
+    </script>
     <div class="grain-overlay"></div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
