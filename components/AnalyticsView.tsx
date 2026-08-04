@@ -479,18 +479,18 @@ const TrendDetailModal: React.FC<{
               },
               {
                 label: t('analytics.trendDelta'),
-                value: delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}`,
+                value: delta === null ? '-' : `${delta > 0 ? '+' : ''}${delta}`,
                 sub: windowLabel,
               },
               {
                 label: t('analytics.trendBest'),
-                value: best?.avg?.toFixed(1) ?? '—',
-                sub: best ? formatPeriod(best.weekStart) : '—',
+                value: best?.avg?.toFixed(1) ?? '-',
+                sub: best ? formatPeriod(best.weekStart) : '-',
               },
               {
                 label: t('analytics.trendWorst'),
-                value: worst?.avg?.toFixed(1) ?? '—',
-                sub: worst ? formatPeriod(worst.weekStart) : '—',
+                value: worst?.avg?.toFixed(1) ?? '-',
+                sub: worst ? formatPeriod(worst.weekStart) : '-',
               },
             ].map((tile) => (
               <div
@@ -1090,7 +1090,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
   if (isLocked) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center animate-[fadeIn_0.5s_ease-out]">
+      <div
+        data-tour="analytics-locked"
+        className="flex flex-col items-center justify-center py-20 text-center animate-[fadeIn_0.5s_ease-out]"
+      >
         <div className="w-24 h-24 bg-stone-100 dark:bg-[#161616] rounded-full flex items-center justify-center mb-6 text-stone-300 dark:text-stone-600 transition-colors">
           <Lock size={40} />
         </div>
@@ -1644,7 +1647,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       </p>
                       <div className="mt-2 inline-flex items-center gap-1 bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400 px-2 py-0.5 rounded-full">
                         <span className="text-[9px] font-black">
-                          +{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '—'} vs
+                          +{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '-'} vs
                           TMDB
                         </span>
                       </div>

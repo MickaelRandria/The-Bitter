@@ -314,7 +314,7 @@ const formatRange = (start: Date, end: Date, language: Language) => {
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const day = new Intl.DateTimeFormat(locale, { day: '2-digit' }).format(start);
   const dayMonth = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short' }).format(end);
-  return `${day} — ${dayMonth}`.replace(/\./g, '').toUpperCase();
+  return `${day} · ${dayMonth}`.replace(/\./g, '').toUpperCase();
 };
 
 interface WeekOption {

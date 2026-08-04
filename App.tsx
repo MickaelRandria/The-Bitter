@@ -27,7 +27,6 @@
   Loader2,
   Star,
   Tags,
-  ChevronLeft,
   ChevronRight,
   MessageSquareText,
   Users,
@@ -73,6 +72,9 @@ import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
+import GuidedTour from './components/GuidedTour';
+import TourPrompt from './components/TourPrompt';
+import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -126,6 +128,7 @@ const BottomNav = memo(
           style={{ willChange: 'transform' }}
         >
           <button
+            data-tour="nav-feed"
             onClick={() => {
               haptics.soft();
               setViewMode('Feed');
@@ -137,6 +140,7 @@ const BottomNav = memo(
             <LayoutGrid size={22} />
           </button>
           <button
+            data-tour="nav-discover"
             onClick={() => {
               haptics.soft();
               setViewMode('Discover');
@@ -148,6 +152,7 @@ const BottomNav = memo(
             <Clapperboard size={22} />
           </button>
           <button
+            data-tour="nav-add"
             onClick={() => {
               haptics.medium();
               setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
@@ -159,6 +164,7 @@ const BottomNav = memo(
             <Plus size={24} strokeWidth={3} />
           </button>
           <button
+            data-tour="nav-analytics"
             onClick={() => {
               haptics.soft();
               setViewMode('Analytics');
@@ -170,6 +176,7 @@ const BottomNav = memo(
             <PieChart size={22} />
           </button>
           <button
+            data-tour="nav-calendar"
             onClick={() => {
               haptics.soft();
               setViewMode('Calendar');
@@ -352,6 +359,15 @@ const App: React.FC = () => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
+  // Deux visites guidées : 'main' à la création du profil (découverte des pages),
+  // 'rating' à la première ouverture de l'écran d'ajout (notation et Bitter+).
+  const [activeTour, setActiveTour] = useState<'main' | 'rating' | null>(null);
+  // Les deux parcours démarrent tout seuls : on demande d'abord, on n'impose pas.
+  const [pendingTour, setPendingTour] = useState<'main' | 'rating' | null>(null);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const tourSteps = activeTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS;
+  const tourStep = activeTour ? tourSteps[tourStepIndex] : null;
+  const tourActive = activeTour !== null;
   const [activeTooltip, setActiveTooltip] = useState<{
     id: string;
     title: string;
@@ -479,6 +495,9 @@ const App: React.FC = () => {
   // Trigger tooltips based on viewMode
   useEffect(() => {
     if (!activeProfile) return;
+    // La visite guidée pilote elle-même les changements de page : sans ce garde-fou,
+    // chaque saut d'étape déclencherait en plus une bulle contextuelle par-dessus.
+    if (tourActive) return;
 
     if (viewMode === 'Analytics' && !seenTooltips.includes('analytics_intro')) {
       showTooltip(
@@ -513,7 +532,106 @@ const App: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [viewMode, activeProfile, seenTooltips]);
+  }, [viewMode, activeProfile, seenTooltips, tourActive]);
+
+  // C'est l'étape courante qui décide de la page affichée : le tuto se déroule sur
+  // la vraie app, pas dans un carrousel. Le parcours notation ne pilote rien — il
+  // se joue dans l'écran d'ajout que l'utilisateur vient d'ouvrir lui-même.
+  useEffect(() => {
+    if (activeTour !== 'main') return;
+    const step = TOUR_STEPS[tourStepIndex];
+    if (!step) return;
+
+    if (step.page === 'Profile') {
+      setShowProfile(true);
+    } else if (step.page !== 'AddMovie') {
+      setShowProfile(false);
+      setViewMode(step.page);
+    }
+  }, [activeTour, tourStepIndex]);
+
+  // Le parcours notation se déclenche à la première ouverture de l'écran d'ajout,
+  // au moment où ses explications servent vraiment. On l'écarte en édition (pas de
+  // champ de recherche) et en mode « À voir » (la grille de notation n'est pas rendue).
+  useEffect(() => {
+    if (!isModalOpen || activeTour !== null || pendingTour !== null) return;
+    if (editingMovie || initialStatusForAdd !== 'watched') return;
+    if (seenTooltips.includes(RATING_TOUR_SEEN_ID)) return;
+
+    // La modale est chargée en lazy : on la laisse se monter avant de proposer.
+    const timer = setTimeout(() => setPendingTour('rating'), 500);
+    return () => clearTimeout(timer);
+  }, [isModalOpen, activeTour, pendingTour, editingMovie, initialStatusForAdd, seenTooltips]);
+
+  const acceptTour = () => {
+    const variant = pendingTour;
+    setPendingTour(null);
+    if (!variant) return;
+    // « Quoi de neuf » s'ouvre aussi au tout premier lancement : les deux se
+    // superposeraient sur le même écran.
+    setShowNewFeatures(false);
+    setTourStepIndex(0);
+    setActiveTour(variant);
+  };
+
+  const declineTour = () => {
+    const variant = pendingTour;
+    setPendingTour(null);
+    // Refuser le parcours notation le marque comme vu : sans ça, la proposition
+    // reviendrait à chaque ouverture de l'écran d'ajout. Il reste relançable
+    // depuis les paramètres du profil.
+    if (variant === 'rating') {
+      setSeenTooltips((prev) =>
+        prev.includes(RATING_TOUR_SEEN_ID) ? prev : [...prev, RATING_TOUR_SEEN_ID]
+      );
+    }
+  };
+
+  const finishTour = () => {
+    const finished = activeTour;
+    setActiveTour(null);
+
+    if (finished === 'rating') {
+      // On ne referme pas l'écran d'ajout : l'utilisateur était en train de s'en servir.
+      setSeenTooltips((prev) =>
+        prev.includes(RATING_TOUR_SEEN_ID) ? prev : [...prev, RATING_TOUR_SEEN_ID]
+      );
+      return;
+    }
+
+    // Ces bulles réexpliqueraient mot pour mot ce que le tuto vient de montrer :
+    // on les marque comme vues plutôt que de les enchaîner en doublon.
+    setSeenTooltips((prev) => {
+      const covered = ['analytics_intro', 'calendar_intro', 'discover_intro'];
+      const missing = covered.filter((id) => !prev.includes(id));
+      return missing.length > 0 ? [...prev, ...missing] : prev;
+    });
+  };
+
+  const handleTourNext = () => {
+    if (tourStepIndex >= tourSteps.length - 1) {
+      finishTour();
+      return;
+    }
+    setTourStepIndex((i) => i + 1);
+  };
+
+  const handleTourPrev = () => {
+    setTourStepIndex((i) => Math.max(0, i - 1));
+  };
+
+  /** Lancement explicite depuis les paramètres du profil : pas de question à poser. */
+  const handleStartTour = () => {
+    setShowProfile(false);
+    // Au tout premier lancement, « Quoi de neuf » s'ouvre aussi : les deux se
+    // superposeraient sur le même écran.
+    setShowNewFeatures(false);
+    setPendingTour(null);
+    // Relancer le tuto réarme aussi le parcours notation, reproposé au prochain ajout.
+    setSeenTooltips((prev) => prev.filter((id) => id !== RATING_TOUR_SEEN_ID));
+    setTourStepIndex(0);
+    setActiveTour('main');
+  };
 
   const loadOrCreateProfile = async (user: any) => {
     if (!supabase) return;
@@ -1265,6 +1383,8 @@ const App: React.FC = () => {
             setProfiles((p) => [...p, newP]);
             setActiveProfileId(newP.id);
             setShowWelcome(false);
+            // Uniquement à la création : sélectionner un profil existant ne propose rien.
+            setPendingTour('main');
           }}
           onDeleteProfile={(id) => {
             setProfiles((prev) => {
@@ -1300,20 +1420,9 @@ const App: React.FC = () => {
         >
           <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">
             <div className="flex flex-col justify-center">
+              {/* Le retour au feed vit désormais dans les paramètres du profil,
+                  pour dégager de la place dans le header. */}
               <div className="flex items-center gap-2">
-                {viewMode !== 'Feed' && (
-                  <button
-                    onClick={handleBackToFeed}
-                    aria-label={t('nav.back')}
-                    className="w-8 h-8 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all mr-1"
-                  >
-                    <ChevronLeft
-                      size={16}
-                      strokeWidth={3}
-                      className="text-charcoal dark:text-white"
-                    />
-                  </button>
-                )}
                 <h1 className="text-lg font-black tracking-tighter leading-none text-charcoal dark:text-white">
                   The Bitter
                 </h1>
@@ -1342,6 +1451,7 @@ const App: React.FC = () => {
                 <MessageSquareText size={20} />
               </button>
               <button
+                data-tour="nav-profile"
                 onClick={() => {
                   haptics.soft();
                   setShowProfile(true);
@@ -1412,7 +1522,10 @@ const App: React.FC = () => {
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {!activeProfile || activeProfile.movies.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div
+                  data-tour="feed-empty"
+                  className="flex flex-col items-center justify-center py-12 text-center"
+                >
                   <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce">
                     <Film size={40} />
                   </div>
@@ -1833,7 +1946,7 @@ const App: React.FC = () => {
                               className="flex-1 bg-stone-100 dark:bg-[#111] border border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-charcoal dark:text-white outline-none text-center"
                             />
                             <span className="text-stone-300 dark:text-stone-700 text-xs font-bold">
-                              —
+                              -
                             </span>
                             <input
                               type="number"
@@ -2015,6 +2128,9 @@ const App: React.FC = () => {
             currentUserId={session?.user?.id || activeProfile?.id}
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger((prev) => prev + 1)}
             onToast={setToastMessage}
+            tourForceBitterPlus={
+              activeTour === 'rating' && !!tourStep?.id.startsWith('bitterplus')
+            }
           />
         )}
         {previewTmdbId &&
@@ -2145,6 +2261,15 @@ const App: React.FC = () => {
             onImportBackup={handleImportBackup}
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}
+            onReplayTour={handleStartTour}
+            onBackToFeed={
+              viewMode === 'Feed'
+                ? undefined
+                : () => {
+                    setShowProfile(false);
+                    handleBackToFeed();
+                  }
+            }
           />
         )}
 
@@ -2233,6 +2358,26 @@ const App: React.FC = () => {
           profiles={profiles}
           onLink={handleLinkProfile}
           onSkip={() => setShowProfileLinking(false)}
+        />
+      )}
+
+      {pendingTour && !activeTour && (
+        <TourPrompt
+          variant={pendingTour}
+          stepCount={(pendingTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS).length}
+          onAccept={acceptTour}
+          onDecline={declineTour}
+        />
+      )}
+
+      {tourStep && (
+        <GuidedTour
+          step={tourStep}
+          stepIndex={tourStepIndex}
+          totalSteps={tourSteps.length}
+          onNext={handleTourNext}
+          onPrev={handleTourPrev}
+          onSkip={finishTour}
         />
       )}
     </div>

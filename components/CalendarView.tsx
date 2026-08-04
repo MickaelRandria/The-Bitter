@@ -283,7 +283,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
 
       {/* Month nav + heatmap toggle */}
       <div className="px-6 py-4">
-        <div className="bg-white dark:bg-[#1a1a1a] rounded-full shadow-sm dark:shadow-black/20 border border-stone-100 dark:border-white/10 py-3 px-4 flex items-center justify-between mx-auto max-w-sm transition-all">
+        <div
+          data-tour="calendar-nav"
+          className="bg-white dark:bg-[#1a1a1a] rounded-full shadow-sm dark:shadow-black/20 border border-stone-100 dark:border-white/10 py-3 px-4 flex items-center justify-between mx-auto max-w-sm transition-all"
+        >
           {viewMode === 'month' ? (
             <button
               onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
@@ -342,6 +345,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies }) => {
         {/* Toggle button */}
         <div className="flex justify-center mt-2">
           <button
+            data-tour="calendar-toggle"
             onClick={() => setViewMode((v) => (v === 'month' ? 'heatmap' : 'month'))}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${viewMode === 'heatmap' ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal' : 'bg-stone-100 dark:bg-[#252525] text-stone-400 dark:text-stone-500'}`}
           >

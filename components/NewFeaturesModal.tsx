@@ -7,6 +7,7 @@ import {
   CalendarRange,
   MousePointerClick,
   MessageSquareText,
+  Compass,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -35,6 +36,12 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
   // Un seul écran : tout est listé, on ne force plus 5 étapes avant d'accéder à l'app.
   // Les nouveautés de la version en cours d'abord, les précédentes ensuite.
   const features = [
+    {
+      key: 'tour',
+      icon: Compass,
+      accent: 'text-bitter-lime',
+      badge: t('newFeatures.newBadge'),
+    },
     {
       key: 'recap',
       icon: CalendarRange,

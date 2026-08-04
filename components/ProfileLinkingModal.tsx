@@ -33,7 +33,7 @@ export default function ProfileLinkingModal({ profiles, onLink, onSkip }: Props)
             </div>
           </div>
           <p className="text-[11px] text-stone-400 leading-relaxed">
-            Ce profil sera visible dans les Espaces Partagés — tes 5 films les mieux notés, tes stats. Choix modifiable plus tard.
+            Ce profil sera visible dans les Espaces Partagés : tes 5 films les mieux notés, tes stats. Choix modifiable plus tard.
           </p>
         </div>
 

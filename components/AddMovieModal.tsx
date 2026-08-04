@@ -68,6 +68,12 @@ interface AddMovieModalProps {
   onSharedMovieAdded?: () => void;
   initialMediaType?: 'movie' | 'tv';
   onToast?: (message: string) => void;
+  /**
+   * Visite guidée : force l'affichage de la grille Bitter+ pendant les étapes qui
+   * l'expliquent. Sans ça le tuto pointerait des critères que l'utilisateur n'a
+   * pas encore déverrouillés en basculant le mode lui-même.
+   */
+  tourForceBitterPlus?: boolean;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -175,6 +181,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   onSharedMovieAdded,
   initialMediaType = 'movie',
   onToast,
+  tourForceBitterPlus,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
@@ -196,6 +203,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
   const skipSearchRef = useRef(false);
   const searchTimeoutRef = useRef<number | null>(null);
+  /** Le profil affiché vient de la démo du tuto et doit être rendu à la détection auto. */
+  const tourPreviewRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -263,6 +272,36 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
+
+  // Déclaré après l'effet de réinitialisation pour passer en dernier : à l'ouverture,
+  // celui-ci remet useBitterPlus à false, celui-là le rallume si le tuto l'exige.
+  useEffect(() => {
+    if (tourForceBitterPlus) {
+      setUseBitterPlus(true);
+      // Sans film saisi, le profil détecté est « Standard » : poids tous égaux, aucun
+      // critère renforcé, aucun critère spécifique — précisément ce que le tuto doit
+      // montrer. On affiche donc la grille d'une comédie, seul profil où les quatre
+      // niveaux de poids sont représentés. `profileManuallySet` empêche la détection
+      // par genre de la réécraser pendant l'explication.
+      if (!formData.title.trim()) {
+        tourPreviewRef.current = true;
+        setProfileManuallySet(true);
+        setProfileId('comedy');
+      }
+      return;
+    }
+
+    // Fin des étapes Bitter+ : on rend la main à la détection par genre, sinon le
+    // profil « Comédie » de démonstration resterait collé au film que l'utilisateur
+    // va saisir juste après (le tuto se joue dans une modale qui reste ouverte).
+    if (tourPreviewRef.current) {
+      tourPreviewRef.current = false;
+      setProfileManuallySet(false);
+    }
+    // formData.title est lu au moment du basculement uniquement : l'ajouter en
+    // dépendance replacerait le profil à chaque frappe de l'utilisateur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourForceBitterPlus, isOpen]);
 
   // Auto-detect profile from genre unless user manually overrode it
   useEffect(() => {
@@ -532,7 +571,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         </div>
 
         <div className="overflow-y-auto p-6 sm:p-8 space-y-8 no-scrollbar flex-1 pb-32">
-          <div className="flex bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full border border-stone-200/50 dark:border-white/5 transition-colors">
+          <div
+            data-tour="add-status"
+            className="flex bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full border border-stone-200/50 dark:border-white/5 transition-colors"
+          >
             <button
               onClick={() => {
                 haptics.soft();
@@ -626,6 +668,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
                 <div className="relative">
                   <input
+                    data-tour="add-search"
                     type="text"
                     className="w-full bg-white dark:bg-[#161616] border-2 border-stone-100 dark:border-white/5 focus:border-charcoal dark:focus:border-white/20 p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12 text-charcoal dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
                     placeholder={searchType === 'tv' ? t('addMovie.seriesName') : t('addMovie.movieTitle')}
@@ -686,7 +729,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           {mode === 'watched' && !sharedSpace && (
             <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {/* Bitter / Bitter+ mode switch — Bitter is the default, Bitter+ opens the advanced grid */}
-              <div className="bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-[2rem] p-2 shadow-sm">
+              <div
+                data-tour="add-rating-mode"
+                className="bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-[2rem] p-2 shadow-sm"
+              >
                 <div className="flex items-stretch gap-1" role="tablist" aria-label="Mode de notation">
                   <button
                     type="button"
@@ -745,7 +791,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       setShowProfilePicker(true);
                     }}
                   />
-                  <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 sm:p-8 rounded-[2rem] shadow-xl transition-all">
+                  <div
+                    data-tour="add-distraction"
+                    className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 sm:p-8 rounded-[2rem] shadow-xl transition-all"
+                  >
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="flex items-start gap-3 min-w-0">
                         <Smartphone size={20} className="text-bitter-lime shrink-0 mt-0.5" />
@@ -1153,7 +1202,10 @@ const AdaptiveRatingSection: React.FC<{
   return (
     <div className="space-y-6">
       {/* Profile header */}
-      <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm">
+      <div
+        data-tour="add-profile-header"
+        className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 rounded-[2rem] p-5 shadow-sm"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
@@ -1202,7 +1254,7 @@ const AdaptiveRatingSection: React.FC<{
       </div>
 
       {/* Base criteria */}
-      <div>
+      <div data-tour="add-criteria">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
           Critères de notation
         </p>
@@ -1215,7 +1267,7 @@ const AdaptiveRatingSection: React.FC<{
 
       {/* Specific criterion */}
       {specific.length > 0 && (
-        <div>
+        <div data-tour="add-specific">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
             Critère spécifique
           </p>
@@ -1231,7 +1283,10 @@ const AdaptiveRatingSection: React.FC<{
       )}
 
       {/* Final weighted rating */}
-      <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-6 shadow-xl">
+      <div
+        data-tour="add-final-rating"
+        className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2rem] p-6 shadow-xl"
+      >
         <div className="flex items-center justify-between gap-3">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
             Note finale

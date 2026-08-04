@@ -20,6 +20,9 @@ import {
   Users,
   ChevronDown,
   Smartphone,
+  Compass,
+  Settings,
+  ChevronLeft,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { createBackup, parseBackup, TheBitterBackup } from '../utils/dataBackup';
@@ -46,6 +49,13 @@ interface ProfileModalProps {
   onSignOut: () => void;
   onOpenSpaces: () => void;
   onLetterboxdImport?: () => void;
+  /** Lance la visite guidée. Absent, le bouton correspondant n'est pas rendu. */
+  onReplayTour?: () => void;
+  /**
+   * Retour au feed. Déplacé du header vers les paramètres pour dégager de la place
+   * en haut de l'écran ; absent quand on est déjà sur le feed.
+   */
+  onBackToFeed?: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -77,6 +87,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onSignOut,
   onOpenSpaces,
   onLetterboxdImport,
+  onReplayTour,
+  onBackToFeed,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const dialog = useDialog(onClose, t('profileModal.title'));
@@ -84,6 +96,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,7 +157,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const stats = useMemo(() => {
     const watched = profile.movies.filter((m) => m.status === 'watched');
-    return { watchedCount: watched.length, dominantGenre: dominantGenre(watched) ?? '—' };
+    return { watchedCount: watched.length, dominantGenre: dominantGenre(watched) ?? '-' };
   }, [profile.movies]);
 
   const archetypeIcon = profile.role ? ARCHETYPE_ICONS[profile.role] : null;
@@ -264,7 +277,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
           {/* SECTION 4: CALIBRATION */}
-          <div>
+          <div data-tour="profile-calibration">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
                 {t('profileModal.calibration')}
@@ -361,7 +374,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
           {/* SECTION 6: NOTIFICATIONS (accordéon) */}
-          <div className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden">
+          <div
+            data-tour="profile-notifications"
+            className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden"
+          >
             {/* Le bouton « notif test » est un frère du bouton d'accordéon :
                 un <button> dans un <button> est du HTML invalide et casse le clavier */}
             <div className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5">
@@ -441,8 +457,44 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
 
-          {/* SECTION 7: ACTIONS */}
-          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+          {/* SECTION 7 : PARAMÈTRES (repliable) */}
+          <div className="pt-4 border-t border-sand dark:border-white/5">
+            <button
+              onClick={() => { haptics.soft(); setSettingsOpen((o) => !o); }}
+              aria-expanded={settingsOpen}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                  <Settings size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('profileModal.settings')}
+                </span>
+              </div>
+              <ChevronDown
+                size={16}
+                className={`text-stone-400 dark:text-stone-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <div className={`space-y-1 ${settingsOpen ? 'pt-1 animate-[fadeIn_0.25s_ease-out]' : 'hidden'}`}>
+
+            {onBackToFeed && (
+              <button
+                onClick={() => { haptics.soft(); onBackToFeed(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                    <ChevronLeft size={14} strokeWidth={3} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('profileModal.backToFeed')}
+                  </span>
+                </div>
+              </button>
+            )}
 
             {session && (
               <button
@@ -480,27 +532,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </button>
 
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-            <button
-              onClick={() => { haptics.soft(); importInputRef.current?.click(); }}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Upload size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.import')}
-                </span>
-              </div>
-            </button>
-
             <button
               onClick={() => {
                 haptics.soft();
@@ -523,7 +554,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </button>
 
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              className="hidden"
+            />
             <button
+              onClick={() => { haptics.soft(); importInputRef.current?.click(); }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                  <Upload size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('profileModal.import')}
+                </span>
+              </div>
+            </button>
+
+            <button
+              data-tour="profile-export"
               onClick={handleExport}
               className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
             >
@@ -536,6 +589,22 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </span>
               </div>
             </button>
+
+            {onReplayTour && (
+              <button
+                onClick={() => { haptics.soft(); onReplayTour(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                    <Compass size={14} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('profileModal.replayTour')}
+                  </span>
+                </div>
+              </button>
+            )}
 
             {onLetterboxdImport && (
               <button
@@ -573,6 +642,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </button>
             )}
+            </div>
           </div>
         </div>
 

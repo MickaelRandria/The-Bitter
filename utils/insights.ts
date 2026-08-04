@@ -123,7 +123,7 @@ export const computePacingInsight = (watched: Movie[]): PacingInsightResult | nu
   const pacingDescriptions: Record<PacingType, string> = {
     slow: "Tu t'épanouis dans les films qui respirent. La lenteur est une invitation à la profondeur, pas un défaut.",
     perfect:
-      "Tu apprécies un cinéma bien équilibré — ni trop pressé ni trop contemplatif. L'harmonie avant tout.",
+      "Tu apprécies un cinéma bien équilibré, ni trop pressé ni trop contemplatif. L'harmonie avant tout.",
     fast: 'Tu aimes quand ça bouge. Le rythme effréné te tient en éveil et amplifie ton engagement.',
   };
 
