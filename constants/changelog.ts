@@ -35,6 +35,10 @@ export const RELEASE_HISTORY: Release[] = [
         text: 'Profil rangé. Toutes les options sont regroupées sous un bouton Paramètres repliable, et le retour au feed y a été déplacé pour dégager de la place dans le header.',
       },
       {
+        type: 'feature',
+        text: 'Écran de lancement. Installée sur ton écran d’accueil, l’app s’ouvre désormais sur son propre visuel le temps que tout soit prêt. Rien ne change dans un onglet de navigateur.',
+      },
+      {
         type: 'style',
         text: '« Comment ça marche » devient « Les bonnes pratiques » et remonte au-dessus de l’import de données.',
       },
