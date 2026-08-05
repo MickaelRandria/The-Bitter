@@ -23,14 +23,17 @@ export default defineConfig({
         'favicon_io/android-chrome-512x512.png',
         // Le splash de lancement doit être peint immédiatement, dès le premier
         // démarrage en standalone et hors ligne : il ne peut pas dépendre du réseau.
-        'icons/BitterLoadingScreen.png',
+        'icons/BitterLoadingScreen.webp',
       ],
       manifest: {
         name: 'The Bitter',
         short_name: 'Bitter',
         description: 'A warm, minimalist, mobile-first movie tracking application.',
         theme_color: '#1c1917',
-        background_color: '#f5f5f4',
+        // Fond du splash natif généré par Android avant que la page ne s'affiche.
+        // Il était crème, ce qui produisait un éclair blanc juste avant notre écran
+        // de lancement, qui est sombre.
+        background_color: '#0c0c0c',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
