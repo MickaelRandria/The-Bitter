@@ -182,7 +182,7 @@ export const fr: Record<string, string> = {
   'profileModal.export': 'Exporter mes données',
   'profileModal.replayTour': 'Faire le tuto',
   'profileModal.settings': 'Paramètres',
-  'profileModal.backToFeed': 'Retour au feed',
+  'profileModal.feedbackDesc': 'Un bug, une idée, un message',
   'profileModal.signOut': 'Se déconnecter',
   'profileModal.language': 'Langue',
 

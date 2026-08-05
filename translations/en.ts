@@ -181,7 +181,7 @@ export const en: Record<string, string> = {
   'profileModal.export': 'Export my data',
   'profileModal.replayTour': 'Take the tour',
   'profileModal.settings': 'Settings',
-  'profileModal.backToFeed': 'Back to feed',
+  'profileModal.feedbackDesc': 'A bug, an idea, a message',
   'profileModal.signOut': 'Sign out',
   'profileModal.language': 'Language',
 

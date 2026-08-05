@@ -22,7 +22,7 @@ import {
   Smartphone,
   Compass,
   Settings,
-  ChevronLeft,
+  MessageSquareText,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { createBackup, parseBackup, TheBitterBackup } from '../utils/dataBackup';
@@ -52,10 +52,10 @@ interface ProfileModalProps {
   /** Lance la visite guidée. Absent, le bouton correspondant n'est pas rendu. */
   onReplayTour?: () => void;
   /**
-   * Retour au feed. Déplacé du header vers les paramètres pour dégager de la place
-   * en haut de l'écran ; absent quand on est déjà sur le feed.
+   * Ouvre le formulaire de retour. Déplacé du header vers les paramètres pour
+   * dégager de la place en haut de l'écran.
    */
-  onBackToFeed?: () => void;
+  onSendFeedback?: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -88,7 +88,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onOpenSpaces,
   onLetterboxdImport,
   onReplayTour,
-  onBackToFeed,
+  onSendFeedback,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const dialog = useDialog(onClose, t('profileModal.title'));
@@ -480,18 +480,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
             <div className={`space-y-1 ${settingsOpen ? 'pt-1 animate-[fadeIn_0.25s_ease-out]' : 'hidden'}`}>
 
-            {onBackToFeed && (
+            {onSendFeedback && (
               <button
-                onClick={() => { haptics.soft(); onBackToFeed(); }}
+                onClick={() => { haptics.soft(); onSendFeedback(); }}
                 className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                    <ChevronLeft size={14} strokeWidth={3} />
+                    <MessageSquareText size={14} />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                    {t('profileModal.backToFeed')}
-                  </span>
+                  <div className="text-left">
+                    <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                      {t('nav.feedback')}
+                    </span>
+                    <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
+                      {t('profileModal.feedbackDesc')}
+                    </span>
+                  </div>
                 </div>
               </button>
             )}

@@ -28,7 +28,7 @@
   Star,
   Tags,
   ChevronRight,
-  MessageSquareText,
+  ChevronLeft,
   Users,
   Globe,
   Info,
@@ -1436,9 +1436,20 @@ const App: React.FC = () => {
         >
           <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">
             <div className="flex flex-col justify-center">
-              {/* Le retour au feed vit désormais dans les paramètres du profil,
-                  pour dégager de la place dans le header. */}
               <div className="flex items-center gap-2">
+                {viewMode !== 'Feed' && (
+                  <button
+                    onClick={handleBackToFeed}
+                    aria-label={t('nav.back')}
+                    className="w-8 h-8 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all mr-1"
+                  >
+                    <ChevronLeft
+                      size={16}
+                      strokeWidth={3}
+                      className="text-charcoal dark:text-white"
+                    />
+                  </button>
+                )}
                 <h1 className="text-lg font-black tracking-tighter leading-none text-charcoal dark:text-white">
                   The Bitter
                 </h1>
@@ -1456,16 +1467,8 @@ const App: React.FC = () => {
             <div className="flex items-center gap-1.5 sm:gap-2">
               <ThemeToggle />
               <NotificationCenter movies={activeProfile?.movies || []} />
-              <button
-                onClick={() => {
-                  haptics.soft();
-                  setShowFeedbackModal(true);
-                }}
-                aria-label={t('nav.feedback')}
-                className="relative w-10 h-10 rounded-2xl border flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all bg-white dark:bg-[#1a1a1a] border-sand dark:border-white/10 text-charcoal dark:text-white"
-              >
-                <MessageSquareText size={20} />
-              </button>
+              {/* Le feedback vit dans les paramètres du profil : le header n'a de
+                  place que pour les actions vraiment fréquentes. */}
               <button
                 data-tour="nav-profile"
                 onClick={() => {
@@ -2278,14 +2281,10 @@ const App: React.FC = () => {
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}
             onReplayTour={handleStartTour}
-            onBackToFeed={
-              viewMode === 'Feed'
-                ? undefined
-                : () => {
-                    setShowProfile(false);
-                    handleBackToFeed();
-                  }
-            }
+            onSendFeedback={() => {
+              setShowProfile(false);
+              setShowFeedbackModal(true);
+            }}
           />
         )}
 
