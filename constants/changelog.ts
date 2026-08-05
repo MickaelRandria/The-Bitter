@@ -32,7 +32,7 @@ export const RELEASE_HISTORY: Release[] = [
       },
       {
         type: 'feature',
-        text: 'Profil rangé. Toutes les options sont regroupées sous un bouton Paramètres repliable, et le retour au feed y a été déplacé pour dégager de la place dans le header.',
+        text: 'Profil rangé. Toutes les options sont regroupées sous un bouton Paramètres repliable, et le bouton pour nous envoyer un retour y a été déplacé pour dégager de la place dans le header.',
       },
       {
         type: 'feature',
