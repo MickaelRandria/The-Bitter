@@ -1,0 +1,226 @@
+import React, { useMemo, useState } from 'react';
+import { X, Film, Check, Ticket } from 'lucide-react';
+import { CinemaSubscription, Movie, ViewingContext } from '../types';
+import {
+  formatCurrency,
+  getHistorySessions,
+  getSubscriptionStats,
+} from '../utils/cinemaSubscription';
+import { resizeTmdbImage } from '../utils/tmdbImage';
+import { getAvgRating } from '../utils/insights';
+import { haptics } from '../utils/haptics';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
+import { getCinemaProviderBrand } from '../utils/cinemaBrand';
+import ViewingContextPicker from './ViewingContextPicker';
+import CinemaSubscriptionArtwork from './CinemaSubscriptionArtwork';
+
+interface CinemaHistoryImportModalProps {
+  movies: Movie[];
+  subscription: CinemaSubscription;
+  /** Contextes explicitement choisis par l'utilisateur, indexés par séance. */
+  onConfirm: (contextsByWatchId: Record<string, ViewingContext>) => void;
+  onClose: () => void;
+  onSeeStats: () => void;
+}
+
+/**
+ * Complétion de l'historique, à la séance et non au film.
+ *
+ * Toute la liste réellement notée est présentée. Aucun visionnage n'est présumé
+ * avoir été inclus dans l'abonnement : l'utilisateur choisit son contexte.
+ */
+const CinemaHistoryImportModal: React.FC<CinemaHistoryImportModalProps> = ({
+  movies,
+  subscription,
+  onConfirm,
+  onClose,
+  onSeeStats,
+}) => {
+  const { t, language } = useLanguage();
+  const dialog = useDialog(onClose, t('cinemaSub.history.title'));
+  const sessions = useMemo(() => getHistorySessions(movies), [movies]);
+  const [contextsByWatchId, setContextsByWatchId] = useState<Record<string, ViewingContext>>({});
+  const [result, setResult] = useState<{ count: number; value: number; net: number } | null>(null);
+
+  const locale = language === 'en' ? 'en-GB' : 'fr-FR';
+  const brand = getCinemaProviderBrand(subscription.provider);
+  const changedCount = Object.keys(contextsByWatchId).length;
+  const subscriptionStart = new Date(subscription.startDate).getTime();
+
+  const setWatchContext = (watchId: string, context: ViewingContext | undefined) => {
+    setContextsByWatchId((previous) => {
+      if (context) return { ...previous, [watchId]: context };
+      const { [watchId]: _removed, ...rest } = previous;
+      return rest;
+    });
+  };
+
+  const confirm = () => {
+    if (changedCount === 0) return;
+    haptics.success();
+    onConfirm(contextsByWatchId);
+
+    // Projection locale : le parent n'a pas encore propagé le profil mis à jour
+    // lorsque l'écran de résultat s'affiche.
+    const projected = movies.map((movie) => ({
+      ...movie,
+      watches: movie.watches?.map((watch) =>
+        contextsByWatchId[watch.id]
+          ? { ...watch, viewingContext: contextsByWatchId[watch.id] }
+          : watch
+      ),
+    }));
+    const stats = getSubscriptionStats(projected, subscription, 'allTime', new Date());
+    setResult({ count: changedCount, value: stats.value, net: stats.netSavings });
+  };
+
+  return (
+    <div
+      {...dialog.props}
+      className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-0 sm:p-6"
+    >
+      <div
+        className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]"
+        onClick={onClose}
+      />
+
+      <div className={`relative z-10 w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t ${brand.modalClass}`}>
+        <div className={`px-6 pt-5 pb-4 border-b flex items-center justify-between shrink-0 ${brand.headerClass}`}>
+          <div className="min-w-0 flex items-center gap-3">
+            <CinemaSubscriptionArtwork provider={subscription.provider} />
+            <div className="min-w-0">
+              <h2 className={`text-xl font-black tracking-tight truncate ${brand.headerTitleClass} ${brand.fontClass}`}>
+                {result ? t('cinemaSub.history.doneTitle') : t('cinemaSub.history.title')}
+              </h2>
+              {!result && (
+                <p className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${brand.headerMutedClass} ${brand.fontClass}`}>
+                  {t('cinemaSub.history.sub')}
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={result ? onSeeStats : onClose}
+            aria-label={t('common.close')}
+            className={`shrink-0 ml-3 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform ${brand.headerControlClass}`}
+          >
+            <X size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {result ? (
+          <div className={`flex-1 overflow-y-auto no-scrollbar p-6 ${brand.contentClass}`}>
+            <div className="text-center py-6 space-y-8">
+              <div className={`w-14 h-14 rounded-3xl flex items-center justify-center mx-auto ${brand.accentPanelClass}`}>
+                <Check size={26} strokeWidth={3} />
+              </div>
+              <p className={`text-sm font-black uppercase tracking-widest ${brand.titleClass}`}>
+                {t('cinemaSub.history.added', { count: String(result.count) })}
+              </p>
+              <div className="space-y-6">
+                <div>
+                  <p className={`text-4xl font-black tracking-tighter ${brand.titleClass}`}>
+                    {formatCurrency(result.value, language)}
+                  </p>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-1 ${brand.labelClass}`}>
+                    {t('cinemaSub.history.valueLabel')}
+                  </p>
+                </div>
+                <div>
+                  <p className={`text-4xl font-black tracking-tighter ${result.net >= 0 ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>
+                    {result.net >= 0 ? '+' : ''}{formatCurrency(result.net, language)}
+                  </p>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-1 ${brand.labelClass}`}>
+                    {t('cinemaSub.history.savedLabel')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={`flex-1 overflow-y-auto no-scrollbar p-6 space-y-3 ${brand.contentClass}`}>
+            {sessions.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <div className={`w-14 h-14 rounded-3xl flex items-center justify-center mx-auto ${brand.selectedCardClass} ${brand.actionTextClass}`}>
+                  <Ticket size={24} />
+                </div>
+                <p className={`text-sm font-medium max-w-xs mx-auto leading-relaxed ${brand.mutedTextClass}`}>
+                  {t('cinemaSub.history.empty')}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className={`text-[11px] font-medium leading-relaxed px-1 ${brand.mutedTextClass}`}>
+                  {t('cinemaSub.history.contextHint')}
+                </p>
+                {sessions.map(({ movie, watch, watchedAt }) => {
+                  const context = contextsByWatchId[watch.id] ?? watch.viewingContext;
+                  const wasChanged = !!contextsByWatchId[watch.id];
+                  const beforeSubscription = watchedAt.getTime() < subscriptionStart;
+
+                  return (
+                    <article
+                      key={watch.id}
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '220px' }}
+                      className={`p-3 rounded-2xl border transition-colors ${
+                        wasChanged ? brand.selectedCardClass : brand.cardClass
+                      }`}
+                    >
+                      <div className="flex gap-3 mb-3">
+                        <div className={`w-10 aspect-[2/3] rounded-lg overflow-hidden shrink-0 ${brand.selectedCardClass}`}>
+                          {movie.posterUrl ? (
+                            <img src={resizeTmdbImage(movie.posterUrl, 'w185')} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center ${brand.actionTextClass}`}><Film size={12} /></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-black truncate leading-tight ${brand.titleClass}`}>{movie.title}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-wide mt-0.5 ${brand.labelClass}`}>
+                            {watchedAt.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {watch.watch_number > 1 && ` · ${t('cinemaSub.history.rewatch')}`}
+                            {' · '}{getAvgRating(movie).toFixed(1)}
+                          </p>
+                          {beforeSubscription && (
+                            <p className={`text-[9px] font-bold mt-1 ${brand.mutedTextClass}`}>
+                              {t('cinemaSub.history.beforeSubscription')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <ViewingContextPicker
+                        value={context}
+                        onChange={(nextContext) => setWatchContext(watch.id, nextContext)}
+                        subscription={subscription}
+                        showLabel={false}
+                      />
+                    </article>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className={`p-6 pt-4 border-t shrink-0 ${brand.footerClass}`}>
+          {result ? (
+            <button onClick={onSeeStats} className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all ${brand.selectedClass}`}>
+              {t('cinemaSub.history.seeStats')}
+            </button>
+          ) : (
+            <button
+              onClick={confirm}
+              disabled={changedCount === 0}
+              className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100 ${brand.selectedClass}`}
+            >
+              {t('cinemaSub.history.addSessions', { count: String(changedCount) })}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CinemaHistoryImportModal;

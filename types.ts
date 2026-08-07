@@ -33,6 +33,47 @@ export interface VibeCriteria {
 
 export type RewatchSentiment = 'better' | 'same' | 'worse' | 'disappointed' | 'discovered' | 'nostalgic';
 
+export type CinemaSubscriptionProvider = 'ugc' | 'pathe' | 'custom';
+
+/**
+ * Abonnement cinéma de l'utilisateur.
+ *
+ * Les deux tarifs sont saisis par l'utilisateur : les valeurs préremplies des
+ * fournisseurs connus ne sont que des points de départ modifiables. Le modèle ne
+ * conserve volontairement pas d'historique tarifaire (voir utils/cinemaSubscription).
+ */
+export interface CinemaSubscription {
+  id: string;
+  provider: CinemaSubscriptionProvider;
+  name: string;
+  /** Mensualité réellement payée. */
+  monthlyPrice: number;
+  /** Prix d'une place au tarif normal, sert à valoriser les séances. */
+  referenceTicketPrice: number;
+  /** Date de début, au format ISO. Les séances antérieures sont ignorées. */
+  startDate: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type ViewingLocationType = 'cinema' | 'home' | 'other';
+
+export type CinemaViewingPaymentType = 'subscription' | 'paid' | 'invitation' | 'other';
+
+/**
+ * Contexte d'une séance. Porté par MovieWatch et non par Movie : un même film peut
+ * être vu chez soi, puis au cinéma avec l'abonnement, puis sur invitation.
+ */
+export interface ViewingContext {
+  locationType: ViewingLocationType;
+  cinemaProvider?: CinemaSubscriptionProvider | 'other';
+  cinemaName?: string;
+  paymentType?: CinemaViewingPaymentType;
+  /** Renseigné uniquement quand paymentType vaut 'subscription'. */
+  subscriptionId?: string;
+  ticketPrice?: number;
+}
+
 export interface MovieWatch {
   id: string;
   watch_number: number;
@@ -41,6 +82,8 @@ export interface MovieWatch {
   review?: string;
   sentiment?: RewatchSentiment;
   adaptiveRating?: AdaptiveRatingData;
+  /** Absent sur toutes les séances antérieures à la fonctionnalité abonnement. */
+  viewingContext?: ViewingContext;
 }
 
 export type CriterionGroup = 'base' | 'specific';
@@ -130,6 +173,7 @@ export interface UserProfile {
   isOnboarded?: boolean;
   role?: string;
   joinedSpaceIds?: string[];
+  cinemaSubscription?: CinemaSubscription;
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;
