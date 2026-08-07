@@ -12,7 +12,16 @@ import {
   Plus,
   Minus,
 } from 'lucide-react';
-import { AdaptiveRatingCriterion, Movie, MovieWatch, RewatchSentiment, WeightLabel } from '../types';
+import {
+  AdaptiveRatingCriterion,
+  CinemaSubscription,
+  Movie,
+  MovieWatch,
+  RewatchSentiment,
+  ViewingContext,
+  WeightLabel,
+} from '../types';
+import ViewingContextPicker from './ViewingContextPicker';
 import {
   ADAPTIVE_RATING_VERSION,
   PROFILE_OPTIONS,
@@ -47,6 +56,8 @@ interface RewatchModalProps {
   movie: Movie;
   onClose: () => void;
   onSave: (watch: MovieWatch) => void;
+  /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
+  cinemaSubscription?: CinemaSubscription;
 }
 
 // Mapping weight → pips: Essentiel ●●●, Important ●●○, Standard ●○○, Secondaire ○○○
@@ -85,8 +96,14 @@ const WeightPips: React.FC<{ weight: number; weightLabel?: WeightLabel }> = ({
   );
 };
 
-const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) => {
+const RewatchModal: React.FC<RewatchModalProps> = ({
+  movie,
+  onClose,
+  onSave,
+  cinemaSubscription,
+}) => {
   const dialog = useDialog(onClose);
+  const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
   const lastWatch = movie.watches?.[movie.watches.length - 1];
   const lastDate = lastWatch?.watched_at
     ? new Date(lastWatch.watched_at)
@@ -203,6 +220,8 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
       review: review.trim() || undefined,
       sentiment,
       adaptiveRating,
+      // Propre à CETTE séance : les précédentes gardent leur contexte.
+      viewingContext,
     };
     onSave(watch);
   };
@@ -465,6 +484,13 @@ const RewatchModal: React.FC<RewatchModalProps> = ({ movie, onClose, onSave }) =
               </div>
             </div>
           </div>
+
+          {/* Contexte propre à cette séance */}
+          <ViewingContextPicker
+            value={viewingContext}
+            onChange={setViewingContext}
+            subscription={cinemaSubscription?.active ? cinemaSubscription : undefined}
+          />
 
           {/* Review optionnelle */}
           <div>

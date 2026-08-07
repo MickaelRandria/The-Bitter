@@ -35,7 +35,10 @@ import {
   TMDBSearchResult,
   AdaptiveRatingData,
   AdaptiveRatingCriterion,
+  CinemaSubscription,
+  ViewingContext,
 } from '../types';
+import ViewingContextPicker from './ViewingContextPicker';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { SharedSpace, addMovieToSpace } from '../services/supabase';
@@ -59,7 +62,7 @@ import { useDialog } from '../utils/useDialog';
 interface AddMovieModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (movie: MovieFormData) => void;
+  onSave: (movie: MovieFormData, viewingContext?: ViewingContext) => void;
   initialData: Movie | null;
   tmdbIdToLoad?: number | null;
   initialStatus?: MovieStatus;
@@ -74,6 +77,8 @@ interface AddMovieModalProps {
    * pas encore déverrouillés en basculant le mode lui-même.
    */
   tourForceBitterPlus?: boolean;
+  /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
+  cinemaSubscription?: CinemaSubscription;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -182,6 +187,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   initialMediaType = 'movie',
   onToast,
   tourForceBitterPlus,
+  cinemaSubscription,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
@@ -194,6 +200,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [customWeights, setCustomWeights] = useState<Record<string, number>>({ ...DEFAULT_CUSTOM_WEIGHTS });
   const [profileManuallySet, setProfileManuallySet] = useState(false);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
+  /** Contexte de la séance, facultatif : ne bloque jamais l'enregistrement. */
+  const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
   const [searchResults, setSearchResults] = useState<TMDBSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -269,6 +277,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setCriteriaValues({});
         setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
         setUseBitterPlus(false);
+        setViewingContext(undefined);
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
@@ -522,14 +531,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       }
       return;
     }
-    onSave({
-      ...formData,
-      status: mode,
-      ratings: finalRatings,
-      dateWatched: finalDateWatched,
-      qualityMetrics: finalQualityMetrics,
-      adaptiveRating: finalAdaptiveRating,
-    });
+    onSave(
+      {
+        ...formData,
+        status: mode,
+        ratings: finalRatings,
+        dateWatched: finalDateWatched,
+        qualityMetrics: finalQualityMetrics,
+        adaptiveRating: finalAdaptiveRating,
+      },
+      // Le contexte n'a de sens que pour une séance réellement vue.
+      isWatchlist ? undefined : viewingContext
+    );
     haptics.success();
     setIsSaving(false);
   };
@@ -968,6 +981,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   }}
                 />
               )}
+
+              {/* Contexte de visionnage : deux rangées de puces, rien d'obligatoire. */}
+              <ViewingContextPicker
+                value={viewingContext}
+                onChange={setViewingContext}
+                subscription={cinemaSubscription?.active ? cinemaSubscription : undefined}
+              />
 
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 block ml-1">

@@ -41,8 +41,23 @@ import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } fro
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd } from './services/tmdb';
-import { migrateLocalStorageToSupabase, syncMovieToSupabase, resyncAllMoviesToSupabase } from './services/migration';
-import { Movie, MovieFormData, MovieStatus, MovieWatch, UserProfile } from './types';
+import {
+  migrateLocalStorageToSupabase,
+  resyncAllMoviesToSupabase,
+  syncCinemaSubscriptionToSupabase,
+  syncMovieToSupabase,
+  syncMoviesToSupabase,
+} from './services/migration';
+import {
+  CinemaSubscription,
+  Movie,
+  MovieFormData,
+  MovieStatus,
+  MovieWatch,
+  UserProfile,
+  ViewingContext,
+} from './types';
+import { withFirstWatchContext } from './utils/cinemaSubscription';
 import RewatchModal from './components/RewatchModal';
 import { MovieDisplayMode } from './utils/movieDisplay';
 import { resizeTmdbImage } from './utils/tmdbImage';
@@ -75,6 +90,14 @@ import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
 import { notifySplashReady } from './utils/splash';
+
+const CinemaSubscriptionSetupModal = lazy(
+  () => import('./components/CinemaSubscriptionSetupModal')
+);
+const CinemaHistoryImportModal = lazy(() => import('./components/CinemaHistoryImportModal'));
+const CinemaSubscriptionDetailsModal = lazy(
+  () => import('./components/CinemaSubscriptionDetailsModal')
+);
 import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
 
 // Lazy loading components
@@ -362,6 +385,10 @@ const App: React.FC = () => {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // Abonnement cinéma : configuration, rattrapage historique, détail des économies.
+  const [showCinemaSetup, setShowCinemaSetup] = useState(false);
+  const [showCinemaImport, setShowCinemaImport] = useState(false);
+  const [showCinemaDetails, setShowCinemaDetails] = useState(false);
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
@@ -675,6 +702,10 @@ const App: React.FC = () => {
                     favoriteGenres: existingProfile.favorite_genres || p.favoriteGenres,
                     role: existingProfile.role || p.role,
                     isOnboarded: existingProfile.is_onboarded || p.isOnboarded,
+                    // Le fallback local évite d'effacer un abonnement configuré
+                    // avant l'application de la migration SQL côté Supabase.
+                    cinemaSubscription:
+                      existingProfile.cinema_subscription ?? p.cinemaSubscription,
                     movies: p.movies,
                   }
                 : p
@@ -696,6 +727,7 @@ const App: React.FC = () => {
                 isOnboarded: existingProfile.is_onboarded || false,
                 gender: 'h',
                 age: 25,
+                cinemaSubscription: existingProfile.cinema_subscription ?? undefined,
               },
             ];
           }
@@ -873,7 +905,7 @@ const App: React.FC = () => {
     haptics.success();
   };
 
-  const handleSaveMovie = (data: MovieFormData) => {
+  const handleSaveMovie = (data: MovieFormData, viewingContext?: ViewingContext) => {
     if (!activeProfileId) return;
     const hasRatings =
       data.ratings &&
@@ -887,6 +919,10 @@ const App: React.FC = () => {
     let finalMovie: Movie = editingMovie
       ? { ...editingMovie, ...data, status: determinedStatus }
       : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
+
+    // Le contexte de visionnage appartient à la séance : on le pose sur la première,
+    // en la créant si le film n'en a pas encore.
+    finalMovie = withFirstWatchContext(finalMovie, viewingContext);
 
     // Recalcul de l'archétype basé sur les films regardés
     const currentProfile = profiles.find((p) => p.id === activeProfileId);
@@ -952,6 +988,112 @@ const App: React.FC = () => {
     setIsModalOpen(false);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
+  };
+
+  const updateActiveProfile = (updater: (profile: UserProfile) => UserProfile) => {
+    if (!activeProfileId) return;
+    setProfiles((prev) => prev.map((p) => (p.id === activeProfileId ? updater(p) : p)));
+  };
+
+  const handleSaveCinemaSubscription = (subscription: CinemaSubscription) => {
+    updateActiveProfile((p) => ({ ...p, cinemaSubscription: subscription }));
+    if (session?.user?.id) {
+      void syncCinemaSubscriptionToSupabase(session.user.id, subscription);
+    }
+  };
+
+  /**
+   * Suppression de l'abonnement. On retire aussi le rattachement des séances : sans
+   * ça, elles resteraient marquées « incluses » avec un identifiant orphelin et
+   * seraient recomptées si un nouvel abonnement réutilisait le même id.
+   */
+  const handleDeleteCinemaSubscription = () => {
+    const removedId = activeProfile?.cinemaSubscription?.id;
+    updateActiveProfile((p) => {
+      const profileSubscriptionId = p.cinemaSubscription?.id;
+      const { cinemaSubscription: _removed, ...rest } = p;
+      return {
+        ...rest,
+        movies: !profileSubscriptionId
+          ? p.movies
+          : p.movies.map((movie) =>
+              !movie.watches
+                ? movie
+                : {
+                    ...movie,
+                    watches: movie.watches.map((watch) =>
+                      watch.viewingContext?.subscriptionId === profileSubscriptionId
+                        ? {
+                            ...watch,
+                            viewingContext: {
+                              ...watch.viewingContext,
+                              paymentType: 'other' as const,
+                              subscriptionId: undefined,
+                            },
+                          }
+                        : watch
+                    ),
+                  }
+        ),
+      };
+    });
+    if (session?.user?.id) {
+      void syncCinemaSubscriptionToSupabase(session.user.id);
+      if (removedId && activeProfile) {
+        const updatedMovies = activeProfile.movies.map((movie) =>
+          !movie.watches
+            ? movie
+            : {
+                ...movie,
+                watches: movie.watches.map((watch) =>
+                  watch.viewingContext?.subscriptionId === removedId
+                    ? {
+                        ...watch,
+                        viewingContext: {
+                          ...watch.viewingContext,
+                          paymentType: 'other' as const,
+                          subscriptionId: undefined,
+                        },
+                      }
+                    : watch
+                ),
+              }
+        );
+        void syncMoviesToSupabase(session.user.id, updatedMovies);
+      }
+    }
+    setShowCinemaSetup(false);
+    setToastMessage(t('cinemaSub.toast.deleted'));
+  };
+
+  /** Complétion de l'historique : chaque séance reçoit le contexte choisi par l'utilisateur. */
+  const handleApplyCinemaHistory = (contextsByWatchId: Record<string, ViewingContext>) => {
+    const applyContexts = (movies: Movie[]) =>
+      movies.map((movie) => {
+        if (!movie.watches) return movie;
+        return {
+          ...movie,
+          watches: movie.watches.map((watch) =>
+            contextsByWatchId[watch.id]
+              ? { ...watch, viewingContext: contextsByWatchId[watch.id] }
+              : watch
+          ),
+        };
+      });
+
+    updateActiveProfile((p) => ({
+      ...p,
+      movies: applyContexts(p.movies),
+    }));
+
+    // Les séances changées sont déjà disponibles ici, avant l'écriture async de localStorage.
+    if (session?.user?.id && activeProfile) {
+      const updatedMovies = applyContexts(activeProfile.movies);
+      const changedMovies = updatedMovies.filter((movie) =>
+        movie.watches?.some((watch) => !!contextsByWatchId[watch.id])
+      );
+      void syncMoviesToSupabase(session.user.id, changedMovies);
+    }
   };
 
   const handleLinkProfile = async (profileId: string) => {
@@ -1082,32 +1224,35 @@ const App: React.FC = () => {
 
   const handleSaveRewatch = (watch: MovieWatch) => {
     if (!rewatchMovie || !activeProfileId) return;
+    const existingWatches = rewatchMovie.watches ?? [];
+    const updatedWatches = [...existingWatches, watch];
+    const avgs = updatedWatches.map(
+      (item) =>
+        (item.ratings.story + item.ratings.visuals + item.ratings.acting + item.ratings.sound) / 4
+    );
+    const updatedMovie: Movie = {
+      ...rewatchMovie,
+      watches: updatedWatches,
+      watch_count: updatedWatches.length,
+      ratings: watch.ratings,
+      dateWatched: new Date(watch.watched_at).getTime(),
+      first_rating: avgs[0],
+      current_rating: avgs[avgs.length - 1],
+      avg_rating: avgs.reduce((total, rating) => total + rating, 0) / avgs.length,
+    };
+
     setProfiles((prev) =>
       prev.map((profile) => {
         if (profile.id !== activeProfileId) return profile;
         return {
           ...profile,
-          movies: profile.movies.map((movie) => {
-            if (movie.id !== rewatchMovie.id) return movie;
-            const existingWatches = movie.watches ?? [];
-            const updatedWatches = [...existingWatches, watch];
-            const avgs = updatedWatches.map(
-              (w) => (w.ratings.story + w.ratings.visuals + w.ratings.acting + w.ratings.sound) / 4
-            );
-            return {
-              ...movie,
-              watches: updatedWatches,
-              watch_count: updatedWatches.length,
-              ratings: watch.ratings,
-              dateWatched: new Date(watch.watched_at).getTime(),
-              first_rating: avgs[0],
-              current_rating: avgs[avgs.length - 1],
-              avg_rating: avgs.reduce((a, b) => a + b, 0) / avgs.length,
-            };
-          }),
+          movies: profile.movies.map((movie) =>
+            movie.id === rewatchMovie.id ? updatedMovie : movie
+          ),
         };
       })
     );
+    if (session?.user?.id) void syncMovieToSupabase(session.user.id, updatedMovie);
     setToastMessage('Rewatch enregistré !');
     setRewatchMovie(null);
   };
@@ -1330,7 +1475,7 @@ const App: React.FC = () => {
     setShowSignOutConfirm(true);
   };
 
-  const handleImportBackup = (backup: TheBitterBackup) => {
+  const handleImportBackup = async (backup: TheBitterBackup) => {
     if (!activeProfileId) return;
 
     // Le profil importé remplace le profil local actif. On conserve son ID local :
@@ -1345,6 +1490,17 @@ const App: React.FC = () => {
     localStorage.setItem(LAST_PROFILE_ID_KEY, activeProfileId);
     setProfiles(nextProfiles);
     setShowProfile(false);
+
+    // Le backup contient déjà cinemaSubscription et watches (avec viewingContext).
+    // On attend l'écriture distante avant le rechargement pour ne pas perdre ces
+    // données si l'utilisateur est connecté.
+    if (session?.user?.id) {
+      await Promise.all([
+        syncCinemaSubscriptionToSupabase(session.user.id, restoredProfile.cinemaSubscription),
+        syncMoviesToSupabase(session.user.id, restoredProfile.movies),
+      ]);
+    }
+
     // Thème et langue sont initialisés par leurs Contexts : un rechargement les applique
     // immédiatement avec toutes les autres préférences restaurées.
     window.setTimeout(() => window.location.reload(), 0);
@@ -1508,6 +1664,8 @@ const App: React.FC = () => {
               onNavigateToCalendar={() => setViewMode('Calendar')}
               onRecalibrate={() => setShowCalibration(true)}
               onViewDirector={(name, id) => setPreviewDirector({ name, id })}
+              onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
+              onOpenCinemaDetails={() => setShowCinemaDetails(true)}
             />
           ) : viewMode === 'Discover' ? (
             <DiscoverView
@@ -2128,6 +2286,7 @@ const App: React.FC = () => {
             movie={rewatchMovie}
             onClose={() => setRewatchMovie(null)}
             onSave={handleSaveRewatch}
+            cinemaSubscription={activeProfile?.cinemaSubscription}
           />
         )}
         {isModalOpen && (
@@ -2147,6 +2306,7 @@ const App: React.FC = () => {
             currentUserId={session?.user?.id || activeProfile?.id}
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger((prev) => prev + 1)}
             onToast={setToastMessage}
+            cinemaSubscription={activeProfile?.cinemaSubscription}
             tourForceBitterPlus={
               activeTour === 'rating' && !!tourStep?.id.startsWith('bitterplus')
             }
@@ -2285,6 +2445,11 @@ const App: React.FC = () => {
               setShowProfile(false);
               setShowFeedbackModal(true);
             }}
+            cinemaSubscription={activeProfile.cinemaSubscription}
+            onManageCinemaSubscription={() => {
+              setShowProfile(false);
+              setShowCinemaSetup(true);
+            }}
           />
         )}
 
@@ -2367,6 +2532,48 @@ const App: React.FC = () => {
       {showFeedbackModal && (
         <FeedbackModal isOpen onClose={() => setShowFeedbackModal(false)} />
       )}
+
+      <Suspense fallback={null}>
+        {showCinemaSetup && (
+          <CinemaSubscriptionSetupModal
+            existing={activeProfile?.cinemaSubscription}
+            onSave={handleSaveCinemaSubscription}
+            onDelete={
+              activeProfile?.cinemaSubscription ? handleDeleteCinemaSubscription : undefined
+            }
+            onClose={() => setShowCinemaSetup(false)}
+            onImportHistory={() => {
+              setShowCinemaSetup(false);
+              setShowCinemaImport(true);
+            }}
+          />
+        )}
+
+        {showCinemaImport && activeProfile?.cinemaSubscription && (
+          <CinemaHistoryImportModal
+            movies={activeProfile.movies}
+            subscription={activeProfile.cinemaSubscription}
+            onConfirm={handleApplyCinemaHistory}
+            onClose={() => setShowCinemaImport(false)}
+            onSeeStats={() => {
+              setShowCinemaImport(false);
+              setViewMode('Analytics');
+            }}
+          />
+        )}
+
+        {showCinemaDetails && activeProfile?.cinemaSubscription && (
+          <CinemaSubscriptionDetailsModal
+            movies={activeProfile.movies}
+            subscription={activeProfile.cinemaSubscription}
+            onClose={() => setShowCinemaDetails(false)}
+            onManage={() => {
+              setShowCinemaDetails(false);
+              setShowCinemaSetup(true);
+            }}
+          />
+        )}
+      </Suspense>
 
       {showProfileLinking && session && (
         <ProfileLinkingModal

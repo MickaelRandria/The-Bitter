@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { UserProfile, Movie } from '../types';
+import { CinemaSubscription, UserProfile, Movie } from '../types';
 
 const PROFILES_STORAGE_KEY = 'the_bitter_profiles_v2';
 
@@ -38,6 +38,9 @@ function movieToRow(movie: Movie, userId: string) {
     severity_index: null,
     patience_level: null,
     adaptive_rating: movie.adaptiveRating ?? null,
+    // Le tableau conserve chaque séance (rewatches inclus) et son contexte.
+    // Le champ JSONB est ajouté par la migration abonnement cinéma.
+    watches: movie.watches ?? null,
     created_at: movie.dateAdded ? new Date(movie.dateAdded).toISOString() : new Date().toISOString(),
     rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
   };
@@ -147,6 +150,50 @@ export async function syncMovieToSupabase(userId: string, movie: Movie): Promise
   await supabase
     .from('user_movies')
     .upsert(movieToRow(movie, userId), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+}
+
+/**
+ * Synchronise un groupe de films déjà calculé en mémoire.
+ *
+ * Contrairement à `resyncAllMoviesToSupabase`, cette fonction ne relit pas
+ * localStorage : elle peut donc être appelée juste après un import historique
+ * ou un rewatch, avant que l'effet React de persistance ait eu le temps d'écrire.
+ */
+export async function syncMoviesToSupabase(userId: string, movies: Movie[]): Promise<void> {
+  if (!supabase) return;
+  const withTmdbId = movies.filter((movie) => movie.tmdbId != null);
+  if (withTmdbId.length === 0) return;
+
+  const { error } = await supabase
+    .from('user_movies')
+    .upsert(withTmdbId.map((movie) => movieToRow(movie, userId)), {
+      onConflict: 'profile_id,tmdb_id',
+      ignoreDuplicates: false,
+    });
+
+  if (error && import.meta.env.DEV) {
+    console.error('[Cinema subscription] Unable to sync movie sessions:', error);
+  }
+}
+
+/** Persiste la configuration dans le profil Supabase sans introduire de table parallèle. */
+export async function syncCinemaSubscriptionToSupabase(
+  userId: string,
+  subscription?: CinemaSubscription
+): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      cinema_subscription: subscription ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error && import.meta.env.DEV) {
+    console.error('[Cinema subscription] Unable to sync subscription:', error);
+  }
 }
 
 export function resetMigrationFlag(userId: string) {

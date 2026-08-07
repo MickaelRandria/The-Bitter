@@ -23,8 +23,12 @@ import {
   Compass,
   Settings,
   MessageSquareText,
+  Ticket,
 } from 'lucide-react';
-import { UserProfile } from '../types';
+import { CinemaSubscription, UserProfile } from '../types';
+import { formatCurrency } from '../utils/cinemaSubscription';
+import { getCinemaProviderBrand } from '../utils/cinemaBrand';
+import CinemaSubscriptionArtwork from './CinemaSubscriptionArtwork';
 import { createBackup, parseBackup, TheBitterBackup } from '../utils/dataBackup';
 import { haptics } from '../utils/haptics';
 import { dominantGenre } from '../utils/movieStats';
@@ -56,6 +60,9 @@ interface ProfileModalProps {
    * dégager de la place en haut de l'écran.
    */
   onSendFeedback?: () => void;
+  /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
+  cinemaSubscription?: CinemaSubscription;
+  onManageCinemaSubscription?: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -89,10 +96,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onLetterboxdImport,
   onReplayTour,
   onSendFeedback,
+  cinemaSubscription,
+  onManageCinemaSubscription,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const dialog = useDialog(onClose, t('profileModal.title'));
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
+  const cinemaBrand = cinemaSubscription?.active
+    ? getCinemaProviderBrand(cinemaSubscription.provider)
+    : null;
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(getNotificationPrefs);
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -483,7 +495,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {onSendFeedback && (
               <button
                 onClick={() => { haptics.soft(); onSendFeedback(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-colors group ${cinemaBrand ? cinemaBrand.choiceClass : 'border-transparent hover:bg-stone-50 dark:hover:bg-[#161616]'}`}
               >
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
@@ -536,6 +548,40 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </span>
               </div>
             </button>
+
+            {onManageCinemaSubscription && (
+              <button
+                onClick={() => { haptics.soft(); onManageCinemaSubscription(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  {cinemaSubscription?.active ? (
+                    <CinemaSubscriptionArtwork provider={cinemaSubscription.provider} size="compact" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                      <Ticket size={14} />
+                    </div>
+                  )}
+                  <div className="text-left min-w-0">
+                    <span className={`block text-xs font-black uppercase tracking-wide truncate ${cinemaBrand ? cinemaBrand.titleClass : 'text-charcoal dark:text-white'}`}>
+                      {cinemaSubscription?.active
+                        ? cinemaSubscription.name
+                        : t('cinemaSub.profile.title')}
+                    </span>
+                    <span className={`block text-[9px] font-bold mt-0.5 truncate ${cinemaBrand ? cinemaBrand.mutedTextClass : 'text-stone-400 dark:text-stone-500'}`}>
+                      {cinemaSubscription?.active
+                        ? `${formatCurrency(cinemaSubscription.monthlyPrice, language)} ${t('cinemaSub.perMonth')}`
+                        : t('cinemaSub.profile.sub')}
+                    </span>
+                  </div>
+                </div>
+                <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 ${cinemaBrand ? cinemaBrand.actionTextClass : 'text-forest dark:text-lime-500'}`}>
+                  {cinemaSubscription?.active
+                    ? t('cinemaSub.profile.edit')
+                    : t('cinemaSub.profile.configure')}
+                </span>
+              </button>
+            )}
 
             <button
               onClick={() => {

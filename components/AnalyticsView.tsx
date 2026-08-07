@@ -36,6 +36,8 @@ import {
   Route,
   Maximize2,
   X,
+  ChevronRight,
+  Trophy,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
@@ -44,6 +46,7 @@ import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
+import CinemaSubscriptionCard from './CinemaSubscriptionCard';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -51,6 +54,8 @@ interface AnalyticsViewProps {
   onNavigateToCalendar?: () => void;
   onRecalibrate?: () => void;
   onViewDirector?: (name: string, id?: number) => void;
+  onConfigureCinemaSubscription?: () => void;
+  onOpenCinemaDetails?: () => void;
 }
 
 type TabMode = 'overview' | 'notes' | 'psycho';
@@ -639,14 +644,114 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
   );
 };
 
+/** Vues détaillées de l'onglet Notes, ouvertes depuis les macro-blocs. */
+type SheetId = 'severity' | 'taste' | 'technical';
+
+/**
+ * Tiroir coulissant pour le détail d'un macro-bloc.
+ *
+ * Divulgation progressive : l'écran principal ne montre que des résumés, et tout
+ * le détail vit ici. Rendu dans un portail pour échapper au flux de la page et
+ * pouvoir couvrir la barre de navigation.
+ */
+const AnalyticsSheet: React.FC<{
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ title, subtitle, onClose, children }) => {
+  const dialog = useDialog(onClose, title);
+
+  return createPortal(
+    <div
+      {...dialog.props}
+      className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center"
+    >
+      <div
+        className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full sm:max-w-lg bg-cream dark:bg-[#0c0c0c] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20 dark:border-white/10">
+        <div
+          className="w-full flex justify-center pt-3 pb-1 bg-white dark:bg-[#1a1a1a] cursor-grab active:cursor-grabbing shrink-0"
+          onClick={onClose}
+        >
+          <div className="w-12 h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full" />
+        </div>
+
+        <div className="px-6 pb-4 border-b border-sand dark:border-white/5 flex items-center justify-between bg-white dark:bg-[#1a1a1a] shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-xl font-black tracking-tight text-charcoal dark:text-white truncate">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 mt-0.5 truncate">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label={title}
+            className="shrink-0 ml-3 w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center active:scale-90 transition-transform text-stone-500 dark:text-stone-400"
+          >
+            <X size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">{children}</div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+/**
+ * Macro-bloc de l'écran principal : un résumé lisible d'un coup d'œil, et un
+ * chevron qui annonce qu'il y a du détail derrière.
+ */
+const MacroCard: React.FC<{
+  icon: React.ElementType;
+  title: string;
+  hint: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ icon: Icon, title, hint, onClick, children }) => (
+  <button
+    onClick={() => {
+      haptics.soft();
+      onClick();
+    }}
+    className="w-full text-left bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.99]"
+  >
+    <div className="flex items-center gap-3 mb-5">
+      <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
+        <Icon size={18} />
+      </div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-stone-400 flex-1 min-w-0 truncate">
+        {title}
+      </h3>
+      <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 shrink-0">
+        {hint}
+        <ChevronRight size={14} strokeWidth={3} />
+      </span>
+    </div>
+    {children}
+  </button>
+);
+
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   movies,
   userProfile,
   onRecalibrate,
   onViewDirector,
+  onConfigureCinemaSubscription,
+  onOpenCinemaDetails,
 }) => {
   const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
+  /** Vue détaillée ouverte depuis un macro-bloc de l'onglet Notes. */
+  const [openSheet, setOpenSheet] = useState<SheetId | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [showTrendDetail, setShowTrendDetail] = useState(false);
   const [trendViewMode, setTrendViewMode] = useState<TrendViewMode>('default');
@@ -1027,6 +1132,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     const hypeReality = computeHypeReality(watched);
     const pacingInsight = computePacingInsight(watched);
 
+    // Sous deux mois distincts, la courbe de tendance est plate : elle occupe de la
+    // place et ne raconte rien. On la masque tant qu'il n'y a pas de quoi comparer.
+    const distinctMonths = new Set<string>();
+    watched.forEach((m) => {
+      if (!m.dateWatched) return;
+      const d = new Date(m.dateWatched);
+      distinctMonths.add(`${d.getFullYear()}-${d.getMonth()}`);
+    });
+    const hasTrendHistory = distinctMonths.size >= 2;
+
     return {
       averages,
       ratingAverages,
@@ -1059,6 +1174,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       trendCompact,
       weeklyTrendDelta,
       hasWeeklyData,
+      hasTrendHistory,
       trendRangeLabel: weeklyTrend[0]
         ? weeklyTrend[0].weekStart.toLocaleDateString(locale, {
             month: 'long',
@@ -1147,6 +1263,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     trendCompact,
     weeklyTrendDelta,
     hasWeeklyData,
+    hasTrendHistory,
     trendRangeLabel,
     hypeReality,
     pacingInsight,
@@ -1210,6 +1327,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             onClick={() => {
               haptics.soft();
               setActiveTab(tab);
+              // Sans ça, un tiroir laissé ouvert se rouvrirait tout seul au retour
+              // sur l'onglet Notes.
+              setOpenSheet(null);
             }}
             className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm dark:shadow-black/20' : 'text-stone-400 dark:text-stone-600'}`}
           >
@@ -1284,6 +1404,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           </div>
 
+          {/* Abonnement cinéma : encart compact, trois états gérés en interne. */}
+          {(onConfigureCinemaSubscription || onOpenCinemaDetails) && (
+            <CinemaSubscriptionCard
+              movies={movies}
+              subscription={userProfile?.cinemaSubscription}
+              onConfigure={() => onConfigureCinemaSubscription?.()}
+              onOpenDetails={() => onOpenCinemaDetails?.()}
+            />
+          )}
+
           {/* Graphique 12 derniers mois */}
           {last12Months.some((m) => m.count > 0) &&
             (() => {
@@ -1331,17 +1461,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
       {/* ─── TAB : GOÛTS ─── */}
       {activeTab === 'notes' && (
-        <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-          {/* SÉVÉRITÉ — reformatée */}
-          <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="p-2 bg-stone-100 dark:bg-[#161616] rounded-xl text-charcoal dark:text-white">
-                <Scale size={18} />
-              </div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-stone-400">
-                {t('analytics.severity')}
-              </h3>
-            </div>
+        <div className="space-y-4 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+          {/* MACRO-BLOC 1 : SÉVÉRITÉ GLOBALE */}
+          <MacroCard
+            icon={Scale}
+            title={t('analytics.severity')}
+            hint={t('analytics.seeDetail')}
+            onClick={() => setOpenSheet('severity')}
+          >
             <div className="flex items-end justify-between mb-4">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
@@ -1386,8 +1513,108 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 }}
               />
             </div>
-          </div>
+          </MacroCard>
 
+          {/* MACRO-BLOC 2 : PALMARÈS & GOÛTS
+              Résumé visuel : les deux affiches du contre-courant, ou à défaut le
+              meilleur et le moins bon film, pour ne jamais afficher une carte vide. */}
+          <MacroCard
+            icon={Trophy}
+            title={t('analytics.palmares')}
+            hint={t('analytics.seeDetail')}
+            onClick={() => setOpenSheet('taste')}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                {
+                  movie: biggestSurprise ?? bestRated,
+                  labelKey: biggestSurprise ? 'analytics.yourSurprise' : 'analytics.favorite',
+                  accent: 'text-forest dark:text-lime-500',
+                  Icon: biggestSurprise ? TrendingUp : ThumbsUp,
+                  dim: false,
+                },
+                {
+                  movie: biggestDisappointment ?? worstRated,
+                  labelKey: biggestDisappointment
+                    ? 'analytics.yourDisappointment'
+                    : 'analytics.lowest',
+                  accent: 'text-orange-400',
+                  Icon: biggestDisappointment ? TrendingDown : ThumbsDown,
+                  dim: true,
+                },
+              ].map(({ movie, labelKey, accent, Icon, dim }) => (
+                <div key={labelKey} className="flex flex-col gap-2 min-w-0">
+                  <div className={`flex items-center gap-1.5 ${accent}`}>
+                    <Icon size={12} />
+                    <span className="text-[8px] font-black uppercase tracking-widest truncate">
+                      {t(labelKey)}
+                    </span>
+                  </div>
+                  <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                    {movie?.posterUrl ? (
+                      <img
+                        src={resizeTmdbImage(movie.posterUrl, 'w185')}
+                        className={`w-full h-full object-cover ${dim ? 'opacity-60 grayscale' : ''}`}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-700">
+                        <Film size={16} />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-black text-charcoal dark:text-white leading-tight line-clamp-1">
+                    {movie?.title}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </MacroCard>
+
+          {/* MACRO-BLOC 3 : ANALYSE TECHNIQUE
+              Résumé bicolore : le critère sur lequel on est le plus dur, et le plus
+              indulgent. Les jauges détaillées vivent dans le tiroir. */}
+          <MacroCard
+            icon={Target}
+            title={t('analytics.yourEye')}
+            hint={t('analytics.seeDetail')}
+            onClick={() => setOpenSheet('technical')}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl p-3">
+                <p className="text-[8px] font-black uppercase tracking-widest text-red-400 mb-1">
+                  {t('analytics.moreExacting')}
+                </p>
+                <p className="text-sm font-black text-charcoal dark:text-white">
+                  {t(dominantCriterion.label)}
+                </p>
+                <p className="text-[10px] font-bold text-red-400">{dominantCriterion.val} / 10</p>
+              </div>
+              <div className="bg-forest/5 dark:bg-lime-500/10 border border-forest/10 dark:border-lime-500/20 rounded-2xl p-3">
+                <p className="text-[8px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mb-1">
+                  {t('analytics.moreGenerous')}
+                </p>
+                <p className="text-sm font-black text-charcoal dark:text-white">
+                  {t(blindSpotCriterion.label)}
+                </p>
+                <p className="text-[10px] font-bold text-forest dark:text-lime-400">
+                  {blindSpotCriterion.val} / 10
+                </p>
+              </div>
+            </div>
+          </MacroCard>
+        </div>
+      )}
+
+      {/* ─── DÉTAIL : SÉVÉRITÉ ─── */}
+      {activeTab === 'notes' && openSheet === 'severity' && (
+        <AnalyticsSheet
+          title={t('analytics.severity')}
+          subtitle={t('analytics.severitySheetSub')}
+          onClose={() => setOpenSheet(null)}
+        >
           {/* DISTRIBUTION DES NOTES */}
           <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
             <div className="flex items-center gap-3 mb-5">
@@ -1457,7 +1684,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </div>
 
           {/* TENDANCE DES NOTES — cliquable pour agrandir */}
-          {hasWeeklyData && (
+          {hasWeeklyData && hasTrendHistory && (
             <div className="w-full text-left bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all hover:border-stone-300 dark:hover:border-white/20">
               <button
                 type="button"
@@ -1516,7 +1743,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </button>
             </div>
           )}
+        </AnalyticsSheet>
+      )}
 
+      {/* ─── DÉTAIL : PALMARÈS & GOÛTS ─── */}
+      {activeTab === 'notes' && openSheet === 'taste' && (
+        <AnalyticsSheet
+          title={t('analytics.palmares')}
+          subtitle={t('analytics.tasteSheetSub')}
+          onClose={() => setOpenSheet(null)}
+        >
           {/* LE PALMARÈS */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
@@ -1745,61 +1981,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           )}
 
-          {/* CRITÈRES avec dominant & point aveugle */}
-          <div className="space-y-3">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">
-              {t('analytics.yourEye')}
-            </h3>
-
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl p-3">
-                <p className="text-[8px] font-black uppercase tracking-widest text-red-400 mb-1">
-                  {t('analytics.moreExacting')}
-                </p>
-                <p className="text-sm font-black text-charcoal dark:text-white">
-                  {t(dominantCriterion.label)}
-                </p>
-                <p className="text-[10px] font-bold text-red-400">{dominantCriterion.val} / 10</p>
-              </div>
-              <div className="bg-forest/5 dark:bg-lime-500/10 border border-forest/10 dark:border-lime-500/20 rounded-2xl p-3">
-                <p className="text-[8px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mb-1">
-                  {t('analytics.moreGenerous')}
-                </p>
-                <p className="text-sm font-black text-charcoal dark:text-white">
-                  {t(blindSpotCriterion.label)}
-                </p>
-                <p className="text-[10px] font-bold text-forest dark:text-lime-400">
-                  {blindSpotCriterion.val} / 10
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-stone-50 dark:bg-[#161616] rounded-[2rem] p-5 border border-stone-100 dark:border-white/5 space-y-4">
-              {criteriaScores.map((c) => {
-                const isDominant = c.id === dominantCriterion.id;
-                const isBlind = c.id === blindSpotCriterion.id;
-                return (
-                  <div key={c.id} className="flex items-center gap-3">
-                    <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest w-20 shrink-0">
-                      {t(c.label)}
-                    </span>
-                    <div className="flex-1 h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${isDominant ? 'bg-red-400' : isBlind ? 'bg-forest dark:bg-lime-500' : 'bg-charcoal dark:bg-white'}`}
-                        style={{ width: `${c.val * 10}%` }}
-                      />
-                    </div>
-                    <span
-                      className={`text-xs font-black w-6 text-right ${isDominant ? 'text-red-400' : isBlind ? 'text-forest dark:text-lime-400' : 'text-charcoal dark:text-white'}`}
-                    >
-                      {c.val}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* TOP GENRES avec count */}
           <div className="bg-stone-50 dark:bg-[#161616] rounded-[2.5rem] p-6 border border-stone-100 dark:border-white/5 transition-all">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
@@ -1953,7 +2134,52 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </div>
             </div>
           )}
-        </div>
+        </AnalyticsSheet>
+      )}
+
+      {/* ─── DÉTAIL : ANALYSE TECHNIQUE ─── */}
+      {activeTab === 'notes' && openSheet === 'technical' && (
+        <AnalyticsSheet
+          title={t('analytics.yourEye')}
+          subtitle={t('analytics.technicalSheetSub')}
+          onClose={() => setOpenSheet(null)}
+        >
+          {/* CRITÈRES : jauges détaillées, avec dominant & point aveugle */}
+          <div className="bg-stone-50 dark:bg-[#161616] rounded-[2rem] p-5 border border-stone-100 dark:border-white/5 space-y-4">
+            {criteriaScores.map((c) => {
+              const isDominant = c.id === dominantCriterion.id;
+              const isBlind = c.id === blindSpotCriterion.id;
+              return (
+                <div key={c.id} className="flex items-center gap-3">
+                  <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest w-20 shrink-0">
+                    {t(c.label)}
+                  </span>
+                  <div className="flex-1 h-1.5 bg-stone-200 dark:bg-[#202020] rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${isDominant ? 'bg-red-400' : isBlind ? 'bg-forest dark:bg-lime-500' : 'bg-charcoal dark:bg-white'}`}
+                      style={{ width: `${c.val * 10}%` }}
+                    />
+                  </div>
+                  <span
+                    className={`text-xs font-black w-6 text-right ${isDominant ? 'text-red-400' : isBlind ? 'text-forest dark:text-lime-400' : 'text-charcoal dark:text-white'}`}
+                  >
+                    {c.val}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-center gap-4 text-[9px] font-black uppercase tracking-widest text-stone-400">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-400" /> {t('analytics.moreExacting')}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-forest dark:bg-lime-500" />{' '}
+              {t('analytics.moreGenerous')}
+            </span>
+          </div>
+        </AnalyticsSheet>
       )}
 
       {/* ─── TAB : ADN ─── */}
