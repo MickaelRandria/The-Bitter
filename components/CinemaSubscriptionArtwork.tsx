@@ -9,7 +9,7 @@ interface CinemaSubscriptionArtworkProps {
 }
 
 const CARD_IMAGE_URLS: Partial<Record<CinemaSubscriptionProvider, string>> = {
-  ugc: '/cin%C3%A9ma/carte-ugc-transparent.png',
+  ugc: '/cin%C3%A9ma/carte-ugc-transparent.webp',
   pathe: '/cin%C3%A9ma/CinePass-Pathe.png',
 };
 
