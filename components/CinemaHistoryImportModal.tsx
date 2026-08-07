@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Film, Check, Ticket } from 'lucide-react';
+import { X, Film, Check, Ticket, Home, ListChecks, Sparkles } from 'lucide-react';
 import { CinemaSubscription, Movie, ViewingContext } from '../types';
 import {
   formatCurrency,
@@ -24,6 +24,9 @@ interface CinemaHistoryImportModalProps {
   onSeeStats: () => void;
 }
 
+type HistoryImportMode = 'subscription' | 'home' | 'manual' | null;
+type HistoryReviewScope = 'summary' | 'exceptions' | 'all';
+
 /**
  * Complétion de l'historique, à la séance et non au film.
  *
@@ -42,11 +45,65 @@ const CinemaHistoryImportModal: React.FC<CinemaHistoryImportModalProps> = ({
   const sessions = useMemo(() => getHistorySessions(movies), [movies]);
   const [contextsByWatchId, setContextsByWatchId] = useState<Record<string, ViewingContext>>({});
   const [result, setResult] = useState<{ count: number; value: number; net: number } | null>(null);
+  const [importMode, setImportMode] = useState<HistoryImportMode>(null);
+  const [reviewScope, setReviewScope] = useState<HistoryReviewScope>('summary');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const locale = language === 'en' ? 'en-GB' : 'fr-FR';
   const brand = getCinemaProviderBrand(subscription.provider);
-  const changedCount = Object.keys(contextsByWatchId).length;
   const subscriptionStart = new Date(subscription.startDate).getTime();
+  const automaticSessions = useMemo(
+    () =>
+      sessions.filter(
+        ({ watch, watchedAt }) =>
+          watchedAt.getTime() >= subscriptionStart && !watch.viewingContext
+      ),
+    [sessions, subscriptionStart]
+  );
+  const isExpressMode = importMode === 'subscription' || importMode === 'home';
+  const sessionsToReview = useMemo(() => {
+    const baseSessions =
+      isExpressMode && reviewScope === 'exceptions'
+        ? sessions.filter(({ watchedAt }) => watchedAt.getTime() >= subscriptionStart)
+        : sessions;
+    const query = searchQuery.trim().toLocaleLowerCase(locale);
+    return query
+      ? baseSessions.filter(({ movie }) => movie.title.toLocaleLowerCase(locale).includes(query))
+      : baseSessions;
+  }, [isExpressMode, locale, reviewScope, searchQuery, sessions, subscriptionStart]);
+  const changedCount = Object.keys(contextsByWatchId).length;
+  const automaticCount = automaticSessions.filter(({ watch }) => !!contextsByWatchId[watch.id]).length;
+
+  const beginExpressImport = (mode: Extract<HistoryImportMode, 'subscription' | 'home'>) => {
+    const context: ViewingContext =
+      mode === 'subscription'
+        ? {
+            locationType: 'cinema',
+            cinemaProvider: subscription.provider,
+            paymentType: 'subscription',
+            subscriptionId: subscription.id,
+          }
+        : { locationType: 'home' };
+
+    setContextsByWatchId((previous) => {
+      const next = { ...previous };
+      automaticSessions.forEach(({ watch }) => {
+        if (!next[watch.id]) next[watch.id] = context;
+      });
+      return next;
+    });
+    setImportMode(mode);
+    setReviewScope('summary');
+    setSearchQuery('');
+    haptics.success();
+  };
+
+  const beginManualImport = () => {
+    setImportMode('manual');
+    setReviewScope('all');
+    setSearchQuery('');
+    haptics.soft();
+  };
 
   const setWatchContext = (watchId: string, context: ViewingContext | undefined) => {
     setContextsByWatchId((previous) => {
