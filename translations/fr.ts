@@ -389,12 +389,19 @@ export const fr: Record<string, string> = {
   'accountSync.entrySynced': 'Tout est sauvegardé',
   'accountSync.title': 'Sauvegarde en ligne',
   'accountSync.intro':
-    'Reçois un lien par email pour retrouver tes films sur n’importe quel appareil. Si tu as déjà un compte, utilise la même adresse.',
-  'accountSync.sendLink': 'Recevoir mon lien',
+    'Reçois un code par email pour retrouver tes films sur n’importe quel appareil. Si tu as déjà un compte, utilise la même adresse.',
+  'accountSync.sendLink': 'Recevoir mon code',
   'accountSync.noPassword': 'Aucun mot de passe à retenir.',
   'accountSync.linkSentTitle': 'Regarde tes mails',
   'accountSync.linkSentBody':
-    'On a envoyé un lien à {email}. Ouvre-le depuis cet appareil pour te connecter.',
+    'On a envoyé un code à 6 chiffres à {email}. Saisis-le ici, sans ouvrir le lien.',
+  'accountSync.codeLabel': 'Code reçu par email',
+  'accountSync.codeCta': 'Me connecter',
+  'accountSync.codeResend': 'Renvoyer un code ou changer d’adresse',
+  'accountSync.codeInvalid': 'Code incorrect ou expiré. Demandes-en un nouveau.',
+  'accountSync.signedInTitle': 'Te voilà connecté',
+  'accountSync.attachSentBody':
+    'On a envoyé une confirmation à {email}. Ouvre-la pour valider ton adresse.',
   'accountSync.connectedAs': 'Connecté avec',
   'accountSync.pendingBody':
     '{count} film(s) de cet appareil ne sont pas encore sur ton compte.',
