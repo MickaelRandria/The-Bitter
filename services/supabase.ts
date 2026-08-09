@@ -266,6 +266,93 @@ export async function leaveSharedSpace(spaceId: string, userId: string): Promise
 }
 
 /**
+ * Renomme un espace, ou change sa description.
+ *
+ * Ces deux colonnes existaient depuis le début sans qu'aucun code ne puisse les
+ * écrire : la table n'avait pas de politique UPDATE, et l'app pas de bouton.
+ */
+export async function updateSpace(
+  spaceId: string,
+  patch: { name?: string; description?: string }
+): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error } = await supabase
+    .from('shared_spaces')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', spaceId)
+    .select('id');
+
+  return wrote('Modification de l’espace', data, error);
+}
+
+/** Supprime définitivement un espace. Les films, notes et votes tombent en cascade. */
+export async function deleteSpace(spaceId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error } = await supabase
+    .from('shared_spaces')
+    .delete()
+    .eq('id', spaceId)
+    .select('id');
+
+  return wrote('Suppression de l’espace', data, error);
+}
+
+/**
+ * Exclut un membre, en sortie douce plutôt qu'en suppression.
+ *
+ * Ses notes et ses votes restent attachés à l'historique de l'espace, ce qu'une
+ * suppression en cascade aurait effacé. En revanche il perd l'accès, puisque
+ * `is_member_of_space` exige `is_active`.
+ *
+ * Attention : cela ne l'empêche pas de revenir s'il détient encore le code. Pour
+ * fermer réellement la porte, il faut renouveler le code d'invitation.
+ */
+export async function removeMember(spaceId: string, profileId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error } = await supabase
+    .from('space_members')
+    .update({ is_active: false, left_at: new Date().toISOString() })
+    .eq('space_id', spaceId)
+    .eq('profile_id', profileId)
+    .select('id');
+
+  return wrote('Exclusion du membre', data, error);
+}
+
+/** Transmet la propriété. Atomique côté serveur, pour ne jamais laisser deux propriétaires. */
+export async function transferOwnership(
+  spaceId: string,
+  toProfileId: string
+): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+
+  const { error } = await supabase.rpc('transfer_space_ownership', {
+    _space_id: spaceId,
+    _to_profile: toProfileId,
+  });
+
+  if (error) return { ok: false, error: logSpace('Transfert de propriété', error) };
+  return { ok: true };
+}
+
+/** Renouvelle le code d'invitation. Seul moyen d'empêcher un ancien membre de revenir. */
+export async function regenerateInviteCode(
+  spaceId: string
+): Promise<{ code: string | null; error?: string }> {
+  if (!supabase) return { code: null, error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error } = await supabase.rpc('regenerate_invite_code', {
+    _space_id: spaceId,
+  });
+
+  if (error) return { code: null, error: logSpace('Renouvellement du code', error) };
+  return { code: data as string };
+}
+
+/**
  * Récupère tous les films d'un espace partagé
  */
 export async function getSpaceMovies(spaceId: string): Promise<SpaceRead<SharedMovie>> {
