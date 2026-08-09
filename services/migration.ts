@@ -226,6 +226,11 @@ export async function syncCinemaSubscriptionToSupabase(
   }
 }
 
+/** Valeurs acceptées par les contraintes CHECK de la table `profiles`. */
+const GENDERS = ['h', 'f'];
+const VIEWING_PREFERENCES = ['cinema', 'streaming', 'both'];
+const clampTo010 = (value: number) => Math.max(0, Math.min(10, Math.round(value)));
+
 /**
  * Remonte vers le compte ce que l'utilisateur a renseigné sur cet appareil.
  *
@@ -257,13 +262,19 @@ export async function syncProfileFieldsToSupabase(
   if ((local.lastName || null) !== (remote.last_name || null)) {
     patch.last_name = local.lastName || null;
   }
-  if (local.gender && local.gender !== remote.gender) {
+  // Les valeurs sont filtrées sur les contraintes de la table, pas seulement sur
+  // le type TypeScript : un profil ancien peut porter une valeur qui n'existait
+  // plus au moment où la contrainte a été posée, et l'envoyer ferait rejeter le lot.
+  if (GENDERS.includes(local.gender as string) && local.gender !== remote.gender) {
     patch.gender = local.gender;
   }
-  if (local.age != null && local.age !== remote.age) {
-    patch.age = local.age;
+  if (Number.isFinite(local.age) && (local.age as number) > 0 && local.age !== remote.age) {
+    patch.age = Math.round(local.age as number);
   }
-  if (local.viewingPreference && local.viewingPreference !== remote.viewing_preference) {
+  if (
+    VIEWING_PREFERENCES.includes(local.viewingPreference as string) &&
+    local.viewingPreference !== remote.viewing_preference
+  ) {
     patch.viewing_preference = local.viewingPreference;
   }
   if (
@@ -274,11 +285,11 @@ export async function syncProfileFieldsToSupabase(
     patch.streaming_platforms = local.streamingPlatforms;
   }
 
-  if (local.severityIndex != null && remote.severity_index == null) {
-    patch.severity_index = local.severityIndex;
+  if (Number.isFinite(local.severityIndex) && remote.severity_index == null) {
+    patch.severity_index = clampTo010(local.severityIndex as number);
   }
-  if (local.patienceLevel != null && remote.patience_level == null) {
-    patch.patience_level = local.patienceLevel;
+  if (Number.isFinite(local.patienceLevel) && remote.patience_level == null) {
+    patch.patience_level = clampTo010(local.patienceLevel as number);
   }
   if (local.favoriteGenres?.length && !remote.favorite_genres?.length) {
     patch.favorite_genres = local.favoriteGenres;
@@ -293,17 +304,38 @@ export async function syncProfileFieldsToSupabase(
   const changed = Object.keys(patch);
   if (changed.length === 0) return [];
 
+  const stamped = () => ({ updated_at: new Date().toISOString() });
+
   const { error } = await supabase
     .from('profiles')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ ...patch, ...stamped() })
     .eq('id', userId);
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('[Profil] Remontée impossible :', error);
-    return [];
+  if (!error) return changed;
+
+  /**
+   * Un UPDATE est atomique : une seule colonne refusée par une contrainte fait
+   * rejeter le lot entier, genre et âge compris. On reprend donc colonne par
+   * colonne, pour qu'une valeur douteuse n'en condamne pas neuf autres.
+   *
+   * Les erreurs sont tracées sans condition d'environnement : c'est précisément
+   * en production que cet échec s'est produit, et le silence a coûté une session
+   * entière de diagnostic à l'aveugle.
+   */
+  console.warn('[Profil] Remontée groupée refusée, reprise colonne par colonne :', error.message);
+
+  const applied: string[] = [];
+  for (const key of changed) {
+    const { error: singleError } = await supabase
+      .from('profiles')
+      .update({ [key]: patch[key], ...stamped() })
+      .eq('id', userId);
+
+    if (singleError) console.warn(`[Profil] Colonne ${key} refusée :`, singleError.message);
+    else applied.push(key);
   }
 
-  return changed;
+  return applied;
 }
 
 export function resetMigrationFlag(userId: string) {
