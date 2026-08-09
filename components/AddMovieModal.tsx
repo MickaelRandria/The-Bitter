@@ -518,11 +518,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           },
           currentUserId
         );
-        if (result) {
-          haptics.success();
-          onSharedMovieAdded?.();
-          onClose();
+        // Il n'y avait pas de `else` ici, et `addMovieToSpace` renvoyait null au
+        // lieu de lever : un refus laissait la modale ouverte, le bouton réactivé,
+        // et pas un mot à l'écran. Le toast d'erreur était inatteignable.
+        if (!result.movie) {
+          haptics.error();
+          onToast?.(result.error ?? t('addMovie.cannotAddToSpace'));
+          return;
         }
+
+        haptics.success();
+        onSharedMovieAdded?.();
+        onClose();
       } catch (err) {
         haptics.error();
         onToast?.(t('addMovie.cannotAddToSpace'));

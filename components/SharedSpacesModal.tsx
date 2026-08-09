@@ -47,14 +47,13 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
 
   const loadSpaces = async () => {
     setLoading(true);
-    try {
-      const data = await getUserSpaces(userId);
-      setSpaces(data);
-    } catch (e) {
-      if (import.meta.env.DEV) console.error('Erreur chargement espaces', e);
-    } finally {
-      setLoading(false);
-    }
+    setError(null);
+    // Un refus du serveur affichait « vous ne participez à aucun espace »,
+    // c'est-à-dire le message qui décourage le plus de réessayer.
+    const result = await getUserSpaces(userId);
+    if (result.error) setError(result.error);
+    setSpaces(result.data);
+    setLoading(false);
   };
 
   const handleCreateSpace = async () => {
@@ -67,9 +66,10 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
       const space = await createSharedSpace(newSpaceName, newSpaceDesc, userId);
 
       if (space) {
-        // 🛠️ FIX CRITIQUE: Forcer l'auto-join pour garantir que l'utilisateur est membre
-        // et que l'espace apparaisse au prochain chargement
-        await joinSpaceByCode(space.invite_code, userId);
+        // L'auto-join qui se trouvait ici était voué à échouer : create_space_v2
+        // inscrit déjà le créateur comme propriétaire. L'appel repartait donc en
+        // « déjà membre » à chaque création, et son échec était jeté en silence,
+        // ce qui laissait croire que c'était lui qui garantissait l'appartenance.
 
         haptics.success();
 
@@ -99,7 +99,11 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     try {
       const result = await joinSpaceByCode(inviteCode, userId);
 
-      if (result.success) {
+      // `result.space` est désormais garanti quand `success` est vrai : le service
+      // refuse une réponse vide. L'animation « Rejoint ! » ne peut donc plus se
+      // jouer pour refermer la modale sur rien.
+      if (result.success && result.space) {
+        const joined = result.space;
         haptics.success();
         setJoinSuccess(true);
 
@@ -110,12 +114,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
           setJoinSuccess(false);
           setShowJoinForm(false);
           setInviteCode('');
-
-          if (result.space) {
-            onSelectSpace(result.space);
-          } else {
-            onClose();
-          }
+          onSelectSpace(joined);
         }, 800);
       } else {
         haptics.error();
