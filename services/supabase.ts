@@ -123,11 +123,30 @@ export interface SpaceRead<T> {
  * Les conditionner à `import.meta.env.DEV` revient à se rendre aveugle très
  * exactement là où le défaut se produit : en production, chez l'utilisateur.
  */
+/**
+ * Une coupure réseau remonte du navigateur, pas de Postgres, et sous une forme
+ * illisible : « TypeError: Load failed » sur Safari, « Failed to fetch » ailleurs.
+ * Servir ça tel quel à l'utilisateur ne lui apprend rien et l'inquiète.
+ */
+const NETWORK_HINTS = [
+  'load failed',
+  'failed to fetch',
+  'networkerror',
+  'network request failed',
+];
+
 const logSpace = (action: string, error: unknown): string => {
-  const message =
-    (error as { message?: string })?.message || 'Erreur inconnue côté serveur';
-  console.warn(`[Espaces] ${action} : ${message}`, error);
-  return message;
+  const raw = (error as { message?: string })?.message || 'Erreur inconnue côté serveur';
+
+  // La console garde toujours le message brut : c'est lui qui sert au diagnostic.
+  console.warn(`[Espaces] ${action} : ${raw}`, error);
+
+  const lower = raw.toLowerCase();
+  if (NETWORK_HINTS.some((hint) => lower.includes(hint))) {
+    return 'Connexion perdue. Vérifie ton réseau, puis réessaie.';
+  }
+
+  return raw;
 };
 
 /**

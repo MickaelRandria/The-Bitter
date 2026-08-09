@@ -1921,7 +1921,18 @@ const App: React.FC = () => {
         </header>
       )}
 
-      <main className={`flex-1 px-6 ${viewMode === 'SharedSpace' ? 'pt-6' : 'pt-6'} pb-32`}>
+      {/* En mode espace partagé le header n'est pas rendu, donc plus personne ne
+          réserve la hauteur de l'encoche : le bouton retour se retrouvait dessous,
+          hors d'atteinte. C'est ici qu'il faut compenser, pas dans la vue. */}
+      <main
+        className="flex-1 px-6 pb-32"
+        style={{
+          paddingTop:
+            viewMode === 'SharedSpace'
+              ? 'calc(env(safe-area-inset-top, 0px) + 1.5rem)'
+              : '1.5rem',
+        }}
+      >
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center py-20">
