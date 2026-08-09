@@ -2587,6 +2587,7 @@ const App: React.FC = () => {
               setShowFeedbackModal(true);
             }}
             accountEmail={session?.user?.email ?? null}
+            isSignedIn={!!session?.user}
             pendingSyncCount={pendingSyncCount}
             onOpenAccountSync={() => {
               setShowProfile(false);

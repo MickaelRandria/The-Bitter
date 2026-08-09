@@ -378,7 +378,11 @@ export const fr: Record<string, string> = {
 
   // ── Sauvegarde en ligne du profil ────────────────────────────────────────
   'accountSync.entry': 'Sauvegarder mes films en ligne',
-  'accountSync.entryOffline': 'Tes films n’existent que sur cet appareil',
+  'accountSync.entryOffline': 'Non connecté · films sur cet appareil uniquement',
+  'accountSync.entryAnonymous': 'Compte sans email · à sécuriser',
+  'accountSync.secureTitle': 'Sécurise ton compte',
+  'accountSync.secureBody':
+    'Ce compte n’a pas d’email : il ne vit que dans ce navigateur. Si tu perds son stockage, tu perds l’accès à ces films. Ajoute ton email maintenant, ça ne prend que quelques secondes.',
   'accountSync.entryPending': '{count} film(s) pas encore sauvegardé(s)',
   'accountSync.entrySynced': 'Tout est sauvegardé',
   'accountSync.title': 'Sauvegarde en ligne',

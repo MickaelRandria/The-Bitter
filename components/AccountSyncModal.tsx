@@ -174,6 +174,40 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                   {t('accountSync.savedLabel')}
                 </p>
               </div>
+              {/* Un compte sans email ne vit que dans ce navigateur : perdre le
+                  stockage local, c'est perdre l'accès aux films qu'on vient tout
+                  juste de sauvegarder. On insiste ici plutôt que de le proposer
+                  discrètement ailleurs. */}
+              {isAnonymous && report.pushed > 0 && (
+                <div className="text-left bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-orange-400">
+                    <AlertTriangle size={14} />
+                    <p className="text-[10px] font-black uppercase tracking-widest">
+                      {t('accountSync.secureTitle')}
+                    </p>
+                  </div>
+                  <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+                    {t('accountSync.secureBody')}
+                  </p>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className={inputClass}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nom@exemple.com"
+                  />
+                  <button
+                    onClick={linkEmail}
+                    disabled={!emailValid || busy}
+                    className={primaryClass}
+                  >
+                    {busy && <Loader2 size={14} className="animate-spin" />}
+                    {t('accountSync.attachEmailCta')}
+                  </button>
+                </div>
+              )}
+
               {report.skippedDeleted > 0 && (
                 <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
                   {t('accountMerge.skippedDeleted', { count: String(report.skippedDeleted) })}

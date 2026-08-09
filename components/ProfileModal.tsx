@@ -63,6 +63,8 @@ interface ProfileModalProps {
   onSendFeedback?: () => void;
   /** Email du compte connecté, absent si personne ne l'est. */
   accountEmail?: string | null;
+  /** Vrai dès qu'une session existe, y compris sans email. */
+  isSignedIn?: boolean;
   /** Films pas encore sauvegardés en ligne, affichés en pastille. */
   pendingSyncCount?: number;
   onOpenAccountSync?: () => void;
@@ -103,6 +105,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onReplayTour,
   onSendFeedback,
   accountEmail,
+  isSignedIn = false,
   pendingSyncCount = 0,
   onOpenAccountSync,
   cinemaSubscription,
@@ -118,6 +121,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Session ouverte mais sans email : le compte ne survit pas à ce navigateur. */
+  const isAnonymousAccount = isSignedIn && !accountEmail;
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -571,20 +576,40 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white truncate">
                       {t('accountSync.entry')}
                     </span>
-                    <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5 truncate">
-                      {!accountEmail
-                        ? t('accountSync.entryOffline')
-                        : pendingSyncCount > 0
-                          ? t('accountSync.entryPending', { count: String(pendingSyncCount) })
-                          : t('accountSync.entrySynced')}
+                    {/* L'état du compte doit se lire ici, sans ouvrir la fenêtre :
+                        ne pas savoir si on est connecté fait créer des comptes en
+                        double et croit-on sauvegarder alors qu'il n'en est rien. */}
+                    <span
+                      className={`block text-[9px] font-bold mt-0.5 truncate ${
+                        isAnonymousAccount
+                          ? 'text-orange-400'
+                          : 'text-stone-400 dark:text-stone-500'
+                      }`}
+                    >
+                      {isAnonymousAccount
+                        ? t('accountSync.entryAnonymous')
+                        : accountEmail
+                          ? accountEmail
+                          : t('accountSync.entryOffline')}
                     </span>
                   </div>
                 </div>
-                {pendingSyncCount > 0 && accountEmail && (
-                  <span className="shrink-0 ml-2 min-w-[1.5rem] h-6 px-2 rounded-full bg-forest dark:bg-bitter-lime text-white dark:text-charcoal text-[10px] font-black flex items-center justify-center">
-                    {pendingSyncCount}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {pendingSyncCount > 0 && isSignedIn && (
+                    <span className="min-w-[1.5rem] h-6 px-2 rounded-full bg-forest dark:bg-bitter-lime text-white dark:text-charcoal text-[10px] font-black flex items-center justify-center">
+                      {pendingSyncCount}
+                    </span>
+                  )}
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isAnonymousAccount
+                        ? 'bg-orange-400'
+                        : isSignedIn
+                          ? 'bg-forest dark:bg-bitter-lime'
+                          : 'bg-stone-300 dark:bg-stone-600'
+                    }`}
+                  />
+                </div>
               </button>
             )}
 

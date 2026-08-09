@@ -377,7 +377,11 @@ export const en: Record<string, string> = {
 
   // ── Online backup of the profile ─────────────────────────────────────────
   'accountSync.entry': 'Back up my films online',
-  'accountSync.entryOffline': 'Your films only exist on this device',
+  'accountSync.entryOffline': 'Not signed in · films on this device only',
+  'accountSync.entryAnonymous': 'Account without email · secure it',
+  'accountSync.secureTitle': 'Secure your account',
+  'accountSync.secureBody':
+    'This account has no email: it only lives in this browser. Lose its storage and you lose access to these films. Add your email now, it takes seconds.',
   'accountSync.entryPending': '{count} film(s) not backed up yet',
   'accountSync.entrySynced': 'Everything is backed up',
   'accountSync.title': 'Online backup',
