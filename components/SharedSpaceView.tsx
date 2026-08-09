@@ -43,6 +43,7 @@ import {
   markMovieAsWatched,
   deleteSharedMovie,
   leaveSharedSpace,
+  subscribeToSpace,
   MovieVote,
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
@@ -114,8 +115,40 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     loadData();
   }, [space.id, refreshTrigger]);
 
-  const loadData = async () => {
-    setLoading(true);
+  /**
+   * Temps réel. `subscribeToSpace` était écrit depuis le début et importé nulle part :
+   * un membre ne voyait jamais l'action d'un autre sans quitter l'espace et y revenir,
+   * ce qui vidait la fonctionnalité de sa raison d'être.
+   *
+   * Les canaux des notes et des votes ne peuvent pas être filtrés par espace, ces
+   * tables n'ayant pas de `space_id`. On regroupe donc les rafales dans un court
+   * délai plutôt que de relancer trois lectures à chaque évènement reçu.
+   */
+  useEffect(() => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleReload = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => {
+        pending = null;
+        loadData(true);
+      }, 400);
+    };
+
+    const unsubscribe = subscribeToSpace(space.id, scheduleReload, scheduleReload);
+
+    return () => {
+      if (pending) clearTimeout(pending);
+      unsubscribe();
+    };
+  }, [space.id]);
+
+  /**
+   * `silent` sert aux rafraîchissements déclenchés par un autre membre : remettre
+   * l'écran en chargement ferait clignoter la liste à chaque vote reçu.
+   */
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(null);
     const [movies, members, votes] = await Promise.all([
       getSpaceMovies(space.id),
@@ -574,14 +607,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${member.is_active ? 'bg-green-400' : 'bg-stone-300 dark:bg-stone-700'}`}
-                    />
-                    <span className="text-[10px] font-medium text-stone-400 dark:text-stone-600">
-                      {member.is_active ? t('shared.active') : t('shared.inactive')}
-                    </span>
-                  </div>
+                  {/* La pastille actif/inactif était du code mort : la requête ne
+                      ramène que les membres actifs, donc la branche grise était
+                      inatteignable et tout le monde paraissait vert par construction.
+                      On affiche le rôle, qui lui distingue vraiment quelque chose. */}
+                  <span className="text-[10px] font-medium text-stone-400 dark:text-stone-600">
+                    {member.role === 'owner' ? t('shared.roleOwner') : t('shared.roleMember')}
+                  </span>
                 </div>
                 <ChevronRight size={16} className="text-stone-300 dark:text-stone-700" />
               </div>
@@ -893,6 +925,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               <Ticket size={18} strokeWidth={2.5} />
                               {t('shared.markWatched')}
                             </button>
+
+                            {/* La suppression n'existait que dans l'onglet des verdicts :
+                                une suggestion ajoutée par erreur restait dans la liste
+                                d'envies à vie, y compris pour son auteur, alors que la
+                                base autorise parfaitement l'opération. */}
+                            {movie.added_by === currentUserId && (
+                              <button
+                                onClick={(e) => handleDeleteMovie(e, movie.id)}
+                                className="w-full py-3 rounded-2xl text-stone-400 dark:text-stone-600 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all hover:text-orange-400"
+                              >
+                                <Trash2 size={13} />
+                                {t('shared.removeSuggestion')}
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
