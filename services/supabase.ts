@@ -415,6 +415,8 @@ export async function getMemberTopFilms(
     .select('id, title, poster_url, year, director, story, visuals, acting, sound')
     .eq('profile_id', profileId)
     .eq('status', 'watched')
+    // Un film supprimé n'a rien à faire dans un palmarès.
+    .is('deleted_at', null)
     .not('story', 'is', null);
   if (error) {
     if (import.meta.env.DEV) console.error('Error fetching member top films:', error);
@@ -445,6 +447,8 @@ export async function getMemberStats(
     .select('story, visuals, acting, sound')
     .eq('profile_id', profileId)
     .eq('status', 'watched')
+    // Sinon les films supprimés continueraient de peser dans la moyenne.
+    .is('deleted_at', null)
     .not('story', 'is', null);
   if (error || !data || data.length === 0) return { watchedCount: 0, avgRating: 0 };
   const watchedCount = data.length;
@@ -466,6 +470,7 @@ export async function getUserMovies(userId: string) {
     .from('user_movies')
     .select('*')
     .eq('profile_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (error) {
     if (import.meta.env.DEV) console.error('Error loading user movies:', error);

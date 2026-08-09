@@ -24,6 +24,7 @@ import {
   Settings,
   MessageSquareText,
   Ticket,
+  CloudUpload,
 } from 'lucide-react';
 import { CinemaSubscription, UserProfile } from '../types';
 import { formatCurrency } from '../utils/cinemaSubscription';
@@ -60,6 +61,11 @@ interface ProfileModalProps {
    * dégager de la place en haut de l'écran.
    */
   onSendFeedback?: () => void;
+  /** Email du compte connecté, absent si personne ne l'est. */
+  accountEmail?: string | null;
+  /** Films pas encore sauvegardés en ligne, affichés en pastille. */
+  pendingSyncCount?: number;
+  onOpenAccountSync?: () => void;
   /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
   cinemaSubscription?: CinemaSubscription;
   onManageCinemaSubscription?: () => void;
@@ -96,6 +102,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onLetterboxdImport,
   onReplayTour,
   onSendFeedback,
+  accountEmail,
+  pendingSyncCount = 0,
+  onOpenAccountSync,
   cinemaSubscription,
   onManageCinemaSubscription,
 }) => {
@@ -548,6 +557,36 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </span>
               </div>
             </button>
+
+            {onOpenAccountSync && (
+              <button
+                onClick={() => { haptics.soft(); onOpenAccountSync(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                    <CloudUpload size={14} />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white truncate">
+                      {t('accountSync.entry')}
+                    </span>
+                    <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5 truncate">
+                      {!accountEmail
+                        ? t('accountSync.entryOffline')
+                        : pendingSyncCount > 0
+                          ? t('accountSync.entryPending', { count: String(pendingSyncCount) })
+                          : t('accountSync.entrySynced')}
+                    </span>
+                  </div>
+                </div>
+                {pendingSyncCount > 0 && accountEmail && (
+                  <span className="shrink-0 ml-2 min-w-[1.5rem] h-6 px-2 rounded-full bg-forest dark:bg-bitter-lime text-white dark:text-charcoal text-[10px] font-black flex items-center justify-center">
+                    {pendingSyncCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {onManageCinemaSubscription && (
               <button

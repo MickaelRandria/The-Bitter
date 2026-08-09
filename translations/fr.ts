@@ -376,6 +376,45 @@ export const fr: Record<string, string> = {
   'tooltip.feed.title': 'Ta Collection',
   'tooltip.feed.content': "Glisse une carte vers la gauche pour supprimer, vers la droite pour éditer. Utilise le bouton + pour ajouter.",
 
+  // ── Sauvegarde en ligne du profil ────────────────────────────────────────
+  'accountSync.entry': 'Sauvegarder mes films en ligne',
+  'accountSync.entryOffline': 'Tes films n’existent que sur cet appareil',
+  'accountSync.entryPending': '{count} film(s) pas encore sauvegardé(s)',
+  'accountSync.entrySynced': 'Tout est sauvegardé',
+  'accountSync.title': 'Sauvegarde en ligne',
+  'accountSync.intro':
+    'Reçois un lien par email pour retrouver tes films sur n’importe quel appareil. Si tu as déjà un compte, utilise la même adresse.',
+  'accountSync.sendLink': 'Recevoir mon lien',
+  'accountSync.noPassword': 'Aucun mot de passe à retenir.',
+  'accountSync.linkSentTitle': 'Regarde tes mails',
+  'accountSync.linkSentBody':
+    'On a envoyé un lien à {email}. Ouvre-le depuis cet appareil pour te connecter.',
+  'accountSync.connectedAs': 'Connecté avec',
+  'accountSync.pendingBody':
+    '{count} film(s) de cet appareil ne sont pas encore sur ton compte.',
+  'accountSync.saveCta': 'Sauvegarder {count} film(s)',
+  'accountSync.upToDate': 'Tous tes films sont sauvegardés.',
+  'accountSync.savedLabel': 'films sauvegardés',
+  'accountSync.notConfigured': 'La sauvegarde en ligne n’est pas disponible ici.',
+
+  // ── Reconnexion : réunir ou garder séparé ────────────────────────────────
+  'accountMerge.title': 'Bon retour !',
+  'accountMerge.intro':
+    'Ton compte a déjà {count} films sauvegardés. On a aussi trouvé des films sur cet appareil qui ne sont pas encore dedans.',
+  'accountMerge.mergeTitle': 'Tout réunir',
+  'accountMerge.mergeDesc':
+    'Les films de cet appareil rejoignent tes {remote} déjà sauvegardés. Un seul historique, rien de perdu, rien en double.',
+  'accountMerge.mergeCta': 'Tout réunir',
+  'accountMerge.keepTitle': 'Garder séparé pour l’instant',
+  'accountMerge.keepDesc':
+    'On ne touche à rien. Tu retrouves tes {count} films sauvegardés, ceux de cet appareil restent ici sans être ajoutés. Tu pourras changer d’avis plus tard.',
+  'accountMerge.keepCta': 'Non, laisser comme ça',
+  'accountMerge.pushed': 'films réunis sur ton compte',
+  'accountMerge.failed': '{count} n’ont pas pu être ajoutés',
+  'accountMerge.skippedDeleted':
+    '{count} film(s) n’ont pas été remis : tu les avais supprimés depuis un autre appareil.',
+  'accountMerge.continue': 'Continuer',
+
   // ── Proposition avant le tuto ────────────────────────────────────────────
   'tourPrompt.accept': 'Faire le tuto',
   'tourPrompt.decline': 'Plus tard',
