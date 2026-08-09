@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { X, Check, Loader2, Mail, CloudUpload, AlertTriangle } from 'lucide-react';
 import { BackfillReport } from '../services/movieSync';
-import { attachEmail, sendMagicLink, startAnonymousSession } from '../services/auth';
+import {
+  attachEmail,
+  sendMagicLink,
+  startAnonymousSession,
+  verifyEmailCode,
+} from '../services/auth';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
@@ -41,10 +46,25 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
+  /**
+   * Vrai seulement après une demande de connexion, jamais après un rattachement
+   * d'email : ce dernier envoie une confirmation de changement d'adresse, dont le
+   * code relève d'un autre type et ne se vérifie pas ici.
+   */
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState('');
+  /**
+   * Comble l'intervalle entre `verifyOtp` qui rend la main et la session qui
+   * redescend de l'App via `accountEmail`. Sans cet état, la modale repasserait
+   * une fraction de seconde par le formulaire d'email : la connexion réussie
+   * ressemblerait à un échec.
+   */
+  const [justSignedIn, setJustSignedIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<BackfillReport | null>(null);
 
   const emailValid = /\S+@\S+\.\S+/.test(email.trim());
+  const codeValid = /^\d{6}$/.test(code.trim());
 
   const requestLink = async () => {
     if (!emailValid || busy) return;
@@ -64,8 +84,52 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
       return;
     }
 
+    setCode('');
     setLinkSent(true);
+    setAwaitingCode(true);
     haptics.success();
+  };
+
+  /**
+   * Ouvre la session dans CE contexte de stockage, sans passer par le lien.
+   *
+   * On ne ferme pas la modale : la session remonte à l'App, qui repasse
+   * `accountEmail`, et la vue bascule d'elle-même sur l'état connecté. L'utilisateur
+   * enchaîne donc sur la sauvegarde de ses films sans avoir à rouvrir quoi que ce soit.
+   */
+  const submitCode = async () => {
+    if (!codeValid || busy) return;
+    haptics.medium();
+    setBusy(true);
+    setError(null);
+
+    const result = await verifyEmailCode(email, code);
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(
+        result.reason === 'not-configured'
+          ? t('accountSync.notConfigured')
+          : (result.message ?? t('accountSync.codeInvalid'))
+      );
+      haptics.error();
+      return;
+    }
+
+    setLinkSent(false);
+    setAwaitingCode(false);
+    setCode('');
+    setJustSignedIn(true);
+    haptics.success();
+  };
+
+  /** Retour au formulaire : sert aussi bien à corriger l'adresse qu'à renvoyer un code. */
+  const backToEmail = () => {
+    haptics.soft();
+    setLinkSent(false);
+    setAwaitingCode(false);
+    setCode('');
+    setError(null);
   };
 
   /**
@@ -197,6 +261,11 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nom@exemple.com"
                   />
+                  {error && (
+                    <p className="text-[11px] font-medium text-orange-400 leading-relaxed">
+                      {error}
+                    </p>
+                  )}
                   <button
                     onClick={linkEmail}
                     disabled={!emailValid || busy}
@@ -230,18 +299,84 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
               )}
             </div>
           ) : linkSent ? (
-            <div className="text-center py-6 space-y-4">
+            <div className="text-center py-4 space-y-5">
               <div className="w-14 h-14 rounded-3xl bg-bitter-lime/10 border border-bitter-lime/30 flex items-center justify-center text-bitter-lime mx-auto">
                 <Mail size={24} />
               </div>
               <h3 className="text-2xl font-black text-charcoal dark:text-white tracking-tight">
                 {t('accountSync.linkSentTitle')}
               </h3>
+              {/* Le rattachement d'email envoie une confirmation de changement
+                  d'adresse, pas un code de connexion : lui servir le texte du code
+                  ferait chercher six chiffres qui n'existent pas. */}
               <p className="text-sm font-medium text-stone-400 dark:text-stone-500 leading-relaxed max-w-xs mx-auto">
-                {t('accountSync.linkSentBody', { email: email.trim() })}
+                {t(awaitingCode ? 'accountSync.linkSentBody' : 'accountSync.attachSentBody', {
+                  email: email.trim(),
+                })}
               </p>
+
+              {/* Le code plutôt que le lien : depuis l'app installée sur l'écran
+                  d'accueil, le lien s'ouvrirait dans le navigateur par défaut, qui a
+                  son propre stockage. La session s'ouvrirait à côté des films au lieu
+                  de s'ouvrir avec eux. Saisi ici, le code connecte au bon endroit. */}
+              {awaitingCode && (
+                <div className="text-left space-y-3 pt-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 block ml-1">
+                    {t('accountSync.codeLabel')}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    /* Pas de maxLength : il tronquerait le texte collé AVANT que
+                       les espaces et le reste soient retirés, et « 123 456 » ne
+                       donnerait que cinq chiffres avec un bouton inerte. */
+                    className={`${inputClass} text-center text-3xl tracking-[0.5em] font-black`}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                  />
+
+                  {error && (
+                    <p className="text-[11px] font-medium text-orange-400 leading-relaxed">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={submitCode}
+                    disabled={!codeValid || busy}
+                    className={primaryClass}
+                  >
+                    {busy && <Loader2 size={14} className="animate-spin" />}
+                    {t('accountSync.codeCta')}
+                  </button>
+
+                  <button
+                    onClick={backToEmail}
+                    disabled={busy}
+                    className="w-full pt-1 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-charcoal dark:hover:text-white transition-colors disabled:opacity-40"
+                  >
+                    {t('accountSync.codeResend')}
+                  </button>
+                </div>
+              )}
             </div>
-          ) : accountEmail ? (
+          ) : justSignedIn && !accountEmail ? (
+            <div className="text-center py-10 space-y-4">
+              <div className="w-14 h-14 rounded-3xl bg-bitter-lime/10 border border-bitter-lime/30 flex items-center justify-center text-bitter-lime mx-auto">
+                <Check size={26} strokeWidth={3} />
+              </div>
+              <h3 className="text-2xl font-black text-charcoal dark:text-white tracking-tight">
+                {t('accountSync.signedInTitle')}
+              </h3>
+              <Loader2 size={16} className="animate-spin text-stone-400 mx-auto" />
+            </div>
+          ) : /* Un compte anonyme n'a pas d'email : tester `accountEmail` seul
+                 renvoyait sur le formulaire de connexion, si bien que « Continuer
+                 sans email » ne disait jamais qu'on était connecté et que tout le
+                 parcours anonyme en dessous restait inatteignable. */
+            accountEmail || accountId ? (
             <div className="space-y-5">
               <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-2xl p-4">
                 <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">
@@ -267,6 +402,11 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nom@exemple.com"
                   />
+                  {error && (
+                    <p className="text-[11px] font-medium text-orange-400 leading-relaxed">
+                      {error}
+                    </p>
+                  )}
                   <button
                     onClick={linkEmail}
                     disabled={!emailValid || busy}
@@ -348,7 +488,7 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
           )}
         </div>
 
-        {(report || linkSent) && (
+        {(report || (linkSent && !awaitingCode)) && (
           <div className="p-6 pt-4 border-t border-sand dark:border-white/5 bg-white dark:bg-[#1a1a1a] shrink-0">
             <button onClick={onClose} className={primaryClass}>
               {t('common.done')}

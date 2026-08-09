@@ -45,6 +45,31 @@ export const sendMagicLink = async (email: string): Promise<AuthOutcome> => {
   return { ok: true };
 };
 
+/**
+ * Vérifie le code à 6 chiffres reçu par email, sans passer par le lien.
+ *
+ * C'est la seule voie praticable depuis une app installée sur l'écran d'accueil :
+ * sur iOS, un lien ouvert depuis la boîte mail part toujours dans le navigateur par
+ * défaut, qui possède son propre stockage. L'utilisateur se retrouverait connecté
+ * dans un contexte vide, à côté de ses films, sans aucun moyen de les rejoindre.
+ * Le code, lui, ouvre la session dans le contexte où il est saisi.
+ *
+ * `type: 'email'` couvre le code émis par `signInWithOtp`, que l'adresse soit déjà
+ * connue ou non. `magiclink` ne concerne que le jeton porté par l'URL.
+ */
+export const verifyEmailCode = async (email: string, code: string): Promise<AuthOutcome> => {
+  if (!supabase) return notConfigured;
+
+  const { error } = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: code.replace(/\s/g, ''),
+    type: 'email',
+  });
+
+  if (error) return { ok: false, reason: 'failed', message: error.message };
+  return { ok: true };
+};
+
 /** Crée une session anonyme, sans aucun écran intermédiaire. */
 export const startAnonymousSession = async (): Promise<AuthOutcome> => {
   if (!supabase) return notConfigured;

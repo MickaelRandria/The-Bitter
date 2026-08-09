@@ -346,7 +346,27 @@ const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showProfileLinking, setShowProfileLinking] = useState(false);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  /**
+   * Profils lus au moment de l'exécution. L'effet de téléchargement ne dépend pas
+   * de `profiles` (il bouclerait sur lui-même), il a pourtant besoin de savoir
+   * si l'appareil est réellement vierge : sans ce ref il lirait une valeur figée
+   * au premier rendu, donc un tableau vide, et recréerait un profil à chaque fois.
+   */
+  const profilesRef = useRef<UserProfile[]>([]);
+  profilesRef.current = profiles;
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  /**
+   * Vrai quand l'utilisateur a lui-même demandé le sélecteur de profils.
+   *
+   * `activeProfileId` à null ne suffit pas à distinguer les deux situations : un
+   * appareil vierge et un retour volontaire au sélecteur y ressemblent trait pour
+   * trait. Sans ce drapeau, l'effet de téléchargement reconstruisait un profil et
+   * le réactivait aussitôt, renvoyant l'utilisateur dans le feed sans qu'il ait pu
+   * changer quoi que ce soit, en ajoutant un doublon à chaque tentative.
+   */
+  const [choosingProfile, setChoosingProfile] = useState(false);
+  const choosingProfileRef = useRef(false);
+  choosingProfileRef.current = choosingProfile;
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
   // null = l'utilisateur n'a pas encore tranché : on ouvre le bloc dès que la
@@ -1041,6 +1061,27 @@ const App: React.FC = () => {
       // l'écran d'accueil ne ramènerait rien et l'app resterait vide.
       if (!activeProfileId) {
         if (remote.length === 0) return;
+        // Retour volontaire au sélecteur : on ne le renvoie pas dans le feed.
+        // La fusion se fera de toute façon dès qu'il aura choisi un profil.
+        if (choosingProfileRef.current) return;
+
+        // `loadOrCreateProfile` a pu créer, à la connexion, un profil vide portant
+        // l'identifiant du compte. On y verse les films plutôt que d'en créer un
+        // second, sinon l'utilisateur hérite d'un profil fantôme sans aucun film.
+        const own = profilesRef.current.find((p) => p.id === userId);
+        if (own) {
+          setProfiles((prev) =>
+            prev.map((p) =>
+              p.id === userId ? { ...p, movies: mergeRemoteAndLocal(remote, p.movies) } : p
+            )
+          );
+          setActiveProfileId(userId);
+          localStorage.setItem(linkedProfileKey(userId), userId);
+          setShowWelcome(false);
+          setToastMessage(t('accountSync.restored', { count: String(remote.length) }));
+          return;
+        }
+
         const restored: UserProfile = {
           id: crypto.randomUUID(),
           firstName: session.user.email?.split('@')[0] || 'Moi',
@@ -1695,6 +1736,7 @@ const App: React.FC = () => {
         <WelcomePage
           existingProfiles={profiles}
           onSelectProfile={(id) => {
+            setChoosingProfile(false);
             setActiveProfileId(id);
             setShowWelcome(false);
             setViewMode('Feed');
@@ -1714,6 +1756,7 @@ const App: React.FC = () => {
               isOnboarded: false,
             };
             setProfiles((p) => [...p, newP]);
+            setChoosingProfile(false);
             setActiveProfileId(newP.id);
             setShowWelcome(false);
             // Uniquement à la création : sélectionner un profil existant ne propose rien.
@@ -2604,6 +2647,7 @@ const App: React.FC = () => {
             onClose={() => setShowProfile(false)}
             onSwitchProfile={() => {
               setShowProfile(false);
+              setChoosingProfile(true);
               setActiveProfileId(null);
               localStorage.removeItem(LAST_PROFILE_ID_KEY);
               setShowWelcome(true);

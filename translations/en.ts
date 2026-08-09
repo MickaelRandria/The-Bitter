@@ -388,12 +388,19 @@ export const en: Record<string, string> = {
   'accountSync.entrySynced': 'Everything is backed up',
   'accountSync.title': 'Online backup',
   'accountSync.intro':
-    'Get a link by email to find your films again on any device. If you already have an account, use the same address.',
-  'accountSync.sendLink': 'Send me the link',
+    'Get a code by email to find your films again on any device. If you already have an account, use the same address.',
+  'accountSync.sendLink': 'Send me the code',
   'accountSync.noPassword': 'No password to remember.',
   'accountSync.linkSentTitle': 'Check your inbox',
   'accountSync.linkSentBody':
-    'We sent a link to {email}. Open it from this device to sign in.',
+    'We sent a 6 digit code to {email}. Enter it here, no need to open the link.',
+  'accountSync.codeLabel': 'Code from your email',
+  'accountSync.codeCta': 'Sign me in',
+  'accountSync.codeResend': 'Resend a code or change address',
+  'accountSync.codeInvalid': 'Wrong or expired code. Ask for a new one.',
+  'accountSync.signedInTitle': 'You are signed in',
+  'accountSync.attachSentBody':
+    'We sent a confirmation to {email}. Open it to validate your address.',
   'accountSync.connectedAs': 'Signed in as',
   'accountSync.pendingBody': '{count} film(s) on this device are not on your account yet.',
   'accountSync.saveCta': 'Back up {count} film(s)',
