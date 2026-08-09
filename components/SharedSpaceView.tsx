@@ -91,6 +91,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [ratingReview, setRatingReview] = useState('');
   const [savingRating, setSavingRating] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
+  /**
+   * Ce qui manquait à tout l'écran : de quoi dire que ça a raté.
+   *
+   * `loadError` distingue un espace refusé d'un espace vide, les deux affichaient
+   * jusqu'ici le même « c'est encore calme ici ». `actionError` porte l'échec d'une
+   * écriture, qui passait totalement inaperçu.
+   */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -98,25 +107,32 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   const loadData = async () => {
     setLoading(true);
-    const [moviesData, membersData, votesData] = await Promise.all([
+    setLoadError(null);
+    const [movies, members, votes] = await Promise.all([
       getSpaceMovies(space.id),
       getSpaceMembers(space.id),
       getSpaceMovieVotes(space.id),
     ]);
 
+    // La première erreur suffit : les trois lectures échouent pour la même raison
+    // quand c'est le RLS ou le réseau qui refuse.
+    const failure = movies.error || members.error || votes.error;
+    if (failure) setLoadError(failure);
+
     // Deduplicate movies and members
-    const uniqueMovies = Array.from(new Map(moviesData.map((m) => [m.id, m])).values());
-    const uniqueMembers = Array.from(new Map(membersData.map((m) => [m.id, m])).values());
+    const uniqueMovies = Array.from(new Map(movies.data.map((m) => [m.id, m])).values());
+    const uniqueMembers = Array.from(new Map(members.data.map((m) => [m.id, m])).values());
 
     setMovies(uniqueMovies);
     setMembers(uniqueMembers);
-    setVotes(votesData);
+    setVotes(votes.data);
     setLoading(false);
   };
 
   const loadRatings = async (movieId: string) => {
-    const ratings = await getMovieRatings(movieId);
-    setMovieRatings((prev) => ({ ...prev, [movieId]: ratings }));
+    const result = await getMovieRatings(movieId);
+    if (result.error) setActionError(result.error);
+    setMovieRatings((prev) => ({ ...prev, [movieId]: result.data }));
   };
 
   const handleExpandMovie = (movieId: string) => {
@@ -129,12 +145,21 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     haptics.soft();
   };
 
-  const handleCopyCode = () => {
-    if (space.invite_code) {
-      navigator.clipboard.writeText(space.invite_code);
+  /**
+   * `writeText` rend une promesse. Sans `await` ni `catch`, la coche verte
+   * s'affichait même quand la copie échouait, et l'utilisateur collait un
+   * presse-papier vide dans sa conversation.
+   */
+  const handleCopyCode = async () => {
+    if (!space.invite_code) return;
+    try {
+      await navigator.clipboard.writeText(space.invite_code);
       setCopiedCode(true);
       haptics.success();
       setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      haptics.error();
+      setActionError(t('shared.copyFailed', { code: space.invite_code }));
     }
   };
 
@@ -143,19 +168,19 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       message: t('shared.leaveConfirm', { name: space.name }),
       onConfirm: async () => {
         setIsLeaving(true);
+        setActionError(null);
         haptics.medium();
-        try {
-          const success = await leaveSharedSpace(space.id, currentUserId);
-          if (success) {
-            haptics.success();
-            onBack();
-          } else throw new Error();
-        } catch (e) {
-          if (import.meta.env.DEV) console.error(e);
+
+        const result = await leaveSharedSpace(space.id, currentUserId);
+        setIsLeaving(false);
+
+        if (!result.ok) {
           haptics.error();
-        } finally {
-          setIsLeaving(false);
+          setActionError(result.error ?? t('shared.leaveFailed'));
+          return;
         }
+        haptics.success();
+        onBack();
       },
     });
   };
@@ -163,9 +188,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const handleToggleVote = async (e: React.MouseEvent, movieId: string) => {
     e.stopPropagation();
     haptics.medium();
-    await toggleMovieVote(movieId, currentUserId);
-    const newVotes = await getSpaceMovieVotes(space.id);
-    setVotes(newVotes);
+    setActionError(null);
+
+    const result = await toggleMovieVote(movieId, currentUserId);
+    if (!result.ok) {
+      haptics.error();
+      setActionError(result.error ?? t('shared.voteFailed'));
+      return;
+    }
+
+    const refreshed = await getSpaceMovieVotes(space.id);
+    if (refreshed.error) setActionError(refreshed.error);
+    setVotes(refreshed.data);
   };
 
   const handleMarkAsWatched = (e: React.MouseEvent, movieId: string) => {
@@ -173,8 +207,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     setConfirmAction({
       message: t('shared.watchedConfirm'),
       onConfirm: async () => {
+        setActionError(null);
+        const result = await markMovieAsWatched(movieId);
+
+        if (!result.ok) {
+          haptics.error();
+          setActionError(result.error ?? t('shared.watchedFailed'));
+          return;
+        }
         haptics.success();
-        await markMovieAsWatched(movieId);
         loadData();
         setActiveTab('feed');
       },
@@ -186,10 +227,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     setConfirmAction({
       message: t('shared.deleteConfirm'),
       onConfirm: async () => {
-        haptics.error();
+        setActionError(null);
+        // Retrait optimiste : on remet la liste d'aplomb si le serveur refuse.
         setMovies((prev) => prev.filter((m) => m.id !== movieId));
-        const success = await deleteSharedMovie(movieId);
-        if (!success) loadData();
+
+        const result = await deleteSharedMovie(movieId);
+        if (!result.ok) {
+          haptics.error();
+          setActionError(result.error ?? t('shared.deleteFailed'));
+          loadData();
+          return;
+        }
+        haptics.error();
       },
     });
   };
@@ -209,27 +258,38 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         review: ratingReview.trim() || undefined,
       });
 
-      if (result) {
-        haptics.success();
-        await loadRatings(ratingMovie.id);
-        setRatingMovie(null);
-        setRatingStory(5);
-        setRatingVisuals(5);
-        setRatingActing(5);
-        setRatingSound(5);
-        setRatingReview('');
-      } else {
+      if (!result.rating) {
         haptics.error();
-        setRatingError(t('shared.ratingError'));
+        // Le motif réel plutôt que le message générique : c'est lui qui aurait
+        // désigné l'upsert sans cible de conflit dès la première tentative.
+        setRatingError(result.error ?? t('shared.ratingError'));
+        return;
       }
+
+      haptics.success();
+      await loadRatings(ratingMovie.id);
+      setRatingMovie(null);
+      setRatingStory(5);
+      setRatingVisuals(5);
+      setRatingActing(5);
+      setRatingSound(5);
+      setRatingReview('');
     } catch (e) {
-      console.error(e);
+      console.warn('[Espaces] Enregistrement du verdict :', e);
       haptics.error();
       setRatingError(t('shared.ratingError'));
     } finally {
       setSavingRating(false);
     }
   };
+
+  /**
+   * Les membres chargés sont uniquement les actifs, alors que les notes et les votes
+   * sont lus sans filtre. Compter les uns contre les autres produisait des « 3 sur 2 »,
+   * des barres au-delà de cent pour cent, et un consensus testé sur une égalité stricte
+   * qu'un ancien membre rendait définitivement inatteignable.
+   */
+  const activeMemberIds = new Set(members.map((m) => m.profile_id));
 
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
@@ -410,6 +470,44 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           )}
         </div>
 
+        {/* Un espace refusé et un espace vide se ressemblaient trait pour trait.
+            Ces deux bandeaux sont la seule chose qui les sépare. */}
+        {loadError && (
+          <div className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
+            <AlertTriangle size={15} className="text-orange-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+                {t('shared.loadFailedTitle')}
+              </p>
+              <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
+                {loadError}
+              </p>
+            </div>
+            <button
+              onClick={() => loadData()}
+              className="shrink-0 text-[10px] font-black uppercase tracking-widest text-charcoal dark:text-white underline underline-offset-2"
+            >
+              {t('shared.retry')}
+            </button>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
+            <AlertTriangle size={15} className="text-orange-400 shrink-0 mt-0.5" />
+            <p className="flex-1 min-w-0 text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+              {actionError}
+            </p>
+            <button
+              onClick={() => setActionError(null)}
+              aria-label={t('common.close')}
+              className="shrink-0 text-stone-400 hover:text-charcoal dark:hover:text-white transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
         {activeTab === 'members' ? (
           <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
             {members.map((member) => (
@@ -473,15 +571,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             {(activeTab === 'feed' ? feedMovies : watchlistMovies).map((movie) => {
               const isExpanded = expandedMovie === movie.id;
               const ratings = movieRatings[movie.id] || [];
-              const avgRating = calculateAverageRating(ratings);
+              const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
+              const avgRating = calculateAverageRating(activeRatings);
               const myRating = ratings.find((r) => r.profile_id === currentUserId);
-              const criteriaAvg = calculateCriteriaAverages(ratings);
-              const isConsensus = members.length > 1 && ratings.length === members.length;
-              const participationRate = (ratings.length / members.length) * 100;
-              const movieVotes = votes.filter((v) => v.movie_id === movie.id);
+              const criteriaAvg = calculateCriteriaAverages(activeRatings);
+              const isConsensus = members.length > 1 && activeRatings.length >= members.length;
+              const participationRate = members.length
+                ? (activeRatings.length / members.length) * 100
+                : 0;
+              const movieVotes = votes.filter(
+                (v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id)
+              );
               const hasIVoted = movieVotes.some((v) => v.profile_id === currentUserId);
               const voteCount = movieVotes.length;
-              const votePercentage = (voteCount / members.length) * 100;
+              const votePercentage = members.length ? (voteCount / members.length) * 100 : 0;
 
               return (
                 <div
@@ -540,7 +643,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 </span>
                               )}
                             </div>
-                            {ratings.length > 0 && ratings.length < members.length && (
+                            {activeRatings.length > 0 && activeRatings.length < members.length && (
                               <div className="flex items-center gap-2">
                                 <div className="h-1.5 flex-1 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden max-w-[80px]">
                                   <div
@@ -549,7 +652,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                   />
                                 </div>
                                 <span className="text-[9px] font-bold text-stone-300 dark:text-stone-700">
-                                  {ratings.length}/{members.length}
+                                  {activeRatings.length}/{members.length}
                                 </span>
                               </div>
                             )}
@@ -654,7 +757,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
                           <div className="flex items-center justify-between mt-2">
                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                              {t('shared.verdictDetail')} ({ratings.length}/{members.length})
+                              {t('shared.verdictDetail')} ({activeRatings.length}/{members.length})
                             </h4>
                             {movie.added_by === currentUserId && (
                               <button

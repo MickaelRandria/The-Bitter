@@ -94,6 +94,58 @@ export interface MovieVote {
 // ===============================================
 
 /**
+ * Résultat d'une écriture sur un espace.
+ *
+ * Forme plate plutôt qu'union discriminée : `strict` est désactivé dans ce projet,
+ * TypeScript ne sait pas restreindre une union sur un booléen littéral et l'appelant
+ * devrait caster pour lire `error`.
+ */
+export interface SpaceWrite {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Résultat d'une lecture.
+ *
+ * `data` porte toujours un tableau, pour que l'appelant puisse itérer sans garde.
+ * `error` est ce qui manquait : sans lui, un refus RLS et un espace réellement vide
+ * produisent le même écran, et personne ne peut faire la différence.
+ */
+export interface SpaceRead<T> {
+  data: T[];
+  error?: string;
+}
+
+/**
+ * Les erreurs d'espace partagé sont tracées sans condition d'environnement.
+ *
+ * Les conditionner à `import.meta.env.DEV` revient à se rendre aveugle très
+ * exactement là où le défaut se produit : en production, chez l'utilisateur.
+ */
+const logSpace = (action: string, error: unknown): string => {
+  const message =
+    (error as { message?: string })?.message || 'Erreur inconnue côté serveur';
+  console.warn(`[Espaces] ${action} : ${message}`, error);
+  return message;
+};
+
+/**
+ * Une écriture refusée par le RLS ne lève pas d'erreur : elle touche zéro ligne.
+ * Comparer `error` à null ne suffit donc pas à conclure au succès, il faut compter
+ * ce qui a réellement bougé. C'est ce contrôle qui manquait partout ici.
+ */
+const wrote = (action: string, rows: unknown[] | null, error: unknown): SpaceWrite => {
+  if (error) return { ok: false, error: logSpace(action, error) };
+  if (!rows || rows.length === 0) {
+    const message = 'Opération refusée : tu n’as pas les droits, ou la ligne n’existe plus.';
+    console.warn(`[Espaces] ${action} : aucune ligne touchée`);
+    return { ok: false, error: message };
+  }
+  return { ok: true };
+};
+
+/**
  * Crée un nouvel espace partagé
  */
 export async function createSharedSpace(
@@ -109,8 +161,13 @@ export async function createSharedSpace(
   });
 
   if (error) {
-    if (import.meta.env.DEV) console.error('Error creating space (RPC):', error);
+    logSpace('Création de l’espace', error);
     throw error;
+  }
+
+  // Cast aveugle auparavant : l'appelant déréférençait aussitôt `invite_code`.
+  if (!data || !(data as SharedSpace).id) {
+    throw new Error('L’espace n’a pas pu être créé.');
   }
 
   return data as SharedSpace;
@@ -119,8 +176,8 @@ export async function createSharedSpace(
 /**
  * Récupère tous les espaces d'un utilisateur (uniquement ceux où il est actif)
  */
-export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
-  if (!supabase) return [];
+export async function getUserSpaces(userId: string): Promise<SpaceRead<SharedSpace>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('shared_spaces')
@@ -133,12 +190,9 @@ export async function getUserSpaces(userId: string): Promise<SharedSpace[]> {
     .eq('space_members.profile_id', userId)
     .eq('space_members.is_active', true); // Only fetch spaces where user is active
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error fetching spaces:', error);
-    return [];
-  }
+  if (error) return { data: [], error: logSpace('Lecture des espaces', error) };
 
-  return data || [];
+  return { data: data || [] };
 }
 
 /**
@@ -156,42 +210,47 @@ export async function joinSpaceByCode(
     });
 
     if (error) throw error;
+
+    // La RPC peut rendre la main sans lever et sans espace. Sans ce contrôle,
+    // l'interface affichait « Rejoint ! » puis refermait la modale sur rien.
+    if (!data || !(data as SharedSpace).id) {
+      return { success: false, error: 'Code invalide ou espace introuvable.' };
+    }
+
     return { success: true, space: data as SharedSpace };
   } catch (e: any) {
-    if (import.meta.env.DEV) console.error('Error joining space:', e);
-    return { success: false, error: e.message || 'Code invalide ou vous êtes déjà membre.' };
+    return {
+      success: false,
+      error: logSpace('Rejoindre par code', e) || 'Code invalide.',
+    };
   }
 }
 
 /**
  * Quitter un espace partagé (Soft Delete)
  */
-export async function leaveSharedSpace(spaceId: string, userId: string): Promise<boolean> {
-  if (!supabase) return false;
+export async function leaveSharedSpace(spaceId: string, userId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
 
   // Soft delete: set is_active to false and record left_at timestamp
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('space_members')
     .update({
       is_active: false,
       left_at: new Date().toISOString(),
     })
     .eq('space_id', spaceId)
-    .eq('profile_id', userId);
+    .eq('profile_id', userId)
+    .select('id');
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error leaving space:', error);
-    return false;
-  }
-
-  return true;
+  return wrote('Sortie de l’espace', data, error);
 }
 
 /**
  * Récupère tous les films d'un espace partagé
  */
-export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
-  if (!supabase) return [];
+export async function getSpaceMovies(spaceId: string): Promise<SpaceRead<SharedMovie>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('shared_movies')
@@ -204,15 +263,14 @@ export async function getSpaceMovies(spaceId: string): Promise<SharedMovie[]> {
     .eq('space_id', spaceId)
     .order('added_at', { ascending: false });
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error fetching space movies:', error);
-    return [];
-  }
+  if (error) return { data: [], error: logSpace('Lecture des films', error) };
 
-  return (data || []).map((movie: any) => ({
-    ...movie,
-    genres: movie.genres?.length ? movie.genres : (movie.genre ? movie.genre.split(', ') : []),
-  })) as SharedMovie[];
+  return {
+    data: (data || []).map((movie: any) => ({
+      ...movie,
+      genres: movie.genres?.length ? movie.genres : (movie.genre ? movie.genre.split(', ') : []),
+    })) as SharedMovie[],
+  };
 }
 
 /**
@@ -238,8 +296,8 @@ export async function addMovieToSpace(
     tmdb_rating?: number;
   },
   userId: string
-): Promise<SharedMovie | null> {
-  if (!supabase) return null;
+): Promise<{ movie: SharedMovie | null; error?: string }> {
+  if (!supabase) return { movie: null, error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('shared_movies')
@@ -251,78 +309,94 @@ export async function addMovieToSpace(
     .select()
     .single();
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error adding movie to space:', error);
-    return null;
-  }
+  if (error) return { movie: null, error: logSpace('Ajout du film', error) };
 
-  return data;
+  return { movie: data };
 }
 
 /**
  * Supprimer un film d'un espace (uniquement par l'auteur ou admin de l'espace)
  */
-export async function deleteSharedMovie(movieId: string): Promise<boolean> {
-  if (!supabase) return false;
-  const { error } = await supabase.from('shared_movies').delete().eq('id', movieId);
-  return !error;
+export async function deleteSharedMovie(movieId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+  const { data, error } = await supabase
+    .from('shared_movies')
+    .delete()
+    .eq('id', movieId)
+    .select('id');
+  return wrote('Suppression du film', data, error);
 }
 
 /**
  * Marquer un film de la watchlist comme "Regardé"
+ *
+ * `added_at` n'est plus réécrit : c'est la date d'ajout, et l'écraser à chaque
+ * bascule effaçait définitivement quand le film avait été suggéré, pour ne plus
+ * refléter que l'ordre des changements de statut.
  */
-export async function markMovieAsWatched(movieId: string): Promise<boolean> {
-  if (!supabase) return false;
-  const { error } = await supabase
+export async function markMovieAsWatched(movieId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
+  const { data, error } = await supabase
     .from('shared_movies')
-    .update({ status: 'watched', added_at: new Date().toISOString() })
-    .eq('id', movieId);
-  return !error;
+    .update({ status: 'watched' })
+    .eq('id', movieId)
+    .select('id');
+  return wrote('Passage en vu', data, error);
 }
 
 /**
  * Gérer les votes "Je veux voir" sur la watchlist
  */
-export async function toggleMovieVote(movieId: string, userId: string): Promise<boolean> {
-  if (!supabase) return false;
+export async function toggleMovieVote(movieId: string, userId: string): Promise<SpaceWrite> {
+  if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
 
-  // Vérifier si déjà voté
-  const { data: existing } = await supabase
+  // `maybeSingle` et non `single` : sur zéro ligne, `single` renvoie une erreur
+  // PGRST116 que l'ancien code ne lisait pas. Le premier vote ne fonctionnait que
+  // parce que l'erreur était ignorée, pas parce qu'elle n'existait pas.
+  const { data: existing, error: readError } = await supabase
     .from('space_movie_votes')
     .select('id')
     .eq('movie_id', movieId)
     .eq('profile_id', userId)
-    .single();
+    .maybeSingle();
+
+  if (readError) return { ok: false, error: logSpace('Lecture du vote', readError) };
 
   if (existing) {
-    // Unvote
-    await supabase.from('space_movie_votes').delete().eq('id', existing.id);
-  } else {
-    // Vote
-    await supabase.from('space_movie_votes').insert({ movie_id: movieId, profile_id: userId });
+    const { data, error } = await supabase
+      .from('space_movie_votes')
+      .delete()
+      .eq('id', existing.id)
+      .select('id');
+    return wrote('Retrait du vote', data, error);
   }
-  return true;
+
+  const { data, error } = await supabase
+    .from('space_movie_votes')
+    .insert({ movie_id: movieId, profile_id: userId })
+    .select('id');
+  return wrote('Vote', data, error);
 }
 
 /**
  * Récupère tous les votes pour un film ou un espace
  */
-export async function getSpaceMovieVotes(spaceId: string): Promise<MovieVote[]> {
-  if (!supabase) return [];
+export async function getSpaceMovieVotes(spaceId: string): Promise<SpaceRead<MovieVote>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
   const { data, error } = await supabase
     .from('space_movie_votes')
     .select('*, shared_movies!inner(space_id)')
     .eq('shared_movies.space_id', spaceId);
 
-  if (error) return [];
-  return data || [];
+  if (error) return { data: [], error: logSpace('Lecture des votes', error) };
+  return { data: data || [] };
 }
 
 /**
  * Récupère les notes d'un film
  */
-export async function getMovieRatings(movieId: string): Promise<MovieRating[]> {
-  if (!supabase) return [];
+export async function getMovieRatings(movieId: string): Promise<SpaceRead<MovieRating>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('movie_ratings')
@@ -334,12 +408,9 @@ export async function getMovieRatings(movieId: string): Promise<MovieRating[]> {
     )
     .eq('movie_id', movieId);
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error fetching ratings:', error);
-    return [];
-  }
+  if (error) return { data: [], error: logSpace('Lecture des notes', error) };
 
-  return data || [];
+  return { data: data || [] };
 }
 
 /**
@@ -355,33 +426,36 @@ export async function upsertMovieRating(
     sound: number;
     review?: string;
   }
-): Promise<MovieRating | null> {
-  if (!supabase) return null;
+): Promise<{ rating: MovieRating | null; error?: string }> {
+  if (!supabase) return { rating: null, error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('movie_ratings')
-    .upsert({
-      movie_id: movieId,
-      profile_id: userId,
-      ...ratings,
-      updated_at: new Date().toISOString(),
-    })
+    // `onConflict` est indispensable : sans lui PostgREST vise la clé primaire `id`,
+    // jamais fournie ici, et l'ordre part en INSERT pur. Il heurtait alors l'unicité
+    // (movie_id, profile_id), si bien que modifier son verdict échouait à tous les coups.
+    .upsert(
+      {
+        movie_id: movieId,
+        profile_id: userId,
+        ...ratings,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'movie_id,profile_id' }
+    )
     .select()
     .single();
 
-  if (error) {
-    console.error('Error upserting rating:', error);
-    return null;
-  }
+  if (error) return { rating: null, error: logSpace('Enregistrement du verdict', error) };
 
-  return data;
+  return { rating: data };
 }
 
 /**
  * Récupère les membres actifs d'un espace avec leurs détails
  */
-export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
-  if (!supabase) return [];
+export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceMember>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error } = await supabase
     .from('space_members')
@@ -394,12 +468,9 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
     .eq('space_id', spaceId)
     .eq('is_active', true); // Filter only active members
 
-  if (error) {
-    if (import.meta.env.DEV) console.error('Error fetching members:', error);
-    return [];
-  }
+  if (error) return { data: [], error: logSpace('Lecture des membres', error) };
 
-  return data || [];
+  return { data: data || [] };
 }
 
 /**

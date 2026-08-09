@@ -88,7 +88,7 @@ import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
-import { SharedSpace, supabase, getUserSpaces } from './services/supabase';
+import { SharedSpace, supabase } from './services/supabase';
 import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
@@ -402,7 +402,6 @@ const App: React.FC = () => {
   const [showSharedSpaces, setShowSharedSpaces] = useState(false);
   const [activeSharedSpace, setActiveSharedSpace] = useState<SharedSpace | null>(null);
   const [sharedSpaceRefreshTrigger, setSharedSpaceRefreshTrigger] = useState(0);
-  const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showConsent, setShowConsent] = useState(true);
@@ -953,16 +952,13 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const loadMySpaces = async () => {
-      const userId = session?.user?.id || activeProfile?.id;
-      if (userId) {
-        const spaces = await getUserSpaces(userId);
-        setMySpaces(spaces);
-      }
-    };
-    if (activeProfile) loadMySpaces();
-  }, [activeProfile?.id, activeProfile?.joinedSpaceIds?.length, session]);
+  /*
+   * L'effet `loadMySpaces` qui se trouvait ici a été retiré. Il appelait le réseau
+   * à chaque montage pour remplir `mySpaces`, un état que rien ne lisait, et sa
+   * dépendance `activeProfile?.joinedSpaceIds?.length` portait sur un champ jamais
+   * écrit nulle part, donc figée sur undefined. La liste des espaces se charge dans
+   * SharedSpacesModal, à l'ouverture, et c'est le seul endroit qui en a besoin.
+   */
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -1936,7 +1932,7 @@ const App: React.FC = () => {
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
             <SharedSpaceView
               space={activeSharedSpace}
-              currentUserId={session?.user?.id || activeProfile?.id || ''}
+              currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
               onAddMovie={() => setIsModalOpen(true)}
               refreshTrigger={sharedSpaceRefreshTrigger}
@@ -2587,7 +2583,7 @@ const App: React.FC = () => {
             initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
             sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
-            currentUserId={session?.user?.id || activeProfile?.id}
+            currentUserId={session?.user?.id}
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger((prev) => prev + 1)}
             onToast={setToastMessage}
             cinemaSubscription={activeProfile?.cinemaSubscription}
@@ -2647,7 +2643,7 @@ const App: React.FC = () => {
           <SharedSpacesModal
             isOpen={showSharedSpaces}
             onClose={() => setShowSharedSpaces(false)}
-            userId={session?.user?.id || activeProfile.id}
+            userId={session?.user?.id || ''}
             onSelectSpace={(space) => {
               setActiveSharedSpace(space);
               setShowSharedSpaces(false);

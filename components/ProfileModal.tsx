@@ -111,6 +111,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   cinemaSubscription,
   onManageCinemaSubscription,
 }) => {
+  /**
+   * Les espaces partagés écrivent sous `auth.uid()` et affichent aux autres membres
+   * le prénom porté par le compte. Une session anonyme satisfait la première
+   * condition mais pas la seconde : elle s'appelle « Utilisateur » et s'évapore avec
+   * le stockage local. On exige donc un compte rattaché à un email.
+   */
+  const canUseSpaces = !!session?.user?.email;
   const { t, language, setLanguage } = useLanguage();
   const dialog = useDialog(onClose, t('profileModal.title'));
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
@@ -527,27 +534,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
             )}
 
-            {session && (
-              <button
-                onClick={() => { haptics.medium(); onOpenSpaces(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-forest/5 dark:bg-lime-400/5 hover:bg-forest/10 dark:hover:bg-lime-400/10 border border-forest/20 dark:border-lime-400/20 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-forest/10 dark:bg-lime-400/10 flex items-center justify-center text-forest dark:text-lime-400 group-hover:scale-110 transition-transform">
-                    <Users size={14} />
-                  </div>
-                  <div className="text-left">
-                    <span className="text-xs font-black uppercase tracking-wide text-forest dark:text-lime-400 block">
-                      {t('profileModal.spaces')}
-                    </span>
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                      {t('profileModal.spacesDesc')}
-                    </span>
-                  </div>
+            {/* Un espace partagé s'appuie sur auth.uid() : il faut un compte, et un
+                compte sans email ne convient pas non plus, puisqu'il disparaît avec le
+                stockage de l'appareil et se présente aux autres membres sous un nom de
+                repli. Le bouton reste néanmoins visible et explique ce qui manque : le
+                masquer, comme avant, revenait à supprimer la fonctionnalité sans le dire
+                à tous ceux qui n'ont pas encore de compte. */}
+            <button
+              onClick={() => {
+                haptics.medium();
+                if (canUseSpaces) onOpenSpaces();
+                else onOpenAccountSync?.();
+              }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-forest/5 dark:bg-lime-400/5 hover:bg-forest/10 dark:hover:bg-lime-400/10 border border-forest/20 dark:border-lime-400/20 transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-forest/10 dark:bg-lime-400/10 flex items-center justify-center text-forest dark:text-lime-400 group-hover:scale-110 transition-transform">
+                  <Users size={14} />
                 </div>
-                <ChevronDown size={14} className="text-forest dark:text-lime-400 -rotate-90" />
-              </button>
-            )}
+                <div className="text-left">
+                  <span className="text-xs font-black uppercase tracking-wide text-forest dark:text-lime-400 block">
+                    {t('profileModal.spaces')}
+                  </span>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                    {canUseSpaces ? t('profileModal.spacesDesc') : t('profileModal.spacesNeedAccount')}
+                  </span>
+                </div>
+              </div>
+              <ChevronDown size={14} className="text-forest dark:text-lime-400 -rotate-90" />
+            </button>
 
             <button
               onClick={() => { haptics.soft(); onSwitchProfile(); }}
