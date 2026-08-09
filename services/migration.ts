@@ -226,6 +226,86 @@ export async function syncCinemaSubscriptionToSupabase(
   }
 }
 
+/**
+ * Remonte vers le compte ce que l'utilisateur a renseigné sur cet appareil.
+ *
+ * Deux régimes, et la distinction compte :
+ *
+ * - les réponses données à la création du profil (identité, genre, âge, façon de
+ *   regarder, plateformes) appartiennent à l'appareil. Le local gagne toujours,
+ *   c'est lui que l'utilisateur vient de voir à l'écran ;
+ * - la calibration issue de l'onboarding (sévérité, patience, genres favoris,
+ *   archétype) ne comble que les trous. Une valeur déjà présente sur le compte
+ *   peut venir d'un onboarding fait sur un autre appareil : l'écraser avec un
+ *   défaut local détruirait un réglage que personne n'a demandé à changer.
+ *
+ * Retourne les colonnes réellement modifiées, pour que l'appelant sache si la
+ * ligne serveur a bougé sans avoir à la relire.
+ */
+export async function syncProfileFieldsToSupabase(
+  userId: string,
+  local: UserProfile,
+  remote: Record<string, any>
+): Promise<string[]> {
+  if (!supabase) return [];
+
+  const patch: Record<string, unknown> = {};
+
+  if (local.firstName && local.firstName !== remote.first_name) {
+    patch.first_name = local.firstName;
+  }
+  if ((local.lastName || null) !== (remote.last_name || null)) {
+    patch.last_name = local.lastName || null;
+  }
+  if (local.gender && local.gender !== remote.gender) {
+    patch.gender = local.gender;
+  }
+  if (local.age != null && local.age !== remote.age) {
+    patch.age = local.age;
+  }
+  if (local.viewingPreference && local.viewingPreference !== remote.viewing_preference) {
+    patch.viewing_preference = local.viewingPreference;
+  }
+  if (
+    local.streamingPlatforms?.length &&
+    JSON.stringify([...local.streamingPlatforms].sort()) !==
+      JSON.stringify([...(remote.streaming_platforms || [])].sort())
+  ) {
+    patch.streaming_platforms = local.streamingPlatforms;
+  }
+
+  if (local.severityIndex != null && remote.severity_index == null) {
+    patch.severity_index = local.severityIndex;
+  }
+  if (local.patienceLevel != null && remote.patience_level == null) {
+    patch.patience_level = local.patienceLevel;
+  }
+  if (local.favoriteGenres?.length && !remote.favorite_genres?.length) {
+    patch.favorite_genres = local.favoriteGenres;
+  }
+  if (local.role && !remote.role) {
+    patch.role = local.role;
+  }
+  if (local.isOnboarded && !remote.is_onboarded) {
+    patch.is_onboarded = true;
+  }
+
+  const changed = Object.keys(patch);
+  if (changed.length === 0) return [];
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    if (import.meta.env.DEV) console.error('[Profil] Remontée impossible :', error);
+    return [];
+  }
+
+  return changed;
+}
+
 export function resetMigrationFlag(userId: string) {
   localStorage.removeItem(`migration_completed_${userId}`);
 }

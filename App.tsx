@@ -47,6 +47,7 @@ import {
   syncCinemaSubscriptionToSupabase,
   syncMovieToSupabase,
   syncMoviesToSupabase,
+  syncProfileFieldsToSupabase,
 } from './services/migration';
 import {
   CinemaSubscription,
@@ -745,18 +746,16 @@ const App: React.FC = () => {
           ? localProfiles.find((p) => p.id === existingLocalProfileId)
           : undefined;
 
-        // On remonte le nom local plutôt que de le laisser écraser.
-        if (linkedLocal?.firstName && linkedLocal.firstName !== existingProfile.first_name) {
-          await supabase
-            .from('profiles')
-            .update({
-              first_name: linkedLocal.firstName,
-              last_name: linkedLocal.lastName || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', user.id);
-          existingProfile.first_name = linkedLocal.firstName;
-          existingProfile.last_name = linkedLocal.lastName || null;
+        // On remonte ce que l'utilisateur a renseigné ici plutôt que de le laisser
+        // écraser : identité, mais aussi genre, âge, façon de regarder, plateformes.
+        if (linkedLocal) {
+          const changed = await syncProfileFieldsToSupabase(
+            user.id,
+            linkedLocal,
+            existingProfile
+          );
+          if (changed.includes('first_name')) existingProfile.first_name = linkedLocal.firstName;
+          if (changed.includes('last_name')) existingProfile.last_name = linkedLocal.lastName || null;
         }
 
         // Un profil local est déjà rattaché à ce compte, sous un autre identifiant :
@@ -787,6 +786,15 @@ const App: React.FC = () => {
                     // Le local d'abord : le serveur ne sert que de repli.
                     firstName: p.firstName || existingProfile.first_name,
                     lastName: p.lastName || existingProfile.last_name || '',
+                    // Réponses de création : le local gagne, le serveur comble.
+                    gender: p.gender || existingProfile.gender || undefined,
+                    age: p.age ?? existingProfile.age ?? undefined,
+                    viewingPreference:
+                      p.viewingPreference || existingProfile.viewing_preference || undefined,
+                    streamingPlatforms:
+                      p.streamingPlatforms?.length
+                        ? p.streamingPlatforms
+                        : existingProfile.streaming_platforms || undefined,
                     severityIndex: existingProfile.severity_index || p.severityIndex,
                     patienceLevel: existingProfile.patience_level || p.patienceLevel,
                     favoriteGenres: existingProfile.favorite_genres || p.favoriteGenres,
@@ -815,8 +823,13 @@ const App: React.FC = () => {
                 favoriteGenres: existingProfile.favorite_genres || [],
                 role: existingProfile.role,
                 isOnboarded: existingProfile.is_onboarded || false,
-                gender: 'h',
-                age: 25,
+                // Ce que l'utilisateur avait renseigné à la création, récupéré tel
+                // quel. Les valeurs en dur d'avant réinventaient un homme de 25 ans
+                // à chaque appareil neuf, et faussaient les recommandations.
+                gender: existingProfile.gender || undefined,
+                age: existingProfile.age ?? undefined,
+                viewingPreference: existingProfile.viewing_preference || undefined,
+                streamingPlatforms: existingProfile.streaming_platforms || undefined,
                 cinemaSubscription: existingProfile.cinema_subscription ?? undefined,
               },
             ];
