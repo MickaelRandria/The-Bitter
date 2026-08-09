@@ -334,6 +334,9 @@ const App: React.FC = () => {
   const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
   const [session, setSession] = useState<any | null>(null);
+  /** Session lue au moment de l'exécution, pour les traitements différés. */
+  const sessionRef = useRef<any | null>(null);
+  sessionRef.current = session;
   const [authLoading, setAuthLoading] = useState(true);
   // Amorçage complet : vérification de session PUIS migration éventuelle. Distinct
   // de `authLoading`, qui retombe dès la session connue pour ne pas retenir l'UI
@@ -1256,6 +1259,24 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Propage une suppression au compte, en suppression douce.
+   *
+   * La session est lue au moment de l'exécution et non capturée à l'appel : une
+   * suppression déclenchée juste avant la fin de la connexion aurait sinon vu une
+   * session vide et ne serait jamais remontée.
+   */
+  const propagateDeletion = (movie?: Movie) => {
+    const userId = sessionRef.current?.user?.id;
+    if (!userId || !movie || movie.tmdbId == null) return;
+    softDeleteMovie(userId, movie.tmdbId);
+    setRemoteTmdbIds((prev) => {
+      const next = new Set(prev);
+      next.delete(movie.tmdbId as number);
+      return next;
+    });
+  };
+
   const handleDeleteMovie = (id: string) => {
     if (!activeProfileId) return;
     haptics.medium();
@@ -1263,6 +1284,7 @@ const App: React.FC = () => {
     // Si une suppression est déjà en attente, l'exécuter immédiatement avant d'en créer une nouvelle
     if (pendingDelete) {
       clearTimeout(pendingDelete.timeoutId);
+      const flushed = activeProfile?.movies.find((m) => m.id === pendingDelete.id);
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === activeProfileId
@@ -1270,6 +1292,9 @@ const App: React.FC = () => {
             : p
         )
       );
+      // Ce chemin supprimait en local sans jamais prévenir le serveur : le film
+      // serait revenu à la première remontée d'historique.
+      propagateDeletion(flushed);
     }
 
     const movie = activeProfile?.movies.find((m) => m.id === id);
@@ -1284,14 +1309,7 @@ const App: React.FC = () => {
       // La suppression n'est propagée qu'ici, une fois le délai d'annulation écoulé :
       // marquer plus tôt, puis voir l'utilisateur annuler, laisserait une pierre
       // tombale sur un film toujours présent en local.
-      if (session?.user?.id && movie?.tmdbId != null) {
-        softDeleteMovie(session.user.id, movie.tmdbId);
-        setRemoteTmdbIds((prev) => {
-          const next = new Set(prev);
-          next.delete(movie.tmdbId as number);
-          return next;
-        });
-      }
+      propagateDeletion(movie);
       setPendingDelete(null);
     }, 4500);
 
