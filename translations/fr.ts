@@ -394,7 +394,7 @@ export const fr: Record<string, string> = {
   'accountSync.noPassword': 'Aucun mot de passe à retenir.',
   'accountSync.linkSentTitle': 'Regarde tes mails',
   'accountSync.linkSentBody':
-    'On a envoyé un code à 6 chiffres à {email}. Saisis-le ici, sans ouvrir le lien.',
+    'On a envoyé un code à {email}. Saisis-le ici, sans ouvrir le lien.',
   'accountSync.codeLabel': 'Code reçu par email',
   'accountSync.codeCta': 'Me connecter',
   'accountSync.codeResend': 'Renvoyer un code ou changer d’adresse',

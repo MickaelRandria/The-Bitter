@@ -393,7 +393,7 @@ export const en: Record<string, string> = {
   'accountSync.noPassword': 'No password to remember.',
   'accountSync.linkSentTitle': 'Check your inbox',
   'accountSync.linkSentBody':
-    'We sent a 6 digit code to {email}. Enter it here, no need to open the link.',
+    'We sent a code to {email}. Enter it here, no need to open the link.',
   'accountSync.codeLabel': 'Code from your email',
   'accountSync.codeCta': 'Sign me in',
   'accountSync.codeResend': 'Resend a code or change address',
