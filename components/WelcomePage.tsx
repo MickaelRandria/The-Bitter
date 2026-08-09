@@ -37,6 +37,8 @@ interface WelcomePageProps {
     streamingPlatforms: string[]
   ) => void;
   onDeleteProfile: (profileId: string) => void;
+  /** Ouvre la reconnexion à un compte existant, pour un appareil neuf. */
+  onOpenAccountSync?: () => void;
 }
 
 const PLATFORMS = [
@@ -63,6 +65,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   onSelectProfile,
   onCreateProfile,
   onDeleteProfile,
+  onOpenAccountSync,
 }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState<'landing' | 'select' | 'create'>('landing');
@@ -258,6 +261,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                 >
                   <div className="flex items-center gap-5">{t('welcome.start')}</div>
                   <ArrowRight size={22} className="group-hover:translate-x-2 transition-transform duration-300" />
+                </button>
+              )}
+
+              {/* Porte discrète, jamais un passage obligé : elle ne sert qu'à celui
+                  qui arrive sur un appareil neuf et ne verrait sinon qu'une app vide,
+                  sans aucun moyen de retrouver ses films. */}
+              {onOpenAccountSync && (
+                <button
+                  onClick={() => { haptics.soft(); onOpenAccountSync(); }}
+                  className="w-full pt-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-charcoal dark:hover:text-white transition-colors"
+                >
+                  {t('welcome.haveAccount')}
                 </button>
               )}
             </div>

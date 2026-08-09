@@ -115,6 +115,7 @@ export const en: Record<string, string> = {
   'welcome.deleteDesc': 'This will permanently delete the profile and all its history. This cannot be undone.',
   'welcome.deletePermanently': 'Delete permanently',
   'welcome.films': 'FILMS',
+  'welcome.haveAccount': 'I already have an account',
 
   // ── Create profile form ──────────────────────────────────────────────────
   'createProfile.title': 'New profile.',
@@ -379,6 +380,7 @@ export const en: Record<string, string> = {
   'accountSync.entry': 'Back up my films online',
   'accountSync.entryOffline': 'Not signed in · films on this device only',
   'accountSync.entryAnonymous': 'Account without email · secure it',
+  'accountSync.restored': '{count} films restored from your account',
   'accountSync.secureTitle': 'Secure your account',
   'accountSync.secureBody':
     'This account has no email: it only lives in this browser. Lose its storage and you lose access to these films. Add your email now, it takes seconds.',

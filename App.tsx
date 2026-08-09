@@ -1023,7 +1023,7 @@ const App: React.FC = () => {
    */
   useEffect(() => {
     const userId = session?.user?.id;
-    if (!userId || !activeProfileId) return;
+    if (!userId) return;
 
     let cancelled = false;
 
@@ -1035,6 +1035,26 @@ const App: React.FC = () => {
       setRemoteTmdbIds(
         new Set(remote.map((m) => m.tmdbId).filter((id): id is number => id != null))
       );
+
+      // Appareil vierge : aucun profil local, mais un compte qui a de l'historique.
+      // On reconstruit le profil à partir du serveur, sinon se connecter depuis
+      // l'écran d'accueil ne ramènerait rien et l'app resterait vide.
+      if (!activeProfileId) {
+        if (remote.length === 0) return;
+        const restored: UserProfile = {
+          id: crypto.randomUUID(),
+          firstName: session.user.email?.split('@')[0] || 'Moi',
+          lastName: '',
+          movies: remote,
+          createdAt: Date.now(),
+        };
+        setProfiles((prev) => [...prev, restored]);
+        setActiveProfileId(restored.id);
+        localStorage.setItem(linkedProfileKey(userId), restored.id);
+        setShowWelcome(false);
+        setToastMessage(t('accountSync.restored', { count: String(remote.length) }));
+        return;
+      }
 
       const localBefore = profiles.find((p) => p.id === activeProfileId)?.movies ?? [];
 
@@ -1699,6 +1719,7 @@ const App: React.FC = () => {
             // Uniquement à la création : sélectionner un profil existant ne propose rien.
             setPendingTour('main');
           }}
+          onOpenAccountSync={() => setShowAccountSync(true)}
           onDeleteProfile={(id) => {
             setProfiles((prev) => {
               const updated = prev.filter((x) => x.id !== id);
@@ -1719,6 +1740,21 @@ const App: React.FC = () => {
             }}
           />
         )}
+
+        {/* L'écran d'accueil est un retour anticipé : la modale doit être rendue
+            ici aussi, sinon « J'ai déjà un compte » n'ouvrirait rien. */}
+        <Suspense fallback={null}>
+          {showAccountSync && (
+            <AccountSyncModal
+              accountEmail={session?.user?.email ?? null}
+              accountId={session?.user?.id ?? null}
+              isAnonymous={!!session?.user && !session.user.email}
+              pendingCount={0}
+              onBackfill={runBackfill}
+              onClose={() => setShowAccountSync(false)}
+            />
+          )}
+        </Suspense>
       </div>
     );
 
