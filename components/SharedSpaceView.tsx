@@ -27,6 +27,7 @@ import {
   Calendar,
   Globe,
   ChevronRight,
+  Settings,
 } from 'lucide-react';
 import {
   SharedSpace,
@@ -48,6 +49,7 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import MemberProfileModal from './MemberProfileModal';
+import SpaceSettingsModal from './SpaceSettingsModal';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -60,7 +62,7 @@ interface SharedSpaceViewProps {
 type SpaceTab = 'feed' | 'watchlist' | 'members';
 
 const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
-  space,
+  space: initialSpace,
   currentUserId,
   onBack,
   onAddMovie,
@@ -100,6 +102,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    */
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  /** L'espace peut être renommé pendant la session : on garde la version à jour. */
+  const [space, setSpace] = useState(initialSpace);
+
+  useEffect(() => {
+    setSpace(initialSpace);
+  }, [initialSpace]);
 
   useEffect(() => {
     loadData();
@@ -164,6 +173,16 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   const handleLeaveSpace = () => {
+    // Le fondateur qui partait laissait un espace sans propriétaire actif : plus
+    // personne ne pouvait le renommer, le supprimer, ni même y rentrer. Deux des
+    // cinq espaces de production sont morts exactement comme ça.
+    if (isOwner && members.length > 1) {
+      haptics.error();
+      setActionError(t('shared.leaveOwnerBlocked'));
+      setShowSettings(true);
+      return;
+    }
+
     setConfirmAction({
       message: t('shared.leaveConfirm', { name: space.name }),
       onConfirm: async () => {
@@ -291,6 +310,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    */
   const activeMemberIds = new Set(members.map((m) => m.profile_id));
 
+  const isOwner = members.some((m) => m.profile_id === currentUserId && m.role === 'owner');
+
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
     const total = ratings.reduce(
@@ -394,6 +415,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </button>
             </div>
           </div>
+          {isOwner && (
+            <button
+              onClick={() => {
+                haptics.soft();
+                setShowSettings(true);
+              }}
+              aria-label={t('spaceSettings.title')}
+              className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
+            >
+              <Settings size={18} />
+            </button>
+          )}
           <button
             onClick={handleLeaveSpace}
             disabled={isLeaving}
@@ -877,6 +910,23 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         <MemberProfileModal
           member={selectedMember}
           onClose={() => setSelectedMember(null)}
+        />
+      )}
+
+      {showSettings && isOwner && (
+        <SpaceSettingsModal
+          space={space}
+          members={members}
+          currentUserId={currentUserId}
+          onChanged={(updated) => {
+            setSpace(updated);
+            loadData();
+          }}
+          onDeleted={() => {
+            setShowSettings(false);
+            onBack();
+          }}
+          onClose={() => setShowSettings(false)}
         />
       )}
 
