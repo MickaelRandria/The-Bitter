@@ -64,7 +64,13 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
   const [report, setReport] = useState<BackfillReport | null>(null);
 
   const emailValid = /\S+@\S+\.\S+/.test(email.trim());
-  const codeValid = /^\d{6}$/.test(code.trim());
+  /**
+   * La longueur du code est un réglage du projet Supabase, pas une constante :
+   * elle va de 6 à 10 chiffres et peut changer sans que l'app soit redéployée.
+   * On accepte donc toute la plage et on laisse le serveur trancher, plutôt que
+   * de bloquer le bouton sur une longueur devinée.
+   */
+  const codeValid = /^\d{6,10}$/.test(code.trim());
 
   const requestLink = async () => {
     if (!emailValid || busy) return;
@@ -331,10 +337,9 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                     /* Pas de maxLength : il tronquerait le texte collé AVANT que
                        les espaces et le reste soient retirés, et « 123 456 » ne
                        donnerait que cinq chiffres avec un bouton inerte. */
-                    className={`${inputClass} text-center text-3xl tracking-[0.5em] font-black`}
+                    className={`${inputClass} text-center text-2xl tracking-[0.3em] font-black`}
                     value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   />
 
                   {error && (
