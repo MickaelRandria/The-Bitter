@@ -206,12 +206,154 @@ const CinemaHistoryImportModal: React.FC<CinemaHistoryImportModalProps> = ({
                   {t('cinemaSub.history.empty')}
                 </p>
               </div>
+            ) : importMode === null ? (
+              <div className="space-y-4 animate-[fadeIn_0.25s_ease-out]">
+                <div className="text-center px-3 py-2">
+                  <div className={`w-14 h-14 rounded-3xl flex items-center justify-center mx-auto mb-4 ${brand.accentPanelClass}`}>
+                    <Sparkles size={24} />
+                  </div>
+                  <h3 className={`text-2xl font-black tracking-tight ${brand.titleClass}`}>
+                    {t('cinemaSub.history.expressTitle')}
+                  </h3>
+                  <p className={`text-sm font-medium leading-relaxed mt-3 ${brand.mutedTextClass}`}>
+                    {t('cinemaSub.history.expressSub')}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => beginExpressImport('subscription')}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left active:scale-[0.99] transition-all ${brand.selectedClass}`}
+                >
+                  <CinemaSubscriptionArtwork provider={subscription.provider} size="thumbnail" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-black uppercase tracking-wide">
+                      {t('cinemaSub.history.expressSubscription', { name: brand.label })}
+                    </span>
+                    <span className="block text-[10px] font-medium normal-case tracking-normal opacity-75 mt-1 leading-relaxed">
+                      {t('cinemaSub.history.expressSubscriptionSub')}
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => beginExpressImport('home')}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left active:scale-[0.99] transition-all ${brand.cardClass}`}
+                >
+                  <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${brand.selectedCardClass} ${brand.actionTextClass}`}>
+                    <Home size={18} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-sm font-black uppercase tracking-wide ${brand.titleClass}`}>
+                      {t('cinemaSub.history.expressHome')}
+                    </span>
+                    <span className={`block text-[10px] font-medium normal-case tracking-normal mt-1 leading-relaxed ${brand.mutedTextClass}`}>
+                      {t('cinemaSub.history.expressHomeSub')}
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={beginManualImport}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left active:scale-[0.99] transition-all ${brand.secondaryPillClass}`}
+                >
+                  <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${brand.selectedCardClass} ${brand.actionTextClass}`}>
+                    <ListChecks size={18} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-sm font-black uppercase tracking-wide ${brand.titleClass}`}>
+                      {t('cinemaSub.history.manual')}
+                    </span>
+                    <span className={`block text-[10px] font-medium normal-case tracking-normal mt-1 leading-relaxed ${brand.mutedTextClass}`}>
+                      {t('cinemaSub.history.manualSub')}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            ) : isExpressMode && reviewScope === 'summary' ? (
+              <div className="space-y-4 animate-[fadeIn_0.25s_ease-out]">
+                <div className={`rounded-[2rem] border p-6 text-center space-y-4 ${brand.cardClass}`}>
+                  <div className={`w-14 h-14 rounded-3xl flex items-center justify-center mx-auto ${brand.accentPanelClass}`}>
+                    <Check size={26} strokeWidth={3} />
+                  </div>
+                  <div>
+                    <h3 className={`text-2xl font-black tracking-tight ${brand.titleClass}`}>
+                      {t('cinemaSub.history.expressReady')}
+                    </h3>
+                    <p className={`text-sm font-medium leading-relaxed mt-3 ${brand.mutedTextClass}`}>
+                      {t('cinemaSub.history.expressApplied', { count: String(automaticCount) })}
+                    </p>
+                  </div>
+                </div>
+
+                <p className={`text-[11px] font-medium leading-relaxed px-2 ${brand.mutedTextClass}`}>
+                  {t('cinemaSub.history.expressPreserved')}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewScope('exceptions')}
+                  className={`w-full py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-colors ${brand.secondaryPillClass}`}
+                >
+                  {t('cinemaSub.history.reviewExceptions')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewScope('all')}
+                  className={`w-full py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${brand.secondaryActionClass}`}
+                >
+                  {t('cinemaSub.history.reviewAll')}
+                </button>
+              </div>
             ) : (
               <>
-                <p className={`text-[11px] font-medium leading-relaxed px-1 ${brand.mutedTextClass}`}>
-                  {t('cinemaSub.history.contextHint')}
-                </p>
-                {sessions.map(({ movie, watch, watchedAt }) => {
+                <div className="space-y-3 px-1">
+                  <p className={`text-[11px] font-medium leading-relaxed ${brand.mutedTextClass}`}>
+                    {isExpressMode && reviewScope === 'exceptions'
+                      ? t('cinemaSub.history.reviewHint')
+                      : t('cinemaSub.history.contextHint')}
+                  </p>
+                  {isExpressMode && (
+                    <>
+                      <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder={t('cinemaSub.history.searchPlaceholder')}
+                        className={`w-full border rounded-2xl px-4 py-3 text-sm font-bold outline-none transition-all ${brand.inputClass}`}
+                      />
+                      <div className="flex justify-between gap-3">
+                        {reviewScope === 'exceptions' && (
+                          <button
+                            type="button"
+                            onClick={() => setReviewScope('all')}
+                            className={`text-[10px] font-black uppercase tracking-widest ${brand.secondaryActionClass}`}
+                          >
+                            {t('cinemaSub.history.reviewAll')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReviewScope('summary');
+                            setSearchQuery('');
+                          }}
+                          className={`text-[10px] font-black uppercase tracking-widest ml-auto ${brand.secondaryActionClass}`}
+                        >
+                          {t('cinemaSub.history.backToSummary')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {sessionsToReview.length === 0 ? (
+                  <p className={`py-10 text-center text-sm font-medium ${brand.mutedTextClass}`}>
+                    {t('cinemaSub.history.noSearchResult')}
+                  </p>
+                ) : sessionsToReview.map(({ movie, watch, watchedAt }) => {
                   const context = contextsByWatchId[watch.id] ?? watch.viewingContext;
                   const wasChanged = !!contextsByWatchId[watch.id];
                   const beforeSubscription = watchedAt.getTime() < subscriptionStart;
@@ -260,21 +402,23 @@ const CinemaHistoryImportModal: React.FC<CinemaHistoryImportModalProps> = ({
           </div>
         )}
 
-        <div className={`p-6 pt-4 border-t shrink-0 ${brand.footerClass}`}>
-          {result ? (
-            <button onClick={onSeeStats} className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all ${brand.selectedClass}`}>
-              {t('cinemaSub.history.seeStats')}
-            </button>
-          ) : (
-            <button
-              onClick={confirm}
-              disabled={changedCount === 0}
-              className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100 ${brand.selectedClass}`}
-            >
-              {t('cinemaSub.history.addSessions', { count: String(changedCount) })}
-            </button>
-          )}
-        </div>
+        {(result || importMode !== null) && (
+          <div className={`p-6 pt-4 border-t shrink-0 ${brand.footerClass}`}>
+            {result ? (
+              <button onClick={onSeeStats} className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all ${brand.selectedClass}`}>
+                {t('cinemaSub.history.seeStats')}
+              </button>
+            ) : (
+              <button
+                onClick={confirm}
+                disabled={changedCount === 0}
+                className={`w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100 ${brand.selectedClass}`}
+              >
+                {t('cinemaSub.history.addSessions', { count: String(changedCount) })}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

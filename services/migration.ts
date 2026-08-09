@@ -35,13 +35,25 @@ function movieToRow(movie: Movie, userId: string) {
     smartphone_factor: movie.smartphoneFactor ?? null,
     hype: movie.hype ?? null,
     review: movie.review || null,
-    severity_index: null,
-    patience_level: null,
+    // severity_index et patience_level étaient envoyés en dur à null : chaque
+    // upsert écrasait donc en base des valeurs que l'application ne connaît même
+    // pas à ce niveau. On ne touche plus à ces colonnes.
     adaptive_rating: movie.adaptiveRating ?? null,
     // Le tableau conserve chaque séance (rewatches inclus) et son contexte.
     // Le champ JSONB est ajouté par la migration abonnement cinéma.
     watches: movie.watches ?? null,
-    created_at: movie.dateAdded ? new Date(movie.dateAdded).toISOString() : new Date().toISOString(),
+    // created_at doit être DÉTERMINISTE et TOUJOURS présent.
+    //
+    // Déterministe : `new Date()` en repli réécrivait la date de création à chaque
+    // resynchronisation. On dérive donc la valeur des seules données du film.
+    //
+    // Toujours présent : rendre la clé conditionnelle produit, dans un upsert
+    // groupé, des objets aux clés différentes, ce que PostgREST rejette en bloc
+    // (PGRST102). Un seul film sans dateAdded ferait échouer tout le lot.
+    //
+    // `dateAdded` est requis par le type Movie et posé à la création : le repli
+    // n'est là que pour garantir l'uniformité des clés.
+    created_at: new Date(movie.dateAdded || movie.dateWatched || 0).toISOString(),
     rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
   };
 }
@@ -134,6 +146,10 @@ export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?
     : profiles.reduce((best, p) => (p.movies.length > best.movies.length ? p : best), profiles[0]);
   if (!profile) { console.warn('[Resync] aucun profil trouvé'); return 0; }
   console.log(`[Resync] profil sélectionné: ${profile.firstName}, ${profile.movies.length} film(s) total`);
+  // Ce chemin n'envoie pas `deleted_at` : une ligne déjà marquée supprimée voit
+  // ses autres colonnes rafraîchies mais reste supprimée. Pour un rattrapage avec
+  // rapport ET filtrage explicite des suppressions, utiliser plutôt
+  // `backfillProfileToSupabase` de services/movieSync.ts.
   const withTmdbId = profile.movies.filter((m) => m.tmdbId != null);
   console.log(`[Resync] ${withTmdbId.length} film(s) avec tmdbId à upserter`);
   if (withTmdbId.length === 0) return 0;
@@ -145,11 +161,23 @@ export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?
   return withTmdbId.length;
 }
 
+/**
+ * Ajout ou modification délibérée d'un film par l'utilisateur.
+ *
+ * `deleted_at: null` est posé explicitement : réajouter un film précédemment
+ * supprimé est une vraie décision, elle doit lever la pierre tombale. C'est
+ * exactement l'inverse du backfill (voir `backfillProfileToSupabase`), qui lui
+ * respecte les suppressions faites depuis un autre appareil. Les deux chemins
+ * restent volontairement séparés : ils n'ont pas le même sens.
+ */
 export async function syncMovieToSupabase(userId: string, movie: Movie): Promise<void> {
   if (!supabase || !movie.tmdbId) return;
   await supabase
     .from('user_movies')
-    .upsert(movieToRow(movie, userId), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+    .upsert(
+      { ...movieToRow(movie, userId), deleted_at: null },
+      { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false }
+    );
 }
 
 /**
@@ -164,12 +192,14 @@ export async function syncMoviesToSupabase(userId: string, movies: Movie[]): Pro
   const withTmdbId = movies.filter((movie) => movie.tmdbId != null);
   if (withTmdbId.length === 0) return;
 
+  // Même sémantique que syncMovieToSupabase : ce sont des modifications voulues,
+  // elles lèvent une éventuelle suppression antérieure.
   const { error } = await supabase
     .from('user_movies')
-    .upsert(withTmdbId.map((movie) => movieToRow(movie, userId)), {
-      onConflict: 'profile_id,tmdb_id',
-      ignoreDuplicates: false,
-    });
+    .upsert(
+      withTmdbId.map((movie) => ({ ...movieToRow(movie, userId), deleted_at: null })),
+      { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false }
+    );
 
   if (error && import.meta.env.DEV) {
     console.error('[Cinema subscription] Unable to sync movie sessions:', error);

@@ -58,6 +58,15 @@ import {
   ViewingContext,
 } from './types';
 import { withFirstWatchContext } from './utils/cinemaSubscription';
+import {
+  backfillProfileToSupabase,
+  fetchRemoteMovies,
+  hasDeclinedMerge,
+  mergeRemoteAndLocal,
+  rememberMergeDeclined,
+  restoreDeletedMovie,
+  softDeleteMovie,
+} from './services/movieSync';
 import RewatchModal from './components/RewatchModal';
 import { MovieDisplayMode } from './utils/movieDisplay';
 import { resizeTmdbImage } from './utils/tmdbImage';
@@ -91,6 +100,8 @@ import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
 import { notifySplashReady } from './utils/splash';
 
+const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
+const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
   () => import('./components/CinemaSubscriptionSetupModal')
 );
@@ -324,6 +335,9 @@ const App: React.FC = () => {
   const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
   const [session, setSession] = useState<any | null>(null);
+  /** Session lue au moment de l'exécution, pour les traitements différés. */
+  const sessionRef = useRef<any | null>(null);
+  sessionRef.current = session;
   const [authLoading, setAuthLoading] = useState(true);
   // Amorçage complet : vérification de session PUIS migration éventuelle. Distinct
   // de `authLoading`, qui retombe dès la session connue pour ne pas retenir l'UI
@@ -389,6 +403,11 @@ const App: React.FC = () => {
   const [showCinemaSetup, setShowCinemaSetup] = useState(false);
   const [showCinemaImport, setShowCinemaImport] = useState(false);
   const [showCinemaDetails, setShowCinemaDetails] = useState(false);
+  // Sauvegarde en ligne du profil rattaché.
+  const [showAccountSync, setShowAccountSync] = useState(false);
+  const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
+  /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
+  const [remoteTmdbIds, setRemoteTmdbIds] = useState<Set<number>>(new Set());
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
@@ -990,6 +1009,104 @@ const App: React.FC = () => {
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
   };
 
+  /**
+   * Descente serveur : c'est le chemin qui manquait et qui explique que l'historique
+   * ne revenait jamais sur un nouvel appareil.
+   *
+   * Trois précautions :
+   * - un échec de lecture renvoie null et on ne touche à rien, une panne réseau ne
+   *   doit jamais vider l'écran ;
+   * - la fusion garde les films locaux absents du serveur, ils viennent peut-être
+   *   d'être ajoutés hors ligne ;
+   * - on ne propose de tout réunir que si les deux côtés ont vraiment de la matière,
+   *   et seulement si l'utilisateur n'a pas déjà refusé sur CET appareil.
+   */
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const result = await fetchRemoteMovies(userId);
+      if (cancelled || !result) return;
+
+      const remote = result.movies;
+      setRemoteTmdbIds(
+        new Set(remote.map((m) => m.tmdbId).filter((id): id is number => id != null))
+      );
+
+      // Appareil vierge : aucun profil local, mais un compte qui a de l'historique.
+      // On reconstruit le profil à partir du serveur, sinon se connecter depuis
+      // l'écran d'accueil ne ramènerait rien et l'app resterait vide.
+      if (!activeProfileId) {
+        if (remote.length === 0) return;
+        const restored: UserProfile = {
+          id: crypto.randomUUID(),
+          firstName: session.user.email?.split('@')[0] || 'Moi',
+          lastName: '',
+          movies: remote,
+          createdAt: Date.now(),
+        };
+        setProfiles((prev) => [...prev, restored]);
+        setActiveProfileId(restored.id);
+        localStorage.setItem(linkedProfileKey(userId), restored.id);
+        setShowWelcome(false);
+        setToastMessage(t('accountSync.restored', { count: String(remote.length) }));
+        return;
+      }
+
+      const localBefore = profiles.find((p) => p.id === activeProfileId)?.movies ?? [];
+
+      setProfiles((prev) =>
+        prev.map((p) =>
+          p.id === activeProfileId ? { ...p, movies: mergeRemoteAndLocal(remote, p.movies) } : p
+        )
+      );
+
+      const remoteIds = new Set(remote.map((m) => m.tmdbId).filter((id) => id != null));
+      const localOnly = localBefore.filter(
+        (m) => m.tmdbId != null && !remoteIds.has(m.tmdbId)
+      ).length;
+
+      if (remote.length > 0 && localOnly > 0 && !hasDeclinedMerge(userId)) {
+        setMergeChoice({ remote: remote.length, local: localOnly });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Volontairement au changement de compte ou de profil actif seulement : relancer
+    // à chaque modification de `profiles` provoquerait une boucle de fusion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, activeProfileId]);
+
+  /** Films du profil actif qui ne sont pas encore sur le compte. */
+  const pendingSyncCount = useMemo(
+    () =>
+      (activeProfile?.movies ?? []).filter(
+        (m) => m.tmdbId != null && !remoteTmdbIds.has(m.tmdbId)
+      ).length,
+    [activeProfile?.movies, remoteTmdbIds]
+  );
+
+  const runBackfill = async () => {
+    const userId = session?.user?.id;
+    if (!userId || !activeProfile) {
+      return { pushed: 0, failed: [], skippedDeleted: 0, fatalError: 'no-session' };
+    }
+    const report = await backfillProfileToSupabase(userId, activeProfile.movies);
+    // Le compte vient de gagner ces films : on rafraîchit ce qu'on croit distant.
+    const refreshed = await fetchRemoteMovies(userId);
+    if (refreshed) {
+      setRemoteTmdbIds(
+        new Set(refreshed.movies.map((m) => m.tmdbId).filter((id): id is number => id != null))
+      );
+    }
+    return report;
+  };
+
   const updateActiveProfile = (updater: (profile: UserProfile) => UserProfile) => {
     if (!activeProfileId) return;
     setProfiles((prev) => prev.map((p) => (p.id === activeProfileId ? updater(p) : p)));
@@ -1163,6 +1280,30 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Propage une suppression au compte, en suppression douce.
+   *
+   * La session est lue au moment de l'exécution et non capturée à l'appel : une
+   * suppression déclenchée juste avant la fin de la connexion aurait sinon vu une
+   * session vide et ne serait jamais remontée.
+   */
+  const propagateDeletion = async (movie?: Movie) => {
+    const userId = sessionRef.current?.user?.id;
+    if (!userId || !movie || movie.tmdbId == null) return;
+
+    const ok = await softDeleteMovie(userId, movie.tmdbId);
+    if (!ok) {
+      // Une synchro qui échoue en silence est ce qui avait masqué le bug d'origine.
+      setToastMessage(t('sync.deleteFailed'));
+      return;
+    }
+    setRemoteTmdbIds((prev) => {
+      const next = new Set(prev);
+      next.delete(movie.tmdbId as number);
+      return next;
+    });
+  };
+
   const handleDeleteMovie = (id: string) => {
     if (!activeProfileId) return;
     haptics.medium();
@@ -1170,6 +1311,7 @@ const App: React.FC = () => {
     // Si une suppression est déjà en attente, l'exécuter immédiatement avant d'en créer une nouvelle
     if (pendingDelete) {
       clearTimeout(pendingDelete.timeoutId);
+      const flushed = activeProfile?.movies.find((m) => m.id === pendingDelete.id);
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === activeProfileId
@@ -1177,9 +1319,19 @@ const App: React.FC = () => {
             : p
         )
       );
+      // Ce chemin supprimait en local sans jamais prévenir le serveur : le film
+      // serait revenu à la première remontée d'historique.
+      propagateDeletion(flushed);
     }
 
-    const movieTitle = activeProfile?.movies.find((m) => m.id === id)?.title ?? 'Film';
+    const movie = activeProfile?.movies.find((m) => m.id === id);
+    const movieTitle = movie?.title ?? 'Film';
+
+    // Propagation IMMÉDIATE, et non à la fin du délai d'annulation : sur mobile,
+    // passer dans une autre application ou verrouiller l'écran suspend les
+    // minuteurs, et la requête ne partait jamais. Si l'utilisateur annule,
+    // handleUndoDelete lève la suppression côté serveur.
+    propagateDeletion(movie);
 
     const timeoutId = setTimeout(() => {
       setProfiles((prev) =>
@@ -1197,6 +1349,15 @@ const App: React.FC = () => {
     if (!pendingDelete) return;
     haptics.soft();
     clearTimeout(pendingDelete.timeoutId);
+
+    // La suppression a déjà été propagée au clic : on la lève côté compte.
+    const userId = sessionRef.current?.user?.id;
+    const restored = activeProfile?.movies.find((m) => m.id === pendingDelete.id);
+    if (userId && restored?.tmdbId != null) {
+      restoreDeletedMovie(userId, restored.tmdbId);
+      setRemoteTmdbIds((prev) => new Set(prev).add(restored.tmdbId as number));
+    }
+
     setPendingDelete(null);
   };
 
@@ -1558,6 +1719,7 @@ const App: React.FC = () => {
             // Uniquement à la création : sélectionner un profil existant ne propose rien.
             setPendingTour('main');
           }}
+          onOpenAccountSync={() => setShowAccountSync(true)}
           onDeleteProfile={(id) => {
             setProfiles((prev) => {
               const updated = prev.filter((x) => x.id !== id);
@@ -1578,6 +1740,21 @@ const App: React.FC = () => {
             }}
           />
         )}
+
+        {/* L'écran d'accueil est un retour anticipé : la modale doit être rendue
+            ici aussi, sinon « J'ai déjà un compte » n'ouvrirait rien. */}
+        <Suspense fallback={null}>
+          {showAccountSync && (
+            <AccountSyncModal
+              accountEmail={session?.user?.email ?? null}
+              accountId={session?.user?.id ?? null}
+              isAnonymous={!!session?.user && !session.user.email}
+              pendingCount={0}
+              onBackfill={runBackfill}
+              onClose={() => setShowAccountSync(false)}
+            />
+          )}
+        </Suspense>
       </div>
     );
 
@@ -2445,6 +2622,13 @@ const App: React.FC = () => {
               setShowProfile(false);
               setShowFeedbackModal(true);
             }}
+            accountEmail={session?.user?.email ?? null}
+            isSignedIn={!!session?.user}
+            pendingSyncCount={pendingSyncCount}
+            onOpenAccountSync={() => {
+              setShowProfile(false);
+              setShowAccountSync(true);
+            }}
             cinemaSubscription={activeProfile.cinemaSubscription}
             onManageCinemaSubscription={() => {
               setShowProfile(false);
@@ -2534,6 +2718,30 @@ const App: React.FC = () => {
       )}
 
       <Suspense fallback={null}>
+        {showAccountSync && (
+          <AccountSyncModal
+            accountEmail={session?.user?.email ?? null}
+            accountId={session?.user?.id ?? null}
+            isAnonymous={!!session?.user && !session.user.email}
+            pendingCount={pendingSyncCount}
+            onBackfill={runBackfill}
+            onClose={() => setShowAccountSync(false)}
+          />
+        )}
+
+        {mergeChoice && (
+          <AccountMergeModal
+            remoteCount={mergeChoice.remote}
+            localCount={mergeChoice.local}
+            onMerge={runBackfill}
+            onKeepSeparate={() => {
+              if (session?.user?.id) rememberMergeDeclined(session.user.id);
+              setMergeChoice(null);
+            }}
+            onDone={() => setMergeChoice(null)}
+          />
+        )}
+
         {showCinemaSetup && (
           <CinemaSubscriptionSetupModal
             existing={activeProfile?.cinemaSubscription}

@@ -115,6 +115,7 @@ export const en: Record<string, string> = {
   'welcome.deleteDesc': 'This will permanently delete the profile and all its history. This cannot be undone.',
   'welcome.deletePermanently': 'Delete permanently',
   'welcome.films': 'FILMS',
+  'welcome.haveAccount': 'I already have an account',
 
   // ── Create profile form ──────────────────────────────────────────────────
   'createProfile.title': 'New profile.',
@@ -374,6 +375,57 @@ export const en: Record<string, string> = {
   'tooltip.discover.content': 'Browse releases by period and platform. Tap a poster to see details.',
   'tooltip.feed.title': 'Your Collection',
   'tooltip.feed.content': 'Swipe a card left to delete, right to edit. Use the + button to add.',
+
+  // ── Online backup of the profile ─────────────────────────────────────────
+  'accountSync.entry': 'Back up my films online',
+  'accountSync.entryOffline': 'Not signed in · films on this device only',
+  'accountSync.entryAnonymous': 'Account without email · secure it',
+  'accountSync.restored': '{count} films restored from your account',
+  'accountSync.secureTitle': 'Secure your account',
+  'accountSync.secureBody':
+    'This account has no email: it only lives in this browser. Lose its storage and you lose access to these films. Add your email now, it takes seconds.',
+  'accountSync.entryPending': '{count} film(s) not backed up yet',
+  'accountSync.entrySynced': 'Everything is backed up',
+  'accountSync.title': 'Online backup',
+  'accountSync.intro':
+    'Get a link by email to find your films again on any device. If you already have an account, use the same address.',
+  'accountSync.sendLink': 'Send me the link',
+  'accountSync.noPassword': 'No password to remember.',
+  'accountSync.linkSentTitle': 'Check your inbox',
+  'accountSync.linkSentBody':
+    'We sent a link to {email}. Open it from this device to sign in.',
+  'accountSync.connectedAs': 'Signed in as',
+  'accountSync.pendingBody': '{count} film(s) on this device are not on your account yet.',
+  'accountSync.saveCta': 'Back up {count} film(s)',
+  'accountSync.upToDate': 'All your films are backed up.',
+  'accountSync.savedLabel': 'films backed up',
+  'accountSync.notConfigured': 'Online backup is not available here.',
+  'sync.deleteFailed': 'Deletion not synced, try again later',
+  'accountSync.anonymousCta': 'Continue without email',
+  'accountSync.anonymousHint':
+    'Your films are backed up right away. You can add your email later to find them on another device.',
+  'accountSync.anonymousAccount': 'Account without email',
+  'accountSync.attachEmailHint':
+    'Add your email to find these films on another device. Your account and films are kept.',
+  'accountSync.attachEmailCta': 'Attach this email',
+
+  // ── Reconnection: merge or keep separate ─────────────────────────────────
+  'accountMerge.title': 'Welcome back!',
+  'accountMerge.intro':
+    'Your account already has {count} films saved. We also found films on this device that aren’t in it yet.',
+  'accountMerge.mergeTitle': 'Bring it all together',
+  'accountMerge.mergeDesc':
+    'The films on this device join the {remote} you already have saved. One history, nothing lost, no duplicates.',
+  'accountMerge.mergeCta': 'Bring it all together',
+  'accountMerge.keepTitle': 'Keep them separate for now',
+  'accountMerge.keepDesc':
+    'We touch nothing. You get your {count} saved films back, and the ones on this device stay here without being added. You can change your mind later.',
+  'accountMerge.keepCta': 'No, leave it as is',
+  'accountMerge.pushed': 'films brought into your account',
+  'accountMerge.failed': '{count} could not be added',
+  'accountMerge.skippedDeleted':
+    '{count} film(s) were not restored: you had deleted them from another device.',
+  'accountMerge.continue': 'Continue',
 
   // ── Tour prompt ──────────────────────────────────────────────────────────
   'tourPrompt.accept': 'Take the tour',
