@@ -726,6 +726,56 @@ const App: React.FC = () => {
         .single();
 
       if (existingProfile) {
+        /**
+         * L'identité vient de l'appareil, jamais du serveur.
+         *
+         * `profiles.first_name` porte souvent le repli « Utilisateur », écrit à la
+         * création du compte alors que le prénom n'était pas encore connu. Le
+         * redescendre écrasait le prénom saisi par l'utilisateur, et quand aucun
+         * profil local ne portait l'identifiant du compte, il fabriquait en plus un
+         * second profil vide dans le sélecteur, qui revenait à chaque connexion.
+         */
+        let localProfiles: UserProfile[] = [];
+        try {
+          localProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch {
+          localProfiles = [];
+        }
+        const linkedLocal = existingLocalProfileId
+          ? localProfiles.find((p) => p.id === existingLocalProfileId)
+          : undefined;
+
+        // On remonte le nom local plutôt que de le laisser écraser.
+        if (linkedLocal?.firstName && linkedLocal.firstName !== existingProfile.first_name) {
+          await supabase
+            .from('profiles')
+            .update({
+              first_name: linkedLocal.firstName,
+              last_name: linkedLocal.lastName || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+          existingProfile.first_name = linkedLocal.firstName;
+          existingProfile.last_name = linkedLocal.lastName || null;
+        }
+
+        // Un profil local est déjà rattaché à ce compte, sous un autre identifiant :
+        // en créer un second ne ferait qu'encombrer le sélecteur d'un profil vide.
+        if (linkedLocal && linkedLocal.id !== existingProfile.id) {
+          // On récupère tout de même ce que le serveur a en plus et que cet
+          // appareil ignore, typiquement un abonnement réglé ailleurs.
+          if (existingProfile.cinema_subscription && !linkedLocal.cinemaSubscription) {
+            setProfiles((prev) =>
+              prev.map((p) =>
+                p.id === linkedLocal.id
+                  ? { ...p, cinemaSubscription: existingProfile.cinema_subscription }
+                  : p
+              )
+            );
+          }
+          return;
+        }
+
         // Profil trouvé → charger normalement
         setProfiles((prev) => {
           const exists = prev.find((p) => p.id === existingProfile.id);
@@ -734,8 +784,9 @@ const App: React.FC = () => {
               p.id === existingProfile.id
                 ? {
                     ...p,
-                    firstName: existingProfile.first_name,
-                    lastName: existingProfile.last_name || p.lastName,
+                    // Le local d'abord : le serveur ne sert que de repli.
+                    firstName: p.firstName || existingProfile.first_name,
+                    lastName: p.lastName || existingProfile.last_name || '',
                     severityIndex: existingProfile.severity_index || p.severityIndex,
                     patienceLevel: existingProfile.patience_level || p.patienceLevel,
                     favoriteGenres: existingProfile.favorite_genres || p.favoriteGenres,
