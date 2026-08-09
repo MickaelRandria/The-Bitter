@@ -241,7 +241,34 @@ export const softDeleteMovie = async (
     .eq('tmdb_id', tmdbId);
 
   if (error) {
-    if (import.meta.env.DEV) console.error('[Sync] Suppression douce échouée :', error);
+    // Toujours journalisé, pas seulement en développement : une synchro qui échoue
+    // en silence est exactement ce qui avait laissé passer le bug d'origine.
+    console.error('[Sync] Suppression douce échouée :', error);
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Annule une suppression douce.
+ *
+ * Appelé quand l'utilisateur clique sur « Annuler » : la suppression est propagée
+ * immédiatement au clic, pas après le délai, donc il faut savoir revenir en arrière.
+ */
+export const restoreDeletedMovie = async (
+  userId: string,
+  tmdbId: number | undefined
+): Promise<boolean> => {
+  if (!supabase || tmdbId == null) return false;
+
+  const { error } = await supabase
+    .from('user_movies')
+    .update({ deleted_at: null })
+    .eq('profile_id', userId)
+    .eq('tmdb_id', tmdbId);
+
+  if (error) {
+    console.error('[Sync] Restauration échouée :', error);
     return false;
   }
   return true;

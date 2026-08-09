@@ -394,6 +394,7 @@ export const en: Record<string, string> = {
   'accountSync.upToDate': 'All your films are backed up.',
   'accountSync.savedLabel': 'films backed up',
   'accountSync.notConfigured': 'Online backup is not available here.',
+  'sync.deleteFailed': 'Deletion not synced, try again later',
   'accountSync.anonymousCta': 'Continue without email',
   'accountSync.anonymousHint':
     'Your films are backed up right away. You can add your email later to find them on another device.',

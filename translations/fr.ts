@@ -396,6 +396,7 @@ export const fr: Record<string, string> = {
   'accountSync.upToDate': 'Tous tes films sont sauvegardés.',
   'accountSync.savedLabel': 'films sauvegardés',
   'accountSync.notConfigured': 'La sauvegarde en ligne n’est pas disponible ici.',
+  'sync.deleteFailed': 'Suppression non synchronisée, réessaie plus tard',
   'accountSync.anonymousCta': 'Continuer sans email',
   'accountSync.anonymousHint':
     'Tes films sont sauvegardés tout de suite. Tu pourras ajouter ton email plus tard pour les retrouver sur un autre appareil.',

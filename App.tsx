@@ -64,6 +64,7 @@ import {
   hasDeclinedMerge,
   mergeRemoteAndLocal,
   rememberMergeDeclined,
+  restoreDeletedMovie,
   softDeleteMovie,
 } from './services/movieSync';
 import RewatchModal from './components/RewatchModal';
@@ -1266,10 +1267,16 @@ const App: React.FC = () => {
    * suppression déclenchée juste avant la fin de la connexion aurait sinon vu une
    * session vide et ne serait jamais remontée.
    */
-  const propagateDeletion = (movie?: Movie) => {
+  const propagateDeletion = async (movie?: Movie) => {
     const userId = sessionRef.current?.user?.id;
     if (!userId || !movie || movie.tmdbId == null) return;
-    softDeleteMovie(userId, movie.tmdbId);
+
+    const ok = await softDeleteMovie(userId, movie.tmdbId);
+    if (!ok) {
+      // Une synchro qui échoue en silence est ce qui avait masqué le bug d'origine.
+      setToastMessage(t('sync.deleteFailed'));
+      return;
+    }
     setRemoteTmdbIds((prev) => {
       const next = new Set(prev);
       next.delete(movie.tmdbId as number);
@@ -1300,16 +1307,18 @@ const App: React.FC = () => {
     const movie = activeProfile?.movies.find((m) => m.id === id);
     const movieTitle = movie?.title ?? 'Film';
 
+    // Propagation IMMÉDIATE, et non à la fin du délai d'annulation : sur mobile,
+    // passer dans une autre application ou verrouiller l'écran suspend les
+    // minuteurs, et la requête ne partait jamais. Si l'utilisateur annule,
+    // handleUndoDelete lève la suppression côté serveur.
+    propagateDeletion(movie);
+
     const timeoutId = setTimeout(() => {
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === activeProfileId ? { ...p, movies: p.movies.filter((m) => m.id !== id) } : p
         )
       );
-      // La suppression n'est propagée qu'ici, une fois le délai d'annulation écoulé :
-      // marquer plus tôt, puis voir l'utilisateur annuler, laisserait une pierre
-      // tombale sur un film toujours présent en local.
-      propagateDeletion(movie);
       setPendingDelete(null);
     }, 4500);
 
@@ -1320,6 +1329,15 @@ const App: React.FC = () => {
     if (!pendingDelete) return;
     haptics.soft();
     clearTimeout(pendingDelete.timeoutId);
+
+    // La suppression a déjà été propagée au clic : on la lève côté compte.
+    const userId = sessionRef.current?.user?.id;
+    const restored = activeProfile?.movies.find((m) => m.id === pendingDelete.id);
+    if (userId && restored?.tmdbId != null) {
+      restoreDeletedMovie(userId, restored.tmdbId);
+      setRemoteTmdbIds((prev) => new Set(prev).add(restored.tmdbId as number));
+    }
+
     setPendingDelete(null);
   };
 
