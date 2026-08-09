@@ -396,6 +396,13 @@ export const fr: Record<string, string> = {
   'accountSync.upToDate': 'Tous tes films sont sauvegardés.',
   'accountSync.savedLabel': 'films sauvegardés',
   'accountSync.notConfigured': 'La sauvegarde en ligne n’est pas disponible ici.',
+  'accountSync.anonymousCta': 'Continuer sans email',
+  'accountSync.anonymousHint':
+    'Tes films sont sauvegardés tout de suite. Tu pourras ajouter ton email plus tard pour les retrouver sur un autre appareil.',
+  'accountSync.anonymousAccount': 'Compte sans email',
+  'accountSync.attachEmailHint':
+    'Ajoute ton email pour retrouver ces films sur un autre appareil. Ton compte et tes films sont conservés.',
+  'accountSync.attachEmailCta': 'Rattacher cet email',
 
   // ── Reconnexion : réunir ou garder séparé ────────────────────────────────
   'accountMerge.title': 'Bon retour !',

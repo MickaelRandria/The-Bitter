@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Check, Loader2, Mail, CloudUpload, AlertTriangle } from 'lucide-react';
 import { BackfillReport } from '../services/movieSync';
-import { sendMagicLink } from '../services/auth';
+import { attachEmail, sendMagicLink, startAnonymousSession } from '../services/auth';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
@@ -9,6 +9,10 @@ import { useDialog } from '../utils/useDialog';
 interface AccountSyncModalProps {
   /** Email du compte connecté, absent si personne ne l'est. */
   accountEmail?: string | null;
+  /** Identifiant du compte connecté, nécessaire pour y rattacher un email. */
+  accountId?: string | null;
+  /** Vrai quand la session est anonyme : le compte existe mais n'a pas d'email. */
+  isAnonymous?: boolean;
   /** Films du profil actif pas encore présents sur le compte. */
   pendingCount: number;
   onBackfill: () => Promise<BackfillReport>;
@@ -25,6 +29,8 @@ interface AccountSyncModalProps {
  */
 const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
   accountEmail,
+  accountId,
+  isAnonymous = false,
   pendingCount,
   onBackfill,
   onClose,
@@ -58,6 +64,53 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
       return;
     }
 
+    setLinkSent(true);
+    haptics.success();
+  };
+
+  /**
+   * Session anonyme : un compte réel est créé, sans email ni mot de passe.
+   * Indispensable quand l'envoi d'emails est indisponible, et de toute façon le
+   * chemin le plus court pour quelqu'un qui veut juste sauvegarder ses films.
+   */
+  const startAnonymous = async () => {
+    if (busy) return;
+    haptics.medium();
+    setBusy(true);
+    setError(null);
+
+    const result = await startAnonymousSession();
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(
+        result.reason === 'not-configured'
+          ? t('accountSync.notConfigured')
+          : (result.message ?? null)
+      );
+      return;
+    }
+    haptics.success();
+  };
+
+  /**
+   * Rattache un email à un compte anonyme. L'identifiant du compte ne change pas,
+   * donc les films déjà sauvegardés restent attachés : c'est une conversion, pas
+   * une nouvelle inscription.
+   */
+  const linkEmail = async () => {
+    if (!emailValid || busy || !accountId) return;
+    haptics.medium();
+    setBusy(true);
+    setError(null);
+
+    const result = await attachEmail(accountId, email);
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(result.message ?? null);
+      return;
+    }
     setLinkSent(true);
     haptics.success();
   };
@@ -161,9 +214,34 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                   {t('accountSync.connectedAs')}
                 </p>
                 <p className="text-sm font-black text-charcoal dark:text-white truncate">
-                  {accountEmail}
+                  {accountEmail ?? t('accountSync.anonymousAccount')}
                 </p>
               </div>
+
+              {/* Compte anonyme : on propose d'y rattacher un email, ce qui le rend
+                  permanent sans changer son identifiant, donc sans perdre les films. */}
+              {isAnonymous && (
+                <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-2xl p-4 space-y-3">
+                  <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+                    {t('accountSync.attachEmailHint')}
+                  </p>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className={inputClass}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nom@exemple.com"
+                  />
+                  <button
+                    onClick={linkEmail}
+                    disabled={!emailValid || busy}
+                    className="w-full py-3 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-40"
+                  >
+                    {t('accountSync.attachEmailCta')}
+                  </button>
+                </div>
+              )}
 
               {pendingCount > 0 ? (
                 <>
@@ -219,6 +297,19 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
               <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center">
                 {t('accountSync.noPassword')}
               </p>
+
+              <div className="pt-2 border-t border-sand dark:border-white/5 space-y-2">
+                <button
+                  onClick={startAnonymous}
+                  disabled={busy}
+                  className="w-full py-3 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-40"
+                >
+                  {t('accountSync.anonymousCta')}
+                </button>
+                <p className="text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center">
+                  {t('accountSync.anonymousHint')}
+                </p>
+              </div>
             </div>
           )}
         </div>

@@ -394,6 +394,13 @@ export const en: Record<string, string> = {
   'accountSync.upToDate': 'All your films are backed up.',
   'accountSync.savedLabel': 'films backed up',
   'accountSync.notConfigured': 'Online backup is not available here.',
+  'accountSync.anonymousCta': 'Continue without email',
+  'accountSync.anonymousHint':
+    'Your films are backed up right away. You can add your email later to find them on another device.',
+  'accountSync.anonymousAccount': 'Account without email',
+  'accountSync.attachEmailHint':
+    'Add your email to find these films on another device. Your account and films are kept.',
+  'accountSync.attachEmailCta': 'Attach this email',
 
   // ── Reconnection: merge or keep separate ─────────────────────────────────
   'accountMerge.title': 'Welcome back!',

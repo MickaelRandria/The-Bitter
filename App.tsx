@@ -2648,6 +2648,8 @@ const App: React.FC = () => {
         {showAccountSync && (
           <AccountSyncModal
             accountEmail={session?.user?.email ?? null}
+            accountId={session?.user?.id ?? null}
+            isAnonymous={!!session?.user && !session.user.email}
             pendingCount={pendingSyncCount}
             onBackfill={runBackfill}
             onClose={() => setShowAccountSync(false)}
