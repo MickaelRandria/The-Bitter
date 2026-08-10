@@ -60,9 +60,53 @@ export const sendMagicLink = async (email: string): Promise<AuthOutcome> => {
 export const verifyEmailCode = async (email: string, code: string): Promise<AuthOutcome> => {
   if (!supabase) return notConfigured;
 
+  const raw = code.trim();
+
+  /**
+   * Le champ accepte aussi le lien complet, collé tel quel.
+   *
+   * Le service d'envoi intégré de Supabase n'applique pas les gabarits
+   * personnalisés : il expédie un lien nu, sans code, quoi qu'on écrive dans le
+   * modèle. Or ce lien ouvre le navigateur par défaut, jamais l'app installée sur
+   * l'écran d'accueil, qui possède son propre stockage. Coller le lien ici extrait
+   * son jeton et ouvre la session dans le bon contexte, sans dépendre du gabarit,
+   * d'un domaine vérifié ni d'un fournisseur d'envoi.
+   */
+  if (raw.includes('://')) {
+    try {
+      const url = new URL(raw);
+      const params = new URLSearchParams(url.search || url.hash.replace(/^#/, ''));
+      const tokenHash = params.get('token_hash');
+      const token = params.get('token');
+
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'email',
+        });
+        if (error) return { ok: false, reason: 'failed', message: error.message };
+        return { ok: true };
+      }
+
+      if (token) {
+        const { error } = await supabase.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token,
+          type: 'email',
+        });
+        if (error) return { ok: false, reason: 'failed', message: error.message };
+        return { ok: true };
+      }
+
+      return { ok: false, reason: 'failed', message: 'Ce lien ne contient pas de jeton.' };
+    } catch {
+      return { ok: false, reason: 'failed', message: 'Lien illisible. Copie-le en entier.' };
+    }
+  }
+
   const { error } = await supabase.auth.verifyOtp({
     email: email.trim().toLowerCase(),
-    token: code.replace(/\s/g, ''),
+    token: raw.replace(/\s/g, ''),
     type: 'email',
   });
 

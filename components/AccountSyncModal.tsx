@@ -70,7 +70,7 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
    * On accepte donc toute la plage et on laisse le serveur trancher, plutôt que
    * de bloquer le bouton sur une longueur devinée.
    */
-  const codeValid = /^\d{6,10}$/.test(code.trim());
+  const codeValid = /^\d{6,10}$/.test(code.trim()) || code.trim().includes('://');
 
   const requestLink = async () => {
     if (!emailValid || busy) return;
@@ -332,14 +332,13 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
                     autoComplete="one-time-code"
                     /* Pas de maxLength : il tronquerait le texte collé AVANT que
                        les espaces et le reste soient retirés, et « 123 456 » ne
                        donnerait que cinq chiffres avec un bouton inerte. */
-                    className={`${inputClass} text-center text-2xl tracking-[0.3em] font-black`}
+                    className={`${inputClass} text-center ${code.includes('://') ? 'text-[11px] tracking-normal' : 'text-2xl tracking-[0.3em]'} font-black`}
                     value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => setCode(e.target.value.trim())}
                   />
 
                   {error && (
