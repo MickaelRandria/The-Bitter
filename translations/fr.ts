@@ -868,6 +868,10 @@ export const fr: Record<string, string> = {
   'shared.roleMember': 'Membre',
   'shared.leaveOwnerBlocked':
     'Tu es propriétaire. Transmets l’espace à un autre membre, ou supprime-le.',
+  'spaceSettings.openShort': 'L’espace',
+  'spaceSettings.open': 'Options de l’espace',
+  'spaceSettings.refresh': 'Actualiser',
+  'spaceSettings.leave': 'Quitter',
   'spaceSettings.title': 'Gérer l’espace',
   'spaceSettings.identity': 'Nom et description',
   'spaceSettings.nameLabel': 'Nom de l’espace',
