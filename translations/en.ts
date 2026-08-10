@@ -579,6 +579,15 @@ export const en: Record<string, string> = {
   'tour.rating-context.b3': 'Pacing: the tempo as you felt it',
 
   // ── New Features Modal ───────────────────────────────────────────────────
+  'newFeatures.backup.title1': 'Your films,',
+  'newFeatures.backup.title2': 'kept safe.',
+  'newFeatures.backup.desc': 'Get a <b>code by email</b> and find your whole collection on any device. Nothing disappears when you change phone.',
+  'newFeatures.spaces.title1': 'Shared spaces',
+  'newFeatures.spaces.title2': 'work again.',
+  'newFeatures.spaces.desc': 'Create, join, come back after leaving, manage members: <b>it all works again</b>. And a film rated together now uses your real Bitter+ grid.',
+  'newFeatures.feed.title1': 'My',
+  'newFeatures.feed.title2': 'people.',
+  'newFeatures.feed.desc': 'See <b>what people in your spaces watched</b>, their ratings next to yours, and the full breakdown. You choose what you share, film by film.',
   'newFeatures.newBadge': 'New v0.89',
   'newFeatures.tour.title1': 'GUIDED',
   'newFeatures.tour.title2': 'TOUR',
