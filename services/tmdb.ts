@@ -325,7 +325,7 @@ export interface TheatreReleases {
   upcoming: TheatreRelease[];
 }
 
-const RELEASES_CACHE_KEY = 'bitter_theatre_releases_v3';
+const RELEASES_CACHE_KEY = 'bitter_theatre_releases_v4';
 /** Les sorties changent une fois par semaine : rappeler TMDB plus souvent ne sert à rien. */
 const RELEASES_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -387,6 +387,48 @@ const fetchWindow = async (
   return (data.results || []).map(toRelease);
 };
 
+
+/**
+ * Date de sortie dans le pays, et non date de première mondiale.
+ *
+ * `discover` renvoie `release_date`, qui est la date de première MONDIALE : Matrix
+ * y apparaît en 1999 alors qu'il ressort en salle cette semaine. La date qui compte
+ * pour quelqu'un qui cherche quoi aller voir n'est disponible que par cet appel,
+ * un par film. Le coût est acceptable parce qu'il n'a lieu qu'au renouvellement du
+ * cache, soit toutes les six heures au plus.
+ *
+ * Type 3 est la sortie en salle, type 2 la première limitée. On préfère la première.
+ */
+const fetchLocalReleaseDate = async (
+  movieId: number,
+  region: string
+): Promise<string | null> => {
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/movie/${movieId}/release_dates?api_key=${TMDB_API_KEY}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const country = (data.results || []).find((r: any) => r.iso_3166_1 === region);
+    if (!country) return null;
+
+    const dates: any[] = country.release_dates || [];
+    const theatrical = dates.find((d) => d.type === 3) || dates.find((d) => d.type === 2);
+    return theatrical?.release_date?.slice(0, 10) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** Remplace la date mondiale par la date locale, quand celle-ci existe. */
+const withLocalDates = async (
+  films: TheatreRelease[],
+  region: string
+): Promise<TheatreRelease[]> => {
+  const dates = await Promise.all(films.map((f) => fetchLocalReleaseDate(f.id, region)));
+  return films.map((film, i) => (dates[i] ? { ...film, releaseDate: dates[i] as string } : film));
+};
+
 /**
  * Sorties de la semaine et sorties à venir, pour une région donnée.
  *
@@ -434,14 +476,23 @@ export const getTheatreReleases = async (
     fetchWindow(region, isoDay(tomorrow), isoDay(horizon)),
   ]);
 
+  const showing = thisWeek.filter((f) => isRecent(f, today)).slice(0, 12);
+  const soon = upcoming.filter((f) => isRecent(f, today)).slice(0, 20);
+
+  // Les dates locales ne sont demandées que pour les films réellement affichés :
+  // les récupérer avant le découpage multiplierait les appels par cinq pour rien.
+  const [showingDated, soonDated] = await Promise.all([
+    withLocalDates(showing, region),
+    withLocalDates(soon, region),
+  ]);
+
   const data: TheatreReleases = {
     // La popularité décide de ce qui entre dans la liste, la date de l'ordre dans
     // lequel on la lit : à venir, on veut savoir ce qui arrive en premier.
-    thisWeek: thisWeek.filter((f) => isRecent(f, today)).slice(0, 12),
-    upcoming: upcoming
-      .filter((f) => isRecent(f, today))
-      .slice(0, 20)
-      .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
+    // Triée par date de sortie décroissante : le plus récemment sorti d'abord,
+    // c'est celui qu'on a le plus de chances de ne pas avoir encore vu.
+    thisWeek: [...showingDated].sort((a, b) => b.releaseDate.localeCompare(a.releaseDate)),
+    upcoming: [...soonDated].sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
   };
 
   try {
