@@ -22,6 +22,7 @@ import {
   BarChart3,
   ChevronRight,
   Settings,
+  RefreshCw,
 } from 'lucide-react';
 import {
   SharedSpace,
@@ -100,6 +101,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  /** Vrai quand le chargement dépasse dix secondes. */
+  const [slow, setSlow] = useState(false);
   /** L'espace peut être renommé pendant la session : on garde la version à jour. */
   const [space, setSpace] = useState(initialSpace);
 
@@ -145,7 +148,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    */
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
+    setSlow(false);
     setLoadError(null);
+    const slowTimer = setTimeout(() => setSlow(true), 10000);
     const [movies, members, votes] = await Promise.all([
       getSpaceMovies(space.id),
       getSpaceMembers(space.id),
@@ -161,9 +166,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const uniqueMovies = Array.from(new Map(movies.data.map((m) => [m.id, m])).values());
     const uniqueMembers = Array.from(new Map(members.data.map((m) => [m.id, m])).values());
 
+    clearTimeout(slowTimer);
     setMovies(uniqueMovies);
     setMembers(uniqueMembers);
     setVotes(votes.data);
+    setSlow(false);
     setLoading(false);
   };
 
@@ -349,6 +356,32 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         <p className="text-[10px] font-black uppercase text-stone-300 dark:text-stone-700 tracking-[0.2em]">
           {t('shared.syncing')}
         </p>
+        {/* Cet écran ne proposait aucune sortie : quand le serveur tardait, relancer
+            l'application était le seul recours. */}
+        {slow && (
+          <div className="text-center space-y-3 px-8">
+            <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 max-w-[240px] leading-relaxed mx-auto">
+              {t('spaces.slow')}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  loadData();
+                }}
+                className="px-5 py-2.5 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all"
+              >
+                {t('shared.retry')}
+              </button>
+              <button
+                onClick={onBack}
+                className="px-5 py-2.5 rounded-2xl text-stone-400 dark:text-stone-600 font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all"
+              >
+                {t('common.back')}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -416,6 +449,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </button>
             </div>
           </div>
+          {/* Le temps réel couvre le cas normal, mais il ne rattrape rien quand la
+              connexion a sauté pendant que l'app dormait. Sans ce bouton, la seule
+              issue était de relancer l'application. */}
+          <button
+            onClick={() => {
+              haptics.soft();
+              loadData();
+            }}
+            disabled={loading}
+            aria-label={t('shared.retry')}
+            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white disabled:opacity-40"
+          >
+            <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
+          </button>
           {isOwner && (
             <button
               onClick={() => {

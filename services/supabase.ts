@@ -128,12 +128,6 @@ export interface SpaceRead<T> {
 }
 
 /**
- * Les erreurs d'espace partagé sont tracées sans condition d'environnement.
- *
- * Les conditionner à `import.meta.env.DEV` revient à se rendre aveugle très
- * exactement là où le défaut se produit : en production, chez l'utilisateur.
- */
-/**
  * Une coupure réseau remonte du navigateur, pas de Postgres, et sous une forme
  * illisible : « TypeError: Load failed » sur Safari, « Failed to fetch » ailleurs.
  * Servir ça tel quel à l'utilisateur ne lui apprend rien et l'inquiète.
@@ -145,6 +139,37 @@ const NETWORK_HINTS = [
   'network request failed',
 ];
 
+/**
+ * Borne une lecture dans le temps.
+ *
+ * Une requête Supabase n'a pas de délai maximum : si le serveur ne répond jamais,
+ * la promesse ne se résout pas et l'écran reste en chargement pour toujours, sans
+ * message ni sortie. C'est ce qui obligeait à relancer l'app entière.
+ */
+export const SPACE_TIMEOUT_MS = 12000;
+
+const withTimeout = async <T>(work: PromiseLike<T>, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const guard = new Promise<T>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[Espaces] Aucune réponse après ${SPACE_TIMEOUT_MS} ms`);
+      resolve(fallback);
+    }, SPACE_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([Promise.resolve(work), guard]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+/**
+ * Les erreurs d'espace partagé sont tracées sans condition d'environnement.
+ *
+ * Les conditionner à `import.meta.env.DEV` revient à se rendre aveugle très
+ * exactement là où le défaut se produit : en production, chez l'utilisateur.
+ */
 const logSpace = (action: string, error: unknown): string => {
   const raw = (error as { message?: string })?.message || 'Erreur inconnue côté serveur';
 
@@ -208,17 +233,22 @@ export async function createSharedSpace(
 export async function getUserSpaces(userId: string): Promise<SpaceRead<SharedSpace>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
-  const { data, error } = await supabase
-    .from('shared_spaces')
-    .select(
-      `
+  const { data, error, timedOut } = await withTimeout(
+    supabase
+      .from('shared_spaces')
+      .select(
+        `
       *,
       space_members!inner(profile_id)
     `
-    )
-    .eq('space_members.profile_id', userId)
-    .eq('space_members.is_active', true); // Only fetch spaces where user is active
+      )
+      .eq('space_members.profile_id', userId)
+      .eq('space_members.is_active', true) // Only fetch spaces where user is active
+      .then((r: any) => ({ ...r, timedOut: false })),
+    { data: null, error: null, timedOut: true }
+  );
 
+  if (timedOut) return { data: [], error: 'Le serveur ne répond pas. Réessaie dans un instant.' };
   if (error) return { data: [], error: logSpace('Lecture des espaces', error) };
 
   return { data: data || [] };
