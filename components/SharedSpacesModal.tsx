@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Users, Copy, Check, Loader2, Share2, Globe, Lock } from 'lucide-react';
+import { X, Plus, Users, Copy, Check, Loader2, Share2, Globe, Lock, Eye } from 'lucide-react';
 import {
   SharedSpace,
   createSharedSpace,
@@ -16,6 +16,24 @@ interface SharedSpacesModalProps {
   userId: string;
   onSelectSpace: (space: SharedSpace) => void;
 }
+
+
+const SharingNotice: React.FC<{ t: (k: string) => string }> = ({ t }) => (
+  <div className="bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4 space-y-2">
+    <div className="flex items-center gap-2 text-orange-400">
+      <Eye size={13} />
+      <p className="text-[10px] font-black uppercase tracking-widest">
+        {t('spaces.noticeTitle')}
+      </p>
+    </div>
+    <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+      {t('spaces.noticeBody')}
+    </p>
+    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
+      {t('spaces.noticeControl')}
+    </p>
+  </div>
+);
 
 const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   isOpen,
@@ -328,6 +346,10 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                   </div>
                 </div>
 
+                <div className="mb-6">
+                  <SharingNotice t={t} />
+                </div>
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
@@ -373,6 +395,10 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                     className="w-full p-4 rounded-xl border-2 border-stone-100 dark:border-white/10 bg-stone-50 dark:bg-[#161616] dark:text-white text-lg font-black font-mono uppercase text-center focus:outline-none focus:border-forest focus:bg-white dark:focus:bg-[#1a1a1a] tracking-[0.2em] placeholder:tracking-normal transition-all"
                     maxLength={6}
                   />
+                </div>
+
+                <div className="mb-6">
+                  <SharingNotice t={t} />
                 </div>
 
                 <div className="flex gap-3">

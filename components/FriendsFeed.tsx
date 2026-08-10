@@ -24,6 +24,8 @@ const FriendsFeed: React.FC<Props> = ({ myRatingByTmdb, onSelectMovie }) => {
   const [items, setItems] = useState<FriendActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Note dépliée : on montre comment elle a été obtenue, pas seulement son résultat. */
+  const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -141,14 +143,18 @@ const FriendsFeed: React.FC<Props> = ({ myRatingByTmdb, onSelectMovie }) => {
               const gap = mine != null ? item.rating - mine : null;
 
               return (
-                <button
+                <div
                   key={item.movieId}
+                  className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.5rem] overflow-hidden"
+                >
+                <div className="flex items-start gap-3 p-3">
+                <button
                   onClick={() => {
                     if (item.tmdbId == null) return;
                     haptics.soft();
                     onSelectMovie(item.tmdbId);
                   }}
-                  className="w-full flex items-start gap-3 bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.5rem] p-3 text-left active:scale-[0.99] transition-transform"
+                  className="flex-1 flex items-start gap-3 text-left active:scale-[0.99] transition-transform min-w-0"
                 >
                   {item.posterUrl ? (
                     <img
@@ -193,13 +199,61 @@ const FriendsFeed: React.FC<Props> = ({ myRatingByTmdb, onSelectMovie }) => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 text-charcoal bg-bitter-lime px-2.5 py-1 rounded-lg shrink-0">
+                </button>
+
+                  {/* La note est un bouton : un chiffre seul ne dit pas comment il
+                      a été obtenu, et c'est justement ce qui distingue Bitter+ d'une
+                      étoile posée à la va-vite. */}
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setOpenDetail(openDetail === item.movieId ? null : item.movieId);
+                    }}
+                    disabled={!item.adaptiveRating?.criteria?.length}
+                    aria-expanded={openDetail === item.movieId}
+                    className="flex items-center gap-1 text-charcoal bg-bitter-lime px-2.5 py-1 rounded-lg shrink-0 self-start active:scale-90 transition-transform disabled:active:scale-100"
+                  >
                     <Star size={10} fill="currentColor" />
                     <span className="text-[10px] font-black tabular-nums">
                       {item.rating.toFixed(1)}
                     </span>
+                  </button>
+                </div>
+
+                {openDetail === item.movieId && item.adaptiveRating?.criteria?.length && (
+                  <div className="px-3 pb-3 space-y-2 animate-[fadeIn_0.2s_ease-out]">
+                    <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5 space-y-2">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                        {t('feed.gridOf', {
+                          name: item.firstName,
+                          profile: item.adaptiveRating.profile?.label ?? '',
+                        })}
+                      </p>
+                      {item.adaptiveRating.criteria.map((c) => (
+                        <div key={c.key} className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 w-24 shrink-0 truncate">
+                            {c.label}
+                          </span>
+                          <div className="flex-1 h-1.5 bg-stone-200 dark:bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-forest dark:bg-lime-500"
+                              style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-black text-charcoal dark:text-white tabular-nums w-7 text-right">
+                            {c.value.toFixed(1)}
+                          </span>
+                          {/* Le poids explique pourquoi la moyenne brute et la note
+                              affichée diffèrent : sans lui le détail semblerait faux. */}
+                          <span className="text-[9px] font-bold text-stone-300 dark:text-stone-700 w-8 text-right shrink-0">
+                            ×{c.weight}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </button>
+                )}
+                </div>
               );
             })}
           </div>
