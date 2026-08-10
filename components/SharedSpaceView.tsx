@@ -42,6 +42,7 @@ import {
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
+import { Movie } from '../types';
 import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 
@@ -56,6 +57,8 @@ interface SharedSpaceViewProps {
    * que les deux chemins passent par la même grille.
    */
   onRateMovie: (movie: SharedMovie, existingRating: MovieRating | null) => void;
+  /** Collection personnelle, pour comparer ses verdicts a ceux d'un membre. */
+  myMovies: Movie[];
   refreshTrigger?: number;
 }
 
@@ -67,6 +70,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   onBack,
   onAddMovie,
   onRateMovie,
+  myMovies,
   refreshTrigger,
 }) => {
   const { t } = useLanguage();
@@ -945,6 +949,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       {selectedMember && (
         <MemberProfileModal
           member={selectedMember}
+          myMovies={myMovies}
           onClose={() => setSelectedMember(null)}
         />
       )}

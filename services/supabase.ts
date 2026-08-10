@@ -621,6 +621,63 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceM
   return { data: data || [] };
 }
 
+export interface MemberFilm {
+  id: string;
+  tmdbId: number | null;
+  title: string;
+  director: string;
+  year: number;
+  genre: string | null;
+  posterUrl?: string;
+  /** Note telle que son auteur l'a vue : pondérée si Bitter+, moyenne des quatre sinon. */
+  rating: number;
+}
+
+/**
+ * Films notés d'un membre, en une seule lecture.
+ *
+ * Remplace les deux requêtes séparées qui ramenaient d'un côté un top 5, de l'autre
+ * un compte et une moyenne : tout se calcule à partir de la même liste, et une
+ * comparaison entre deux personnes a de toute façon besoin des films eux-mêmes.
+ *
+ * Lisible grâce à la politique « Space members can view each other movies ». Un
+ * non co-membre reçoit une liste vide, ce qui est le comportement voulu.
+ */
+export async function getMemberFilms(profileId: string): Promise<SpaceRead<MemberFilm>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error } = await supabase
+    .from('user_movies')
+    .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
+    .eq('profile_id', profileId)
+    .eq('status', 'watched')
+    .is('deleted_at', null)
+    .not('story', 'is', null);
+
+  if (error) return { data: [], error: logSpace('Lecture des films du membre', error) };
+
+  const films = (data || []).map((row: any) => {
+    const weighted = row.adaptive_rating?.weightedRating;
+    const rating =
+      typeof weighted === 'number' && Number.isFinite(weighted)
+        ? weighted
+        : (Number(row.story) + Number(row.visuals) + Number(row.acting) + Number(row.sound)) / 4;
+
+    return {
+      id: row.id,
+      tmdbId: row.tmdb_id ?? null,
+      title: row.title,
+      director: row.director || '',
+      year: row.year || 0,
+      genre: row.genre || null,
+      posterUrl: row.poster_url || undefined,
+      rating,
+    } as MemberFilm;
+  });
+
+  return { data: films };
+}
+
 /**
  * Top 5 films personnels les mieux notés d'un membre (depuis user_movies)
  */
