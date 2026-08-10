@@ -39,6 +39,8 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState(false);
+  /** Vrai quand le chargement dépasse dix secondes, pour proposer une sortie. */
+  const [slow, setSlow] = useState(false);
 
   // Force reload when modal opens
   useEffect(() => {
@@ -49,12 +51,16 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
 
   const loadSpaces = async () => {
     setLoading(true);
+    setSlow(false);
     setError(null);
+    const slowTimer = setTimeout(() => setSlow(true), 10000);
     // Un refus du serveur affichait « vous ne participez à aucun espace »,
     // c'est-à-dire le message qui décourage le plus de réessayer.
     const result = await getUserSpaces(userId);
     if (result.error) setError(result.error);
+    clearTimeout(slowTimer);
     setSpaces(result.data);
+    setSlow(false);
     setLoading(false);
   };
 
@@ -176,6 +182,24 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
               <p className="text-[10px] font-black uppercase text-stone-300 dark:text-stone-700 tracking-widest">
                 {t('spaces.syncing')}
               </p>
+              {/* Au-dela de dix secondes on cesse de faire patienter en silence :
+                  l attente devient un fait annonce, avec un moyen d en sortir. */}
+              {slow && (
+                <div className="text-center space-y-3 pt-2">
+                  <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 max-w-[240px] leading-relaxed">
+                    {t('spaces.slow')}
+                  </p>
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      loadSpaces();
+                    }}
+                    className="px-5 py-2.5 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all"
+                  >
+                    {t('shared.retry')}
+                  </button>
+                </div>
+              )}
             </div>
           ) : spaces.length > 0 && !showCreateForm && !showJoinForm ? (
             <div className="space-y-4">

@@ -820,6 +820,7 @@ export const en: Record<string, string> = {
   'member.topFilms': 'Top 5 films',
   'member.noFilm': 'No film rated',
   'member.noFilmHint': 'Their films only show up here if they turned on online backup.',
+  'spaces.slow': 'The server is taking longer than usual. Your space is not lost.',
   'spaces.title': 'Shared spaces',
   'spaces.subtitle': 'Collaborative',
   'spaces.syncing': 'Syncing...',

@@ -825,6 +825,7 @@ export const fr: Record<string, string> = {
   'member.topFilms': 'Top 5 films',
   'member.noFilm': 'Aucun film noté',
   'member.noFilmHint': 'Ses films n’apparaissent ici que s’il a activé la sauvegarde en ligne.',
+  'spaces.slow': 'Le serveur met plus de temps que prévu. Ton espace n’est pas perdu.',
   'spaces.title': 'Espaces partagés',
   'spaces.subtitle': 'Collaboratif',
   'spaces.syncing': 'Synchronisation...',
