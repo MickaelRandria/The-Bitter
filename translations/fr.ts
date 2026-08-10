@@ -804,6 +804,8 @@ export const fr: Record<string, string> = {
   'shared.beFirst': 'Soyez le premier à noter !',
   'shared.ratingError': "Erreur lors de l'envoi. Réessaie.",
   'profileModal.spacesNeedAccount': 'Demande un compte avec ton email',
+  'addMovie.spaceForcesBitterPlus':
+    'Dans un espace, tout le monde note en Bitter+ : c’est ce qui rend les verdicts comparables.',
   'spaces.title': 'Espaces partagés',
   'spaces.subtitle': 'Collaboratif',
   'spaces.syncing': 'Synchronisation...',

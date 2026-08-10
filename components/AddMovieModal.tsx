@@ -41,7 +41,7 @@ import {
 import ViewingContextPicker from './ViewingContextPicker';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
-import { SharedSpace, addMovieToSpace } from '../services/supabase';
+import { SharedSpace, addMovieToSpace, upsertMovieRating } from '../services/supabase';
 import { getSharedMovieDetails } from '../services/tmdb';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -312,6 +312,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourForceBitterPlus, isOpen]);
 
+  /**
+   * Dans un espace partagé, Bitter+ est imposé.
+   *
+   * Le verdict d'un groupe n'a de sens que si tous ses membres notent sur la même
+   * base : mélanger une moyenne brute et une note pondérée produirait un classement
+   * que personne ne pourrait interpréter. Le sélecteur de mode est masqué en
+   * conséquence, plutôt que présenté puis ignoré.
+   */
+  useEffect(() => {
+    if (isOpen && sharedSpace) setUseBitterPlus(true);
+  }, [isOpen, sharedSpace]);
+
   // Auto-detect profile from genre unless user manually overrode it
   useEffect(() => {
     if (profileManuallySet) return;
@@ -526,6 +538,42 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           onToast?.(result.error ?? t('addMovie.cannotAddToSpace'));
           return;
         }
+
+        // Le verdict part avec le film, dans la grille Bitter+ imposée ici. Avant,
+        // le film arrivait nu et il fallait le renoter ailleurs, sur quatre curseurs
+        // bruts et une moyenne non pondérée : deux échelles pour un même film.
+        if (!isWatchlist) {
+          const published = await upsertMovieRating(result.movie.id, currentUserId, {
+            story: finalRatings.story,
+            visuals: finalRatings.visuals,
+            acting: finalRatings.acting,
+            sound: finalRatings.sound,
+            review: formData.review?.trim() || undefined,
+            adaptive_rating: finalAdaptiveRating,
+            rating_mode: finalAdaptiveRating ? 'bitter_plus' : 'bitter',
+          });
+
+          if (!published.rating) {
+            haptics.error();
+            onToast?.(published.error ?? t('addMovie.cannotAddToSpace'));
+          }
+        }
+
+        // Le film entre aussi dans la collection personnelle. La branche partagée se
+        // terminait par un `return` sec : un film vu en groupe ne comptait ni dans les
+        // statistiques, ni dans les économies d'abonnement, et n'existait nulle part
+        // ailleurs que dans l'espace.
+        onSave(
+          {
+            ...formData,
+            status: mode,
+            ratings: finalRatings,
+            dateWatched: finalDateWatched,
+            qualityMetrics: finalQualityMetrics,
+            adaptiveRating: finalAdaptiveRating,
+          },
+          isWatchlist ? undefined : viewingContext
+        );
 
         haptics.success();
         onSharedMovieAdded?.();
@@ -746,9 +794,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             </div>
           )}
 
-          {mode === 'watched' && !sharedSpace && (
+          {/* La grille était masquée dès qu'un espace était actif : le film partait
+              sans note, et il fallait la ressaisir ailleurs sur une autre échelle.
+              Elle s'affiche désormais partout, et dans un espace elle est imposée
+              en Bitter+ pour que tous les membres notent sur la même base. */}
+          {mode === 'watched' && (
             <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {/* Bitter / Bitter+ mode switch — Bitter is the default, Bitter+ opens the advanced grid */}
+              {!sharedSpace && (
               <div
                 data-tour="add-rating-mode"
                 className="bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-[2rem] p-2 shadow-sm"
@@ -795,6 +848,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   {useBitterPlus ? t('addMovie.bitterPlusModeHint') : t('addMovie.bitterModeHint')}
                 </p>
               </div>
+              )}
+
+              {sharedSpace && (
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 ml-2 leading-snug">
+                  {t('addMovie.spaceForcesBitterPlus')}
+                </p>
+              )}
 
               {useBitterPlus ? (
                 <div className="space-y-8">

@@ -799,6 +799,8 @@ export const en: Record<string, string> = {
   'shared.beFirst': 'Be the first to rate!',
   'shared.ratingError': 'Failed to submit. Please try again.',
   'profileModal.spacesNeedAccount': 'Requires an account with your email',
+  'addMovie.spaceForcesBitterPlus':
+    'In a space everyone rates with Bitter+, which is what makes the verdicts comparable.',
   'spaces.title': 'Shared spaces',
   'spaces.subtitle': 'Collaborative',
   'spaces.syncing': 'Syncing...',
