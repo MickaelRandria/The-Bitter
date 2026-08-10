@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 import { SpaceMember, MemberFilm, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { haptics } from '../utils/haptics';
 
 interface Props {
   member: SpaceMember;
@@ -29,6 +30,8 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
   const [films, setFilms] = useState<MemberFilm[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Film du top déplié, pour comparer les deux verdicts sans quitter la fiche. */
+  const [openFilm, setOpenFilm] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +108,15 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
       closest: sorted[sorted.length - 1],
     };
   }, [films, myMovies]);
+
+  /** Mes films vus, indexés par TMDB : la comparaison se fait film par film. */
+  const myByTmdb = useMemo(() => {
+    const map = new Map<number, Movie>();
+    for (const m of myMovies) {
+      if (m.status === 'watched' && m.tmdbId != null) map.set(m.tmdbId, m);
+    }
+    return map;
+  }, [myMovies]);
 
   const isOwner = member.role === 'owner';
   const name = member.profile?.first_name || t('shared.member');
@@ -314,10 +326,24 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
               </div>
             ) : (
               <div className="space-y-2">
-                {stats.top.map((film, i) => (
+                {stats.top.map((film, i) => {
+                  const own = film.tmdbId != null ? myByTmdb.get(film.tmdbId) : undefined;
+                  const ownRating = own ? myRatingOf(own) : null;
+                  const isOpen = openFilm === film.id;
+                  const gap = ownRating != null ? film.rating - ownRating : null;
+
+                  return (
                   <div
                     key={film.id}
-                    className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
+                    className="bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/5 overflow-hidden"
+                  >
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setOpenFilm(isOpen ? null : film.id);
+                    }}
+                    aria-expanded={isOpen}
+                    className="w-full flex items-center gap-3 p-3 text-left active:scale-[0.99] transition-transform"
                   >
                     <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 w-4 text-center shrink-0">
                       {i + 1}
@@ -349,8 +375,66 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
                         {film.rating.toFixed(1)}
                       </span>
                     </div>
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-stone-300 dark:text-stone-700 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-3 pb-3 animate-[fadeIn_0.2s_ease-out]">
+                      {ownRating == null ? (
+                        /* Ne pas avoir vu le film est une information en soi, et
+                           c'est le moment le plus naturel pour le mettre de côté. */
+                        <div className="bg-white dark:bg-[#202020] rounded-xl p-3 border border-stone-100 dark:border-white/5">
+                          <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
+                            {t('member.notSeen', { name })}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-white dark:bg-[#202020] rounded-xl p-3 border border-stone-100 dark:border-white/5 space-y-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                              {t('member.you')}
+                            </span>
+                            <div className="flex-1 h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-stone-400 dark:bg-stone-600 transition-all duration-500"
+                                style={{ width: `${Math.max(0, Math.min(100, ownRating * 10))}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-black text-charcoal dark:text-white tabular-nums w-8 text-right">
+                              {ownRating.toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 truncate max-w-[70px]">
+                              {name}
+                            </span>
+                            <div className="flex-1 h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-forest dark:bg-lime-500 transition-all duration-500"
+                                style={{ width: `${Math.max(0, Math.min(100, film.rating * 10))}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-black text-charcoal dark:text-white tabular-nums w-8 text-right">
+                              {film.rating.toFixed(1)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed pt-1">
+                            {Math.abs(gap as number) < 0.5
+                              ? t('member.sameVerdict')
+                              : (gap as number) > 0
+                                ? t('member.theyLiked', { name, gap: Math.abs(gap as number).toFixed(1) })
+                                : t('member.youLiked', { name, gap: Math.abs(gap as number).toFixed(1) })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
