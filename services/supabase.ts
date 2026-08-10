@@ -698,6 +698,40 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceM
   );
 }
 
+/**
+ * Les quatre critères d'un film, quelle que soit la façon dont il a été noté.
+ *
+ * En mode Bitter+, les colonnes story/visuals/acting/sound reçoivent toutes la
+ * MÊME valeur, la note pondérée, pour que les affichages hérités restent justes.
+ * Les lire comme quatre critères distincts donne donc quatre fois le même nombre,
+ * et tout écart calculé dessus est identique sur les quatre lignes.
+ *
+ * L'ordre de préférence suit la richesse réelle de la donnée : la grille adaptative
+ * d'abord, `quality_metrics` ensuite, qui existe précisément pour cette raison, et
+ * les colonnes héritées en dernier recours pour les notes en mode Bitter simple.
+ */
+const extractCriteria = (row: any) => {
+  const byKey = new Map<string, number>(
+    (row.adaptive_rating?.criteria ?? []).map((c: any) => [c.key, Number(c.value)])
+  );
+  const qm = row.quality_metrics ?? null;
+
+  const pick = (adaptiveKey: string, qualityKey: string, legacy: unknown) => {
+    const fromAdaptive = byKey.get(adaptiveKey);
+    if (Number.isFinite(fromAdaptive)) return fromAdaptive as number;
+    const fromQuality = qm?.[qualityKey];
+    if (Number.isFinite(fromQuality)) return Number(fromQuality);
+    return Number(legacy);
+  };
+
+  return {
+    story: pick('scenario', 'scenario', row.story),
+    visuals: pick('image', 'visual', row.visuals),
+    acting: pick('interpretation', 'acting', row.acting),
+    sound: pick('sound', 'sound', row.sound),
+  };
+};
+
 export interface MemberFilm {
   id: string;
   tmdbId: number | null;
@@ -729,7 +763,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
     'Lecture des films du membre',
     supabase
       .from('user_movies')
-      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
+      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating, quality_metrics')
       .eq('profile_id', profileId)
       .eq('status', 'watched')
       .is('deleted_at', null)
@@ -754,12 +788,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
       genre: row.genre || null,
       posterUrl: row.poster_url || undefined,
       rating,
-      criteria: {
-        story: Number(row.story),
-        visuals: Number(row.visuals),
-        acting: Number(row.acting),
-        sound: Number(row.sound),
-      },
+      criteria: extractCriteria(row),
     } as MemberFilm;
   });
 

@@ -24,6 +24,33 @@ const myRatingOf = (movie: Movie): number => {
 
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 
+/**
+ * Mes quatre critères, avec la même précaution que côté membre : en Bitter+, les
+ * quatre champs de `ratings` portent tous la note pondérée, pas quatre critères.
+ */
+const myCriteriaOf = (movie: Movie) => {
+  const byKey = new Map<string, number>(
+    (movie.adaptiveRating?.criteria ?? []).map((c) => [c.key, Number(c.value)])
+  );
+  const qm = movie.qualityMetrics as any;
+
+  const pick = (adaptiveKey: string, qualityKey: string, legacy: number) => {
+    const fromAdaptive = byKey.get(adaptiveKey);
+    if (Number.isFinite(fromAdaptive)) return fromAdaptive as number;
+    const fromQuality = qm?.[qualityKey];
+    if (Number.isFinite(fromQuality)) return Number(fromQuality);
+    return legacy;
+  };
+
+  const r = movie.ratings;
+  return {
+    story: pick('scenario', 'scenario', r.story),
+    visuals: pick('image', 'visual', r.visuals),
+    acting: pick('interpretation', 'acting', r.acting),
+    sound: pick('sound', 'sound', r.sound),
+  };
+};
+
 export default function MemberProfileModal({ member, myMovies, onClose }: Props) {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
@@ -132,9 +159,10 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
       if (f.tmdbId == null) continue;
       const own = mine.get(f.tmdbId);
       if (!own) continue;
+      const ownCriteria = myCriteriaOf(own);
       for (const k of keys) {
         const theirs = f.criteria?.[k];
-        const ours = own.ratings?.[k];
+        const ours = ownCriteria[k];
         if (!Number.isFinite(theirs) || !Number.isFinite(ours)) continue;
         gaps[k].push(Math.abs(theirs - ours));
       }
