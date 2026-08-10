@@ -722,28 +722,28 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceM
  * et tout écart calculé dessus est identique sur les quatre lignes.
  *
  * L'ordre de préférence suit la richesse réelle de la donnée : la grille adaptative
- * d'abord, `quality_metrics` ensuite, qui existe précisément pour cette raison, et
- * les colonnes héritées en dernier recours pour les notes en mode Bitter simple.
+ * d'abord, puis les colonnes héritées, qui portent quatre valeurs distinctes pour
+ * une note posée en Bitter simple.
  */
 const extractCriteria = (row: any) => {
   const byKey = new Map<string, number>(
     (row.adaptive_rating?.criteria ?? []).map((c: any) => [c.key, Number(c.value)])
   );
-  const qm = row.quality_metrics ?? null;
-
-  const pick = (adaptiveKey: string, qualityKey: string, legacy: unknown) => {
+  // `quality_metrics` n'existe que dans le modèle local : la table ne le stocke pas.
+  // Le repli va donc directement aux quatre colonnes héritées, qui portent bien
+  // quatre valeurs distinctes pour une note posée en Bitter simple, et la même
+  // valeur quatre fois en Bitter+, cas déjà couvert par `adaptive_rating`.
+  const pick = (adaptiveKey: string, legacy: unknown) => {
     const fromAdaptive = byKey.get(adaptiveKey);
     if (Number.isFinite(fromAdaptive)) return fromAdaptive as number;
-    const fromQuality = qm?.[qualityKey];
-    if (Number.isFinite(fromQuality)) return Number(fromQuality);
     return Number(legacy);
   };
 
   return {
-    story: pick('scenario', 'scenario', row.story),
-    visuals: pick('image', 'visual', row.visuals),
-    acting: pick('interpretation', 'acting', row.acting),
-    sound: pick('sound', 'sound', row.sound),
+    story: pick('scenario', row.story),
+    visuals: pick('image', row.visuals),
+    acting: pick('interpretation', row.acting),
+    sound: pick('sound', row.sound),
   };
 };
 
@@ -778,7 +778,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
     'Lecture des films du membre',
     supabase
       .from('user_movies')
-      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating, quality_metrics')
+      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
       .eq('profile_id', profileId)
       .eq('status', 'watched')
       .is('deleted_at', null)
