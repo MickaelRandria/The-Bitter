@@ -40,7 +40,7 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
-import { getMovieDetailsForAdd } from './services/tmdb';
+import { getMovieDetailsForAdd, getSharedMovieDetails } from './services/tmdb';
 import {
   migrateLocalStorageToSupabase,
   resyncAllMoviesToSupabase,
@@ -88,7 +88,7 @@ import { initAnalytics } from './utils/analytics';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
-import { SharedSpace, supabase } from './services/supabase';
+import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
 import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
@@ -425,6 +425,12 @@ const App: React.FC = () => {
   const [showCinemaDetails, setShowCinemaDetails] = useState(false);
   // Sauvegarde en ligne du profil rattaché.
   const [showAccountSync, setShowAccountSync] = useState(false);
+  /**
+   * Espaces de l'utilisateur, chargés seulement pour le raccourci « proposer une
+   * sortie ». La modale des espaces garde sa propre lecture : elle s'ouvre bien plus
+   * souvent que l'onglet des sorties, et n'a pas à dépendre de lui.
+   */
+  const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
   /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
@@ -962,6 +968,65 @@ const App: React.FC = () => {
    * écrit nulle part, donc figée sur undefined. La liste des espaces se charge dans
    * SharedSpacesModal, à l'ouverture, et c'est le seul endroit qui en a besoin.
    */
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setMySpaces([]);
+      return;
+    }
+    let cancelled = false;
+    getUserSpaces(userId).then((result) => {
+      if (!cancelled) setMySpaces(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  /**
+   * Propose une sortie dans un espace, en liste d'envies.
+   *
+   * C'est ce raccourci qui empêche les sorties d'être une liste que l'on regarde
+   * une fois : le film part là où les membres pourront voter pour ou contre.
+   */
+  const handleProposeToSpace = async (tmdbId: number, space: SharedSpace): Promise<boolean> => {
+    const userId = session?.user?.id;
+    if (!userId) return false;
+
+    // Deux appels, comme le fait déjà l'ajout de film : le premier donne l'identité
+    // du film, le second les champs propres aux espaces (synopsis, durée, casting).
+    const base = await getMovieDetailsForAdd(tmdbId);
+    if (!base?.title) {
+      setToastMessage(t('releases.proposeFailed'));
+      return false;
+    }
+    const extras = await getSharedMovieDetails(tmdbId);
+
+    const result = await addMovieToSpace(
+      space.id,
+      {
+        tmdb_id: tmdbId,
+        title: base.title,
+        director: base.director,
+        year: base.year,
+        genre: base.genre,
+        poster_url: base.posterUrl,
+        status: 'watchlist',
+        media_type: 'movie',
+        ...extras,
+      },
+      userId
+    );
+
+    if (!result.movie) {
+      setToastMessage(result.error ?? t('releases.proposeFailed'));
+      return false;
+    }
+
+    setToastMessage(t('releases.proposed', { name: space.name }));
+    return true;
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -1982,6 +2047,8 @@ const App: React.FC = () => {
               userProfile={activeProfile}
               movies={uniqueMovies}
               onToast={setToastMessage}
+              spaces={mySpaces}
+              onProposeToSpace={handleProposeToSpace}
             />
           ) : viewMode === 'Calendar' ? (
             <CalendarView movies={uniqueMovies} />

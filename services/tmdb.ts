@@ -305,3 +305,120 @@ export const getSharedMovieDetails = async (tmdbId: number): Promise<{
     return {};
   }
 };
+
+// ===============================================
+// SORTIES EN SALLE
+// ===============================================
+
+export interface TheatreRelease {
+  id: number;
+  title: string;
+  posterPath: string | null;
+  releaseDate: string;
+  overview: string;
+  voteAverage: number;
+  genreIds: number[];
+}
+
+export interface TheatreReleases {
+  thisWeek: TheatreRelease[];
+  upcoming: TheatreRelease[];
+}
+
+const RELEASES_CACHE_KEY = 'bitter_theatre_releases';
+/** Les sorties changent une fois par semaine : rappeler TMDB plus souvent ne sert à rien. */
+const RELEASES_TTL_MS = 6 * 60 * 60 * 1000;
+
+const isoDay = (date: Date) => date.toISOString().split('T')[0];
+
+/**
+ * Le mercredi qui vient de passer, ou aujourd'hui si l'on est mercredi.
+ *
+ * Les sorties françaises tombent le mercredi. Découper en sept jours glissants
+ * ferait chevaucher deux vagues et donnerait une liste qui change tous les jours
+ * sans qu'il ne se soit rien passé.
+ */
+const lastWednesday = (from: Date) => {
+  const date = new Date(from);
+  const offset = (date.getDay() - 3 + 7) % 7;
+  date.setDate(date.getDate() - offset);
+  return date;
+};
+
+const toRelease = (row: any): TheatreRelease => ({
+  id: row.id,
+  title: row.title,
+  posterPath: row.poster_path ?? null,
+  releaseDate: row.release_date || '',
+  overview: row.overview || '',
+  voteAverage: row.vote_average || 0,
+  genreIds: row.genre_ids || [],
+});
+
+const fetchWindow = async (
+  region: string,
+  gte: string,
+  lte: string,
+  ascending: boolean
+): Promise<TheatreRelease[]> => {
+  // `with_release_type=3|2` restreint aux sorties en salle : sans lui la liste se
+  // remplit de sorties VOD et de téléfilms, qui n'ont rien à faire ici.
+  const url =
+    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
+    `&region=${region}&with_release_type=3|2` +
+    `&primary_release_date.gte=${gte}&primary_release_date.lte=${lte}` +
+    `&sort_by=primary_release_date.${ascending ? 'asc' : 'desc'}` +
+    `&vote_count.gte=0&page=1`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`TMDB ${res.status}`);
+  const data = await res.json();
+  return (data.results || []).map(toRelease);
+};
+
+/**
+ * Sorties de la semaine et sorties à venir, pour une région donnée.
+ *
+ * `now_playing` et `upcoming` de TMDB seraient plus courts à écrire, mais ils sont
+ * flous : `upcoming` contient des films déjà sortis ailleurs, et le résultat bouge
+ * d'un jour à l'autre sans raison. `discover` avec une fenêtre de dates explicite
+ * donne une liste stable, dont on peut expliquer le contenu.
+ */
+export const getTheatreReleases = async (
+  region: string,
+  { force = false }: { force?: boolean } = {}
+): Promise<TheatreReleases> => {
+  const cacheKey = `${RELEASES_CACHE_KEY}_${region}`;
+
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached && Date.now() - cached.at < RELEASES_TTL_MS) {
+        return cached.data as TheatreReleases;
+      }
+    } catch {
+      // Un cache illisible n'est pas une erreur : on le remplace.
+    }
+  }
+
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + 60);
+
+  const [thisWeek, upcoming] = await Promise.all([
+    fetchWindow(region, isoDay(lastWednesday(today)), isoDay(today), false),
+    fetchWindow(region, isoDay(tomorrow), isoDay(horizon), true),
+  ]);
+
+  const data: TheatreReleases = { thisWeek, upcoming };
+
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));
+  } catch {
+    // Stockage plein ou refusé : on sert la donnée fraîche sans la mémoriser.
+  }
+
+  return data;
+};

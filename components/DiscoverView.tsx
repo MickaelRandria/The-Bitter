@@ -34,6 +34,8 @@ import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
 import StreamingBadge from './StreamingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
+import TheatreReleasesSection from './TheatreReleasesSection';
+import { SharedSpace } from '../services/supabase';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
@@ -46,6 +48,10 @@ interface DiscoverViewProps {
   userProfile: UserProfile | null;
   movies?: Movie[];
   onToast?: (message: string) => void;
+  /** Espaces de l'utilisateur, pour proposer une sortie sans quitter l'écran. */
+  spaces?: SharedSpace[];
+  suggestedTmdbIds?: Set<number>;
+  onProposeToSpace?: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
 }
 
 interface TMDBItem {
@@ -107,6 +113,9 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   userProfile,
   movies,
   onToast,
+  spaces = [],
+  suggestedTmdbIds,
+  onProposeToSpace,
 }) => {
   const { t } = useLanguage();
   const [items, setItems] = useState<TMDBItem[]>([]);
@@ -130,6 +139,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       return [];
     }
   });
+
+  /**
+   * « Pour toi » part de tes goûts, « Au cinéma » est éditorial et identique pour
+   * tous. Deux contenus de nature différente, donc deux modes plutôt qu'une section
+   * de plus noyée dans les recommandations.
+   */
+  const [surface, setSurface] = useState<'foryou' | 'theatre'>('foryou');
 
   const isSearchActive = searchQuery.length > 0;
 
@@ -260,6 +276,41 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
+      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
+        {(['foryou', 'theatre'] as const).map((key) => (
+          <button
+            key={key}
+            onClick={() => {
+              haptics.soft();
+              setSurface(key);
+            }}
+            aria-selected={surface === key}
+            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              surface === key
+                ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm'
+                : 'text-stone-400 dark:text-stone-600'
+            }`}
+          >
+            {t(key === 'foryou' ? 'releases.forYou' : 'releases.inTheatres')}
+          </button>
+        ))}
+      </div>
+
+      {surface === 'theatre' ? (
+        <TheatreReleasesSection
+          knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
+          suggestedTmdbIds={suggestedTmdbIds ?? new Set()}
+          spaces={spaces}
+          onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
+          onQuickWatchlist={(tmdbId) => {
+            onQuickWatchlist?.(tmdbId, 'movie');
+          }}
+          onProposeToSpace={async (tmdbId, space) =>
+            onProposeToSpace ? onProposeToSpace(tmdbId, space) : false
+          }
+        />
+      ) : (
+      <>
       {/* MEDIA TOGGLE */}
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
         <button
@@ -629,6 +680,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };
