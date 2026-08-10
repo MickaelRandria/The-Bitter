@@ -1954,6 +1954,7 @@ const App: React.FC = () => {
                 setSharedRatingToEdit(existingRating);
                 setIsModalOpen(true);
               }}
+              myMovies={activeProfile?.movies ?? []}
               refreshTrigger={sharedSpaceRefreshTrigger}
             />
           ) : viewMode === 'Analytics' ? (
