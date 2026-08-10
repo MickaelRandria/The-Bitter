@@ -153,6 +153,8 @@ export interface Movie {
   preferred_display_mode?: 'latest' | 'average';
   // Système de notation adaptatif (V1)
   adaptiveRating?: AdaptiveRatingData;
+  /** Faux quand l'utilisateur retire ce film du fil de ses espaces. */
+  shareToFeed?: boolean;
 }
 
 export interface UserProfile {
