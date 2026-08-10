@@ -94,6 +94,8 @@ export interface MovieVote {
   id: string;
   movie_id: string;
   profile_id: string;
+  /** true = partant, false = pas envie. Les votes antérieurs valent tous true. */
+  interested: boolean;
   created_at: string;
 }
 
@@ -461,7 +463,18 @@ export async function markMovieAsWatched(movieId: string): Promise<SpaceWrite> {
 /**
  * Gérer les votes "Je veux voir" sur la watchlist
  */
-export async function toggleMovieVote(movieId: string, userId: string): Promise<SpaceWrite> {
+/**
+ * Pose, change ou retire un avis sur une suggestion.
+ *
+ * `interested` vaut true pour « partant », false pour « pas envie », et null pour
+ * retirer son vote. Reposer le même avis l'annule, ce qui rend les deux boutons
+ * réversibles sans en ajouter un troisième.
+ */
+export async function setMovieVote(
+  movieId: string,
+  userId: string,
+  interested: boolean | null
+): Promise<SpaceWrite> {
   if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
 
   // `maybeSingle` et non `single` : sur zéro ligne, `single` renvoie une erreur
@@ -469,14 +482,16 @@ export async function toggleMovieVote(movieId: string, userId: string): Promise<
   // parce que l'erreur était ignorée, pas parce qu'elle n'existait pas.
   const { data: existing, error: readError } = await supabase
     .from('space_movie_votes')
-    .select('id')
+    .select('id, interested')
     .eq('movie_id', movieId)
     .eq('profile_id', userId)
     .maybeSingle();
 
   if (readError) return { ok: false, error: logSpace('Lecture du vote', readError) };
 
-  if (existing) {
+  const shouldClear = interested === null || (existing && existing.interested === interested);
+
+  if (existing && shouldClear) {
     const { data, error } = await supabase
       .from('space_movie_votes')
       .delete()
@@ -485,9 +500,22 @@ export async function toggleMovieVote(movieId: string, userId: string): Promise<
     return wrote('Retrait du vote', data, error);
   }
 
+  if (existing) {
+    // Un UPDATE plutôt qu'une suppression suivie d'une insertion : changer d'avis
+    // ne doit pas pouvoir laisser quelqu'un sans vote si la seconde écriture rate.
+    const { data, error } = await supabase
+      .from('space_movie_votes')
+      .update({ interested })
+      .eq('id', existing.id)
+      .select('id');
+    return wrote('Changement d’avis', data, error);
+  }
+
+  if (interested === null) return { ok: true };
+
   const { data, error } = await supabase
     .from('space_movie_votes')
-    .insert({ movie_id: movieId, profile_id: userId })
+    .insert({ movie_id: movieId, profile_id: userId, interested })
     .select('id');
   return wrote('Vote', data, error);
 }
