@@ -425,6 +425,9 @@ const App: React.FC = () => {
   const [showCinemaDetails, setShowCinemaDetails] = useState(false);
   // Sauvegarde en ligne du profil rattaché.
   const [showAccountSync, setShowAccountSync] = useState(false);
+  /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
+  const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
+  const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
   const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
   /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
   const [remoteTmdbIds, setRemoteTmdbIds] = useState<Set<number>>(new Set());
@@ -1946,6 +1949,11 @@ const App: React.FC = () => {
               currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
               onAddMovie={() => setIsModalOpen(true)}
+              onRateMovie={(movie, existingRating) => {
+                setSharedMovieToRate(movie);
+                setSharedRatingToEdit(existingRating);
+                setIsModalOpen(true);
+              }}
               refreshTrigger={sharedSpaceRefreshTrigger}
             />
           ) : viewMode === 'Analytics' ? (
@@ -2587,6 +2595,8 @@ const App: React.FC = () => {
               setIsModalOpen(false);
               setEditingMovie(null);
               setTmdbIdToLoad(null);
+              setSharedMovieToRate(null);
+              setSharedRatingToEdit(null);
             }}
             onSave={handleSaveMovie}
             initialData={editingMovie}
@@ -2594,6 +2604,8 @@ const App: React.FC = () => {
             initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
             sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
+            sharedMovieToRate={sharedMovieToRate}
+            sharedRatingToEdit={sharedRatingToEdit}
             currentUserId={session?.user?.id}
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger((prev) => prev + 1)}
             onToast={setToastMessage}
