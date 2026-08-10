@@ -127,6 +127,8 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
     const sorted = [...pairs].sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
 
     return {
+      /** Triés par ma note : ma courbe monte, la sienne s'en écarte. */
+      pairs: [...pairs].sort((a, b) => a.ownRating - b.ownRating),
       shared: pairs.length,
       meanGap: mean(pairs.map((p) => Math.abs(p.gap))),
       /** Signé : positif quand l'autre note plus haut que vous en moyenne. */
@@ -144,40 +146,6 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
    * collecter, seulement à croiser. Un accord sur le scénario doublé d'un
    * désaccord sur l'image est une information que la moyenne écrase.
    */
-  const byCriterion = useMemo(() => {
-    if (films.length === 0 || myMovies.length === 0) return null;
-
-    const mine = new Map<number, Movie>();
-    for (const m of myMovies) {
-      if (m.status === 'watched' && m.tmdbId != null) mine.set(m.tmdbId, m);
-    }
-
-    const keys = ['story', 'visuals', 'acting', 'sound'] as const;
-    const gaps: Record<string, number[]> = { story: [], visuals: [], acting: [], sound: [] };
-
-    for (const f of films) {
-      if (f.tmdbId == null) continue;
-      const own = mine.get(f.tmdbId);
-      if (!own) continue;
-      const ownCriteria = myCriteriaOf(own);
-      for (const k of keys) {
-        const theirs = f.criteria?.[k];
-        const ours = ownCriteria[k];
-        if (!Number.isFinite(theirs) || !Number.isFinite(ours)) continue;
-        gaps[k].push(Math.abs(theirs - ours));
-      }
-    }
-
-    const rows = keys
-      .filter((k) => gaps[k].length > 0)
-      .map((k) => ({ key: k, gap: mean(gaps[k]), count: gaps[k].length }));
-
-    if (rows.length === 0) return null;
-
-    const sorted = [...rows].sort((a, b) => a.gap - b.gap);
-    return { rows, closest: sorted[0], widest: sorted[sorted.length - 1] };
-  }, [films, myMovies]);
-
   /**
    * Ce qu'il a vu et pas toi, ses mieux notés d'abord.
    *
@@ -380,36 +348,89 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
             </p>
           )}
 
-          {byCriterion && (
+          {comparison && comparison.pairs.length >= 3 && (
             <div className="space-y-3">
               <h4 className={sectionTitle}>
                 <ArrowLeftRight size={12} />
-                {t('member.byCriterion')}
+                {t('member.curves', { name })}
               </h4>
+
               <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5 space-y-3">
-                {byCriterion.rows.map((row) => (
-                  <div key={row.key} className="flex items-center gap-3">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 w-20 shrink-0">
-                      {t(`member.criterion.${row.key}`)}
+                {/* Deux courbes sur les seuls films vus par les deux, rangés par ma
+                    note croissante. La mienne devient une pente régulière, la sienne
+                    s'en écarte : l'accord se lit à la distance entre les traits,
+                    sans qu'aucun chiffre n'ait à être interprété. */}
+                <svg
+                  viewBox="0 0 100 40"
+                  preserveAspectRatio="none"
+                  className="w-full h-24"
+                  role="img"
+                  aria-label={t('member.curves', { name })}
+                >
+                  {[0, 20, 40].map((y) => (
+                    <line
+                      key={y}
+                      x1="0"
+                      y1={y}
+                      x2="100"
+                      y2={y}
+                      className="stroke-stone-200 dark:stroke-white/10"
+                      strokeWidth="0.3"
+                    />
+                  ))}
+
+                  {(() => {
+                    const n = comparison.pairs.length;
+                    const x = (i: number) => (n === 1 ? 50 : (i / (n - 1)) * 100);
+                    const y = (v: number) => 40 - Math.max(0, Math.min(10, v)) * 4;
+                    const mineLine = comparison.pairs
+                      .map((p, i) => `${x(i)},${y(p.ownRating)}`)
+                      .join(' ');
+                    const theirLine = comparison.pairs
+                      .map((p, i) => `${x(i)},${y(p.film.rating)}`)
+                      .join(' ');
+
+                    return (
+                      <>
+                        <polyline
+                          points={mineLine}
+                          fill="none"
+                          className="stroke-stone-400 dark:stroke-stone-500"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <polyline
+                          points={theirLine}
+                          fill="none"
+                          className="stroke-forest dark:stroke-lime-500"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </>
+                    );
+                  })()}
+                </svg>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                      <span className="w-4 h-0.5 bg-stone-400 dark:bg-stone-500 rounded-full" />
+                      {t('member.you')}
                     </span>
-                    {/* La barre dit l'accord, pas l'écart : pleine quand vous voyez
-                        le même film, vide quand vous n'avez rien en commun. */}
-                    <div className="flex-1 h-1.5 bg-stone-200 dark:bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-forest dark:bg-lime-500 transition-all duration-500"
-                        style={{ width: `${Math.max(0, Math.min(100, (1 - row.gap / 10) * 100))}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 tabular-nums w-8 text-right">
-                      {row.gap.toFixed(1)}
+                    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
+                      <span className="w-4 h-0.5 bg-forest dark:bg-lime-500 rounded-full" />
+                      {name}
                     </span>
                   </div>
-                ))}
-                <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed pt-1">
-                  {t('member.criterionSummary', {
-                    close: t(`member.criterion.${byCriterion.closest.key}`),
-                    far: t(`member.criterion.${byCriterion.widest.key}`),
-                  })}
+                  <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 tabular-nums">
+                    {comparison.pairs.length} {t('member.filmsShort')}
+                  </span>
+                </div>
+
+                <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
+                  {t('member.curvesHint')}
                 </p>
               </div>
             </div>
