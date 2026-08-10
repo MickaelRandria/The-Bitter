@@ -77,6 +77,16 @@ interface AddMovieModalProps {
    * pas encore déverrouillés en basculant le mode lui-même.
    */
   tourForceBitterPlus?: boolean;
+  /**
+   * Film déjà présent dans l'espace, que l'on vient seulement noter.
+   *
+   * Distinct de `initialData`, qui déclenche le mode édition d'un film personnel :
+   * ici la ligne `shared_movies` existe déjà, il ne faut surtout pas la recréer,
+   * seulement publier le verdict dessus.
+   */
+  sharedMovieToRate?: { id: string; title: string; director?: string; year?: number; genre?: string; poster_url?: string; tmdb_id?: number } | null;
+  /** Verdict déjà donné sur ce film, à restaurer dans la grille. */
+  sharedRatingToEdit?: { story: number; visuals: number; acting: number; sound: number; review?: string; adaptive_rating?: AdaptiveRatingData | null } | null;
   /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
   cinemaSubscription?: CinemaSubscription;
 }
@@ -187,6 +197,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   initialMediaType = 'movie',
   onToast,
   tourForceBitterPlus,
+  sharedMovieToRate,
+  sharedRatingToEdit,
   cinemaSubscription,
 }) => {
   const { t } = useLanguage();
@@ -323,6 +335,50 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   useEffect(() => {
     if (isOpen && sharedSpace) setUseBitterPlus(true);
   }, [isOpen, sharedSpace]);
+
+  /**
+   * Notation d'un film déjà présent dans l'espace : on remplit le formulaire avec
+   * ce que la ligne partagée sait du film, et on restaure le verdict précédent
+   * s'il existe, pour que « modifier mon verdict » reparte de la note affichée.
+   */
+  useEffect(() => {
+    if (!isOpen || !sharedMovieToRate) return;
+
+    skipSearchRef.current = true;
+    setMode('watched');
+    setFormData((prev) => ({
+      ...prev,
+      title: sharedMovieToRate.title ?? '',
+      director: sharedMovieToRate.director ?? '',
+      year: sharedMovieToRate.year ?? new Date().getFullYear(),
+      genre: sharedMovieToRate.genre ?? '',
+      posterUrl: sharedMovieToRate.poster_url ?? undefined,
+      tmdbId: sharedMovieToRate.tmdb_id ?? undefined,
+      review: sharedRatingToEdit?.review ?? '',
+    }));
+
+    const adaptive = sharedRatingToEdit?.adaptive_rating;
+    if (adaptive?.criteria?.length) {
+      const values: Record<string, number> = {};
+      for (const c of adaptive.criteria) values[c.key] = c.value;
+      setCriteriaValues(values);
+      const restored = adaptive.profile?.id;
+      if (restored && restored !== 'standard_legacy') {
+        setProfileId(restored as RatingProfileId);
+        setProfileManuallySet(true);
+      }
+    } else if (sharedRatingToEdit) {
+      // Verdict antérieur à l'unification : quatre critères bruts, que l'on verse
+      // dans les quatre entrées correspondantes de la grille.
+      setCriteriaValues({
+        scenario: Number(sharedRatingToEdit.story),
+        image: Number(sharedRatingToEdit.visuals),
+        interpretation: Number(sharedRatingToEdit.acting),
+        sound: Number(sharedRatingToEdit.sound),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, sharedMovieToRate?.id]);
 
   // Auto-detect profile from genre unless user manually overrode it
   useEffect(() => {
@@ -508,6 +564,35 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       finalAdaptiveRating = undefined;
     }
     const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
+    // Film déjà dans l'espace : on ne touche pas à `shared_movies`, on publie
+    // seulement le verdict. Le recréer produirait une seconde ligne pour le même film.
+    if (sharedMovieToRate && currentUserId) {
+      try {
+        const published = await upsertMovieRating(sharedMovieToRate.id, currentUserId, {
+          story: finalRatings.story,
+          visuals: finalRatings.visuals,
+          acting: finalRatings.acting,
+          sound: finalRatings.sound,
+          review: formData.review?.trim() || undefined,
+          adaptive_rating: finalAdaptiveRating,
+          rating_mode: finalAdaptiveRating ? 'bitter_plus' : 'bitter',
+        });
+
+        if (!published.rating) {
+          haptics.error();
+          onToast?.(published.error ?? t('shared.ratingError'));
+          return;
+        }
+
+        haptics.success();
+        onSharedMovieAdded?.();
+        onClose();
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (sharedSpace && currentUserId) {
       try {
         const tmdbDetails =

@@ -6,9 +6,7 @@ import {
   Star,
   Loader2,
   Film,
-  ChevronDown,
   Trash2,
-  Edit,
   X,
   Copy,
   Check,
@@ -21,11 +19,6 @@ import {
   AlertTriangle,
   PartyPopper,
   BarChart3,
-  MapPin,
-  Link,
-  Shield,
-  Calendar,
-  Globe,
   ChevronRight,
   Settings,
 } from 'lucide-react';
@@ -38,7 +31,6 @@ import {
   getSpaceMembers,
   getMovieRatings,
   getSpaceMovieVotes,
-  upsertMovieRating,
   toggleMovieVote,
   markMovieAsWatched,
   deleteSharedMovie,
@@ -57,6 +49,12 @@ interface SharedSpaceViewProps {
   currentUserId: string;
   onBack: () => void;
   onAddMovie: () => void;
+  /**
+   * Ouvre le formulaire de notation habituel sur un film déjà présent dans l'espace.
+   * Il vit dans App, comme pour la collection personnelle : c'est ce qui garantit
+   * que les deux chemins passent par la même grille.
+   */
+  onRateMovie: (movie: SharedMovie, existingRating: MovieRating | null) => void;
   refreshTrigger?: number;
 }
 
@@ -67,6 +65,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   currentUserId,
   onBack,
   onAddMovie,
+  onRateMovie,
   refreshTrigger,
 }) => {
   const { t } = useLanguage();
@@ -86,14 +85,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   const [selectedMember, setSelectedMember] = useState<SpaceMember | null>(null);
 
-  const [ratingMovie, setRatingMovie] = useState<SharedMovie | null>(null);
-  const [ratingStory, setRatingStory] = useState(5);
-  const [ratingVisuals, setRatingVisuals] = useState(5);
-  const [ratingActing, setRatingActing] = useState(5);
-  const [ratingSound, setRatingSound] = useState(5);
-  const [ratingReview, setRatingReview] = useState('');
-  const [savingRating, setSavingRating] = useState(false);
-  const [ratingError, setRatingError] = useState<string | null>(null);
   /**
    * Ce qui manquait à tout l'écran : de quoi dire que ça a raté.
    *
@@ -293,46 +284,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         haptics.error();
       },
     });
-  };
-
-  const handleSubmitRating = async () => {
-    if (!ratingMovie || !currentUserId) return;
-
-    setSavingRating(true);
-    setRatingError(null);
-
-    try {
-      const result = await upsertMovieRating(ratingMovie.id, currentUserId, {
-        story: Math.round(ratingStory),
-        visuals: Math.round(ratingVisuals),
-        acting: Math.round(ratingActing),
-        sound: Math.round(ratingSound),
-        review: ratingReview.trim() || undefined,
-      });
-
-      if (!result.rating) {
-        haptics.error();
-        // Le motif réel plutôt que le message générique : c'est lui qui aurait
-        // désigné l'upsert sans cible de conflit dès la première tentative.
-        setRatingError(result.error ?? t('shared.ratingError'));
-        return;
-      }
-
-      haptics.success();
-      await loadRatings(ratingMovie.id);
-      setRatingMovie(null);
-      setRatingStory(5);
-      setRatingVisuals(5);
-      setRatingActing(5);
-      setRatingSound(5);
-      setRatingReview('');
-    } catch (e) {
-      console.warn('[Espaces] Enregistrement du verdict :', e);
-      haptics.error();
-      setRatingError(t('shared.ratingError'));
-    } finally {
-      setSavingRating(false);
-    }
   };
 
   /**
@@ -896,14 +847,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             onClick={(e) => {
                               e.stopPropagation();
                               haptics.medium();
-                              if (myRating) {
-                                setRatingStory(myRating.story);
-                                setRatingVisuals(myRating.visuals);
-                                setRatingActing(myRating.acting);
-                                setRatingSound(myRating.sound);
-                                setRatingReview(myRating.review || '');
-                              }
-                              setRatingMovie(movie);
+                              // Même formulaire qu'en solo, grille Bitter+ comprise.
+                              // L'ancienne modale à quatre curseurs vivait ici et
+                              // produisait une note sur une autre échelle que le reste
+                              // de l'app.
+                              onRateMovie(movie, myRating ?? null);
                             }}
                             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400' : 'bg-charcoal dark:bg-forest text-white shadow-xl dark:shadow-none'}`}
                           >
@@ -986,93 +934,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           }}
           onClose={() => setShowSettings(false)}
         />
-      )}
-
-      {/* Modal Notation Shared */}
-      {ratingMovie && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-          <div className="relative bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md rounded-t-[3rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden border border-sand dark:border-white/10">
-            <div className="p-8 border-b border-sand dark:border-white/10 bg-white/50 dark:bg-[#1a1a1a]/50 backdrop-blur-xl flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-black tracking-tight text-charcoal dark:text-white truncate max-w-[200px]">
-                  {ratingMovie.title}
-                </h3>
-                <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mt-1">
-                  {t('shared.verdictShared')}
-                </p>
-              </div>
-              <button
-                onClick={() => setRatingMovie(null)}
-                className="p-3 bg-stone-100 dark:bg-[#202020] rounded-full text-stone-500"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
-              {[
-                { l: t('shared.ratingWriting'), v: ratingStory, s: setRatingStory },
-                { l: t('shared.ratingAesthetics'), v: ratingVisuals, s: setRatingVisuals },
-                { l: t('shared.ratingPerformance'), v: ratingActing, s: setRatingActing },
-                { l: t('shared.ratingSound'), v: ratingSound, s: setRatingSound },
-              ].map((x) => (
-                <div key={x.l} className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-                      {x.l}
-                    </label>
-                    <span className="text-3xl font-black text-forest dark:text-lime-500 leading-none">
-                      {x.v}
-                      <span className="text-xs text-stone-200 dark:text-stone-800">/10</span>
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="1"
-                    value={x.v}
-                    onChange={(e) => {
-                      x.s(parseFloat(e.target.value));
-                      haptics.soft();
-                    }}
-                    className="w-full h-2 bg-stone-200 dark:bg-white/10 rounded-full appearance-none slider"
-                  />
-                </div>
-              ))}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
-                  {t('shared.analystNotes')}
-                </label>
-                <textarea
-                  value={ratingReview}
-                  onChange={(e) => setRatingReview(e.target.value)}
-                  placeholder={t('shared.reviewPlaceholder')}
-                  className="w-full p-6 bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-[2rem] text-sm font-medium dark:text-white outline-none focus:border-forest dark:focus:border-forest/50 transition-all min-h-[140px] resize-none placeholder:text-stone-300 dark:placeholder:text-stone-700"
-                />
-              </div>
-            </div>
-            <div className="p-8 border-t border-sand dark:border-white/10 bg-white dark:bg-[#1a1a1a] shrink-0 space-y-3">
-              {ratingError && (
-                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 rounded-2xl px-4 py-3">
-                  <AlertTriangle size={14} className="shrink-0" />
-                  <p className="text-xs font-bold">{ratingError}</p>
-                </div>
-              )}
-              <button
-                onClick={handleSubmitRating}
-                disabled={savingRating}
-                className="w-full bg-charcoal dark:bg-forest text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
-              >
-                {savingRating ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={18} />
-                )}
-                {savingRating ? t('shared.syncing') : t('shared.validateVerdict')}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Modale de confirmation custom (remplace window.confirm) */}
