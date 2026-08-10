@@ -45,6 +45,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Movie } from '../types';
 import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
+import SharingNotice from './SharingNotice';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -106,6 +107,17 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [allRatings, setAllRatings] = useState<MovieRating[]>([]);
   /** L'espace peut être renommé pendant la session : on garde la version à jour. */
   const [space, setSpace] = useState(initialSpace);
+  /**
+   * Bandeau de première ouverture.
+   *
+   * Par espace ET par personne : quelqu'un peut être membre de plusieurs espaces,
+   * et l'avertissement porte sur ce qu'il expose à CE groupe. Le stockage local
+   * suffit, se tromper coûte un bandeau vu deux fois, pas une donnée exposée.
+   */
+  const noticeKey = `bitter_space_notice_${initialSpace.id}_${currentUserId}`;
+  const [noticeSeen, setNoticeSeen] = useState(
+    () => localStorage.getItem(noticeKey) === '1'
+  );
 
   useEffect(() => {
     setSpace(initialSpace);
@@ -651,6 +663,22 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             </button>
           )}
         </div>
+
+        {!noticeSeen && (
+          <div className="space-y-3">
+            <SharingNotice />
+            <button
+              onClick={() => {
+                haptics.soft();
+                localStorage.setItem(noticeKey, '1');
+                setNoticeSeen(true);
+              }}
+              className="w-full py-3 rounded-2xl bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all"
+            >
+              {t('spaces.noticeAck')}
+            </button>
+          </div>
+        )}
 
         {/* Un espace refusé et un espace vide se ressemblaient trait pour trait.
             Ces deux bandeaux sont la seule chose qui les sépare. */}

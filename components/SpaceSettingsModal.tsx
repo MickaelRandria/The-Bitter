@@ -12,6 +12,7 @@ import {
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import SharingNotice from './SharingNotice';
 
 interface SpaceSettingsModalProps {
   space: SharedSpace;
@@ -175,6 +176,10 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
               </p>
             </div>
           )}
+
+          {/* Consultable a tout moment, et non seulement au moment de rejoindre :
+              quelqu un qui s interroge trois semaines plus tard doit pouvoir relire. */}
+          <SharingNotice />
 
           <div className="grid grid-cols-2 gap-3">
             <button

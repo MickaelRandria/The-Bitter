@@ -870,6 +870,7 @@ export const en: Record<string, string> = {
   'releases.proposeToSpace': 'Suggest',
   'releases.proposed': 'Suggested in {name}',
   'releases.proposeFailed': 'Could not suggest this film.',
+  'spaces.noticeAck': 'Got it',
   'spaces.noticeTitle': 'What members will see',
   'spaces.noticeBody': 'Other members will see the films you rate, your ratings criterion by criterion, and your reviews. Inside the space, and in their “My people” feed.',
   'spaces.noticeControl': 'You can keep a film out of the feed when you rate it, and leave the space whenever you want.',
