@@ -825,6 +825,8 @@ export const en: Record<string, string> = {
   'spaces.checking': 'Checking...',
   'spaces.joinCta': 'Join',
   'spaces.joined': 'Joined!',
+  'shared.imOut': 'Not for me',
+  'shared.notInterestedCount': '{count} not in',
   'shared.removeSuggestion': 'Remove my suggestion',
   'shared.roleOwner': 'Owner',
   'shared.roleMember': 'Member',

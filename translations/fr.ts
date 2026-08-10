@@ -830,6 +830,8 @@ export const fr: Record<string, string> = {
   'spaces.checking': 'Vérification...',
   'spaces.joinCta': 'Rejoindre',
   'spaces.joined': 'Rejoint !',
+  'shared.imOut': 'Pas envie',
+  'shared.notInterestedCount': '{count} pas partant(s)',
   'shared.removeSuggestion': 'Retirer ma suggestion',
   'shared.roleOwner': 'Propriétaire',
   'shared.roleMember': 'Membre',

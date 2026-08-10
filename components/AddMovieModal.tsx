@@ -354,7 +354,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       genre: sharedMovieToRate.genre ?? '',
       posterUrl: sharedMovieToRate.poster_url ?? undefined,
       tmdbId: sharedMovieToRate.tmdb_id ?? undefined,
-      review: sharedRatingToEdit?.review ?? '',
+      comment: sharedRatingToEdit?.review ?? '',
     }));
 
     const adaptive = sharedRatingToEdit?.adaptive_rating;
@@ -573,7 +573,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           visuals: finalRatings.visuals,
           acting: finalRatings.acting,
           sound: finalRatings.sound,
-          review: formData.review?.trim() || undefined,
+          // `formData.review` porte le synopsis TMDB, pre-rempli a la selection
+          // du film. L'avis ecrit par l'utilisateur est dans `comment` : c'est lui
+          // que les autres membres doivent lire sous le verdict.
+          review: formData.comment?.trim() || undefined,
           adaptive_rating: finalAdaptiveRating,
           rating_mode: finalAdaptiveRating ? 'bitter_plus' : 'bitter',
         });
@@ -633,7 +636,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             visuals: finalRatings.visuals,
             acting: finalRatings.acting,
             sound: finalRatings.sound,
-            review: formData.review?.trim() || undefined,
+            // `formData.review` porte le synopsis TMDB, pre-rempli a la selection
+          // du film. L'avis ecrit par l'utilisateur est dans `comment` : c'est lui
+          // que les autres membres doivent lire sous le verdict.
+          review: formData.comment?.trim() || undefined,
             adaptive_rating: finalAdaptiveRating,
             rating_mode: finalAdaptiveRating ? 'bitter_plus' : 'bitter',
           });

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Ticket,
   UserCheck,
+  UserMinus,
   LogOut,
   AlertTriangle,
   PartyPopper,
@@ -31,7 +32,7 @@ import {
   getSpaceMembers,
   getMovieRatings,
   getSpaceMovieVotes,
-  toggleMovieVote,
+  setMovieVote,
   markMovieAsWatched,
   deleteSharedMovie,
   leaveSharedSpace,
@@ -228,12 +229,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     });
   };
 
-  const handleToggleVote = async (e: React.MouseEvent, movieId: string) => {
+  const handleVote = async (e: React.MouseEvent, movieId: string, interested: boolean) => {
     e.stopPropagation();
     haptics.medium();
     setActionError(null);
 
-    const result = await toggleMovieVote(movieId, currentUserId);
+    const result = await setMovieVote(movieId, currentUserId, interested);
     if (!result.ok) {
       haptics.error();
       setActionError(result.error ?? t('shared.voteFailed'));
@@ -610,8 +611,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               const movieVotes = votes.filter(
                 (v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id)
               );
-              const hasIVoted = movieVotes.some((v) => v.profile_id === currentUserId);
-              const voteCount = movieVotes.length;
+              const myVote = movieVotes.find((v) => v.profile_id === currentUserId) ?? null;
+              // Seuls les avis positifs alimentent la jauge : compter les refus
+              // dedans ferait grimper la barre a mesure que l envie tombe.
+              const voteCount = movieVotes.filter((v) => v.interested).length;
+              const againstCount = movieVotes.filter((v) => !v.interested).length;
               const votePercentage = members.length ? (voteCount / members.length) * 100 : 0;
 
               return (
@@ -692,6 +696,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 <Users size={12} />
                                 <span>
                                   {voteCount} / {members.length} {t('shared.interested')}
+                                  {againstCount > 0 && (
+                                    <span className="text-stone-400 dark:text-stone-600">
+                                      {' '}
+                                      · {t('shared.notInterestedCount', { count: String(againstCount) })}
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                               <span className="text-[10px] font-bold text-stone-400 dark:text-stone-600">
@@ -861,22 +871,42 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       ) : (
                         <>
                           <div className="grid gap-4">
-                            <button
-                              onClick={(e) => handleToggleVote(e, movie.id)}
-                              className={`w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all ${hasIVoted ? 'bg-forest border-forest text-white shadow-lg' : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-600'}`}
-                            >
-                              <div className="flex items-center gap-4">
-                                <div
-                                  className={`p-2 rounded-lg ${hasIVoted ? 'bg-white/20' : 'bg-stone-50 dark:bg-[#161616]'}`}
-                                >
-                                  <UserCheck size={18} />
-                                </div>
-                                <span className="font-black text-xs uppercase tracking-widest">
-                                  {hasIVoted ? t('shared.iWantToSee') : t('shared.imIn')}
+                            {/* Deux réponses possibles, et non plus une seule.
+                                Avec un unique bouton, « ça ne me dit rien » était
+                                indiscernable de « je n'ai pas encore vu la
+                                suggestion », ce qui est précisément ce qu'un groupe
+                                a besoin de départager. Réappuyer sur son propre
+                                choix l'annule. */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                onClick={(e) => handleVote(e, movie.id, true)}
+                                aria-pressed={myVote?.interested === true}
+                                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all active:scale-95 ${
+                                  myVote?.interested === true
+                                    ? 'bg-forest border-forest text-white shadow-lg'
+                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-600'
+                                }`}
+                              >
+                                <UserCheck size={18} />
+                                <span className="font-black text-[10px] uppercase tracking-widest">
+                                  {t('shared.imIn')}
                                 </span>
-                              </div>
-                              {hasIVoted && <CheckCircle2 size={20} strokeWidth={3} />}
-                            </button>
+                              </button>
+                              <button
+                                onClick={(e) => handleVote(e, movie.id, false)}
+                                aria-pressed={myVote?.interested === false}
+                                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all active:scale-95 ${
+                                  myVote?.interested === false
+                                    ? 'bg-stone-400 border-stone-400 dark:bg-stone-700 dark:border-stone-700 text-white shadow-lg'
+                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-600'
+                                }`}
+                              >
+                                <UserMinus size={18} />
+                                <span className="font-black text-[10px] uppercase tracking-widest">
+                                  {t('shared.imOut')}
+                                </span>
+                              </button>
+                            </div>
 
                             <button
                               onClick={(e) => handleMarkAsWatched(e, movie.id)}
