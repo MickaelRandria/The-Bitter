@@ -151,27 +151,37 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     setSlow(false);
     setLoadError(null);
     const slowTimer = setTimeout(() => setSlow(true), 10000);
-    const [movies, members, votes] = await Promise.all([
-      getSpaceMovies(space.id),
-      getSpaceMembers(space.id),
-      getSpaceMovieVotes(space.id),
-    ]);
 
-    // La première erreur suffit : les trois lectures échouent pour la même raison
-    // quand c'est le RLS ou le réseau qui refuse.
-    const failure = movies.error || members.error || votes.error;
-    if (failure) setLoadError(failure);
+    // `finally` plutôt qu'une simple ligne en fin de fonction : une exception
+    // laissée passer bloquerait l'indicateur pour de bon, et le bouton actualiser
+    // tournerait dans le vide sans plus jamais s'arrêter.
+    try {
+      const [movies, members, votes] = await Promise.all([
+        getSpaceMovies(space.id),
+        getSpaceMembers(space.id),
+        getSpaceMovieVotes(space.id),
+      ]);
 
-    // Deduplicate movies and members
-    const uniqueMovies = Array.from(new Map(movies.data.map((m) => [m.id, m])).values());
-    const uniqueMembers = Array.from(new Map(members.data.map((m) => [m.id, m])).values());
+      // La première erreur suffit : les trois lectures échouent pour la même raison
+      // quand c'est le RLS ou le réseau qui refuse.
+      const failure = movies.error || members.error || votes.error;
+      if (failure) setLoadError(failure);
 
-    clearTimeout(slowTimer);
-    setMovies(uniqueMovies);
-    setMembers(uniqueMembers);
-    setVotes(votes.data);
-    setSlow(false);
-    setLoading(false);
+      // Deduplicate movies and members
+      const uniqueMovies = Array.from(new Map(movies.data.map((m) => [m.id, m])).values());
+      const uniqueMembers = Array.from(new Map(members.data.map((m) => [m.id, m])).values());
+
+      setMovies(uniqueMovies);
+      setMembers(uniqueMembers);
+      setVotes(votes.data);
+    } catch (e) {
+      console.warn('[Espaces] Chargement interrompu :', e);
+      setLoadError(t('shared.loadFailedTitle'));
+    } finally {
+      clearTimeout(slowTimer);
+      setSlow(false);
+      setLoading(false);
+    }
   };
 
   const loadRatings = async (movieId: string) => {
