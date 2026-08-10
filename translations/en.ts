@@ -848,7 +848,7 @@ export const en: Record<string, string> = {
   'spaces.slow': 'The server is taking longer than usual. Your space is not lost.',
   'releases.forYou': 'For you',
   'releases.inTheatres': 'In theatres',
-  'releases.thisWeek': 'Out this week',
+  'releases.thisWeek': 'Now showing',
   'releases.upcoming': 'Coming soon',
   'releases.loading': 'Looking up releases...',
   'releases.failed': 'Could not fetch releases right now.',

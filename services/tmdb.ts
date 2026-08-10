@@ -325,24 +325,24 @@ export interface TheatreReleases {
   upcoming: TheatreRelease[];
 }
 
-const RELEASES_CACHE_KEY = 'bitter_theatre_releases';
+const RELEASES_CACHE_KEY = 'bitter_theatre_releases_v3';
 /** Les sorties changent une fois par semaine : rappeler TMDB plus souvent ne sert à rien. */
 const RELEASES_TTL_MS = 6 * 60 * 60 * 1000;
 
 const isoDay = (date: Date) => date.toISOString().split('T')[0];
 
 /**
- * Le mercredi qui vient de passer, ou aujourd'hui si l'on est mercredi.
+ * Une reprise porte la date de sa sortie d'origine, pas celle de sa ressortie.
  *
- * Les sorties françaises tombent le mercredi. Découper en sept jours glissants
- * ferait chevaucher deux vagues et donnerait une liste qui change tous les jours
- * sans qu'il ne se soit rien passé.
+ * TMDB renvoie Matrix, Alien ou 2001 dans la fenêtre parce qu'ils ont bien une
+ * sortie en salle française récente. Affichés au milieu des nouveautés avec leur
+ * année d'origine, ils donnent l'impression d'une liste cassée. On les écarte
+ * plutôt que de les expliquer.
  */
-const lastWednesday = (from: Date) => {
-  const date = new Date(from);
-  const offset = (date.getDay() - 3 + 7) % 7;
-  date.setDate(date.getDate() - offset);
-  return date;
+const isRecent = (film: TheatreRelease, from: Date) => {
+  const year = Number((film.releaseDate || '').slice(0, 4));
+  if (!Number.isFinite(year)) return false;
+  return year >= from.getFullYear() - 1;
 };
 
 const toRelease = (row: any): TheatreRelease => ({
@@ -358,17 +358,28 @@ const toRelease = (row: any): TheatreRelease => ({
 const fetchWindow = async (
   region: string,
   gte: string,
-  lte: string,
-  ascending: boolean
+  lte: string
 ): Promise<TheatreRelease[]> => {
-  // `with_release_type=3|2` restreint aux sorties en salle : sans lui la liste se
-  // remplit de sorties VOD et de téléfilms, qui n'ont rien à faire ici.
+  // Trois choix qui décident entièrement de la pertinence de la liste :
+  //
+  // `release_date` et non `primary_release_date`. Le second est la date de première
+  // MONDIALE : filtrer dessus écarte tous les films étrangers qui sortent en France
+  // cette semaine, et ne laisse que ceux dont la première mondiale tombe dans la
+  // fenêtre, c'est-à-dire surtout de petites productions locales. Couplé à `region`,
+  // `release_date` donne bien la date de sortie française.
+  //
+  // `popularity.desc` et non un tri par date. TMDB publie des centaines de sorties
+  // par semaine, documentaires et reprises comprises ; sans hiérarchie, la liste est
+  // un inventaire, pas une sélection. La popularité vaut aussi pour un film sans
+  // aucune note, elle vient des consultations et pas des votes.
+  //
+  // `with_runtime.gte=60` écarte les courts métrages, qui ne sortent pas en salle
+  // au sens où l'entend quelqu'un qui cherche quoi aller voir.
   const url =
     `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
     `&region=${region}&with_release_type=3|2` +
-    `&primary_release_date.gte=${gte}&primary_release_date.lte=${lte}` +
-    `&sort_by=primary_release_date.${ascending ? 'asc' : 'desc'}` +
-    `&vote_count.gte=0&page=1`;
+    `&release_date.gte=${gte}&release_date.lte=${lte}` +
+    `&sort_by=popularity.desc&with_runtime.gte=60&page=1`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`TMDB ${res.status}`);
@@ -405,14 +416,33 @@ export const getTheatreReleases = async (
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const horizon = new Date(today);
-  horizon.setDate(horizon.getDate() + 60);
+  horizon.setDate(horizon.getDate() + 45);
+
+  /**
+   * Cinq semaines et non une.
+   *
+   * « Au cinéma » veut dire ce qu'on peut aller voir ce soir, pas ce qui est sorti
+   * mercredi. Une semaine française compte une dizaine de sorties dont deux ou trois
+   * notables : la liste était juste, et vide de sens. Sur cinq semaines, un film reste
+   * à l'affiche, et la sélection ressemble enfin à un programme.
+   */
+  const showingSince = new Date(today);
+  showingSince.setDate(showingSince.getDate() - 35);
 
   const [thisWeek, upcoming] = await Promise.all([
-    fetchWindow(region, isoDay(lastWednesday(today)), isoDay(today), false),
-    fetchWindow(region, isoDay(tomorrow), isoDay(horizon), true),
+    fetchWindow(region, isoDay(showingSince), isoDay(today)),
+    fetchWindow(region, isoDay(tomorrow), isoDay(horizon)),
   ]);
 
-  const data: TheatreReleases = { thisWeek, upcoming };
+  const data: TheatreReleases = {
+    // La popularité décide de ce qui entre dans la liste, la date de l'ordre dans
+    // lequel on la lit : à venir, on veut savoir ce qui arrive en premier.
+    thisWeek: thisWeek.filter((f) => isRecent(f, today)).slice(0, 12),
+    upcoming: upcoming
+      .filter((f) => isRecent(f, today))
+      .slice(0, 20)
+      .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
+  };
 
   try {
     localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));

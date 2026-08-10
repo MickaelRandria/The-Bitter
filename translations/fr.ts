@@ -853,7 +853,7 @@ export const fr: Record<string, string> = {
   'spaces.slow': 'Le serveur met plus de temps que prévu. Ton espace n’est pas perdu.',
   'releases.forYou': 'Pour toi',
   'releases.inTheatres': 'Au cinéma',
-  'releases.thisWeek': 'Sorties de la semaine',
+  'releases.thisWeek': 'À l’affiche',
   'releases.upcoming': 'Bientôt en salle',
   'releases.loading': 'Recherche des sorties...',
   'releases.failed': 'Impossible de récupérer les sorties pour le moment.',
