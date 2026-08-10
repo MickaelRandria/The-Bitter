@@ -1,6 +1,9 @@
 import React from 'react';
 import {
   X,
+  CloudUpload,
+  Users,
+  Rss,
   Instagram,
   EyeOff,
   Sparkles,
@@ -35,42 +38,31 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
 
   // Un seul écran : tout est listé, on ne force plus 5 étapes avant d'accéder à l'app.
   // Les nouveautés de la version en cours d'abord, les précédentes ensuite.
+  /**
+   * Trois nouveautés, et pas une de plus.
+   *
+   * Cet écran s'ouvre entre l'utilisateur et son app : chaque ligne supplémentaire
+   * est une ligne qu'il ne lira pas et un geste de plus avant d'entrer. Le détail
+   * complet vit dans les notes de version, à portée de main pour qui le cherche.
+   */
   const features = [
     {
-      key: 'tour',
-      icon: Compass,
+      key: 'backup',
+      icon: CloudUpload,
       accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
     },
     {
-      key: 'recap',
-      icon: CalendarRange,
+      key: 'spaces',
+      icon: Users,
       accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
     },
     {
-      key: 'editorial',
-      icon: Instagram,
-      accent: 'text-pink-400',
-      badge: t('newFeatures.editorial.badge'),
-    },
-    {
-      key: 'polish',
-      icon: MousePointerClick,
-      accent: 'text-white',
+      key: 'feed',
+      icon: Rss,
+      accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
-    },
-    {
-      key: 'step4',
-      icon: MessageSquareText,
-      accent: 'text-white',
-      badge: t('newFeatures.step4.badge'),
-    },
-    {
-      key: 'step0',
-      icon: Sparkles,
-      accent: 'text-white',
-      badge: t('newFeatures.step0.badge'),
     },
   ];
 

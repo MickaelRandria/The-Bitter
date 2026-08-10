@@ -584,6 +584,15 @@ export const fr: Record<string, string> = {
   'tour.rating-context.b3': 'Rythme : le tempo tel que tu l’as ressenti',
 
   // ── New Features Modal ───────────────────────────────────────────────────
+  'newFeatures.backup.title1': 'Tes films',
+  'newFeatures.backup.title2': 'en sécurité.',
+  'newFeatures.backup.desc': 'Reçois un <b>code par email</b> et retrouve toute ta collection sur n’importe quel appareil. Plus rien ne disparaît si tu changes de téléphone.',
+  'newFeatures.spaces.title1': 'Les espaces',
+  'newFeatures.spaces.title2': 'remarchent.',
+  'newFeatures.spaces.desc': 'Créer, rejoindre, revenir après être parti, gérer ses membres : <b>tout fonctionne à nouveau</b>. Et un film noté à plusieurs se note enfin avec ta vraie grille Bitter+.',
+  'newFeatures.feed.title1': 'Mes',
+  'newFeatures.feed.title2': 'proches.',
+  'newFeatures.feed.desc': 'Vois <b>ce que les membres de tes espaces ont vu</b>, leurs notes à côté des tiennes, et le détail critère par critère. Tu choisis ce que tu partages, film par film.',
   'newFeatures.newBadge': 'Nouveau v0.89',
   'newFeatures.tour.title1': 'VISITE',
   'newFeatures.tour.title2': 'GUIDÉE',
