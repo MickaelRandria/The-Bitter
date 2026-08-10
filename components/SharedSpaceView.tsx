@@ -345,12 +345,24 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   const isOwner = members.some((m) => m.profile_id === currentUserId && m.role === 'owner');
 
+  /**
+   * Note d'un membre sur un film.
+   *
+   * La note pondérée de Bitter+ prime dès qu'elle existe : c'est celle que son
+   * auteur a réellement vue à l'écran. On ne retombe sur la moyenne simple des
+   * quatre critères que pour les notes posées avant l'unification, ou en mode
+   * Bitter. Moyenner les deux formes sans distinction fausserait le verdict du
+   * groupe, une note pondérée n'étant presque jamais égale à la moyenne brute.
+   */
+  const ratingValue = (r: MovieRating): number => {
+    const weighted = r.adaptive_rating?.weightedRating;
+    if (typeof weighted === 'number' && Number.isFinite(weighted)) return weighted;
+    return (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
+  };
+
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
-    const total = ratings.reduce(
-      (acc, r) => acc + (r.story + r.visuals + r.acting + r.sound) / 4,
-      0
-    );
+    const total = ratings.reduce((acc, r) => acc + ratingValue(r), 0);
     return (total / ratings.length).toFixed(1);
   };
 

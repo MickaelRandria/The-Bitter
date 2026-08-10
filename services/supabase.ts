@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { AdaptiveRatingData } from '../types';
 
 // 🔑 Access environment variables safely
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -76,6 +77,13 @@ export interface MovieRating {
   acting: number;
   sound: number;
   review?: string;
+  /**
+   * Grille Bitter+ telle qu'elle est stockée dans `user_movies`. Nulle pour toute
+   * note posée avant l'unification, et pour une note donnée en mode Bitter simple :
+   * dans les deux cas on retombe sur la moyenne des quatre critères.
+   */
+  adaptive_rating?: AdaptiveRatingData | null;
+  rating_mode?: 'bitter' | 'bitter_plus' | null;
   rated_at: string;
   profile?: {
     first_name: string;
@@ -531,6 +539,12 @@ export async function upsertMovieRating(
     acting: number;
     sound: number;
     review?: string;
+    /**
+     * Grille Bitter+ complète, exactement la même forme que `user_movies`.
+     * Absente pour une note posée en mode Bitter simple.
+     */
+    adaptive_rating?: unknown;
+    rating_mode?: 'bitter' | 'bitter_plus';
   }
 ): Promise<{ rating: MovieRating | null; error?: string }> {
   if (!supabase) return { rating: null, error: 'Sauvegarde en ligne indisponible' };
