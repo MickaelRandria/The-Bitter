@@ -184,6 +184,31 @@ const logSpace = (action: string, error: unknown): string => {
   return raw;
 };
 
+
+export const SPACE_TIMEOUT_MESSAGE = 'Le serveur ne répond pas. Réessaie dans un instant.';
+
+/**
+ * Lecture bornée dans le temps.
+ *
+ * Une requête Supabase gelée ne rejette jamais : sur iOS, une requête partie avant
+ * la mise en veille de l'app peut ne plus jamais revenir au réveil. Sans borne,
+ * l'appelant attend indéfiniment, et `Promise.all` fige alors les trois lectures
+ * de l'écran pour une seule qui traîne. C'est ce qui obligeait à relancer l'app.
+ */
+const readRows = async <T>(
+  action: string,
+  query: PromiseLike<{ data: any; error: any }>
+): Promise<SpaceRead<T>> => {
+  const { data, error, timedOut } = await withTimeout(
+    Promise.resolve(query).then((r: any) => ({ ...r, timedOut: false })),
+    { data: null, error: null, timedOut: true }
+  );
+
+  if (timedOut) return { data: [], error: SPACE_TIMEOUT_MESSAGE };
+  if (error) return { data: [], error: logSpace(action, error) };
+  return { data: (data || []) as T[] };
+};
+
 /**
  * Une écriture refusée par le RLS ne lève pas d'erreur : elle touche zéro ligne.
  * Comparer `error` à null ne suffit donc pas à conclure au succès, il faut compter
@@ -398,21 +423,24 @@ export async function regenerateInviteCode(
 export async function getSpaceMovies(spaceId: string): Promise<SpaceRead<SharedMovie>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
-  const { data, error } = await supabase
-    .from('shared_movies')
-    .select(
-      `
+  const result = await readRows<any>(
+    'Lecture des films',
+    supabase
+      .from('shared_movies')
+      .select(
+        `
       *,
       added_by_profile:profiles!added_by(first_name, last_name, avatar_url)
     `
-    )
-    .eq('space_id', spaceId)
-    .order('added_at', { ascending: false });
+      )
+      .eq('space_id', spaceId)
+      .order('added_at', { ascending: false })
+  );
 
-  if (error) return { data: [], error: logSpace('Lecture des films', error) };
+  if (result.error) return { data: [], error: result.error };
 
   return {
-    data: (data || []).map((movie: any) => ({
+    data: result.data.map((movie: any) => ({
       ...movie,
       genres: movie.genres?.length ? movie.genres : (movie.genre ? movie.genre.split(', ') : []),
     })) as SharedMovie[],
@@ -555,13 +583,13 @@ export async function setMovieVote(
  */
 export async function getSpaceMovieVotes(spaceId: string): Promise<SpaceRead<MovieVote>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
-  const { data, error } = await supabase
-    .from('space_movie_votes')
-    .select('*, shared_movies!inner(space_id)')
-    .eq('shared_movies.space_id', spaceId);
-
-  if (error) return { data: [], error: logSpace('Lecture des votes', error) };
-  return { data: data || [] };
+  return readRows<MovieVote>(
+    'Lecture des votes',
+    supabase
+      .from('space_movie_votes')
+      .select('*, shared_movies!inner(space_id)')
+      .eq('shared_movies.space_id', spaceId)
+  );
 }
 
 /**
@@ -570,19 +598,18 @@ export async function getSpaceMovieVotes(spaceId: string): Promise<SpaceRead<Mov
 export async function getMovieRatings(movieId: string): Promise<SpaceRead<MovieRating>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
-  const { data, error } = await supabase
-    .from('movie_ratings')
-    .select(
-      `
+  return readRows<MovieRating>(
+    'Lecture des notes',
+    supabase
+      .from('movie_ratings')
+      .select(
+        `
       *,
       profile:profiles(first_name, last_name)
     `
-    )
-    .eq('movie_id', movieId);
-
-  if (error) return { data: [], error: logSpace('Lecture des notes', error) };
-
-  return { data: data || [] };
+      )
+      .eq('movie_id', movieId)
+  );
 }
 
 /**
@@ -635,20 +662,19 @@ export async function upsertMovieRating(
 export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceMember>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
-  const { data, error } = await supabase
-    .from('space_members')
-    .select(
-      `
+  return readRows<SpaceMember>(
+    'Lecture des membres',
+    supabase
+      .from('space_members')
+      .select(
+        `
       *,
       profile:profiles(first_name, last_name, bio, location, website, avatar_url)
     `
-    )
-    .eq('space_id', spaceId)
-    .eq('is_active', true); // Filter only active members
-
-  if (error) return { data: [], error: logSpace('Lecture des membres', error) };
-
-  return { data: data || [] };
+      )
+      .eq('space_id', spaceId)
+      .eq('is_active', true) // Filter only active members
+  );
 }
 
 export interface MemberFilm {
@@ -676,17 +702,20 @@ export interface MemberFilm {
 export async function getMemberFilms(profileId: string): Promise<SpaceRead<MemberFilm>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
-  const { data, error } = await supabase
-    .from('user_movies')
-    .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
-    .eq('profile_id', profileId)
-    .eq('status', 'watched')
-    .is('deleted_at', null)
-    .not('story', 'is', null);
+  const result = await readRows<any>(
+    'Lecture des films du membre',
+    supabase
+      .from('user_movies')
+      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
+      .eq('profile_id', profileId)
+      .eq('status', 'watched')
+      .is('deleted_at', null)
+      .not('story', 'is', null)
+  );
 
-  if (error) return { data: [], error: logSpace('Lecture des films du membre', error) };
+  if (result.error) return { data: [], error: result.error };
 
-  const films = (data || []).map((row: any) => {
+  const films = result.data.map((row: any) => {
     const weighted = row.adaptive_rating?.weightedRating;
     const rating =
       typeof weighted === 'number' && Number.isFinite(weighted)

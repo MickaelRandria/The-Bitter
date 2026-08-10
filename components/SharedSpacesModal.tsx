@@ -56,12 +56,15 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     const slowTimer = setTimeout(() => setSlow(true), 10000);
     // Un refus du serveur affichait « vous ne participez à aucun espace »,
     // c'est-à-dire le message qui décourage le plus de réessayer.
-    const result = await getUserSpaces(userId);
-    if (result.error) setError(result.error);
-    clearTimeout(slowTimer);
-    setSpaces(result.data);
-    setSlow(false);
-    setLoading(false);
+    try {
+      const result = await getUserSpaces(userId);
+      if (result.error) setError(result.error);
+      setSpaces(result.data);
+    } finally {
+      clearTimeout(slowTimer);
+      setSlow(false);
+      setLoading(false);
+    }
   };
 
   const handleCreateSpace = async () => {
