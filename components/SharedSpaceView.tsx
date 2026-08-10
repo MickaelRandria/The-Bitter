@@ -379,7 +379,39 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       }))
       .sort((a, b) => a.average - b.average);
 
+    /**
+     * À qui se fier quand il conseille un film.
+     *
+     * On compare, film par film, sa note à la mienne dans cet espace, et on retient
+     * celui dont l'écart moyen est le plus faible. C'est la question qu'un groupe se
+     * pose vraiment, et elle ne se lit sur aucune moyenne générale : deux personnes
+     * peuvent noter pareil en moyenne et n'être jamais d'accord sur un film donné.
+     */
+    const myRatings = new Map<string, number>();
+    for (const r of allRatings) {
+      if (r.profile_id === currentUserId) myRatings.set(r.movie_id, ratingValue(r));
+    }
+
+    const affinity = [...byMember.keys()]
+      .filter((profileId) => profileId !== currentUserId)
+      .map((profileId) => {
+        const gaps = allRatings
+          .filter((r) => r.profile_id === profileId && myRatings.has(r.movie_id))
+          .map((r) => Math.abs(ratingValue(r) - (myRatings.get(r.movie_id) as number)));
+        return {
+          name:
+            members.find((m) => m.profile_id === profileId)?.profile?.first_name ??
+            t('shared.member'),
+          shared: gaps.length,
+          gap: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : Infinity,
+        };
+      })
+      // Un seul film en commun ne fait pas une affinité, c'est une coïncidence.
+      .filter((entry) => entry.shared >= 2)
+      .sort((a, b) => a.gap - b.gap);
+
     return {
+      companion: affinity[0] ?? null,
       judged: judged.length,
       average: judged.reduce((sum, e) => sum + e.average, 0) / judged.length,
       consensus: bySpread[0],
@@ -389,7 +421,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       /** Sans écart réel, désigner un film consensuel et un film clivant n'a pas de sens. */
       meaningful: bySpread[bySpread.length - 1].spread >= 1 && averages.length >= 2,
     };
-  }, [allRatings, movies, members, activeMemberIds, t]);
+  }, [allRatings, movies, members, activeMemberIds, currentUserId, t]);
 
 
 
@@ -724,6 +756,24 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       {t('group.harshestKindest', {
                         harsh: groupStats.harshest.name,
                         kind: groupStats.kindest.name,
+                      })}
+                    </p>
+                  </div>
+                )}
+
+                {groupStats.companion && (
+                  <div className="bg-forest/5 dark:bg-lime-400/5 border border-forest/20 dark:border-lime-400/20 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
+                      {t('group.companion')}
+                    </p>
+                    <p className="text-sm font-black text-charcoal dark:text-white mt-1">
+                      {groupStats.companion.name}
+                    </p>
+                    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed mt-1">
+                      {t('group.companionHint', {
+                        name: groupStats.companion.name,
+                        gap: groupStats.companion.gap.toFixed(1),
+                        count: String(groupStats.companion.shared),
                       })}
                     </p>
                   </div>

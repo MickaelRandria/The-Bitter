@@ -708,6 +708,8 @@ export interface MemberFilm {
   posterUrl?: string;
   /** Note telle que son auteur l'a vue : pondérée si Bitter+, moyenne des quatre sinon. */
   rating: number;
+  /** Les quatre critères bruts, pour comparer non plus des notes mais des regards. */
+  criteria: { story: number; visuals: number; acting: number; sound: number };
 }
 
 /**
@@ -752,6 +754,12 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
       genre: row.genre || null,
       posterUrl: row.poster_url || undefined,
       rating,
+      criteria: {
+        story: Number(row.story),
+        visuals: Number(row.visuals),
+        acting: Number(row.acting),
+        sound: Number(row.sound),
+      },
     } as MemberFilm;
   });
 
