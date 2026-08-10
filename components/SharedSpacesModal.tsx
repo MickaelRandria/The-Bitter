@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Users, Copy, Check, Loader2, Share2, Globe, Lock, Eye } from 'lucide-react';
+import { X, Plus, Users, Copy, Check, Loader2, Share2, Globe, Lock } from 'lucide-react';
 import {
   SharedSpace,
   createSharedSpace,
@@ -9,6 +9,7 @@ import {
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
+import SharingNotice from './SharingNotice';
 
 interface SharedSpacesModalProps {
   isOpen: boolean;
@@ -17,23 +18,6 @@ interface SharedSpacesModalProps {
   onSelectSpace: (space: SharedSpace) => void;
 }
 
-
-const SharingNotice: React.FC<{ t: (k: string) => string }> = ({ t }) => (
-  <div className="bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4 space-y-2">
-    <div className="flex items-center gap-2 text-orange-400">
-      <Eye size={13} />
-      <p className="text-[10px] font-black uppercase tracking-widest">
-        {t('spaces.noticeTitle')}
-      </p>
-    </div>
-    <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
-      {t('spaces.noticeBody')}
-    </p>
-    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
-      {t('spaces.noticeControl')}
-    </p>
-  </div>
-);
 
 const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   isOpen,
@@ -347,7 +331,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                 </div>
 
                 <div className="mb-6">
-                  <SharingNotice t={t} />
+                  <SharingNotice />
                 </div>
 
                 <div className="flex gap-3">
@@ -398,7 +382,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                 </div>
 
                 <div className="mb-6">
-                  <SharingNotice t={t} />
+                  <SharingNotice />
                 </div>
 
                 <div className="flex gap-3">

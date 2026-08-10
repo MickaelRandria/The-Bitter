@@ -875,6 +875,7 @@ export const fr: Record<string, string> = {
   'releases.proposeToSpace': 'Proposer',
   'releases.proposed': 'Proposé dans {name}',
   'releases.proposeFailed': 'Impossible de proposer ce film.',
+  'spaces.noticeAck': 'J’ai compris',
   'spaces.noticeTitle': 'Ce que les membres verront',
   'spaces.noticeBody': 'Les autres membres verront les films que tu notes, tes notes détaillées critère par critère, et tes avis. Dans l’espace, et dans leur fil « Mes proches ».',
   'spaces.noticeControl': 'Tu peux retirer un film du partage au moment de le noter, et quitter l’espace quand tu veux.',
