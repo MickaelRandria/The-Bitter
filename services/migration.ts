@@ -39,6 +39,9 @@ function movieToRow(movie: Movie, userId: string) {
     // upsert écrasait donc en base des valeurs que l'application ne connaît même
     // pas à ce niveau. On ne touche plus à ces colonnes.
     adaptive_rating: movie.adaptiveRating ?? null,
+    // Absent du modèle local des anciens films : on publie par défaut, ce qui
+    // correspond au réglage choisi et à ce que la colonne vaut déjà en base.
+    shared_to_feed: movie.shareToFeed !== false,
     // Le tableau conserve chaque séance (rewatches inclus) et son contexte.
     // Le champ JSONB est ajouté par la migration abonnement cinéma.
     watches: movie.watches ?? null,

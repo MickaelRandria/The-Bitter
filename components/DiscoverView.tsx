@@ -35,6 +35,7 @@ import { deepMovieSearch, AISearchResult } from '../services/ai';
 import StreamingBadge from './StreamingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
 import TheatreReleasesSection from './TheatreReleasesSection';
+import FriendsFeed from './FriendsFeed';
 import { SharedSpace } from '../services/supabase';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
@@ -145,7 +146,21 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
    * tous. Deux contenus de nature différente, donc deux modes plutôt qu'une section
    * de plus noyée dans les recommandations.
    */
-  const [surface, setSurface] = useState<'foryou' | 'theatre'>('foryou');
+  const [surface, setSurface] = useState<'foryou' | 'theatre' | 'feed'>('foryou');
+
+  /** Mes notes par identifiant TMDB, pour situer les verdicts du fil face aux miens. */
+  const myRatingByTmdb = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const m of movies || []) {
+      if (m.status !== 'watched' || m.tmdbId == null) continue;
+      const weighted = m.adaptiveRating?.weightedRating;
+      const value = Number.isFinite(weighted)
+        ? (weighted as number)
+        : (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+      map.set(m.tmdbId, value);
+    }
+    return map;
+  }, [movies]);
 
   const isSearchActive = searchQuery.length > 0;
 
@@ -277,7 +292,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
-        {(['foryou', 'theatre'] as const).map((key) => (
+        {(['foryou', 'theatre', 'feed'] as const).map((key) => (
           <button
             key={key}
             onClick={() => {
@@ -291,12 +306,23 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                 : 'text-stone-400 dark:text-stone-600'
             }`}
           >
-            {t(key === 'foryou' ? 'releases.forYou' : 'releases.inTheatres')}
+            {t(
+              key === 'foryou'
+                ? 'releases.forYou'
+                : key === 'theatre'
+                  ? 'releases.inTheatres'
+                  : 'feed.tab'
+            )}
           </button>
         ))}
       </div>
 
-      {surface === 'theatre' ? (
+      {surface === 'feed' ? (
+        <FriendsFeed
+          myRatingByTmdb={myRatingByTmdb}
+          onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
+        />
+      ) : surface === 'theatre' ? (
         <TheatreReleasesSection
           knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
           suggestedTmdbIds={suggestedTmdbIds ?? new Set()}

@@ -932,3 +932,55 @@ export function subscribeToSpace(
     supabase?.removeChannel(votesChannel);
   };
 }
+
+export interface FriendActivity {
+  movieId: string;
+  profileId: string;
+  firstName: string;
+  title: string;
+  director: string;
+  year: number;
+  posterUrl: string | null;
+  tmdbId: number | null;
+  rating: number;
+  review: string | null;
+  watchedAt: string;
+}
+
+/**
+ * Activité récente des personnes avec qui je partage un espace.
+ *
+ * Une fonction serveur plutôt que des requêtes client : trier et fusionner
+ * l'activité de plusieurs personnes se fait mal côté navigateur, et la restriction
+ * aux co-membres doit s'appliquer avant la lecture, pas après.
+ */
+export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendActivity>> {
+  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
+
+  const { data, error, timedOut } = await withTimeout(
+    Promise.resolve(supabase.rpc('get_friends_activity', { _limit: limit })).then((r: any) => ({
+      ...r,
+      timedOut: false,
+    })),
+    { data: null, error: null, timedOut: true }
+  );
+
+  if (timedOut) return { data: [], error: SPACE_TIMEOUT_MESSAGE };
+  if (error) return { data: [], error: logSpace('Lecture du fil d’activité', error) };
+
+  return {
+    data: (data || []).map((row: any) => ({
+      movieId: row.movie_id,
+      profileId: row.profile_id,
+      firstName: row.first_name,
+      title: row.title,
+      director: row.director || '',
+      year: row.year || 0,
+      posterUrl: row.poster_url || null,
+      tmdbId: row.tmdb_id ?? null,
+      rating: Number(row.rating),
+      review: row.review || null,
+      watchedAt: row.watched_at,
+    })),
+  };
+}

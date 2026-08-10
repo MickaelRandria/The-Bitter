@@ -24,6 +24,7 @@ import {
   Hourglass,
   Equal,
   FastForward,
+  Check,
 } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import {
@@ -214,6 +215,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [showProfilePicker, setShowProfilePicker] = useState(false);
   /** Contexte de la séance, facultatif : ne bloque jamais l'enregistrement. */
   const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
+  /**
+   * Publication dans le fil des espaces. Coché par défaut, comme le réglage global :
+   * la retenue porte presque toujours sur un titre précis, pas sur l'habitude.
+   */
+  const [shareToFeed, setShareToFeed] = useState(true);
   const [searchResults, setSearchResults] = useState<TMDBSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -235,6 +241,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // Bitter+ when the saved data contains an adaptive rating (advanced grid).
         // Otherwise, default to Bitter (simple 4-criteria average).
         setUseBitterPlus(!!initialData.adaptiveRating);
+        setShareToFeed(initialData.shareToFeed !== false);
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
         // Restore adaptive rating state when editing
         if (initialData.adaptiveRating) {
@@ -662,6 +669,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             dateWatched: finalDateWatched,
             qualityMetrics: finalQualityMetrics,
             adaptiveRating: finalAdaptiveRating,
+            shareToFeed,
           },
           isWatchlist ? undefined : viewingContext
         );
@@ -685,6 +693,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         dateWatched: finalDateWatched,
         qualityMetrics: finalQualityMetrics,
         adaptiveRating: finalAdaptiveRating,
+        shareToFeed,
       },
       // Le contexte n'a de sens que pour une séance réellement vue.
       isWatchlist ? undefined : viewingContext
@@ -1157,6 +1166,37 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   value={formData.comment || ''}
                   onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                 />
+
+                {/* Placée après l'avis, au moment où l'on sait ce qu'on s'apprête
+                    à rendre visible. La proposer avant la note serait abstrait. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.soft();
+                    setShareToFeed((prev) => !prev);
+                  }}
+                  role="switch"
+                  aria-checked={shareToFeed}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/10 text-left active:scale-[0.99] transition-transform"
+                >
+                  <span
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      shareToFeed
+                        ? 'bg-charcoal dark:bg-bitter-lime border-charcoal dark:border-bitter-lime text-white dark:text-charcoal'
+                        : 'border-stone-300 dark:border-white/20'
+                    }`}
+                  >
+                    {shareToFeed && <Check size={12} strokeWidth={3} />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[11px] font-black uppercase tracking-widest text-charcoal dark:text-white">
+                      {t('addMovie.shareToFeed')}
+                    </span>
+                    <span className="block text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-snug mt-0.5">
+                      {t('addMovie.shareToFeedHint')}
+                    </span>
+                  </span>
+                </button>
               </div>
             </div>
           )}
