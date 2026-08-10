@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Loader2, RefreshCw, Crown, UserMinus, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { X, Loader2, RefreshCw, Crown, UserMinus, Trash2, Check, AlertTriangle, LogOut } from 'lucide-react';
 import {
   SharedSpace,
   SpaceMember,
@@ -18,6 +18,12 @@ interface SpaceSettingsModalProps {
   /** Membres actifs, déjà filtrés par la vue. */
   members: SpaceMember[];
   currentUserId: string;
+  /** Les actions de gestion n'existent que pour le propriétaire. */
+  isOwner: boolean;
+  isLeaving: boolean;
+  /** Relance les lectures de l'espace, sans quitter l'écran. */
+  onRefresh: () => void;
+  onLeave: () => void;
   /** Rejouer le chargement de l'espace après une modification. */
   onChanged: (space: SharedSpace) => void;
   /** L'espace n'existe plus : il faut quitter la vue. */
@@ -37,12 +43,16 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
   space,
   members,
   currentUserId,
+  isOwner,
+  isLeaving,
+  onRefresh,
+  onLeave,
   onChanged,
   onDeleted,
   onClose,
 }) => {
   const { t } = useLanguage();
-  const dialog = useDialog(onClose, t('spaceSettings.title'));
+  const dialog = useDialog(onClose, t(isOwner ? 'spaceSettings.title' : 'spaceSettings.openShort'));
 
   const [name, setName] = useState(space.name ?? '');
   const [description, setDescription] = useState(space.description ?? '');
@@ -145,7 +155,7 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
       <div className="relative w-full sm:max-w-md bg-cream dark:bg-[#0c0c0c] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20 dark:border-white/10">
         <div className="px-6 pt-5 pb-4 border-b border-sand dark:border-white/5 flex items-center justify-between bg-white dark:bg-[#1a1a1a] shrink-0">
           <h2 className="text-xl font-black tracking-tight text-charcoal dark:text-white truncate">
-            {t('spaceSettings.title')}
+            {t(isOwner ? 'spaceSettings.title' : 'spaceSettings.openShort')}
           </h2>
           <button
             onClick={onClose}
@@ -166,6 +176,34 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
             </div>
           )}
 
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                haptics.soft();
+                onRefresh();
+                onClose();
+              }}
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white active:scale-95 transition-all"
+            >
+              <RefreshCw size={16} />
+              <span className="font-black text-[10px] uppercase tracking-widest">
+                {t('spaceSettings.refresh')}
+              </span>
+            </button>
+            <button
+              onClick={onLeave}
+              disabled={isLeaving}
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 active:scale-95 transition-all disabled:opacity-40 hover:text-orange-400"
+            >
+              {isLeaving ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+              <span className="font-black text-[10px] uppercase tracking-widest">
+                {t('spaceSettings.leave')}
+              </span>
+            </button>
+          </div>
+
+          {isOwner && (
+            <>
           <div className="space-y-3">
             <p className={sectionTitle}>{t('spaceSettings.identity')}</p>
             <input
@@ -286,6 +324,10 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
             </div>
           )}
 
+            </>
+          )}
+
+          {isOwner && (
           <div className="space-y-3 pt-2 border-t border-sand dark:border-white/5">
             <p className={sectionTitle}>{t('spaceSettings.dangerTitle')}</p>
             <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
@@ -306,6 +348,7 @@ const SpaceSettingsModal: React.FC<SpaceSettingsModalProps> = ({
                 : t('spaceSettings.deleteSpace')}
             </button>
           </div>
+          )}
         </div>
       </div>
     </div>

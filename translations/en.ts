@@ -863,6 +863,10 @@ export const en: Record<string, string> = {
   'shared.roleMember': 'Member',
   'shared.leaveOwnerBlocked':
     'You own this space. Hand it over to another member, or delete it.',
+  'spaceSettings.openShort': 'This space',
+  'spaceSettings.open': 'Space options',
+  'spaceSettings.refresh': 'Refresh',
+  'spaceSettings.leave': 'Leave',
   'spaceSettings.title': 'Manage space',
   'spaceSettings.identity': 'Name and description',
   'spaceSettings.nameLabel': 'Space name',

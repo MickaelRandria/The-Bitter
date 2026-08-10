@@ -16,13 +16,11 @@ import {
   Ticket,
   UserCheck,
   UserMinus,
-  LogOut,
   AlertTriangle,
   PartyPopper,
   BarChart3,
   ChevronRight,
   Settings,
-  RefreshCw,
 } from 'lucide-react';
 import {
   SharedSpace,
@@ -536,38 +534,22 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </button>
             </div>
           </div>
-          {/* Le temps réel couvre le cas normal, mais il ne rattrape rien quand la
-              connexion a sauté pendant que l'app dormait. Sans ce bouton, la seule
-              issue était de relancer l'application. */}
+          {/* Un seul bouton plutôt que trois : actualiser et quitter sont des gestes
+              rares, ils n'ont pas à disputer sa largeur à la pilule d'onglets, qui
+              elle sert à chaque consultation. */}
           <button
             onClick={() => {
               haptics.soft();
-              loadData();
+              setShowSettings(true);
             }}
-            disabled={loading}
-            aria-label={t('shared.retry')}
-            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white disabled:opacity-40"
+            aria-label={t('spaceSettings.open')}
+            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
           >
-            <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
-          </button>
-          {isOwner && (
-            <button
-              onClick={() => {
-                haptics.soft();
-                setShowSettings(true);
-              }}
-              aria-label={t('spaceSettings.title')}
-              className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
-            >
+            {loading ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
               <Settings size={18} />
-            </button>
-          )}
-          <button
-            onClick={handleLeaveSpace}
-            disabled={isLeaving}
-            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-red-500"
-          >
-            {isLeaving ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
+            )}
           </button>
         </div>
 
@@ -1159,11 +1141,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         />
       )}
 
-      {showSettings && isOwner && (
+      {showSettings && (
         <SpaceSettingsModal
           space={space}
           members={members}
           currentUserId={currentUserId}
+          isOwner={isOwner}
+          isLeaving={isLeaving}
+          onRefresh={() => loadData()}
+          onLeave={() => {
+            setShowSettings(false);
+            handleLeaveSpace();
+          }}
           onChanged={(updated) => {
             setSpace(updated);
             loadData();
