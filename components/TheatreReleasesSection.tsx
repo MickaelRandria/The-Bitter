@@ -142,6 +142,11 @@ const TheatreReleasesSection: React.FC<Props> = ({
                 {film.overview}
               </p>
             )}
+            {film.releaseDate && (
+              <p className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400 mt-1.5">
+                {formatDay(film.releaseDate)}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {inCollection && (
                 <span className="text-[9px] font-black uppercase tracking-widest bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400 px-2 py-0.5 rounded">
