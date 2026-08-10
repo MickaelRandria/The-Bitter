@@ -146,19 +146,29 @@ const NETWORK_HINTS = [
  * la promesse ne se résout pas et l'écran reste en chargement pour toujours, sans
  * message ni sortie. C'est ce qui obligeait à relancer l'app entière.
  */
-export const SPACE_TIMEOUT_MS = 12000;
+export const SPACE_TIMEOUT_MS = 20000;
 
-const withTimeout = async <T>(work: PromiseLike<T>, fallback: T): Promise<T> => {
+const withTimeout = async <T>(work: PromiseLike<T>, fallback: T, action = 'lecture'): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  const started = Date.now();
+
   const guard = new Promise<T>((resolve) => {
     timer = setTimeout(() => {
-      console.warn(`[Espaces] Aucune réponse après ${SPACE_TIMEOUT_MS} ms`);
+      console.warn(
+        `[Espaces] « ${action} » sans réponse après ${SPACE_TIMEOUT_MS} ms. ` +
+          `En ligne : ${navigator.onLine}. Visibilité : ${document.visibilityState}.`
+      );
       resolve(fallback);
     }, SPACE_TIMEOUT_MS);
   });
 
   try {
-    return await Promise.race([Promise.resolve(work), guard]);
+    const result = await Promise.race([Promise.resolve(work), guard]);
+    const elapsed = Date.now() - started;
+    // Trace systématique de la durée réelle : sans elle, impossible de distinguer
+    // une requête lente d'une requête qui ne revient jamais.
+    if (elapsed > 2000) console.warn(`[Espaces] « ${action} » a mis ${elapsed} ms`);
+    return result;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -200,8 +210,13 @@ const readRows = async <T>(
   query: PromiseLike<{ data: any; error: any }>
 ): Promise<SpaceRead<T>> => {
   const { data, error, timedOut } = await withTimeout(
-    Promise.resolve(query).then((r: any) => ({ ...r, timedOut: false })),
-    { data: null, error: null, timedOut: true }
+    Promise.resolve(query)
+      .then((r: any) => ({ ...r, timedOut: false }))
+      // Un rejet est une information, pas une exception à laisser filer : sans ce
+      // catch il remontait jusqu'à l'appelant et se confondait avec un plantage.
+      .catch((e: any) => ({ data: null, error: e, timedOut: false })),
+    { data: null, error: null, timedOut: true },
+    action
   );
 
   if (timedOut) return { data: [], error: SPACE_TIMEOUT_MESSAGE };
