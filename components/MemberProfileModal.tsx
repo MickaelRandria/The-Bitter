@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass } from 'lucide-react';
 import { SpaceMember, MemberFilm, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -108,6 +108,87 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
       closest: sorted[sorted.length - 1],
     };
   }, [films, myMovies]);
+
+  /**
+   * Où vos regards divergent, critère par critère.
+   *
+   * Un écart moyen global dit si vous êtes proches ; il ne dit pas sur quoi. La
+   * grille stocke déjà les quatre critères des deux côtés, il n'y a rien à
+   * collecter, seulement à croiser. Un accord sur le scénario doublé d'un
+   * désaccord sur l'image est une information que la moyenne écrase.
+   */
+  const byCriterion = useMemo(() => {
+    if (films.length === 0 || myMovies.length === 0) return null;
+
+    const mine = new Map<number, Movie>();
+    for (const m of myMovies) {
+      if (m.status === 'watched' && m.tmdbId != null) mine.set(m.tmdbId, m);
+    }
+
+    const keys = ['story', 'visuals', 'acting', 'sound'] as const;
+    const gaps: Record<string, number[]> = { story: [], visuals: [], acting: [], sound: [] };
+
+    for (const f of films) {
+      if (f.tmdbId == null) continue;
+      const own = mine.get(f.tmdbId);
+      if (!own) continue;
+      for (const k of keys) {
+        const theirs = f.criteria?.[k];
+        const ours = own.ratings?.[k];
+        if (!Number.isFinite(theirs) || !Number.isFinite(ours)) continue;
+        gaps[k].push(Math.abs(theirs - ours));
+      }
+    }
+
+    const rows = keys
+      .filter((k) => gaps[k].length > 0)
+      .map((k) => ({ key: k, gap: mean(gaps[k]), count: gaps[k].length }));
+
+    if (rows.length === 0) return null;
+
+    const sorted = [...rows].sort((a, b) => a.gap - b.gap);
+    return { rows, closest: sorted[0], widest: sorted[sorted.length - 1] };
+  }, [films, myMovies]);
+
+  /**
+   * Ce qu'il a vu et pas toi, ses mieux notés d'abord.
+   *
+   * C'est la recommandation la plus naturelle de tout l'écran : elle vient de
+   * quelqu'un dont tu connais désormais l'écart de goût avec toi, ce qui permet
+   * de corriger sa note dans ta tête avant même de lancer le film.
+   */
+  const toDiscover = useMemo(() => {
+    if (films.length === 0) return [];
+    const seen = new Set<number>();
+    for (const m of myMovies) {
+      if (m.tmdbId != null) seen.add(m.tmdbId);
+    }
+    return films
+      .filter((f) => f.tmdbId != null && !seen.has(f.tmdbId) && f.rating >= 7)
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 4);
+  }, [films, myMovies]);
+
+  const [copied, setCopied] = useState(false);
+
+  /** Une statistique ne fait rien ; une phrase prête à coller lance une conversation. */
+  const shareGap = async () => {
+    if (!comparison) return;
+    const line = t('member.shareLine', {
+      title: comparison.widest.film.title,
+      you: comparison.widest.ownRating.toFixed(1),
+      name,
+      theirs: comparison.widest.film.rating.toFixed(1),
+    });
+    try {
+      await navigator.clipboard.writeText(line);
+      setCopied(true);
+      haptics.success();
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      haptics.error();
+    }
+  };
 
   /** Mes films vus, indexés par TMDB : la comparaison se fait film par film. */
   const myByTmdb = useMemo(() => {
@@ -254,6 +335,13 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
                     </span>
                   </div>
                 </div>
+                <button
+                  onClick={shareGap}
+                  className="w-full py-2.5 rounded-xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {copied ? <Check size={13} strokeWidth={3} /> : <Copy size={13} />}
+                  {copied ? t('member.copied') : t('member.share')}
+                </button>
               </div>
             </div>
           )}
@@ -262,6 +350,93 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
             <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center">
               {t('member.noCommonFilm', { name })}
             </p>
+          )}
+
+          {byCriterion && (
+            <div className="space-y-3">
+              <h4 className={sectionTitle}>
+                <ArrowLeftRight size={12} />
+                {t('member.byCriterion')}
+              </h4>
+              <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-4 border border-stone-100 dark:border-white/5 space-y-3">
+                {byCriterion.rows.map((row) => (
+                  <div key={row.key} className="flex items-center gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 w-20 shrink-0">
+                      {t(`member.criterion.${row.key}`)}
+                    </span>
+                    {/* La barre dit l'accord, pas l'écart : pleine quand vous voyez
+                        le même film, vide quand vous n'avez rien en commun. */}
+                    <div className="flex-1 h-1.5 bg-stone-200 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-forest dark:bg-lime-500 transition-all duration-500"
+                        style={{ width: `${Math.max(0, Math.min(100, (1 - row.gap / 10) * 100))}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 tabular-nums w-8 text-right">
+                      {row.gap.toFixed(1)}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed pt-1">
+                  {t('member.criterionSummary', {
+                    close: t(`member.criterion.${byCriterion.closest.key}`),
+                    far: t(`member.criterion.${byCriterion.widest.key}`),
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {toDiscover.length > 0 && (
+            <div className="space-y-3">
+              <h4 className={sectionTitle}>
+                <Compass size={12} />
+                {t('member.toDiscover', { name })}
+              </h4>
+              <div className="space-y-2">
+                {toDiscover.map((film) => (
+                  <div
+                    key={film.id}
+                    className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
+                  >
+                    {film.posterUrl ? (
+                      <img
+                        src={resizeTmdbImage(film.posterUrl, 'w154')}
+                        alt=""
+                        className="w-8 rounded-md object-cover aspect-[2/3] shrink-0"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="w-8 aspect-[2/3] bg-stone-200 dark:bg-[#252525] rounded-md shrink-0 flex items-center justify-center">
+                        <Film size={12} className="text-stone-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-charcoal dark:text-white truncate">
+                        {film.title}
+                      </p>
+                      <p className="text-[10px] text-stone-400 dark:text-stone-600 truncate">
+                        {film.director} · {film.year}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-charcoal bg-bitter-lime px-2.5 py-1 rounded-lg shrink-0">
+                      <Star size={10} fill="currentColor" />
+                      <span className="text-[10px] font-black tabular-nums">
+                        {film.rating.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {comparison && Math.abs(comparison.bias) >= 0.8 && (
+                <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
+                  {comparison.bias > 0
+                    ? t('member.adjustDown', { gap: Math.abs(comparison.bias).toFixed(1) })
+                    : t('member.adjustUp', { gap: Math.abs(comparison.bias).toFixed(1) })}
+                </p>
+              )}
+            </div>
           )}
 
           {stats && (
