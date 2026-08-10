@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Star, Film, AlertTriangle, RefreshCw, Users } from 'lucide-react';
+import {
+  Loader2,
+  Star,
+  Film,
+  AlertTriangle,
+  RefreshCw,
+  Users,
+  Bookmark,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 import { FriendActivity, getFriendsActivity } from '../services/supabase';
 import { TMDB_IMAGE_URL } from '../constants';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -9,8 +19,24 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface Props {
   /** Mes films vus, pour situer mon verdict à côté du sien. */
   myRatingByTmdb: Map<number, number>;
+  /** Ce que j'ai déjà, vu ou en envie : le raccourci n'a pas à le reproposer. */
+  knownTmdbIds: Set<number>;
   onSelectMovie: (tmdbId: number) => void;
+  onQuickWatchlist: (tmdbId: number) => void;
 }
+
+/**
+ * La couleur du badge porte le verdict avant même sa lecture.
+ *
+ * Un badge de teinte unique oblige à lire le chiffre pour savoir si le film a plu.
+ * Trois paliers suffisent à trancher d'un coup d'œil, et le rouge sombre du bas de
+ * l'échelle dit la sévérité sans crier.
+ */
+const scoreTone = (score: number) => {
+  if (score >= 8) return 'bg-lime-400 text-charcoal';
+  if (score >= 5) return 'bg-bitter-lime text-charcoal';
+  return 'bg-[#7f1d1d] text-white';
+};
 
 /**
  * Ce que les membres de tes espaces ont vu, du plus récent au plus ancien.
@@ -19,7 +45,12 @@ interface Props {
  * serveur sur les seules personnes avec qui l'on partage un espace. Un film dont
  * le partage a été décoché n'y figure pas.
  */
-const FriendsFeed: React.FC<Props> = ({ myRatingByTmdb, onSelectMovie }) => {
+const FriendsFeed: React.FC<Props> = ({
+  myRatingByTmdb,
+  knownTmdbIds,
+  onSelectMovie,
+  onQuickWatchlist,
+}) => {
   const { t, language } = useLanguage();
   const [items, setItems] = useState<FriendActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,42 +213,78 @@ const FriendsFeed: React.FC<Props> = ({ myRatingByTmdb, onSelectMovie }) => {
                       {item.year ? ` · ${item.year}` : ''}
                     </p>
 
+                    {/* Uniquement un avis écrit. Le synopsis, identique pour tout le
+                        monde, n'apprenait rien et allongeait chaque carte pour rien. */}
                     {item.review && (
-                      <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400 italic leading-snug mt-1.5 line-clamp-2 pl-2 border-l-2 border-stone-200 dark:border-stone-800">
-                        {item.review}
+                      <p className="text-[11px] font-medium text-charcoal dark:text-stone-300 leading-snug mt-1.5 line-clamp-2">
+                        « {item.review} »
                       </p>
                     )}
 
                     {/* Ta note à côté de la sienne : c'est ce rapprochement qui rend
-                        le fil intéressant, et non la simple annonce d'un visionnage. */}
+                        le fil intéressant, et non la simple annonce d'un visionnage.
+                        En encart teinté plutôt qu'en ligne grise, parce que c'est la
+                        seule information de la carte qui parle de toi. */}
                     {gap != null && (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1.5">
-                        {Math.abs(gap) < 0.5
-                          ? t('feed.sameAsYou')
-                          : t('feed.versusYou', { mine: (mine as number).toFixed(1) })}
-                      </p>
+                      <span
+                        className={`inline-flex items-center gap-1.5 mt-2 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                          Math.abs(gap) < 0.5
+                            ? 'bg-stone-100 dark:bg-white/5 text-stone-400 dark:text-stone-500'
+                            : gap < 0
+                              ? 'bg-lime-400/20 text-forest dark:text-lime-400'
+                              : 'bg-[#7f1d1d]/10 text-[#7f1d1d] dark:text-red-400'
+                        }`}
+                      >
+                        {Math.abs(gap) < 0.5 ? (
+                          t('feed.sameAsYou')
+                        ) : (
+                          <>
+                            {gap < 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                            {t('feed.versusYou', { mine: (mine as number).toFixed(1) })}
+                          </>
+                        )}
+                      </span>
                     )}
                   </div>
 
                 </button>
 
-                  {/* La note est un bouton : un chiffre seul ne dit pas comment il
-                      a été obtenu, et c'est justement ce qui distingue Bitter+ d'une
-                      étoile posée à la va-vite. */}
-                  <button
-                    onClick={() => {
-                      haptics.soft();
-                      setOpenDetail(openDetail === item.movieId ? null : item.movieId);
-                    }}
-                    disabled={!item.adaptiveRating?.criteria?.length}
-                    aria-expanded={openDetail === item.movieId}
-                    className="flex items-center gap-1 text-charcoal bg-bitter-lime px-2.5 py-1 rounded-lg shrink-0 self-start active:scale-90 transition-transform disabled:active:scale-100"
-                  >
-                    <Star size={10} fill="currentColor" />
-                    <span className="text-[10px] font-black tabular-nums">
-                      {item.rating.toFixed(1)}
-                    </span>
-                  </button>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {/* La note est un bouton : un chiffre seul ne dit pas comment il
+                        a été obtenu, et c'est justement ce qui distingue Bitter+ d'une
+                        étoile posée à la va-vite. Sa couleur, elle, livre le verdict
+                        avant même qu'on lise le chiffre. */}
+                    <button
+                      onClick={() => {
+                        haptics.soft();
+                        setOpenDetail(openDetail === item.movieId ? null : item.movieId);
+                      }}
+                      disabled={!item.adaptiveRating?.criteria?.length}
+                      aria-expanded={openDetail === item.movieId}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg active:scale-90 transition-transform disabled:active:scale-100 ${scoreTone(item.rating)}`}
+                    >
+                      <Star size={10} fill="currentColor" />
+                      <span className="text-[10px] font-black tabular-nums">
+                        {item.rating.toFixed(1)}
+                      </span>
+                    </button>
+
+                    {/* Ancré sous la note : un film aperçu dans le fil se met de côté
+                        d'un geste, sans ouvrir sa fiche ni perdre sa lecture. */}
+                    {item.tmdbId != null && !knownTmdbIds.has(item.tmdbId) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          haptics.medium();
+                          onQuickWatchlist(item.tmdbId as number);
+                        }}
+                        aria-label={t('feed.addToWatchlist')}
+                        className="w-7 h-7 rounded-lg bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-transform hover:text-charcoal dark:hover:text-white"
+                      >
+                        <Bookmark size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {openDetail === item.movieId && item.adaptiveRating?.criteria?.length && (

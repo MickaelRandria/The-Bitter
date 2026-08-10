@@ -320,7 +320,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       {surface === 'feed' ? (
         <FriendsFeed
           myRatingByTmdb={myRatingByTmdb}
+          knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
           onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
+          onQuickWatchlist={(tmdbId) => {
+            onQuickWatchlist?.(tmdbId, 'movie');
+          }}
         />
       ) : surface === 'theatre' ? (
         <TheatreReleasesSection

@@ -862,6 +862,7 @@ export const en: Record<string, string> = {
   'addMovie.shareToFeedHint': 'People in your spaces will see this film and your rating. Uncheck to keep it to yourself.',
   'feed.gridOf': '{name}’s grid · {profile}',
   'feed.tab': 'My people',
+  'feed.addToWatchlist': 'Add to my watchlist',
   'feed.title': 'What they watched',
   'feed.loading': 'Loading the feed...',
   'feed.empty': 'Nothing here yet. The feed fills up as soon as someone in your spaces rates a film.',
