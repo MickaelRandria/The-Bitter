@@ -1,0 +1,49 @@
+import React from 'react';
+import { ScanEye, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
+
+interface ConsentModalProps {
+  onAccept: () => void;
+}
+
+const ConsentModal: React.FC<ConsentModalProps> = ({ onAccept }) => {
+  const { t } = useLanguage();
+  const dialog = useDialog(undefined, t('consent.title'));
+  return (
+    <div {...dialog.props} className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-charcoal/90 backdrop-blur-md animate-[fadeIn_0.5s_ease-out]" />
+
+      <div className="relative z-10 bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)] border border-stone-100">
+        <div className="flex flex-col items-center text-center">
+          <div className="w-16 h-16 bg-stone-50 rounded-2xl flex items-center justify-center text-charcoal mb-6 shadow-sm rotate-3">
+            <ScanEye size={32} strokeWidth={1.5} />
+          </div>
+
+          <h2 className="text-2xl font-black text-charcoal tracking-tight mb-3">{t('consent.title')}</h2>
+
+          <p className="text-stone-500 font-medium leading-relaxed text-sm mb-8">
+            {t('consent.desc1')}
+            <br />
+            <br />
+            {t('consent.desc2')}
+          </p>
+
+          <button
+            onClick={onAccept}
+            className="w-full bg-charcoal text-white py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-forest active:scale-95 transition-all flex items-center justify-center gap-3"
+          >
+            <ShieldCheck size={18} />
+            {t('consent.accept')}
+          </button>
+
+          <p className="mt-4 text-[9px] font-bold text-stone-300 uppercase tracking-widest">
+            {t('consent.thanks')}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ConsentModal;

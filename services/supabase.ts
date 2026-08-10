@@ -613,27 +613,6 @@ export async function getMovieRatings(movieId: string): Promise<SpaceRead<MovieR
 }
 
 /**
- * Toutes les notes de tous les films d'un espace, en une requête.
- *
- * Le chargement film par film servait l'affichage d'une carte dépliée ; il ne
- * permet pas de raisonner sur le groupe, qui exige de voir l'ensemble d'un coup.
- * La jointure interne sur `shared_movies` restreint à l'espace demandé.
- */
-export async function getSpaceRatings(
-  spaceId: string
-): Promise<SpaceRead<MovieRating & { movie_id: string }>> {
-  if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
-
-  return readRows(
-    'Lecture des notes de l’espace',
-    supabase
-      .from('movie_ratings')
-      .select('*, shared_movies!inner(space_id), profile:profiles(first_name)')
-      .eq('shared_movies.space_id', spaceId)
-  );
-}
-
-/**
  * Ajoute/Met à jour la note d'un utilisateur sur un film
  */
 export async function upsertMovieRating(

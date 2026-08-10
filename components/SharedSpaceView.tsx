@@ -32,7 +32,6 @@ import {
   getSpaceMovies,
   getSpaceMembers,
   getMovieRatings,
-  getSpaceRatings,
   getSpaceMovieVotes,
   setMovieVote,
   markMovieAsWatched,
@@ -104,8 +103,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   /** Vrai quand le chargement dépasse dix secondes. */
   const [slow, setSlow] = useState(false);
-  /** Toutes les notes de l'espace, pour raisonner sur le groupe et non film par film. */
-  const [allRatings, setAllRatings] = useState<MovieRating[]>([]);
   /** L'espace peut être renommé pendant la session : on garde la version à jour. */
   const [space, setSpace] = useState(initialSpace);
 
@@ -159,11 +156,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     // laissée passer bloquerait l'indicateur pour de bon, et le bouton actualiser
     // tournerait dans le vide sans plus jamais s'arrêter.
     try {
-      const [movies, members, votes, ratings] = await Promise.all([
+      const [movies, members, votes] = await Promise.all([
         getSpaceMovies(space.id),
         getSpaceMembers(space.id),
         getSpaceMovieVotes(space.id),
-        getSpaceRatings(space.id),
       ]);
 
       // La première erreur suffit : les trois lectures échouent pour la même raison
@@ -178,7 +174,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       setMovies(uniqueMovies);
       setMembers(uniqueMembers);
       setVotes(votes.data);
-      setAllRatings(ratings.data);
     } catch (e) {
       console.warn('[Espaces] Chargement interrompu :', e);
       setLoadError(t('shared.loadFailedTitle'));
@@ -322,78 +317,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const activeMemberIds = new Set(members.map((m) => m.profile_id));
 
   const isOwner = members.some((m) => m.profile_id === currentUserId && m.role === 'owner');
-
-  /**
-   * Ce que le groupe dit, par opposition à ce que chacun dit.
-   *
-   * Un film ne compte que s'il a été noté par au moins deux membres actifs : à un
-   * seul avis il n'y a ni consensus ni désaccord, seulement une opinion. L'écart
-   * type serait plus juste qu'une amplitude, mais l'amplitude se lit sans
-   * explication, et c'est elle qui fait discuter.
-   */
-  const groupStats = useMemo(() => {
-    if (members.length < 2) return null;
-
-    const byMovie = new Map<string, { value: number; profile: string }[]>();
-    for (const r of allRatings) {
-      if (!activeMemberIds.has(r.profile_id)) continue;
-      const list = byMovie.get(r.movie_id) ?? [];
-      list.push({ value: ratingValue(r), profile: r.profile_id });
-      byMovie.set(r.movie_id, list);
-    }
-
-    const judged = [...byMovie.entries()]
-      .filter(([, list]) => list.length >= 2)
-      .map(([movieId, list]) => {
-        const values = list.map((v) => v.value);
-        const high = Math.max(...values);
-        const low = Math.min(...values);
-        return {
-          movie: movies.find((m) => m.id === movieId),
-          spread: high - low,
-          average: values.reduce((a, b) => a + b, 0) / values.length,
-          voters: list.length,
-        };
-      })
-      .filter((entry) => entry.movie);
-
-    if (judged.length === 0) return null;
-
-    const bySpread = [...judged].sort((a, b) => a.spread - b.spread);
-
-    // Le plus sévère et le plus généreux : moyenne personnelle sur les seuls films
-    // que la personne a réellement notés dans cet espace.
-    const byMember = new Map<string, number[]>();
-    for (const r of allRatings) {
-      if (!activeMemberIds.has(r.profile_id)) continue;
-      const list = byMember.get(r.profile_id) ?? [];
-      list.push(ratingValue(r));
-      byMember.set(r.profile_id, list);
-    }
-
-    const averages = [...byMember.entries()]
-      .filter(([, values]) => values.length > 0)
-      .map(([profileId, values]) => ({
-        name:
-          members.find((m) => m.profile_id === profileId)?.profile?.first_name ??
-          t('shared.member'),
-        average: values.reduce((a, b) => a + b, 0) / values.length,
-      }))
-      .sort((a, b) => a.average - b.average);
-
-    return {
-      judged: judged.length,
-      average: judged.reduce((sum, e) => sum + e.average, 0) / judged.length,
-      consensus: bySpread[0],
-      divisive: bySpread[bySpread.length - 1],
-      harshest: averages[0],
-      kindest: averages[averages.length - 1],
-      /** Sans écart réel, désigner un film consensuel et un film clivant n'a pas de sens. */
-      meaningful: bySpread[bySpread.length - 1].spread >= 1 && averages.length >= 2,
-    };
-  }, [allRatings, movies, members, activeMemberIds, t]);
-
-
 
   /**
    * Note d'un membre sur un film.
@@ -678,77 +601,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
         {activeTab === 'members' ? (
           <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
-            {/* Ce que dit le groupe, avant qui le compose. Un espace à plusieurs a
-                une opinion propre, que la liste des membres ne montre pas. */}
-            {groupStats && (
-              <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.8rem] p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <BarChart3 size={13} className="text-forest dark:text-lime-400" />
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">
-                    {t('group.title')}
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 text-center border border-stone-100 dark:border-white/5">
-                    <p className="text-2xl font-black text-charcoal dark:text-white tabular-nums">
-                      {groupStats.judged}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
-                      {t('group.judgedTogether')}
-                    </p>
-                  </div>
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 text-center border border-stone-100 dark:border-white/5">
-                    <p className="text-2xl font-black text-charcoal dark:text-white tabular-nums">
-                      {groupStats.average.toFixed(1)}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
-                      {t('group.groupAverage')}
-                    </p>
-                  </div>
-                </div>
-
-                {groupStats.meaningful && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5">
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
-                          {t('group.consensus')}
-                        </p>
-                        <p className="text-xs font-bold text-charcoal dark:text-white truncate mt-0.5">
-                          {groupStats.consensus.movie?.title}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 shrink-0 tabular-nums">
-                        {t('group.spread', { value: groupStats.consensus.spread.toFixed(1) })}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5">
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-orange-400">
-                          {t('group.divisive')}
-                        </p>
-                        <p className="text-xs font-bold text-charcoal dark:text-white truncate mt-0.5">
-                          {groupStats.divisive.movie?.title}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 shrink-0 tabular-nums">
-                        {t('group.spread', { value: groupStats.divisive.spread.toFixed(1) })}
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed pt-1">
-                      {t('group.harshestKindest', {
-                        harsh: groupStats.harshest.name,
-                        kind: groupStats.kindest.name,
-                      })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             {members.map((member) => (
               <div
                 key={member.id}
