@@ -35,6 +35,10 @@ function movieToRow(movie: Movie, userId: string) {
     smartphone_factor: movie.smartphoneFactor ?? null,
     hype: movie.hype ?? null,
     review: movie.review || null,
+    // `review` porte le synopsis TMDB, pré-rempli à la sélection du film. L'avis
+    // écrit par la personne est dans `comment`, et il n'était jamais envoyé : le
+    // fil ne pouvait donc afficher qu'un résumé là où l'on attend une opinion.
+    comment: movie.comment || null,
     // severity_index et patience_level étaient envoyés en dur à null : chaque
     // upsert écrasait donc en base des valeurs que l'application ne connaît même
     // pas à ce niveau. On ne touche plus à ces colonnes.

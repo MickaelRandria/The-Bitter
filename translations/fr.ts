@@ -867,6 +867,7 @@ export const fr: Record<string, string> = {
   'addMovie.shareToFeedHint': 'Les membres de tes espaces verront ce film et ta note. Décoche pour le garder pour toi.',
   'feed.gridOf': 'La grille de {name} · {profile}',
   'feed.tab': 'Mes proches',
+  'feed.addToWatchlist': 'Ajouter à mes envies',
   'feed.title': 'Ce qu’ils ont vu',
   'feed.loading': 'Chargement du fil...',
   'feed.empty': 'Rien à afficher pour l’instant. Le fil se remplit dès qu’un membre de tes espaces note un film.',
