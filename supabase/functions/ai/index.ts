@@ -43,6 +43,7 @@ const LIMITS = {
   historyChars: 4_000,
 };
 
+type Action = 'assistant' | 'search' | 'review-starters' | 'review-continue';
 type Role = 'user' | 'assistant';
 interface Turn {
   role: Role;
@@ -101,6 +102,112 @@ que de l'inventer.
 
 ${context}`;
 
+/**
+ * Amorces d'avis.
+ *
+ * L'enjeu tient dans une distinction : une amorce dit DE QUOI on va parler,
+ * jamais CE QU'on en pense. « Visuellement, c'est » ouvre ; « Visuellement,
+ * c'est superbe » a déjà décidé à la place de l'auteur. C'est toute la
+ * différence entre aider quelqu'un à écrire et écrire à sa place, et c'est
+ * pourquoi la règle est répétée avec ses contre-exemples : sans eux, le modèle
+ * glisse invariablement vers le compliment.
+ */
+const startersPersona = (context: string) => `Tu aides quelqu'un à commencer l'avis qu'il va écrire sur un film qu'il vient de noter.
+
+Tu produis TROIS amorces de phrase en français, de 3 à 6 mots chacune.
+Une amorce s'arrête au milieu d'une idée : elle ouvre une porte, elle ne dit rien.
+
+INTERDIT ABSOLU — tu n'exprimes AUCUN jugement :
+- « Visuellement, c'est » → correct, la suite lui appartient
+- « Visuellement, c'est superbe » → interdit, tu as jugé à sa place
+- « Ce qui m'a gêné, c'est » → correct
+- « Le scénario est décevant » → interdit
+
+Ses notes te disent SUR QUOI il a quelque chose à dire, jamais ce qu'il en pense.
+S'il a mis une note basse à un critère, ouvre une porte vers ce critère sans
+présumer du reproche. S'il a mis une note haute, pareil.
+
+Les trois amorces ouvrent trois directions différentes : ce qui l'a marqué, ce
+qui l'a gêné, ce qui l'a surpris ou ce qu'il ne s'attendait pas à ressentir.
+
+Écris à la première personne. Pas de guillemets, pas de numéro, pas de point final.
+
+Réponds UNIQUEMENT par un objet JSON de la forme :
+{"starters": ["amorce une", "amorce deux", "amorce trois"]}
+
+${context}`;
+
+/**
+ * Prolongement d'un avis en cours.
+ *
+ * Une seule phrase, et jamais la dernière : c'est ce qui garde l'auteur aux
+ * commandes. Deux phrases d'un coup, et il relit au lieu d'écrire ; une phrase
+ * qui conclut, et il n'a plus qu'à valider un texte qui n'est pas le sien.
+ */
+const continuePersona = (context: string) => `Quelqu'un est en train d'écrire son avis sur un film. Tu ajoutes UNE SEULE phrase à la suite de ce qu'il a déjà écrit.
+
+RÈGLES ABSOLUES :
+- UNE phrase. Jamais deux. Jamais un paragraphe.
+- Elle prolonge SON idée dans SA direction. Tu ne changes pas de sujet, tu ne le
+  contredis pas, tu ne résumes pas ce qu'il vient de dire.
+- Tu reprends son niveau de langue, son rythme et son ton. S'il est sec, sois sec.
+  S'il est familier, sois familier. Tu n'écris pas mieux que lui, tu écris comme lui.
+- Tu ne CONCLUS JAMAIS. Ta phrase laisse la suite ouverte : c'est à lui de finir
+  son avis, pas à toi.
+- N'invente aucun fait sur le film : ni acteur, ni scène, ni date. Tu prolonges
+  une impression, tu ne racontes pas le film.
+
+Réponds UNIQUEMENT par la phrase, sans guillemets et sans introduction.
+
+${context}`;
+
+/** Réglages propres à chaque usage : longueur et liberté n'ont rien à voir. */
+const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boolean }> = {
+  assistant: { temperature: 0.8, maxTokens: 700, json: false },
+  search: { temperature: 0.4, maxTokens: 700, json: false },
+  'review-starters': { temperature: 1.0, maxTokens: 200, json: true },
+  'review-continue': { temperature: 0.7, maxTokens: 120, json: false },
+};
+
+const isAction = (value: unknown): value is Action =>
+  value === 'assistant' ||
+  value === 'search' ||
+  value === 'review-starters' ||
+  value === 'review-continue';
+
+/**
+ * Extrait les amorces d'une réponse qui devrait être du JSON.
+ *
+ * Le mode JSON de Mistral rend l'objet attendu dans l'immense majorité des cas,
+ * mais une seule réponse mal formée suffirait à afficher un champ vide au moment
+ * précis où l'on cherchait à éviter la page blanche. D'où le repli sur un
+ * découpage ligne à ligne : mieux vaut trois amorces imparfaites que rien.
+ */
+const parseStarters = (raw: string): string[] => {
+  const clean = (s: string) =>
+    s
+      .replace(/^\s*[-*\d.)\]]+\s*/, '')
+      .replace(/^["'«»\s]+|["'«»\s]+$/g, '')
+      .trim();
+
+  try {
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : parsed?.starters;
+    if (Array.isArray(list)) {
+      const out = list.filter((s) => typeof s === 'string').map(clean).filter(Boolean);
+      if (out.length) return out.slice(0, 3);
+    }
+  } catch {
+    // Pas du JSON : on retombe sur le découpage ci-dessous.
+  }
+
+  return raw
+    .split('\n')
+    .map(clean)
+    .filter((s) => s.length > 2 && s.length < 120)
+    .slice(0, 3);
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return fail(405, 'method', 'Méthode non autorisée.');
@@ -145,9 +252,9 @@ Deno.serve(async (req: Request) => {
     return fail(400, 'bad_request', 'Requête illisible.');
   }
 
-  const action = body.action === 'search' ? 'search' : 'assistant';
+  const action: Action = isAction(body.action) ? body.action : 'assistant';
   const context = clamp(body.context, LIMITS.context);
-  const question = clamp(body.question ?? body.query, LIMITS.question).trim();
+  const question = clamp(body.question ?? body.query ?? body.text, LIMITS.question).trim();
   if (!question) return fail(400, 'bad_request', 'Question vide.');
 
   const limit = Number(Deno.env.get('AI_DAILY_LIMIT') ?? DEFAULT_DAILY_LIMIT);
@@ -179,6 +286,10 @@ Deno.serve(async (req: Request) => {
 
   if (action === 'search') {
     messages.push({ role: 'system', content: searchPersona(context) });
+  } else if (action === 'review-starters') {
+    messages.push({ role: 'system', content: startersPersona(context) });
+  } else if (action === 'review-continue') {
+    messages.push({ role: 'system', content: continuePersona(context) });
   } else {
     const firstName = clamp(body.firstName, 60) || 'toi';
     messages.push({ role: 'system', content: persona(firstName, context) });
@@ -195,6 +306,7 @@ Deno.serve(async (req: Request) => {
 
   messages.push({ role: 'user', content: question });
 
+  const tuning = TUNING[action];
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), UPSTREAM_TIMEOUT_MS);
 
@@ -209,8 +321,9 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: Deno.env.get('MISTRAL_MODEL') ?? DEFAULT_MODEL,
         messages,
-        temperature: action === 'search' ? 0.4 : 0.8,
-        max_tokens: 700,
+        temperature: tuning.temperature,
+        max_tokens: tuning.maxTokens,
+        ...(tuning.json ? { response_format: { type: 'json_object' } } : {}),
       }),
       signal: abort.signal,
     });
@@ -234,6 +347,22 @@ Deno.serve(async (req: Request) => {
     const payload = await upstream.json();
     const text: string = payload?.choices?.[0]?.message?.content ?? '';
     if (!text.trim()) return fail(502, 'upstream', "L'assistant n'a rien répondu.");
+
+    if (action === 'review-starters') {
+      const starters = parseStarters(text);
+      if (starters.length === 0) return fail(502, 'upstream', "Aucune amorce n'a pu être lue.");
+      return json({ starters, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'review-continue') {
+      // Une phrase, et une seule : le modèle en donne parfois deux malgré la
+      // consigne, et c'est justement ce qui ferait basculer l'auteur du rôle de
+      // rédacteur à celui de relecteur. On coupe plutôt que d'espérer.
+      const first = text.trim().replace(/^["'«»\s]+/, '');
+      const cut = first.search(/[.!?…](\s|$)/);
+      const single = cut === -1 ? first : first.slice(0, cut + 1);
+      return json({ text: single.trim(), usage: payload?.usage ?? null });
+    }
 
     return json({ text, usage: payload?.usage ?? null });
   } catch (error) {
