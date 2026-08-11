@@ -15,6 +15,7 @@ import { TMDB_IMAGE_URL } from '../constants';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useResumeRefresh } from '../utils/useResumeRefresh';
 
 interface Props {
   /** Mes films vus, pour situer mon verdict à côté du sien. */
@@ -70,6 +71,13 @@ const FriendsFeed: React.FC<Props> = ({
   useEffect(() => {
     load();
   }, []);
+
+  /**
+   * Le fil n'a pas d'abonnement temps réel : il n'en a pas besoin, personne ne le
+   * regarde en continu. Mais il doit être frais au moment où on le rouvre, sinon il
+   * montre l'activité d'hier en la faisant passer pour celle de maintenant.
+   */
+  useResumeRefresh(() => load());
 
   /**
    * Regroupé par jour. Une liste plate de cinquante lignes ne se lit pas : les
