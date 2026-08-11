@@ -284,9 +284,20 @@ const parseDiscover = (raw: string) => {
     return null;
   }
 
+  /**
+   * L'absence doit rester l'absence.
+   *
+   * `Number(null)` vaut 0 et `Number.isFinite(0)` vaut vrai : sans ce premier
+   * test, chaque champ laissé vide par le modèle — c'est-à-dire la majorité,
+   * puisque la consigne lui demande de ne rien inventer — devenait la borne
+   * basse. Toute recherche partait donc avec « durée comprise entre 40 et 40
+   * minutes », et ne rendait jamais rien.
+   */
   const num = (value: unknown, min: number, max: number): number | null => {
+    if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
-    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n * 10) / 10)) : null;
+    if (!Number.isFinite(n)) return null;
+    return Math.min(max, Math.max(min, Math.round(n * 10) / 10));
   };
 
   const genres = (value: unknown): number[] =>
