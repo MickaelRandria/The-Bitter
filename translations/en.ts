@@ -747,6 +747,7 @@ export const en: Record<string, string> = {
   // ── Recommendations Modal ─────────────────────────────────────────────────
   'reco.unlocking': 'Personal recs activating',
   'reco.unlockDesc': 'Rate {n} more film{s} to unlock recommendations based on YOUR taste.',
+  'reco.add': 'Add',
   'reco.title': 'Personal Recs',
   'reco.pickMovie': 'Choose a film',
   'reco.searchPlaceholder': 'Title or director...',

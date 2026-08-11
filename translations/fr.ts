@@ -752,6 +752,7 @@ export const fr: Record<string, string> = {
   // ── Recommendations Modal ─────────────────────────────────────────────────
   'reco.unlocking': "Recos perso en cours d'activation",
   'reco.unlockDesc': 'Note encore {n} film{s} pour débloquer des recommandations basées sur TES goûts.',
+  'reco.add': 'Ajouter',
   'reco.title': 'Recos Perso',
   'reco.pickMovie': 'Choisis un film',
   'reco.searchPlaceholder': 'Titre ou réalisateur...',

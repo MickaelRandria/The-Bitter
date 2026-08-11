@@ -1,4 +1,4 @@
-import { UserProfile } from '../types';
+import { UserProfile, Movie } from '../types';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
 import { supabase } from './supabase';
 
@@ -143,6 +143,121 @@ ${written}`,
   });
 
   return (text || '').trim();
+};
+
+/** Un film proposé, une fois retrouvé dans TMDB. */
+export interface PersonalRecommendation {
+  tmdbId: number;
+  title: string;
+  posterPath: string | null;
+  releaseDate: string | null;
+  voteAverage: number;
+  /** Pourquoi ce film-là, au vu de ses notes. C'est ce qui vaut le détour. */
+  reason: string;
+}
+
+/**
+ * Décrit une collection au modèle, par ce qu'elle révèle plutôt qu'en entier.
+ *
+ * Les meilleures notes disent ce que la personne cherche, les plus basses ce
+ * qu'elle ne pardonne pas — et les secondes sont au moins aussi instructives.
+ * Envoyer les soixante films coûterait cher pour n'ajouter que du milieu de
+ * tableau, qui ne tranche rien.
+ */
+const describeTaste = (movies: Movie[]): string => {
+  const rated = movies
+    .filter((m) => m.status === 'watched')
+    .map((m) => {
+      const criteria = m.adaptiveRating?.criteria?.length
+        ? m.adaptiveRating.criteria.map((c) => `${c.label} ${c.value}`)
+        : [
+            `Scénario ${m.ratings.story}`,
+            `Image ${m.ratings.visuals}`,
+            `Jeu ${m.ratings.acting}`,
+            `Son ${m.ratings.sound}`,
+          ];
+      const score =
+        m.adaptiveRating?.weightedRating ??
+        (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
+      return { title: m.title, year: m.year, score, criteria: criteria.join(', ') };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const line = (m: (typeof rated)[number]) =>
+    `- ${m.title} (${m.year}) — ${m.score.toFixed(1)}/10 · ${m.criteria}`;
+
+  const best = rated.slice(0, 12).map(line).join('\n');
+  const worst = rated.slice(-5).reverse().map(line).join('\n');
+
+  return `SES FILMS LES MIEUX NOTÉS :
+${best}
+
+SES FILMS LES MOINS BIEN NOTÉS — ce qu'il ne pardonne pas :
+${worst}`;
+};
+
+/**
+ * Cinq films choisis d'après la façon de noter, et non d'après un graphe de
+ * co-visionnage.
+ *
+ * L'écran de recommandations interrogeait jusqu'ici les suggestions TMDB, du
+ * « ceux qui ont aimé X ont aimé Y » : utile, mais aveugle au pourquoi. Un
+ * modèle qui lit la grille critère par critère voit autre chose, et peut le
+ * dire — c'est la justification qui fait la valeur, pas la liste d'affiches.
+ *
+ * Les titres inventés se règlent seuls : chacun est cherché dans TMDB, et ce
+ * qui ne s'y trouve pas n'arrive jamais à l'écran.
+ */
+export const getPersonalRecommendations = async (
+  movies: Movie[],
+  knownTmdbIds: Set<number>
+): Promise<PersonalRecommendation[]> => {
+  const seen = movies
+    .map((m) => m.title)
+    .filter(Boolean)
+    .slice(0, 80)
+    .join(' · ');
+
+  const context = `${describeTaste(movies)}
+
+À NE PAS PROPOSER (déjà vus ou déjà en attente) :
+${seen}`;
+
+  const { recommendations } = await callAI<{
+    recommendations?: { title: string; year: number | null; reason: string }[];
+  }>({ action: 'recommend', context, text: 'Propose-moi cinq films.' });
+
+  if (!Array.isArray(recommendations) || recommendations.length === 0) return [];
+
+  const resolved = await Promise.all(
+    recommendations.map(async (pick) => {
+      try {
+        const url =
+          `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
+          `&query=${encodeURIComponent(pick.title)}&include_adult=false` +
+          (pick.year ? `&year=${pick.year}` : '');
+        const data = await (await fetch(url)).json();
+        const match = (data.results || []).find((r: any) => r.poster_path);
+        if (!match || knownTmdbIds.has(match.id)) return null;
+
+        return {
+          tmdbId: match.id,
+          title: match.title,
+          posterPath: match.poster_path ?? null,
+          releaseDate: match.release_date ?? null,
+          voteAverage: Number(match.vote_average) || 0,
+          reason: pick.reason,
+        } as PersonalRecommendation;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  // Un même film proposé sous deux titres ne doit pas apparaître deux fois.
+  const unique = new Map<number, PersonalRecommendation>();
+  for (const item of resolved) if (item) unique.set(item.tmdbId, item);
+  return [...unique.values()];
 };
 
 /** Ce que le relais a compris d'une envie, une fois borné et filtré. */

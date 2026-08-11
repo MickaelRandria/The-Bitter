@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Sparkles, Plus, Check, Loader2, Calendar, ChevronLeft, Search } from 'lucide-react';
 import { Movie, MovieFormData } from '../types';
 import { getRecommendations, getTopRatedRecommendations, getMovieDetailsForAdd } from '../services/tmdb';
+import { getPersonalRecommendations } from '../services/ai';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -37,6 +38,8 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingId, setAddingId] = useState<number | null>(null);
+  /** La justification de chaque film, quand elle vient du modèle. Vide en repli. */
+  const [reasons, setReasons] = useState<Map<number, string>>(new Map());
 
   // Films notés > 7/10 (base pour les recos "Pour toi")
   const top10 = useMemo(() => {
@@ -59,6 +62,7 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
       setSelectedMovie(sourceMovie);
       setPickerSearch('');
       setRecommendations([]);
+      setReasons(new Map());
     }
   }, [isOpen, sourceMovie]);
 
@@ -66,18 +70,55 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   useEffect(() => {
     if (!isOpen || mode !== 'smart' || top10.length === 0) return;
     let cancelled = false;
+
     const doFetch = async () => {
       setLoading(true);
       setRecommendations([]);
+      setReasons(new Map());
+
+      /**
+       * Le modèle d'abord, TMDB ensuite.
+       *
+       * Les suggestions TMDB relient des films par co-visionnage : « ceux qui
+       * ont aimé X ont aimé Y ». C'est aveugle à la raison pour laquelle on a
+       * aimé X, que la grille de notation contient pourtant. Le modèle la lit,
+       * et sait dire pourquoi il propose — ce qui est tout l'intérêt.
+       *
+       * Le repli n'est pas une précaution de style : sans session, sans quota ou
+       * sans réseau, une liste sans justification vaut infiniment mieux qu'un
+       * écran vide.
+       */
+      try {
+        const picks = await getPersonalRecommendations(movies, existingTmdbIdsRef.current);
+        if (cancelled) return;
+        if (picks.length > 0) {
+          setReasons(new Map(picks.map((p) => [p.tmdbId, p.reason])));
+          setRecommendations(
+            picks.map((p) => ({
+              id: p.tmdbId,
+              title: p.title,
+              poster_path: p.posterPath,
+              release_date: p.releaseDate,
+              vote_average: p.voteAverage,
+            }))
+          );
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn('[Reco] Repli sur TMDB :', e);
+      }
+
       const results = await getTopRatedRecommendations(top10, existingTmdbIdsRef.current);
       if (!cancelled) {
         setRecommendations(results);
         setLoading(false);
       }
     };
+
     doFetch();
     return () => { cancelled = true; };
-  }, [isOpen, mode, top10]);
+  }, [isOpen, mode, top10, movies]);
 
   // Fetch pick recs
   useEffect(() => {
@@ -375,6 +416,63 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
               <p className="font-bold text-stone-400 text-sm">
                 {mode === 'smart' ? t('reco.noSmartReco') : t('reco.noReco')}
               </p>
+            </div>
+          ) : reasons.size > 0 ? (
+            /* Une justification ne tient pas sous une vignette de trois par
+               rangée, et c'est elle qui vaut le détour : sans elle il ne reste
+               que cinq affiches, ce que la version précédente faisait déjà. */
+            <div className="space-y-3">
+              {recommendations.map((movie) => {
+                const isAdded = existingTmdbIds.has(movie.id);
+                const isAdding = addingId === movie.id;
+                return (
+                  <div
+                    key={movie.id}
+                    className="flex gap-3 p-3 rounded-3xl bg-stone-50 dark:bg-white/5 animate-[fadeIn_0.5s_ease-out]"
+                  >
+                    <div className="w-16 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800">
+                      {movie.poster_path && (
+                        <img
+                          src={tmdbImage(movie.poster_path, 'w342')}
+                          alt={movie.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                      <div className="flex items-baseline gap-2">
+                        <h4 className="font-black text-[12px] text-charcoal dark:text-white leading-tight uppercase tracking-tight truncate">
+                          {movie.title}
+                        </h4>
+                        <span className="text-[10px] font-bold text-stone-400 shrink-0">
+                          {movie.release_date?.split('-')[0] || ''}
+                        </span>
+                      </div>
+                      <p className="text-[12px] font-medium text-stone-500 dark:text-stone-400 leading-snug">
+                        {reasons.get(movie.id)}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => !isAdded && !isAdding && handleAdd(movie.id)}
+                      disabled={isAdded || isAdding}
+                      aria-label={t('reco.add')}
+                      className={`self-center w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-transform active:scale-90 ${isAdded ? 'bg-forest text-white' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
+                    >
+                      {isAdding ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : isAdded ? (
+                        <Check size={16} strokeWidth={3} />
+                      ) : (
+                        <Plus size={16} strokeWidth={3} />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
