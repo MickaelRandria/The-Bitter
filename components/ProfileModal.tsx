@@ -243,7 +243,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 setShowAvatarPicker(true);
               }}
               aria-label={t('avatar.title')}
-              className="relative w-20 h-20 bg-forest text-white rounded-[2rem] flex items-center justify-center text-3xl font-black shadow-xl shadow-forest/20 shrink-0 overflow-hidden active:scale-95 transition-transform"
+              className={`relative w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl font-black shadow-xl shrink-0 overflow-hidden active:scale-95 transition-transform ${
+                avatarSrc(profile.avatarUrl)
+                  ? 'bg-stone-100 dark:bg-[#252525]'
+                  : 'bg-forest text-white shadow-forest/20'
+              }`}
             >
               {avatarSrc(profile.avatarUrl) ? (
                 <img
