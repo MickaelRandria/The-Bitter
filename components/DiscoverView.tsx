@@ -148,6 +148,15 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
    */
   const [surface, setSurface] = useState<'foryou' | 'theatre' | 'feed'>('foryou');
 
+  /** Mes films vus, indexés par TMDB : le détail compare critère par critère. */
+  const myMovieByTmdb = useMemo(() => {
+    const map = new Map<number, Movie>();
+    for (const m of movies || []) {
+      if (m.status === 'watched' && m.tmdbId != null) map.set(m.tmdbId, m);
+    }
+    return map;
+  }, [movies]);
+
   /** Mes notes par identifiant TMDB, pour situer les verdicts du fil face aux miens. */
   const myRatingByTmdb = useMemo(() => {
     const map = new Map<number, number>();
@@ -320,6 +329,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       {surface === 'feed' ? (
         <FriendsFeed
           myRatingByTmdb={myRatingByTmdb}
+          myMovieByTmdb={myMovieByTmdb}
           knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
           onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
           onQuickWatchlist={(tmdbId) => {
