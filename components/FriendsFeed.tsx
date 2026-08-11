@@ -9,10 +9,11 @@ import {
   Bookmark,
   TrendingUp,
   TrendingDown,
+  X,
 } from 'lucide-react';
 import { FriendActivity, getFriendsActivity } from '../services/supabase';
-import { TMDB_IMAGE_URL } from '../constants';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
@@ -42,9 +43,12 @@ const scoreTone = (score: number) => {
 /**
  * Ce que les membres de tes espaces ont vu, du plus récent au plus ancien.
  *
- * Aucune table dédiée : la source est `user_movies`, filtrée par une fonction
- * serveur sur les seules personnes avec qui l'on partage un espace. Un film dont
- * le partage a été décoché n'y figure pas.
+ * Une rangée par journée, balayée horizontalement. L'affiche occupe presque toute
+ * la largeur, en 9:16 comme elle a été conçue : un recadrage en paysage ampute
+ * toujours une composition verticale. Le défilement vertical reste réservé aux
+ * dates, ce qui préserve la vue d'ensemble qu'un fil entièrement horizontal
+ * détruirait, puisqu'il faudrait alors un geste par entrée sans jamais savoir
+ * combien il en reste.
  */
 const FriendsFeed: React.FC<Props> = ({
   myRatingByTmdb,
@@ -73,16 +77,12 @@ const FriendsFeed: React.FC<Props> = ({
   }, []);
 
   /**
-   * Le fil n'a pas d'abonnement temps réel : il n'en a pas besoin, personne ne le
-   * regarde en continu. Mais il doit être frais au moment où on le rouvre, sinon il
-   * montre l'activité d'hier en la faisant passer pour celle de maintenant.
+   * Le fil n'a pas d'abonnement temps réel : personne ne le regarde en continu.
+   * Mais il doit être frais quand on le rouvre, sinon il montre l'activité d'hier
+   * en la faisant passer pour celle de maintenant.
    */
   useResumeRefresh(() => load());
 
-  /**
-   * Regroupé par jour. Une liste plate de cinquante lignes ne se lit pas : les
-   * repères de temps sont ce qui transforme un journal en récit.
-   */
   const byDay = useMemo(() => {
     const groups = new Map<string, FriendActivity[]>();
     for (const item of items) {
@@ -156,7 +156,7 @@ const FriendsFeed: React.FC<Props> = ({
   }
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+    <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">
           {t('feed.title')}
@@ -171,164 +171,197 @@ const FriendsFeed: React.FC<Props> = ({
       </div>
 
       {byDay.map(([day, entries]) => (
-        <section key={day} className="space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-700 ml-1">
-            {formatDay(day)}
-          </p>
+        <section key={day} className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-charcoal dark:text-white">
+              {formatDay(day)}
+            </p>
+            <span className="text-[10px] font-black text-stone-300 dark:text-stone-700 tabular-nums">
+              {entries.length}
+            </span>
+          </div>
 
-          <div className="space-y-2">
+          {/*
+            Débordement volontaire hors des marges de la page : une affiche qui
+            s'arrête net au bord donne l'impression d'une liste tronquée, alors
+            qu'un aperçu de la suivante invite à balayer. Le calage par `snap`
+            garantit qu'on retombe toujours sur une carte entière.
+          */}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 pb-1">
             {entries.map((item) => {
               const mine = item.tmdbId != null ? myRatingByTmdb.get(item.tmdbId) : undefined;
               const gap = mine != null ? item.rating - mine : null;
+              const detailOpen = openDetail === item.movieId;
 
               return (
-                <div
+                <article
                   key={item.movieId}
-                  className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.5rem] overflow-hidden"
+                  className="relative shrink-0 snap-start w-[78%] max-w-[300px] aspect-[9/16] rounded-[1.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616] border border-sand dark:border-white/10"
                 >
-                <div className="flex items-start gap-3 p-3">
-                <button
-                  onClick={() => {
-                    if (item.tmdbId == null) return;
-                    haptics.soft();
-                    onSelectMovie(item.tmdbId);
-                  }}
-                  className="flex-1 flex items-start gap-3 text-left active:scale-[0.99] transition-transform min-w-0"
-                >
-                  {item.posterUrl ? (
-                    <img
-                      src={resizeTmdbImage(item.posterUrl, 'w154')}
-                      alt=""
-                      className="w-12 rounded-lg object-cover aspect-[2/3] shrink-0"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="w-12 aspect-[2/3] bg-stone-100 dark:bg-[#252525] rounded-lg shrink-0 flex items-center justify-center">
-                      <Film size={14} className="text-stone-400" />
-                    </div>
-                  )}
+                  <button
+                    onClick={() => {
+                      if (item.tmdbId == null) return;
+                      haptics.soft();
+                      onSelectMovie(item.tmdbId);
+                    }}
+                    className="absolute inset-0 w-full h-full"
+                    aria-label={item.title}
+                  >
+                    {item.posterUrl ? (
+                      <img
+                        src={resizeTmdbImage(item.posterUrl, 'w500')}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-stone-300 dark:text-stone-700">
+                        <Film size={28} />
+                      </span>
+                    )}
+                  </button>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
+                  {/* Qui poste, en haut. Le prénom passait après le titre du film :
+                      on voyait quoi avant de voir qui, l'inverse de ce qui fait vivre
+                      un fil social. Le dégradé garantit la lisibilité sur une affiche
+                      claire comme sur une sombre. */}
+                  <div className="absolute inset-x-0 top-0 flex items-center gap-2 p-3 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+                    <span className="w-8 h-8 rounded-full overflow-hidden bg-white/20 backdrop-blur flex items-center justify-center shrink-0">
+                      {avatarSrc(item.avatarUrl) ? (
+                        <img
+                          src={avatarSrc(item.avatarUrl) as string}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[11px] font-black text-white">
+                          {item.firstName[0]?.toUpperCase()}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs font-black text-white truncate drop-shadow">
                       {item.firstName}
-                    </p>
-                    <p className="text-sm font-black text-charcoal dark:text-white leading-tight mt-0.5">
-                      {item.title}
-                    </p>
-                    <p className="text-[10px] font-medium text-stone-400 dark:text-stone-600 truncate">
-                      {item.director}
-                      {item.year ? ` · ${item.year}` : ''}
-                    </p>
+                    </span>
+                  </div>
 
-                    {/* Uniquement un avis écrit. Le synopsis, identique pour tout le
-                        monde, n'apprenait rien et allongeait chaque carte pour rien. */}
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setOpenDetail(detailOpen ? null : item.movieId);
+                    }}
+                    disabled={!item.adaptiveRating?.criteria?.length}
+                    aria-expanded={detailOpen}
+                    className={`absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-lg shadow-lg active:scale-90 transition-transform disabled:active:scale-100 ${scoreTone(item.rating)}`}
+                  >
+                    <Star size={10} fill="currentColor" />
+                    <span className="text-[11px] font-black tabular-nums">
+                      {item.rating.toFixed(1)}
+                    </span>
+                  </button>
+
+                  <div className="absolute inset-x-0 bottom-0 p-3 pt-10 bg-gradient-to-t from-black/90 via-black/60 to-transparent space-y-2 pointer-events-none">
+                    <div>
+                      <p className="text-sm font-black text-white leading-tight line-clamp-2">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] font-medium text-white/60 truncate">
+                        {item.director}
+                        {item.year ? ` · ${item.year}` : ''}
+                      </p>
+                    </div>
+
                     {item.review && (
-                      <p className="text-[11px] font-medium text-charcoal dark:text-stone-300 leading-snug mt-1.5 line-clamp-2">
+                      <p className="text-[11px] font-medium text-white/90 leading-snug line-clamp-2">
                         « {item.review} »
                       </p>
                     )}
 
-                    {/* Ta note à côté de la sienne : c'est ce rapprochement qui rend
-                        le fil intéressant, et non la simple annonce d'un visionnage.
-                        En encart teinté plutôt qu'en ligne grise, parce que c'est la
-                        seule information de la carte qui parle de toi. */}
-                    {gap != null && (
-                      <span
-                        className={`inline-flex items-center gap-1.5 mt-2 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                          Math.abs(gap) < 0.5
-                            ? 'bg-stone-100 dark:bg-white/5 text-stone-400 dark:text-stone-500'
-                            : gap < 0
-                              ? 'bg-lime-400/20 text-forest dark:text-lime-400'
-                              : 'bg-[#7f1d1d]/10 text-[#7f1d1d] dark:text-red-400'
-                        }`}
-                      >
-                        {Math.abs(gap) < 0.5 ? (
-                          t('feed.sameAsYou')
-                        ) : (
-                          <>
-                            {gap < 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                            {t('feed.versusYou', { mine: (mine as number).toFixed(1) })}
-                          </>
-                        )}
-                      </span>
-                    )}
-                  </div>
+                    <div className="flex items-center justify-between gap-2 pointer-events-auto">
+                      {gap != null ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest backdrop-blur ${
+                            Math.abs(gap) < 0.5
+                              ? 'bg-white/15 text-white/80'
+                              : gap < 0
+                                ? 'bg-lime-400/25 text-lime-300'
+                                : 'bg-red-500/25 text-red-300'
+                          }`}
+                        >
+                          {Math.abs(gap) < 0.5 ? (
+                            t('feed.sameAsYou')
+                          ) : (
+                            <>
+                              {gap < 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                              {t('feed.versusYou', { mine: (mine as number).toFixed(1) })}
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
 
-                </button>
-
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {/* La note est un bouton : un chiffre seul ne dit pas comment il
-                        a été obtenu, et c'est justement ce qui distingue Bitter+ d'une
-                        étoile posée à la va-vite. Sa couleur, elle, livre le verdict
-                        avant même qu'on lise le chiffre. */}
-                    <button
-                      onClick={() => {
-                        haptics.soft();
-                        setOpenDetail(openDetail === item.movieId ? null : item.movieId);
-                      }}
-                      disabled={!item.adaptiveRating?.criteria?.length}
-                      aria-expanded={openDetail === item.movieId}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg active:scale-90 transition-transform disabled:active:scale-100 ${scoreTone(item.rating)}`}
-                    >
-                      <Star size={10} fill="currentColor" />
-                      <span className="text-[10px] font-black tabular-nums">
-                        {item.rating.toFixed(1)}
-                      </span>
-                    </button>
-
-                    {/* Ancré sous la note : un film aperçu dans le fil se met de côté
-                        d'un geste, sans ouvrir sa fiche ni perdre sa lecture. */}
-                    {item.tmdbId != null && !knownTmdbIds.has(item.tmdbId) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          haptics.medium();
-                          onQuickWatchlist(item.tmdbId as number);
-                        }}
-                        aria-label={t('feed.addToWatchlist')}
-                        className="w-7 h-7 rounded-lg bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-transform hover:text-charcoal dark:hover:text-white"
-                      >
-                        <Bookmark size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {openDetail === item.movieId && item.adaptiveRating?.criteria?.length && (
-                  <div className="px-3 pb-3 space-y-2 animate-[fadeIn_0.2s_ease-out]">
-                    <div className="bg-stone-50 dark:bg-[#161616] rounded-xl p-3 border border-stone-100 dark:border-white/5 space-y-2">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-                        {t('feed.gridOf', {
-                          name: item.firstName,
-                          profile: item.adaptiveRating.profile?.label ?? '',
-                        })}
-                      </p>
-                      {item.adaptiveRating.criteria.map((c) => (
-                        <div key={c.key} className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 w-24 shrink-0 truncate">
-                            {c.label}
-                          </span>
-                          <div className="flex-1 h-1.5 bg-stone-200 dark:bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-forest dark:bg-lime-500"
-                              style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-black text-charcoal dark:text-white tabular-nums w-7 text-right">
-                            {c.value.toFixed(1)}
-                          </span>
-                          {/* Le poids explique pourquoi la moyenne brute et la note
-                              affichée diffèrent : sans lui le détail semblerait faux. */}
-                          <span className="text-[9px] font-bold text-stone-300 dark:text-stone-700 w-8 text-right shrink-0">
-                            ×{c.weight}
-                          </span>
-                        </div>
-                      ))}
+                      {item.tmdbId != null && !knownTmdbIds.has(item.tmdbId) && (
+                        <button
+                          onClick={() => {
+                            haptics.medium();
+                            onQuickWatchlist(item.tmdbId as number);
+                          }}
+                          aria-label={t('feed.addToWatchlist')}
+                          className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur flex items-center justify-center text-white active:scale-90 transition-transform shrink-0"
+                        >
+                          <Bookmark size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
-                </div>
+
+                  {/* Le détail recouvre l'affiche plutôt que de rallonger la carte :
+                      en format fixe, toute hauteur ajoutée déformerait la rangée. */}
+                  {detailOpen && item.adaptiveRating?.criteria?.length && (
+                    <div className="absolute inset-0 bg-charcoal/95 backdrop-blur-sm p-4 flex flex-col animate-[fadeIn_0.2s_ease-out]">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/60 leading-snug">
+                          {t('feed.gridOf', {
+                            name: item.firstName,
+                            profile: item.adaptiveRating.profile?.label ?? '',
+                          })}
+                        </p>
+                        <button
+                          onClick={() => setOpenDetail(null)}
+                          aria-label={t('common.close')}
+                          className="text-white/60 hover:text-white shrink-0"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5">
+                        {item.adaptiveRating.criteria.map((c) => (
+                          <div key={c.key} className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-white/70 w-20 shrink-0 truncate">
+                              {c.label}
+                            </span>
+                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-bitter-lime"
+                                style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-black text-white tabular-nums w-7 text-right">
+                              {c.value.toFixed(1)}
+                            </span>
+                            {/* Le poids explique pourquoi la moyenne brute et la note
+                                affichée diffèrent : sans lui le détail semble faux. */}
+                            <span className="text-[9px] font-bold text-white/40 w-8 text-right shrink-0">
+                              ×{c.weight}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </article>
               );
             })}
           </div>
