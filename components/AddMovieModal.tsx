@@ -512,8 +512,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    * de notes que personne n'a posées reviendrait à commenter un film à sa place.
    */
   const reviewCriteria = useMemo(() => {
-    if (mode === 'watchlist' || Object.keys(criteriaValues).length === 0) return [];
+    if (mode === 'watchlist') return [];
     const source = useBitterPlus ? adaptiveCriteria : bitterCriteria;
+
+    // Un critère jamais touché vaut 5 par défaut — une note que personne n'a
+    // posée. Tant qu'il en reste un, la grille décrit un film que son spectateur
+    // n'a pas fini de juger, et en tirer des amorces reviendrait à commenter à
+    // sa place. On attend donc que tous aient été réglés.
+    if (source.length === 0 || !source.every((c) => criteriaValues[c.key] != null)) return [];
+
     return source.map((c) => ({ label: c.label, value: c.value }));
   }, [mode, criteriaValues, useBitterPlus, adaptiveCriteria, bitterCriteria]);
 
