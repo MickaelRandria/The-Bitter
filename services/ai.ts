@@ -1,6 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
 import { UserProfile } from '../types';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
+import { supabase } from './supabase';
 
 export interface AISearchResult {
   text: string;
@@ -15,6 +15,39 @@ const cleanAIResponse = (text: string): string => {
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // ** → <b>
     .replace(/\*([^*]+)\*/g, '$1') // * → supprime
     .trim();
+};
+
+/**
+ * Appelle le relais qui détient la clé Mistral.
+ *
+ * L'application ne parle jamais à Mistral directement : la clé serait alors dans
+ * le fichier JavaScript téléchargé par le navigateur, donc lisible par tout le
+ * monde, et facturée à celui qui la possède. Elle vit dans les secrets de la
+ * Edge Function, qui exige en retour une vraie session — d'où le message clair
+ * quand personne n'est connecté, plutôt qu'un échec muet.
+ */
+const askAI = async (payload: Record<string, unknown>): Promise<string> => {
+  if (!supabase) throw new Error("L'assistant n'est pas disponible hors connexion.");
+
+  const { data, error } = await supabase.functions.invoke('ai', { body: payload });
+
+  if (error) {
+    // `invoke` ne remonte pas le corps des réponses d'erreur, seulement le
+    // statut. Le lire nous-mêmes est ce qui permet de distinguer « connecte-toi »
+    // de « quota atteint » de « le service est tombé », trois situations qui
+    // n'appellent pas du tout la même réaction.
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === 'function') {
+      const detail = await response.json().catch(() => null);
+      if (detail?.message) throw new Error(detail.message);
+    }
+    if (import.meta.env.DEV) console.error('[IA] Appel du relais échoué :', error);
+    throw new Error("L'assistant est momentanément injoignable.");
+  }
+
+  const text = (data as { text?: string } | null)?.text;
+  if (!text) throw new Error("L'assistant n'a rien répondu.");
+  return text;
 };
 
 /**
@@ -63,33 +96,54 @@ const getSimilarMovies = async (tmdbId: number, limit: number = 5): Promise<any[
 };
 
 /**
- * Recherche approfondie d'informations sur un film via Gemini + Google Search.
+ * 📚 Fiches TMDB correspondant à une recherche, pour ancrer la réponse.
+ *
+ * La recherche approfondie s'appuyait sur Google Search pour ne pas répondre de
+ * mémoire. TMDB joue le même rôle en mieux sur ce sujet précis : c'est la base de
+ * référence du cinéma, elle est à jour, et l'application l'interroge déjà. Le
+ * modèle reçoit donc des titres, des années et des résumés vérifiables plutôt
+ * que ses propres souvenirs.
+ */
+const getSearchFacts = async (query: string, limit: number = 5): Promise<string> => {
+  try {
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&language=fr-FR&query=${encodeURIComponent(query)}&page=1`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const entries = (data.results || [])
+      .filter((r: any) => r.media_type === 'movie' || r.media_type === 'tv')
+      .slice(0, limit)
+      .map((r: any) => {
+        const title = r.title || r.name;
+        const year = (r.release_date || r.first_air_date || '').split('-')[0] || 'année inconnue';
+        const note = r.vote_average ? `${r.vote_average.toFixed(1)}/10` : 'non noté';
+        const overview = (r.overview || '').slice(0, 300);
+        return `- ${title} (${year}) — ${note}${overview ? `\n  ${overview}` : ''}`;
+      });
+
+    if (entries.length === 0) return '';
+    return `FICHES TMDB CORRESPONDANT À LA RECHERCHE :\n${entries.join('\n')}`;
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching search facts:', error);
+    return '';
+  }
+};
+
+/**
+ * Recherche approfondie d'informations sur un film.
+ *
+ * `sources` reste dans le type pour ne rien casser chez les appelants, mais
+ * n'est plus alimenté : l'ancien moteur citait ses pages web, celui-ci s'appuie
+ * sur TMDB, qui n'est pas une liste de liens à afficher.
  */
 export const deepMovieSearch = async (query: string): Promise<AISearchResult> => {
   try {
-    // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: [{ role: 'user', parts: [{ text: query }] }],
-      config: {
-        tools: [{ googleSearch: {} }],
-        systemInstruction:
-          'Tu es un expert cinéma. Réponds naturellement. Utilise **titre** pour mettre en gras les films importants.',
-      },
-    });
-
-    const text = cleanAIResponse(response.text || 'Aucune information trouvée.');
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = chunks
-      .filter((c: any) => c.web)
-      .map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
-
-    return { text, sources };
+    const context = await getSearchFacts(query);
+    const text = await askAI({ action: 'search', query, context });
+    return { text: cleanAIResponse(text), sources: [] };
   } catch (error: any) {
-    if (import.meta.env.DEV) console.error('DeepSearch Error:', error.message);
-    return { text: 'Recherche temporairement indisponible.', sources: [] };
+    if (import.meta.env.DEV) console.error('DeepSearch Error:', error?.message);
+    return { text: error?.message || 'Recherche temporairement indisponible.', sources: [] };
   }
 };
 
@@ -102,9 +156,6 @@ export const callCineAssistant = async (
   conversationHistory: { role: 'user' | 'assistant'; content: string }[]
 ): Promise<string> => {
   try {
-    // Fixed: Always use process.env.API_KEY directly for initialization as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
     // Contexte utilisateur enrichi
     const watchedMovies = userProfile.movies.filter((m) => m.status === 'watched').slice(0, 15);
     const favoriteGenres = userProfile.favoriteGenres || [];
@@ -144,7 +195,6 @@ export const callCineAssistant = async (
       questionLower.includes('streaming') ||
       questionLower.includes('regarder')
     ) {
-      console.log('🎬 Fetching Netflix catalog...');
       const netflixMovies = await getNetflixMovies(favoriteGenres[0], 8);
 
       if (netflixMovies.length > 0) {
@@ -159,7 +209,6 @@ export const callCineAssistant = async (
     if (questionLower.includes('comme') || questionLower.includes('similaire')) {
       const lastMovie = watchedMovies[0];
       if (lastMovie && lastMovie.tmdbId) {
-        console.log(`🎯 Finding movies similar to ${lastMovie.title}...`);
         const similarMovies = await getSimilarMovies(lastMovie.tmdbId, 5);
 
         if (similarMovies.length > 0) {
@@ -206,60 +255,24 @@ ${
 ${enrichedContext}
 `;
 
-    const systemInstruction = `Tu es le Ciné-Assistant de "The Bitter", expert cinéma passionné et légèrement piquant.
-
-STYLE DE RÉPONSE :
-- Parle NATURELLEMENT comme un vrai conseiller ciné
-- Tutoie l'utilisateur
-- Utilise **Titre du Film** pour mettre en gras les films importants
-- Utilise des émojis si ça fait sens (🎬 🔥 etc.)
-- Reste conversationnel et fluide
-
-TES OUTILS :
-- Base tes recommandations sur le PROFIL et l'HISTORIQUE de ${userProfile.firstName}
-- Utilise Google Search pour vérifier la dispo streaming EN FRANCE
-- Si tu recommandes, EXPLIQUE pourquoi ça match son profil
-- Cite des films PRÉCIS du catalogue Netflix/Prime si demandé
-
-RÈGLES :
-- Maximum 150 mots par réponse
-- Sois précis : cite des titres réels, pas des généralités
-- Si tu ne sais pas, dis-le honnêtement
-
-${userContext}`;
-
-    // Formatage des messages
-    const formattedContents = [
-      ...conversationHistory.map((h) => ({
-        role: h.role === 'user' ? 'user' : 'model',
-        parts: [{ text: h.content }],
-      })),
-      { role: 'user', parts: [{ text: userQuestion }] },
-    ];
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
-      contents: formattedContents as any,
-      config: {
-        systemInstruction,
-        tools: [{ googleSearch: {} }],
-        temperature: 0.9,
-        topP: 0.95,
-        topK: 40,
-      },
+    const text = await askAI({
+      action: 'assistant',
+      firstName: userProfile.firstName,
+      context: userContext,
+      history: conversationHistory,
+      question: userQuestion,
     });
 
-    if (!response.text) throw new Error("Réponse vide de l'IA");
-
-    return cleanAIResponse(response.text);
+    return cleanAIResponse(text);
   } catch (error: any) {
-    if (import.meta.env.DEV) console.error('CRITICAL CineAssistant Error:', error.message);
-    if (import.meta.env.DEV) console.error('Error stack:', error.stack);
+    if (import.meta.env.DEV) console.error('CRITICAL CineAssistant Error:', error?.message);
 
-    if (error.message.includes('API key')) {
-      return "🔑 **Erreur de configuration**\n\nLa clé API Google AI n'est pas accessible. Vérifie que process.env.API_KEY est bien configurée.";
-    }
-
-    return `Ma pellicule a brûlé... 🎬\n\n**Erreur technique:** ${error.message}\n\nRéessaye dans quelques secondes ou contacte le support si le problème persiste.`;
+    // Le relais renvoie déjà une phrase compréhensible pour chaque cas qu'il sait
+    // nommer (pas connecté, quota atteint, service tombé). La répéter telle
+    // quelle vaut mieux que de la remplacer par un message générique qui
+    // masquerait ce qu'il faut faire.
+    return error?.message
+      ? `🎬 ${error.message}`
+      : 'Ma pellicule a brûlé... 🎬\n\nRéessaye dans quelques secondes.';
   }
 };
