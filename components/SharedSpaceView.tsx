@@ -44,6 +44,7 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Movie } from '../types';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
+import { avatarSrc } from '../utils/avatar';
 import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
@@ -835,9 +836,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 className="flex items-center gap-4 bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-4 rounded-[1.8rem] cursor-pointer hover:border-forest dark:hover:border-forest/50 hover:shadow-sm transition-all"
               >
                 <div className="w-12 h-12 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white font-black text-sm shrink-0 border-2 border-white dark:border-white/10 shadow-sm overflow-hidden">
-                  {member.profile?.avatar_url ? (
+                  {avatarSrc(member.profile?.avatar_url) ? (
                     <img
-                      src={member.profile.avatar_url}
+                      src={avatarSrc(member.profile?.avatar_url) as string}
                       alt=""
                       className="w-full h-full object-cover"
                     />

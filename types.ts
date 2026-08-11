@@ -175,6 +175,8 @@ export interface UserProfile {
   isOnboarded?: boolean;
   role?: string;
   joinedSpaceIds?: string[];
+  /** Descripteur `dicebear:style:graine`, ou URL d'image. Voir utils/avatar.ts. */
+  avatarUrl?: string;
   cinemaSubscription?: CinemaSubscription;
 }
 

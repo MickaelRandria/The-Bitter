@@ -2824,6 +2824,18 @@ const App: React.FC = () => {
               setShowProfile(false);
               setShowAccountSync(true);
             }}
+            onAvatarChange={async (descriptor) => {
+              // Local d'abord : l'avatar doit changer à l'écran même sans compte,
+              // et même si l'écriture distante échoue.
+              updateActiveProfile((p) => ({ ...p, avatarUrl: descriptor ?? undefined }));
+
+              const userId = session?.user?.id;
+              if (!userId || !supabase) return;
+              await supabase
+                .from('profiles')
+                .update({ avatar_url: descriptor, updated_at: new Date().toISOString() })
+                .eq('id', userId);
+            }}
             cinemaSubscription={activeProfile.cinemaSubscription}
             onManageCinemaSubscription={() => {
               setShowProfile(false);
