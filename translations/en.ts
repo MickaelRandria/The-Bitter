@@ -299,6 +299,7 @@ export const en: Record<string, string> = {
   'addMovie.reviewPlaceholder': 'Your personal verdict...',
   'review.purpose': "This is what your friends will read under your score.",
   'review.startersHint': 'To get started',
+  'review.askStarters': 'Suggest an opening line',
   'review.continue': 'Continue the sentence',
   'review.continuing': 'One moment…',
   'review.continueFailed': "The next line didn't come. Try again.",
