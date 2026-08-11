@@ -294,6 +294,8 @@ export const en: Record<string, string> = {
   'addMovie.cerebral': 'Cerebral',
   'addMovie.globalRating': 'Overall Rating',
   'addMovie.myReview': 'My Review',
+  'movieCard.noReviewYet': "You rated it, but you never said why.",
+  'movieCard.writeReview': 'Write my review',
   'addMovie.reviewPlaceholder': 'Your personal verdict...',
   'review.purpose': "This is what your friends will read under your score.",
   'review.startersHint': 'To get started',

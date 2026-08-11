@@ -488,17 +488,44 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                   </div>
                 </>
               ) : (
-                movie.review && (
-                  <div
-                    className={`mb-8 pl-5 border-l-2 transition-colors duration-200 ${hasPoster ? 'border-white/20' : 'border-stone-200 dark:border-stone-800'}`}
-                  >
-                    <p
-                      className={`text-sm font-medium leading-relaxed italic ${hasPoster ? 'text-white/80' : 'text-stone-600 dark:text-stone-400'}`}
+                <>
+                  {movie.review && (
+                    <div
+                      className={`mb-4 pl-5 border-l-2 transition-colors duration-200 ${hasPoster ? 'border-white/20' : 'border-stone-200 dark:border-stone-800'}`}
                     >
-                      "{movie.review}"
-                    </p>
-                  </div>
-                )
+                      <p
+                        className={`text-sm font-medium leading-relaxed italic ${hasPoster ? 'text-white/80' : 'text-stone-600 dark:text-stone-400'}`}
+                      >
+                        "{movie.review}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Là où l'avis manque, il y avait un vide. Le nommer suffit à
+                      rappeler qu'une note sans un mot ne dit rien à personne —
+                      et la porte s'ouvre sur l'écran qui sait aider à écrire. */}
+                  {!isWatchlist && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        haptics.soft();
+                        onEdit(movie);
+                      }}
+                      className={`w-full mb-8 px-5 py-4 rounded-2xl border border-dashed text-left active:scale-[0.99] transition-transform ${hasPoster ? 'border-white/20 hover:border-white/30' : 'border-stone-300 dark:border-white/15 hover:border-stone-400'}`}
+                    >
+                      <span
+                        className={`block text-sm font-semibold ${hasPoster ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}`}
+                      >
+                        {t('movieCard.noReviewYet')}
+                      </span>
+                      <span
+                        className={`block mt-0.5 text-[11px] font-black uppercase tracking-widest ${hasPoster ? 'text-white' : 'text-charcoal dark:text-bitter-lime'}`}
+                      >
+                        {t('movieCard.writeReview')}
+                      </span>
+                    </button>
+                  )}
+                </>
               )}
 
               {/* Actions */}

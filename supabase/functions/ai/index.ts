@@ -105,32 +105,58 @@ ${context}`;
 /**
  * Amorces d'avis.
  *
- * L'enjeu tient dans une distinction : une amorce dit DE QUOI on va parler,
- * jamais CE QU'on en pense. « Visuellement, c'est » ouvre ; « Visuellement,
- * c'est superbe » a déjà décidé à la place de l'auteur. C'est toute la
- * différence entre aider quelqu'un à écrire et écrire à sa place, et c'est
- * pourquoi la règle est répétée avec ses contre-exemples : sans eux, le modèle
- * glisse invariablement vers le compliment.
+ * La difficulté est de tenir deux exigences qui semblent s'opposer. Une amorce
+ * doit donner envie d'écrire — donc porter de l'élan — sans décider à la place
+ * de son auteur.
+ *
+ * Une première version interdisait tout jugement. Le modèle a obéi en rendant
+ * des cases grammaticales vides : « L'histoire m'a », « Visuellement, c'est ».
+ * Neutres, et parfaitement inertes : rien là-dedans ne donne envie de finir la
+ * phrase.
+ *
+ * Ce qui débloque le problème, c'est que la note contient déjà un verdict, et
+ * que ce verdict est celui de l'auteur. Un 9 sur l'image dit qu'il a été bluffé ;
+ * le lui rappeler ne lui met rien dans la bouche. Ce qui doit lui rester, c'est
+ * la RAISON. D'où la règle : l'amorce porte l'intensité que la note a posée,
+ * jamais son motif.
+ *
+ * Et l'élan tient à un détail de forme : une amorce qui s'arrête sur « quand »
+ * ou « au moment où » tire beaucoup plus fort qu'une qui s'arrête sur un verbe.
+ * Le mot suspendu réclame une suite précise, et c'est cette précision qui fait
+ * qu'on se met à écrire.
  */
 const startersPersona = (context: string) => `Tu aides quelqu'un à commencer l'avis qu'il va écrire sur un film qu'il vient de noter.
 
-Tu produis TROIS amorces de phrase en français, de 3 à 6 mots chacune.
-Une amorce s'arrête au milieu d'une idée : elle ouvre une porte, elle ne dit rien.
+Tu produis TROIS amorces de phrase en français, de 4 à 7 mots chacune.
 
-INTERDIT ABSOLU — tu n'exprimes AUCUN jugement :
-- « Visuellement, c'est » → correct, la suite lui appartient
-- « Visuellement, c'est superbe » → interdit, tu as jugé à sa place
-- « Ce qui m'a gêné, c'est » → correct
-- « Le scénario est décevant » → interdit
+RÈGLE 1 — Tu portes son ÉLAN, jamais sa RAISON.
+Ses notes disent déjà s'il a aimé ou non : ce verdict est le sien, tu peux t'y
+appuyer. Ce que tu ne peux JAMAIS faire, c'est dire POURQUOI.
+- « J'ai décroché au moment où » → correct, le moment lui appartient
+- « J'ai décroché à cause du rythme » → interdit, tu as trouvé la raison à sa place
+- « Ce qui m'a scotché, c'est » → correct
+- « Ce qui m'a scotché, c'est la photo » → interdit
 
-Ses notes te disent SUR QUOI il a quelque chose à dire, jamais ce qu'il en pense.
-S'il a mis une note basse à un critère, ouvre une porte vers ce critère sans
-présumer du reproche. S'il a mis une note haute, pareil.
+RÈGLE 2 — Chaque amorce commence par une ACTION ou une SENSATION, à la première
+personne et au passé. Jamais une case vide comme « L'histoire m'a » ou
+« Visuellement, c'est » : ça n'engage à rien, donc personne ne le complète.
 
-Les trois amorces ouvrent trois directions différentes : ce qui l'a marqué, ce
-qui l'a gêné, ce qui l'a surpris ou ce qu'il ne s'attendait pas à ressentir.
+RÈGLE 3 — Chaque amorce se termine sur un mot qui RÉCLAME une suite précise :
+« quand », « au moment où », « c'est », « parce que », « sauf », « jusqu'à ».
+Un mot suspendu tire plus fort qu'un verbe suspendu.
 
-Écris à la première personne. Pas de guillemets, pas de numéro, pas de point final.
+ACCORDE LE TON À SES NOTES :
+- Critère noté 8 à 10 → verbe d'enthousiasme
+  « J'en ai pris plein les yeux quand » · « Je n'ai pas lâché à partir de »
+- Critère noté 0 à 4 → verbe de déception
+  « J'ai décroché au moment où » · « Je n'ai jamais cru à »
+- Critère noté 5 à 7 → verbe d'hésitation
+  « J'ai hésité jusqu'à » · « Ça tenait, sauf quand »
+
+Les trois amorces visent trois critères différents, en commençant par celui dont
+la note s'écarte le plus de la moyenne : c'est là qu'il a le plus à dire.
+
+Pas de guillemets, pas de numéro, pas de point final.
 
 Réponds UNIQUEMENT par un objet JSON de la forme :
 {"starters": ["amorce une", "amorce deux", "amorce trois"]}
