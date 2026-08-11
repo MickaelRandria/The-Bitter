@@ -901,8 +901,19 @@ export function subscribeToSpace(
 ) {
   if (!supabase) return () => {};
 
-  const moviesChannel = supabase
-    .channel(`space-movies-${spaceId}`)
+  /**
+   * Un seul canal pour les trois tables, et non trois canaux.
+   *
+   * Chaque canal est une souscription distincte sur la même connexion : trois par
+   * espace, c'est trois occasions d'échouer à la reconnexion au lieu d'une, et
+   * trois états à surveiller alors qu'ils servent tous le même écran. Un canal
+   * accepte autant d'écoutes qu'on veut avant `subscribe`, le coût est identique.
+   *
+   * C'est aussi le socle d'un futur chat : la conversation viendra s'ajouter ici
+   * en Broadcast, sur la connexion déjà ouverte, plutôt que d'en réclamer une.
+   */
+  const channel = supabase
+    .channel(`space-${spaceId}`)
     .on(
       'postgres_changes',
       {
@@ -913,38 +924,24 @@ export function subscribeToSpace(
       },
       onMovieChange
     )
-    .subscribe();
-
-  const ratingsChannel = supabase
-    .channel(`space-ratings-${spaceId}`)
+    // `movie_ratings` et `space_movie_votes` ne portent pas de `space_id` : le
+    // filtre serveur est impossible, l'appelant regroupe donc les rafales.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'movie_ratings' }, onRatingChange)
     .on(
       'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'movie_ratings',
-      },
+      { event: '*', schema: 'public', table: 'space_movie_votes' },
       onRatingChange
     )
-    .subscribe();
-
-  const votesChannel = supabase
-    .channel(`space-votes-${spaceId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'space_movie_votes',
-      },
-      onRatingChange // Re-use rating callback for general refresh
-    )
-    .subscribe();
+    .subscribe((status) => {
+      // Un canal peut mourir sans que personne ne le sache : l'écran reste alors
+      // branché sur une connexion éteinte tout en paraissant à jour.
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn(`[Espaces] Canal temps réel ${status} pour ${spaceId}`);
+      }
+    });
 
   return () => {
-    supabase?.removeChannel(moviesChannel);
-    supabase?.removeChannel(ratingsChannel);
-    supabase?.removeChannel(votesChannel);
+    supabase?.removeChannel(channel);
   };
 }
 
