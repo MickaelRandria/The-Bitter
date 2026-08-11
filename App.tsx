@@ -41,6 +41,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } fro
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import { getMovieDetailsForAdd, getSharedMovieDetails } from './services/tmdb';
+import { avatarSrc } from './utils/avatar';
 import {
   migrateLocalStorageToSupabase,
   resyncAllMoviesToSupabase,
@@ -1980,9 +1981,23 @@ const App: React.FC = () => {
                   setShowProfile(true);
                 }}
                 aria-label={t('nav.profile')}
-                className="w-10 h-10 rounded-full bg-forest text-white flex items-center justify-center font-black text-sm shadow-md active:scale-90 transition-all shadow-forest/20"
+                /* Un avatar apporte son propre fond : le cercle vert le rognerait
+                   et jurerait avec lui. Il ne sert qu'au repli sur l'initiale. */
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-md active:scale-90 transition-all overflow-hidden ${
+                  avatarSrc(activeProfile?.avatarUrl)
+                    ? 'bg-stone-100 dark:bg-[#252525]'
+                    : 'bg-forest text-white shadow-forest/20'
+                }`}
               >
-                {activeProfile?.firstName?.[0]?.toUpperCase() ?? '?'}
+                {avatarSrc(activeProfile?.avatarUrl) ? (
+                  <img
+                    src={avatarSrc(activeProfile?.avatarUrl) as string}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  (activeProfile?.firstName?.[0]?.toUpperCase() ?? '?')
+                )}
               </button>
             </div>
           </div>
