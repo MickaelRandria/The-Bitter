@@ -168,19 +168,25 @@ const RatingDetailSheet: React.FC<Props> = ({ item, mine, onClose, onQuickWatchl
                     </div>
                   </div>
 
-                  <div className="relative h-2.5 bg-stone-200/70 dark:bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-forest to-forest/80 dark:from-lime-500 dark:to-lime-400 rounded-full transition-[width] duration-500"
-                      style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
-                    />
+                  <div className="relative">
+                    <div className="h-2.5 bg-stone-200/70 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-forest to-forest/80 dark:from-lime-500 dark:to-lime-400 rounded-full transition-[width] duration-500"
+                        style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
+                      />
+                    </div>
 
                     {/* Ta note posée sur la même piste, en repère vertical : deux
                         barres l'une sous l'autre obligeraient à comparer deux
-                        longueurs séparées, alors qu'un trait se lit d'un coup. */}
+                        longueurs séparées, alors qu'un trait se lit d'un coup.
+                        Le repère déborde de la piste et porte un liseré de la
+                        couleur du fond : sans lui, il disparaîtrait dès qu'il
+                        passe sur la partie remplie, c'est-à-dire précisément
+                        quand nos deux notes se rejoignent. */}
                     {ourValue != null && (
                       <span
-                        className="absolute inset-y-0 w-0.5 bg-charcoal dark:bg-white rounded-full"
-                        style={{ left: `${Math.max(0, Math.min(99, ourValue * 10))}%` }}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1 h-4 rounded-full bg-charcoal dark:bg-white ring-2 ring-cream dark:ring-[#0c0c0c]"
+                        style={{ left: `${Math.max(0, Math.min(100, ourValue * 10))}%` }}
                         title={`${t('member.you')} ${ourValue.toFixed(1)}`}
                       />
                     )}
@@ -191,7 +197,7 @@ const RatingDetailSheet: React.FC<Props> = ({ item, mine, onClose, onQuickWatchl
 
             {ourByKey.size > 0 && (
               <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-                <span className="w-0.5 h-3 bg-charcoal dark:bg-white rounded-full" />
+                <span className="w-1 h-3.5 rounded-full bg-charcoal dark:bg-white shrink-0" />
                 {t('member.yourMark')}
               </p>
             )}
