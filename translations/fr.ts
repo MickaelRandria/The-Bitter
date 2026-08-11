@@ -295,6 +295,8 @@ export const fr: Record<string, string> = {
   'addMovie.cerebral': 'Cérébral',
   'addMovie.globalRating': 'Note Globale',
   'addMovie.myReview': 'Mon Avis',
+  'movieCard.noReviewYet': "Tu as noté, mais tu n'as pas dit pourquoi.",
+  'movieCard.writeReview': 'Écrire mon avis',
   'addMovie.reviewPlaceholder': 'Ton verdict personnel...',
   'review.purpose': "C'est ce que tes proches liront sous ta note.",
   'review.startersHint': 'Pour commencer',
