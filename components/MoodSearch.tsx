@@ -51,9 +51,14 @@ const MoodSearch: React.FC<Props> = ({ favoriteGenres, onResults, onClear, activ
       const items = (data.results || []).filter((m: any) => m.poster_path);
 
       if (items.length === 0) {
-        // Des critères trop serrés ne rendent rien. Le dire vaut mieux qu'une
-        // grille vide, qui ferait croire à une panne.
-        setError(t('mood.nothingFound'));
+        // Des critères trop serrés ne rendent rien. On montre lesquels ont été
+        // appliqués : sans ça, « rien trouvé » ne dit pas s'il faut reformuler
+        // sa phrase ou si quelque chose s'est mal passé en chemin.
+        setError(
+          filters.summary
+            ? `${t('mood.nothingFound')} (${filters.summary})`
+            : t('mood.nothingFound')
+        );
         return;
       }
 
