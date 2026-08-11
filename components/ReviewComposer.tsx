@@ -54,25 +54,48 @@ const ReviewComposer: React.FC<Props> = ({
   // curseur de notation en relancerait une.
   const askedFor = useRef<string | null>(null);
 
+  /**
+   * La note est lue au départ de la requête, jamais surveillée.
+   *
+   * `criteria` est un tableau reconstruit à chaque rendu par l'écran de
+   * notation. Le mettre en dépendance de l'effet le rendait suicidaire :
+   * `setLoadingStarters(true)` provoquait un rendu, le rendu changeait
+   * l'identité du tableau, l'effet se nettoyait, et la requête en vol était
+   * annulée par le rendu qu'elle venait elle-même de déclencher. Le drapeau de
+   * chargement ne redescendait jamais — d'où les amorces qui tournaient sans
+   * fin alors que le serveur avait répondu en une seconde.
+   */
+  const latest = useRef({ criteria, rating, year, value });
+  latest.current = { criteria, rating, year, value };
+
+  /** Identifie la requête en cours, pour qu'une ancienne n'éteigne pas la neuve. */
+  const requestId = useRef(0);
+
   useEffect(() => {
-    if (!ready || !title.trim() || criteria.length === 0) return;
+    if (!ready || !title.trim()) return;
     if (askedFor.current === title) return;
+
+    const snapshot = latest.current;
+    if (snapshot.criteria.length === 0) return;
+
+    // Rien à amorcer quand l'avis existe déjà : on rouvre une fiche pour la
+    // corriger, pas pour la recommencer. Cela évite aussi un appel payé pour
+    // des propositions que l'écran n'affichera pas.
+    if (snapshot.value.trim()) return;
+
     askedFor.current = title;
 
-    let cancelled = false;
+    const id = ++requestId.current;
     setLoadingStarters(true);
-    getReviewStarters(title, criteria, rating, year)
+
+    getReviewStarters(title, snapshot.criteria, snapshot.rating, snapshot.year)
       .then((result) => {
-        if (!cancelled) setStarters(result);
+        if (requestId.current === id) setStarters(result);
       })
       .finally(() => {
-        if (!cancelled) setLoadingStarters(false);
+        if (requestId.current === id) setLoadingStarters(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ready, title, criteria, rating, year]);
+  }, [ready, title]);
 
   /** Le curseur va à la fin : on vient d'ouvrir une phrase, pas de la relire. */
   const focusEnd = () => {
