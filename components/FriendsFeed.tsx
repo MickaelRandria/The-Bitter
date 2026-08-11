@@ -17,10 +17,14 @@ import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
+import { Movie } from '../types';
+import RatingDetailSheet from './RatingDetailSheet';
 
 interface Props {
   /** Mes films vus, pour situer mon verdict à côté du sien. */
   myRatingByTmdb: Map<number, number>;
+  /** Mes films complets, pour comparer critère par critère dans le détail. */
+  myMovieByTmdb: Map<number, Movie>;
   /** Ce que j'ai déjà, vu ou en envie : le raccourci n'a pas à le reproposer. */
   knownTmdbIds: Set<number>;
   onSelectMovie: (tmdbId: number) => void;
@@ -52,6 +56,7 @@ const scoreTone = (score: number) => {
  */
 const FriendsFeed: React.FC<Props> = ({
   myRatingByTmdb,
+  myMovieByTmdb,
   knownTmdbIds,
   onSelectMovie,
   onQuickWatchlist,
@@ -316,57 +321,29 @@ const FriendsFeed: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Le détail recouvre l'affiche plutôt que de rallonger la carte :
-                      en format fixe, toute hauteur ajoutée déformerait la rangée. */}
-                  {detailOpen && item.adaptiveRating?.criteria?.length && (
-                    <div className="absolute inset-0 bg-charcoal/95 backdrop-blur-sm p-4 flex flex-col animate-[fadeIn_0.2s_ease-out]">
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-white/60 leading-snug">
-                          {t('feed.gridOf', {
-                            name: item.firstName,
-                            profile: item.adaptiveRating.profile?.label ?? '',
-                          })}
-                        </p>
-                        <button
-                          onClick={() => setOpenDetail(null)}
-                          aria-label={t('common.close')}
-                          className="text-white/60 hover:text-white shrink-0"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-
-                      <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5">
-                        {item.adaptiveRating.criteria.map((c) => (
-                          <div key={c.key} className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-white/70 w-20 shrink-0 truncate">
-                              {c.label}
-                            </span>
-                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-bitter-lime"
-                                style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-black text-white tabular-nums w-7 text-right">
-                              {c.value.toFixed(1)}
-                            </span>
-                            {/* Le poids explique pourquoi la moyenne brute et la note
-                                affichée diffèrent : sans lui le détail semble faux. */}
-                            <span className="text-[9px] font-bold text-white/40 w-8 text-right shrink-0">
-                              ×{c.weight}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </article>
               );
             })}
           </div>
         </section>
       ))}
+
+      {/* Le détail vit dans une feuille et non dans la carte : le format fixe de la
+          rangée n'offrait aucune place, et un retournement aurait donné un dos
+          exactement aussi étroit que la face. */}
+      {openDetail &&
+        (() => {
+          const item = items.find((i) => i.movieId === openDetail);
+          if (!item) return null;
+          return (
+            <RatingDetailSheet
+              item={item}
+              mine={item.tmdbId != null ? myMovieByTmdb.get(item.tmdbId) : undefined}
+              onClose={() => setOpenDetail(null)}
+              onQuickWatchlist={onQuickWatchlist}
+            />
+          );
+        })()}
     </div>
   );
 };
