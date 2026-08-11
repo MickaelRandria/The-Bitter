@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Star, Bookmark } from 'lucide-react';
+import { X, Bookmark } from 'lucide-react';
 import { FriendActivity } from '../services/supabase';
 import { Movie } from '../types';
 import { TMDB_IMAGE_URL } from '../constants';
@@ -56,40 +56,17 @@ const RatingDetailSheet: React.FC<Props> = ({ item, mine, onClose, onQuickWatchl
   }, [mine]);
 
   /**
-   * Axes communs uniquement. Deux profils de notation différents n'ont pas les mêmes
-   * critères, et superposer des formes qui ne mesurent pas la même chose produirait
-   * un dessin faux mais convaincant, ce qui est pire qu'aucun dessin.
+   * Mes notes, indexées par critère. Seuls les critères que nous avons tous les deux
+   * peuvent être comparés : deux profils de notation différents ne mesurent pas les
+   * mêmes choses, et rapprocher deux valeurs qui ne parlent pas du même sujet
+   * donnerait un écart faux mais crédible, ce qui est pire que pas d'écart du tout.
    */
-  const axes = useMemo(() => {
-    if (theirs.length === 0) return [];
-    if (ours.length === 0) return theirs.map((c) => ({ label: c.label, a: c.value, b: null as number | null }));
-
-    const byKey = new Map(ours.map((c) => [c.key, c.value]));
-    return theirs
-      .filter((c) => byKey.has(c.key))
-      .map((c) => ({ label: c.label, a: c.value, b: byKey.get(c.key) as number }));
-  }, [theirs, ours]);
+  const ourByKey = useMemo(() => new Map(ours.map((c) => [c.key, c.value])), [ours]);
 
   const myRating = mine
     ? (mine.adaptiveRating?.weightedRating ??
       (mine.ratings.story + mine.ratings.visuals + mine.ratings.acting + mine.ratings.sound) / 4)
     : null;
-
-  /** Coordonnées d'un point sur l'axe `i`, pour une valeur de 0 à 10. */
-  const point = (i: number, value: number, radius = 40) => {
-    const angle = (-90 + (360 / axes.length) * i) * (Math.PI / 180);
-    const r = (Math.max(0, Math.min(10, value)) / 10) * radius;
-    return `${50 + r * Math.cos(angle)},${50 + r * Math.sin(angle)}`;
-  };
-
-  const shape = (pick: (axis: { a: number; b: number | null }) => number | null) =>
-    axes
-      .map((axis, i) => {
-        const v = pick(axis);
-        return v == null ? null : point(i, v);
-      })
-      .filter(Boolean)
-      .join(' ');
 
   return (
     <div
@@ -158,73 +135,66 @@ const RatingDetailSheet: React.FC<Props> = ({ item, mine, onClose, onQuickWatchl
             )}
           </div>
 
-          {axes.length >= 3 && (
-            <div className="space-y-3">
-              {/* Un radar plutôt que des barres : sur un même film, ce qui intéresse
-                  n'est pas le niveau de chaque critère mais la FORME du jugement, et
-                  deux formes superposées se comparent d'un seul regard. */}
-              <svg viewBox="0 0 100 100" className="w-full max-w-[240px] mx-auto" role="img">
-                {[0.25, 0.5, 0.75, 1].map((ratio) => (
-                  <polygon
-                    key={ratio}
-                    points={axes.map((_, i) => point(i, 10 * ratio)).join(' ')}
-                    className="fill-none stroke-stone-200 dark:stroke-white/10"
-                    strokeWidth="0.4"
-                  />
-                ))}
-
-                {myRating != null && (
-                  <polygon
-                    points={shape((a) => a.b)}
-                    className="fill-stone-400/20 stroke-stone-400 dark:stroke-stone-500"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-
-                <polygon
-                  points={shape((a) => a.a)}
-                  className="fill-forest/20 dark:fill-lime-400/20 stroke-forest dark:stroke-lime-400"
-                  strokeWidth="1.4"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-                {axes.map((axis) => (
-                  <span
-                    key={axis.label}
-                    className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600"
-                  >
-                    {axis.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+          {item.synopsis && (
+            <p className="text-[12px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
+              {item.synopsis}
+            </p>
           )}
 
-          <div className="space-y-2">
-            {theirs.map((c) => (
-              <div key={c.key} className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 w-24 shrink-0 truncate">
-                  {c.label}
-                </span>
-                <div className="flex-1 h-1.5 bg-stone-200 dark:bg-white/5 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-forest dark:bg-lime-500"
-                    style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
-                  />
+          {/* Une ligne par critère plutôt qu'une rangée serrée : le libellé au-dessus
+              de sa barre laisse à celle-ci toute la largeur, et le regard descend au
+              lieu de faire des allers-retours. */}
+          <div className="space-y-4">
+            {theirs.map((c) => {
+              const ourValue = ourByKey.get(c.key);
+              return (
+                <div key={c.key} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-charcoal dark:text-white truncate">
+                      {c.label}
+                    </span>
+                    <div className="flex items-baseline gap-2 shrink-0">
+                      {/* Le poids explique pourquoi la moyenne brute et la note
+                          affichée diffèrent : sans lui, le détail paraît se contredire. */}
+                      {c.weight !== 1 && (
+                        <span className="text-[9px] font-black text-stone-300 dark:text-stone-700 tabular-nums">
+                          ×{c.weight}
+                        </span>
+                      )}
+                      <span className="text-sm font-black text-charcoal dark:text-white tabular-nums">
+                        {c.value.toFixed(1)}
+                        <span className="text-[10px] text-stone-300 dark:text-stone-700">/10</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="relative h-2.5 bg-stone-200/70 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-forest to-forest/80 dark:from-lime-500 dark:to-lime-400 rounded-full transition-[width] duration-500"
+                      style={{ width: `${Math.max(0, Math.min(100, c.value * 10))}%` }}
+                    />
+
+                    {/* Ta note posée sur la même piste, en repère vertical : deux
+                        barres l'une sous l'autre obligeraient à comparer deux
+                        longueurs séparées, alors qu'un trait se lit d'un coup. */}
+                    {ourValue != null && (
+                      <span
+                        className="absolute inset-y-0 w-0.5 bg-charcoal dark:bg-white rounded-full"
+                        style={{ left: `${Math.max(0, Math.min(99, ourValue * 10))}%` }}
+                        title={`${t('member.you')} ${ourValue.toFixed(1)}`}
+                      />
+                    )}
+                  </div>
                 </div>
-                <span className="text-[10px] font-black text-charcoal dark:text-white tabular-nums w-7 text-right">
-                  {c.value.toFixed(1)}
-                </span>
-                {/* Le poids explique pourquoi la moyenne brute et la note affichée
-                    diffèrent : sans lui, le détail paraît se contredire. */}
-                <span className="text-[9px] font-bold text-stone-300 dark:text-stone-700 w-8 text-right shrink-0">
-                  ×{c.weight}
-                </span>
-              </div>
-            ))}
+              );
+            })}
+
+            {ourByKey.size > 0 && (
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                <span className="w-0.5 h-3 bg-charcoal dark:bg-white rounded-full" />
+                {t('member.yourMark')}
+              </p>
+            )}
           </div>
 
           {item.review && (
