@@ -32,6 +32,7 @@ import {
 import { UserProfile, Movie } from '../types';
 import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
+import MoodSearch from './MoodSearch';
 import StreamingBadge from './StreamingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
 import TheatreReleasesSection from './TheatreReleasesSection';
@@ -133,6 +134,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [quickAddingId, setQuickAddingId] = useState<number | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  /** Ce que le relais a compris de l'envie en cours, ou null si aucune. */
+  const [moodSummary, setMoodSummary] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
@@ -351,6 +354,22 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         />
       ) : (
       <>
+      {/* Décrire son envie plutôt que régler six filtres : c'est la question
+          qu'on se pose en ouvrant l'écran, elle passe donc avant le reste. */}
+      <MoodSearch
+        favoriteGenres={userProfile?.favoriteGenres}
+        activeSummary={moodSummary}
+        onResults={(results, summary) => {
+          setMoodSummary(summary);
+          setItems(results);
+          setLoading(false);
+        }}
+        onClear={() => {
+          setMoodSummary(null);
+          fetchItems();
+        }}
+      />
+
       {/* MEDIA TOGGLE */}
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
         <button

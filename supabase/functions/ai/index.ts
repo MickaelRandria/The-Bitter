@@ -43,7 +43,12 @@ const LIMITS = {
   historyChars: 4_000,
 };
 
-type Action = 'assistant' | 'search' | 'review-starters' | 'review-continue';
+type Action =
+  | 'assistant'
+  | 'search'
+  | 'review-starters'
+  | 'review-continue'
+  | 'discover-query';
 type Role = 'user' | 'assistant';
 interface Turn {
   role: Role;
@@ -187,19 +192,123 @@ Réponds UNIQUEMENT par la phrase, sans guillemets et sans introduction.
 
 ${context}`;
 
+/**
+ * Traduction d'une envie en filtres de recherche.
+ *
+ * Le modèle ne choisit aucun film et n'écrit aucune phrase : il ne produit que
+ * des critères, et c'est TMDB qui répond. Rien ne peut donc être inventé — le
+ * pire qu'il puisse faire est de mal comprendre, ce qui se voit immédiatement
+ * puisqu'il doit résumer ce qu'il a retenu.
+ *
+ * La règle la plus importante est celle du silence : un champ que la phrase ne
+ * demande pas reste vide. Un filtre ajouté de sa propre initiative écarterait
+ * des films pour une raison que personne n'a donnée, et l'absence ne se voit
+ * pas — on ne peut pas regretter ce qu'on ne nous a jamais montré.
+ */
+const discoverPersona = (year: number, context: string) => `Tu traduis l'envie d'un spectateur en filtres de recherche pour la base TMDB.
+
+Tu ne recommandes aucun film et tu n'écris aucune explication : tu produis
+uniquement des critères. C'est TMDB qui choisira les titres.
+
+GENRES DISPONIBLES (identifiant — nom) :
+28 Action · 12 Aventure · 16 Animation · 35 Comédie · 80 Crime · 99 Documentaire
+18 Drame · 10751 Familial · 14 Fantastique · 36 Histoire · 27 Horreur
+10402 Musique · 9648 Mystère · 10749 Romance · 878 Science-Fiction · 53 Thriller
+10752 Guerre · 37 Western
+
+PLATEFORMES : netflix · prime · disney · canal
+
+RÈGLE PRINCIPALE — ne remplis QUE ce que la phrase demande.
+Tout champ non évoqué vaut null. Un filtre ajouté de ta propre initiative écarte
+des films pour une raison que personne n'a donnée, et personne ne s'en apercevra.
+
+TRADUCTIONS COURANTES :
+- « pas prise de tête », « léger » → genres 35, 12 ou 16, et exclure 18
+- « pas trop long » → runtime_lte 110 · « court » → 95 · « long » → runtime_gte 140
+- « récent » → year_gte ${year - 3} · « des années 90 » → year_gte 1990, year_lte 1999
+- « bien noté », « une valeur sûre » → vote_average_gte 7
+- « à deux », « en famille », « entre potes » décrivent une situation : traduis-la
+  en genres, jamais en note ni en durée
+- « qui fait peur » → 27 · « qui fait réfléchir » → 18, 99 ou 9648
+
+Le champ summary contient 2 à 5 fragments courts en français, séparés par « · »,
+qui décrivent EXACTEMENT les filtres posés — c'est ce que le spectateur relira
+pour vérifier que tu l'as compris. Rien d'autre, aucune phrase.
+
+Réponds UNIQUEMENT par un objet JSON de cette forme :
+{"summary":"comédie · moins de 1h50","media_type":"movie","with_genres":[35],
+"without_genres":[18],"runtime_lte":110,"runtime_gte":null,"year_gte":null,
+"year_lte":null,"vote_average_gte":null,"provider":null,"sort_by":"popularity.desc"}
+
+sort_by vaut "popularity.desc", "vote_average.desc" ou "primary_release_date.desc".
+
+${context}`;
+
 /** Réglages propres à chaque usage : longueur et liberté n'ont rien à voir. */
 const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boolean }> = {
   assistant: { temperature: 0.8, maxTokens: 700, json: false },
   search: { temperature: 0.4, maxTokens: 700, json: false },
   'review-starters': { temperature: 1.0, maxTokens: 200, json: true },
   'review-continue': { temperature: 0.7, maxTokens: 120, json: false },
+  'discover-query': { temperature: 0.2, maxTokens: 300, json: true },
 };
 
 const isAction = (value: unknown): value is Action =>
   value === 'assistant' ||
   value === 'search' ||
   value === 'review-starters' ||
-  value === 'review-continue';
+  value === 'review-continue' ||
+  value === 'discover-query';
+
+/** Genres TMDB acceptés. Tout le reste est écarté avant de bâtir une requête. */
+const GENRE_IDS = new Set([
+  28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37,
+]);
+
+const PROVIDERS = new Set(['netflix', 'prime', 'disney', 'canal']);
+const SORTS = new Set(['popularity.desc', 'vote_average.desc', 'primary_release_date.desc']);
+
+/**
+ * Filtre et borne ce que le modèle a produit.
+ *
+ * Ces valeurs finiront dans une URL appelée par l'application : les accepter
+ * telles quelles reviendrait à laisser un texte généré composer nos requêtes.
+ * Tout ce qui n'est pas reconnu est écarté plutôt que corrigé — un genre
+ * inventé ne se devine pas, et une requête sans lui reste utile.
+ */
+const parseDiscover = (raw: string) => {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  const num = (value: unknown, min: number, max: number): number | null => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n * 10) / 10)) : null;
+  };
+
+  const genres = (value: unknown): number[] =>
+    Array.isArray(value) ? value.map(Number).filter((n) => GENRE_IDS.has(n)).slice(0, 4) : [];
+
+  const provider = typeof parsed.provider === 'string' ? parsed.provider.toLowerCase() : '';
+  const sort = typeof parsed.sort_by === 'string' ? parsed.sort_by : '';
+
+  return {
+    summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 120) : '',
+    mediaType: parsed.media_type === 'tv' ? 'tv' : 'movie',
+    withGenres: genres(parsed.with_genres),
+    withoutGenres: genres(parsed.without_genres),
+    runtimeLte: num(parsed.runtime_lte, 40, 400),
+    runtimeGte: num(parsed.runtime_gte, 40, 400),
+    yearGte: num(parsed.year_gte, 1900, 2100),
+    yearLte: num(parsed.year_lte, 1900, 2100),
+    voteAverageGte: num(parsed.vote_average_gte, 0, 10),
+    provider: PROVIDERS.has(provider) ? provider : null,
+    sortBy: SORTS.has(sort) ? sort : 'popularity.desc',
+  };
+};
 
 /**
  * Extrait les amorces d'une réponse qui devrait être du JSON.
@@ -316,6 +425,11 @@ Deno.serve(async (req: Request) => {
     messages.push({ role: 'system', content: startersPersona(context) });
   } else if (action === 'review-continue') {
     messages.push({ role: 'system', content: continuePersona(context) });
+  } else if (action === 'discover-query') {
+    messages.push({
+      role: 'system',
+      content: discoverPersona(new Date().getUTCFullYear(), context),
+    });
   } else {
     const firstName = clamp(body.firstName, 60) || 'toi';
     messages.push({ role: 'system', content: persona(firstName, context) });
@@ -378,6 +492,12 @@ Deno.serve(async (req: Request) => {
       const starters = parseStarters(text);
       if (starters.length === 0) return fail(502, 'upstream', "Aucune amorce n'a pu être lue.");
       return json({ starters, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'discover-query') {
+      const filters = parseDiscover(text);
+      if (!filters) return fail(502, 'upstream', "L'envie n'a pas pu être traduite.");
+      return json({ filters, usage: payload?.usage ?? null });
     }
 
     if (action === 'review-continue') {

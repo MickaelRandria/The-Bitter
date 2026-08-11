@@ -145,6 +145,96 @@ ${written}`,
   return (text || '').trim();
 };
 
+/** Ce que le relais a compris d'une envie, une fois borné et filtré. */
+export interface DiscoverFilters {
+  /** Ce qu'il a retenu, en fragments courts. Sert à vérifier, pas à décorer. */
+  summary: string;
+  mediaType: 'movie' | 'tv';
+  withGenres: number[];
+  withoutGenres: number[];
+  runtimeLte: number | null;
+  runtimeGte: number | null;
+  yearGte: number | null;
+  yearLte: number | null;
+  voteAverageGte: number | null;
+  provider: 'netflix' | 'prime' | 'disney' | 'canal' | null;
+  sortBy: string;
+}
+
+/** Identifiants TMDB des plateformes, région France. */
+const PROVIDER_IDS: Record<string, number> = {
+  netflix: 8,
+  prime: 119,
+  disney: 337,
+  canal: 381,
+};
+
+/**
+ * Traduit une envie en critères de recherche.
+ *
+ * Le modèle ne choisit aucun film : il pose des filtres, et c'est TMDB qui
+ * répond. Rien ne peut donc être inventé — c'est ce qui distingue cette
+ * fonction d'un assistant, et ce qui la rend sûre. Le pire cas est un
+ * contresens, visible aussitôt puisque `summary` dit ce qu'il a retenu.
+ */
+export const interpretDiscoverQuery = async (
+  phrase: string,
+  favoriteGenres?: string[]
+): Promise<DiscoverFilters> => {
+  const context = favoriteGenres?.length
+    ? `Pour information, ses genres préférés sont : ${favoriteGenres.join(', ')}. N'en tiens compte que si la phrase reste vague.`
+    : '';
+
+  const { filters } = await callAI<{ filters?: DiscoverFilters }>({
+    action: 'discover-query',
+    context,
+    text: phrase,
+  });
+
+  if (!filters) throw new Error("L'envie n'a pas pu être traduite.");
+  return filters;
+};
+
+/**
+ * Bâtit l'URL TMDB correspondante.
+ *
+ * Chaque valeur a déjà été bornée par le relais ; on ne fait ici que la mettre
+ * en forme. Les genres exclus comptent autant que les inclus : « pas prise de
+ * tête » se traduit surtout par ce qu'on ne veut pas voir.
+ */
+export const buildDiscoverUrl = (filters: DiscoverFilters): string => {
+  const endpoint = filters.mediaType === 'tv' ? 'discover/tv' : 'discover/movie';
+  const dateField = filters.mediaType === 'tv' ? 'first_air_date' : 'primary_release_date';
+
+  const params = new URLSearchParams({
+    api_key: TMDB_API_KEY,
+    language: 'fr-FR',
+    region: 'FR',
+    watch_region: 'FR',
+    include_adult: 'false',
+    page: '1',
+    sort_by:
+      filters.mediaType === 'tv' && filters.sortBy === 'primary_release_date.desc'
+        ? 'first_air_date.desc'
+        : filters.sortBy,
+    // Un tri par note sans plancher de votes remonte des films notés trois fois.
+    'vote_count.gte': filters.sortBy === 'vote_average.desc' ? '200' : '50',
+  });
+
+  if (filters.withGenres.length) params.set('with_genres', filters.withGenres.join(','));
+  if (filters.withoutGenres.length) params.set('without_genres', filters.withoutGenres.join(','));
+  if (filters.runtimeLte != null) params.set('with_runtime.lte', String(filters.runtimeLte));
+  if (filters.runtimeGte != null) params.set('with_runtime.gte', String(filters.runtimeGte));
+  if (filters.yearGte != null) params.set(`${dateField}.gte`, `${filters.yearGte}-01-01`);
+  if (filters.yearLte != null) params.set(`${dateField}.lte`, `${filters.yearLte}-12-31`);
+  if (filters.voteAverageGte != null)
+    params.set('vote_average.gte', String(filters.voteAverageGte));
+  if (filters.provider && PROVIDER_IDS[filters.provider])
+    params.set('with_watch_providers', String(PROVIDER_IDS[filters.provider]));
+
+  return `${TMDB_BASE_URL}/${endpoint}?${params.toString()}`;
+};
+
 /**
  * 🎬 Récupère les films Netflix disponibles en France via TMDB
  */
