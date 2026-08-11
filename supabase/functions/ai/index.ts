@@ -48,7 +48,8 @@ type Action =
   | 'search'
   | 'review-starters'
   | 'review-continue'
-  | 'discover-query';
+  | 'discover-query'
+  | 'recommend';
 type Role = 'user' | 'assistant';
 interface Turn {
   role: Role;
@@ -244,6 +245,49 @@ sort_by vaut "popularity.desc", "vote_average.desc" ou "primary_release_date.des
 
 ${context}`;
 
+/**
+ * Recommandations personnelles.
+ *
+ * L'écran existant s'annonçait « IA » mais interrogeait les recommandations
+ * TMDB, c'est-à-dire du « ceux qui ont aimé X ont aimé Y ». C'est utile, et
+ * parfaitement aveugle au POURQUOI on a aimé X. Un modèle qui lit la grille de
+ * notation voit autre chose : que la personne pardonne un scénario faible quand
+ * l'image est belle, ou l'inverse. Il peut donc proposer des titres qu'aucun
+ * graphe de co-visionnage ne relierait aux siens.
+ *
+ * Et surtout il peut dire pourquoi. C'est là tout le produit : cinq affiches
+ * sans justification ne valent pas mieux que la liste d'avant. La consigne
+ * insiste donc pour que la raison s'appuie sur SES notes, et non sur les
+ * qualités du film en général — « un chef-d'œuvre incontournable » ne dit rien
+ * à personne.
+ *
+ * Les titres inventés ne sont pas un risque : chacun est ensuite cherché dans
+ * TMDB, et ce qui ne s'y trouve pas ne s'affiche pas.
+ */
+const recommendPersona = (context: string) => `Tu recommandes des films à quelqu'un dont tu connais les notes détaillées, critère par critère.
+
+Tu produis CINQ films, chacun avec une raison d'UNE phrase.
+
+CE QUI FAIT LA VALEUR D'UNE RECOMMANDATION ICI :
+- La raison s'appuie sur SES notes à lui, jamais sur la réputation du film.
+  « Tu as mis 9 au scénario de X et 4 à son image : celui-ci fait l'inverse »
+  vaut mille fois « un chef-d'œuvre incontournable ».
+- Cherche ce qui relie ses meilleures notes entre elles, et propose des films qui
+  prolongent ce lien. Rester dans le même genre est le réflexe paresseux : ses
+  notes disent souvent qu'il aime une QUALITÉ, pas une étiquette.
+- Ses notes basses comptent autant : elles disent ce qu'il ne pardonne pas.
+
+RÈGLES :
+- Ne propose AUCUN film de la liste des déjà-vus et déjà-en-attente ci-dessous.
+- N'invente aucun titre. Dans le doute sur l'existence d'un film, prends-en un autre.
+- Varie : pas cinq films de la même décennie, ni du même pays.
+- La raison fait 25 mots maximum, en français, en tutoyant.
+
+Réponds UNIQUEMENT par un objet JSON de la forme :
+{"recommendations":[{"title":"Titre exact","year":1999,"reason":"..."}]}
+
+${context}`;
+
 /** Réglages propres à chaque usage : longueur et liberté n'ont rien à voir. */
 const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boolean }> = {
   assistant: { temperature: 0.8, maxTokens: 700, json: false },
@@ -251,6 +295,7 @@ const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boo
   'review-starters': { temperature: 1.0, maxTokens: 200, json: true },
   'review-continue': { temperature: 0.7, maxTokens: 120, json: false },
   'discover-query': { temperature: 0.2, maxTokens: 300, json: true },
+  recommend: { temperature: 0.9, maxTokens: 800, json: true },
 };
 
 const isAction = (value: unknown): value is Action =>
@@ -258,7 +303,8 @@ const isAction = (value: unknown): value is Action =>
   value === 'search' ||
   value === 'review-starters' ||
   value === 'review-continue' ||
-  value === 'discover-query';
+  value === 'discover-query' ||
+  value === 'recommend';
 
 /** Genres TMDB acceptés. Tout le reste est écarté avant de bâtir une requête. */
 const GENRE_IDS = new Set([
@@ -319,6 +365,39 @@ const parseDiscover = (raw: string) => {
     provider: PROVIDERS.has(provider) ? provider : null,
     sortBy: SORTS.has(sort) ? sort : 'popularity.desc',
   };
+};
+
+/**
+ * Lit les cinq propositions.
+ *
+ * Aucune vérification d'existence ici : c'est TMDB qui tranchera, puisque le
+ * client cherche chaque titre avant de l'afficher. Un film inventé ne trouvera
+ * pas de fiche et disparaîtra tout seul — mieux vaut cette sélection naturelle
+ * qu'une liste blanche impossible à tenir.
+ */
+const parseRecommendations = (raw: string) => {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const list = Array.isArray(parsed) ? parsed : parsed?.recommendations;
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => {
+      const year = Number(item.year);
+      return {
+        title: typeof item.title === 'string' ? item.title.slice(0, 120).trim() : '',
+        year: Number.isFinite(year) && year > 1880 && year < 2100 ? year : null,
+        reason: typeof item.reason === 'string' ? item.reason.slice(0, 240).trim() : '',
+      };
+    })
+    .filter((item) => item.title.length > 0)
+    .slice(0, 5);
 };
 
 /**
@@ -436,6 +515,8 @@ Deno.serve(async (req: Request) => {
     messages.push({ role: 'system', content: startersPersona(context) });
   } else if (action === 'review-continue') {
     messages.push({ role: 'system', content: continuePersona(context) });
+  } else if (action === 'recommend') {
+    messages.push({ role: 'system', content: recommendPersona(context) });
   } else if (action === 'discover-query') {
     messages.push({
       role: 'system',
@@ -503,6 +584,12 @@ Deno.serve(async (req: Request) => {
       const starters = parseStarters(text);
       if (starters.length === 0) return fail(502, 'upstream', "Aucune amorce n'a pu être lue.");
       return json({ starters, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'recommend') {
+      const picks = parseRecommendations(text);
+      if (picks.length === 0) return fail(502, 'upstream', 'Aucune recommandation lisible.');
+      return json({ recommendations: picks, usage: payload?.usage ?? null });
     }
 
     if (action === 'discover-query') {
