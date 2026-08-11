@@ -949,6 +949,8 @@ export interface FriendActivity {
   movieId: string;
   profileId: string;
   firstName: string;
+  /** Descripteur ou URL, voir utils/avatar.ts. Null quand la personne n'en a pas. */
+  avatarUrl: string | null;
   title: string;
   director: string;
   year: number;
@@ -987,6 +989,7 @@ export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendAc
       movieId: row.movie_id,
       profileId: row.profile_id,
       firstName: row.first_name,
+      avatarUrl: row.avatar_url ?? null,
       title: row.title,
       director: row.director || '',
       year: row.year || 0,
