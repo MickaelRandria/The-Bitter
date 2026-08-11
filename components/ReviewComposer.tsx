@@ -71,20 +71,11 @@ const ReviewComposer: React.FC<Props> = ({
   /** Identifie la requête en cours, pour qu'une ancienne n'éteigne pas la neuve. */
   const requestId = useRef(0);
 
-  useEffect(() => {
-    if (!ready || !title.trim()) return;
-    if (askedFor.current === title) return;
-
+  const fetchStarters = () => {
     const snapshot = latest.current;
-    if (snapshot.criteria.length === 0) return;
-
-    // Rien à amorcer quand l'avis existe déjà : on rouvre une fiche pour la
-    // corriger, pas pour la recommencer. Cela évite aussi un appel payé pour
-    // des propositions que l'écran n'affichera pas.
-    if (snapshot.value.trim()) return;
+    if (!title.trim() || snapshot.criteria.length === 0) return;
 
     askedFor.current = title;
-
     const id = ++requestId.current;
     setLoadingStarters(true);
 
@@ -95,6 +86,18 @@ const ReviewComposer: React.FC<Props> = ({
       .finally(() => {
         if (requestId.current === id) setLoadingStarters(false);
       });
+  };
+
+  useEffect(() => {
+    if (!ready || !title.trim()) return;
+    if (askedFor.current === title) return;
+
+    // Rien à amorcer quand l'avis existe déjà : on rouvre une fiche pour la
+    // corriger, pas pour la recommencer. Cela évite aussi un appel payé pour
+    // des propositions que l'écran n'affichera pas.
+    if (latest.current.value.trim()) return;
+
+    fetchStarters();
   }, [ready, title]);
 
   /** Le curseur va à la fin : on vient d'ouvrir une phrase, pas de la relire. */
@@ -151,7 +154,7 @@ const ReviewComposer: React.FC<Props> = ({
 
       {/* Les amorces disparaissent dès qu'il y a du texte : elles servaient à
           démarrer, les garder ensuite reviendrait à proposer de recommencer. */}
-      {!hasText && (loadingStarters || starters.length > 0) && (
+      {!hasText && ready && (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 ml-1">
             <Sparkles size={11} />
@@ -168,7 +171,7 @@ const ReviewComposer: React.FC<Props> = ({
                 />
               ))}
             </div>
-          ) : (
+          ) : starters.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {starters.map((starter) => (
                 <button
@@ -182,6 +185,22 @@ const ReviewComposer: React.FC<Props> = ({
                 </button>
               ))}
             </div>
+          ) : (
+            /* Le chargement automatique peut ne rien rendre : réseau coupé,
+               quota atteint, ou simplement une fiche rouverte plus tard. Sans
+               ce bouton, l'absence de propositions serait indiscernable d'une
+               fonctionnalité absente — et il n'y aurait aucun moyen de
+               redemander. Une aide invisible ne vaut pas mieux que rien. */
+            <button
+              type="button"
+              onClick={() => {
+                haptics.soft();
+                fetchStarters();
+              }}
+              className="px-4 py-2.5 rounded-full bg-white dark:bg-[#161616] border border-dashed border-stone-300 dark:border-white/15 text-[12px] font-semibold text-stone-500 dark:text-stone-400 active:scale-95 transition-transform"
+            >
+              {t('review.askStarters')}
+            </button>
           )}
         </div>
       )}

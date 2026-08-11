@@ -515,14 +515,23 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     if (mode === 'watchlist') return [];
     const source = useBitterPlus ? adaptiveCriteria : bitterCriteria;
 
+    if (source.length === 0) return [];
+
     // Un critère jamais touché vaut 5 par défaut — une note que personne n'a
     // posée. Tant qu'il en reste un, la grille décrit un film que son spectateur
     // n'a pas fini de juger, et en tirer des amorces reviendrait à commenter à
     // sa place. On attend donc que tous aient été réglés.
-    if (source.length === 0 || !source.every((c) => criteriaValues[c.key] != null)) return [];
+    //
+    // Une note déjà enregistrée échappe à cette attente : elle est complète par
+    // construction, puisqu'elle a été validée. Exiger la même couverture de clés
+    // à la réouverture bloquerait les films dont la grille a changé de profil
+    // depuis — c'est-à-dire précisément les plus anciens, ceux qui attendent un
+    // avis depuis le plus longtemps.
+    const alreadyRated = !!initialData && initialData.status !== 'watchlist';
+    if (!alreadyRated && !source.every((c) => criteriaValues[c.key] != null)) return [];
 
     return source.map((c) => ({ label: c.label, value: c.value }));
-  }, [mode, criteriaValues, useBitterPlus, adaptiveCriteria, bitterCriteria]);
+  }, [mode, criteriaValues, useBitterPlus, adaptiveCriteria, bitterCriteria, initialData]);
 
   const setCustomWeight = (key: string, weight: number) => {
     haptics.soft();

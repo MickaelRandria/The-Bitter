@@ -300,6 +300,7 @@ export const fr: Record<string, string> = {
   'addMovie.reviewPlaceholder': 'Ton verdict personnel...',
   'review.purpose': "C'est ce que tes proches liront sous ta note.",
   'review.startersHint': 'Pour commencer',
+  'review.askStarters': 'Propose-moi une amorce',
   'review.continue': 'Continuer la phrase',
   'review.continuing': 'Un instant…',
   'review.continueFailed': "La suite n'est pas venue. Réessaie.",
