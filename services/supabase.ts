@@ -960,6 +960,8 @@ export interface FriendActivity {
   /** Grille complète, pour montrer comment la note a été obtenue et non seulement son résultat. */
   adaptiveRating: AdaptiveRatingData | null;
   review: string | null;
+  /** Résumé TMDB. Décrit le film, là où `review` le juge. */
+  synopsis: string | null;
   watchedAt: string;
 }
 
@@ -998,6 +1000,7 @@ export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendAc
       rating: Number(row.rating),
       adaptiveRating: row.adaptive_rating ?? null,
       review: row.review || null,
+      synopsis: row.synopsis || null,
       watchedAt: row.watched_at,
     })),
   };

@@ -853,6 +853,7 @@ export const fr: Record<string, string> = {
   'member.tastesFar': 'Vos goûts divergent nettement. Autant dire que {name} ne choisira pas le même film que toi.',
   'member.widestGap': 'Là où vous vous séparez le plus',
   'member.you': 'Toi',
+  'member.yourMark': 'Ta note',
   'member.noCommonFilm': 'Aucun film en commun pour l’instant : impossible de comparer vos verdicts avec {name}.',
   'member.theirProfile': 'Le profil de {name}',
   'member.rated': 'Films notés',

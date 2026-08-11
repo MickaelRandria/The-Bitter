@@ -848,6 +848,7 @@ export const en: Record<string, string> = {
   'member.tastesFar': 'Your tastes clearly diverge. {name} will not pick the same film as you.',
   'member.widestGap': 'Where you part ways the most',
   'member.you': 'You',
+  'member.yourMark': 'Your score',
   'member.noCommonFilm': 'No film in common yet, so there is nothing to compare with {name}.',
   'member.theirProfile': '{name} in numbers',
   'member.rated': 'Films rated',
