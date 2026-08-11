@@ -26,7 +26,7 @@ const cleanAIResponse = (text: string): string => {
  * Edge Function, qui exige en retour une vraie session — d'où le message clair
  * quand personne n'est connecté, plutôt qu'un échec muet.
  */
-const askAI = async (payload: Record<string, unknown>): Promise<string> => {
+const callAI = async <T>(payload: Record<string, unknown>): Promise<T> => {
   if (!supabase) throw new Error("L'assistant n'est pas disponible hors connexion.");
 
   const { data, error } = await supabase.functions.invoke('ai', { body: payload });
@@ -45,9 +45,104 @@ const askAI = async (payload: Record<string, unknown>): Promise<string> => {
     throw new Error("L'assistant est momentanément injoignable.");
   }
 
-  const text = (data as { text?: string } | null)?.text;
+  if (!data) throw new Error("L'assistant n'a rien répondu.");
+  return data as T;
+};
+
+const askAI = async (payload: Record<string, unknown>): Promise<string> => {
+  const { text } = await callAI<{ text?: string }>(payload);
   if (!text) throw new Error("L'assistant n'a rien répondu.");
   return text;
+};
+
+/** Une note posée sur un critère, telle que l'écran de notation la produit. */
+export interface ReviewCriterion {
+  label: string;
+  value: number;
+}
+
+/**
+ * Décrit la note pour le modèle.
+ *
+ * Les critères sont triés du plus haut au plus bas parce que c'est ce qui rend
+ * la note lisible d'un coup : le modèle doit repérer sur quoi la personne a
+ * quelque chose à dire, et l'écart entre le premier et le dernier critère est
+ * précisément ce qui le lui dit.
+ */
+const describeRating = (
+  title: string,
+  year: number | undefined,
+  criteria: ReviewCriterion[],
+  rating?: number
+): string => {
+  const sorted = [...criteria].filter((c) => Number.isFinite(c.value)).sort((a, b) => b.value - a.value);
+  const lines = sorted.map((c) => `- ${c.label} : ${c.value}/10`).join('\n');
+  return `FILM : ${title}${year ? ` (${year})` : ''}
+NOTE GLOBALE : ${rating != null ? `${rating.toFixed(1)}/10` : 'non calculée'}
+SES NOTES PAR CRITÈRE, de la plus haute à la plus basse :
+${lines}`;
+};
+
+/**
+ * Trois amorces de phrase, à partir de la note qui vient d'être posée.
+ *
+ * Elles existent contre la page blanche : sur 90 films notés dans l'application,
+ * un seul avait un avis écrit. Le champ vide n'était pas un manque d'envie mais
+ * un manque de première phrase.
+ *
+ * Aucune amorce ne porte de jugement — c'est la contrainte tenue côté serveur.
+ * Elles disent de quoi parler, jamais quoi en penser.
+ */
+export const getReviewStarters = async (
+  title: string,
+  criteria: ReviewCriterion[],
+  rating?: number,
+  year?: number
+): Promise<string[]> => {
+  try {
+    if (!title.trim() || criteria.length === 0) return [];
+    const { starters } = await callAI<{ starters?: string[] }>({
+      action: 'review-starters',
+      context: describeRating(title, year, criteria, rating),
+      text: 'Donne-moi trois amorces.',
+    });
+    return Array.isArray(starters) ? starters.filter((s) => typeof s === 'string' && s.trim()) : [];
+  } catch (error: any) {
+    // Silencieux par choix : les amorces sont un coup de pouce, pas une étape.
+    // Faire surgir une erreur là où l'utilisateur allait simplement écrire
+    // transformerait une aide absente en incident.
+    if (import.meta.env.DEV) console.error('[IA] Amorces indisponibles :', error?.message);
+    return [];
+  }
+};
+
+/**
+ * Prolonge l'avis en cours d'une seule phrase.
+ *
+ * Une seule, et jamais la dernière : c'est ce qui garde l'auteur aux commandes.
+ * Le serveur tronque à la première ponctuation forte, parce qu'un modèle à qui
+ * l'on demande une phrase en rend parfois deux.
+ */
+export const continueReview = async (
+  title: string,
+  criteria: ReviewCriterion[],
+  currentText: string,
+  rating?: number,
+  year?: number
+): Promise<string> => {
+  const written = currentText.trim();
+  if (!written) return '';
+
+  const { text } = await callAI<{ text?: string }>({
+    action: 'review-continue',
+    context: `${describeRating(title, year, criteria, rating)}
+
+CE QU'IL A ÉCRIT JUSQU'ICI :
+${written}`,
+    text: written,
+  });
+
+  return (text || '').trim();
 };
 
 /**

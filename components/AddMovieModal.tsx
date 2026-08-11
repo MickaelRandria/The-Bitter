@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Eye,
@@ -40,6 +40,7 @@ import {
   ViewingContext,
 } from '../types';
 import ViewingContextPicker from './ViewingContextPicker';
+import ReviewComposer from './ReviewComposer';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { SharedSpace, addMovieToSpace, upsertMovieRating } from '../services/supabase';
@@ -502,6 +503,19 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       : Math.round(
           (bitterCriteria.reduce((s, c) => s + c.value, 0) / bitterCriteria.length) * 10
         ) / 10;
+
+  /**
+   * Ce que la note dit, pour les amorces d'avis.
+   *
+   * Conditionné à `criteriaValues` : tant que rien n'a été touché, les critères
+   * existent déjà avec leur valeur par défaut, et proposer des amorces à partir
+   * de notes que personne n'a posées reviendrait à commenter un film à sa place.
+   */
+  const reviewCriteria = useMemo(() => {
+    if (mode === 'watchlist' || Object.keys(criteriaValues).length === 0) return [];
+    const source = useBitterPlus ? adaptiveCriteria : bitterCriteria;
+    return source.map((c) => ({ label: c.label, value: c.value }));
+  }, [mode, criteriaValues, useBitterPlus, adaptiveCriteria, bitterCriteria]);
 
   const setCustomWeight = (key: string, weight: number) => {
     haptics.soft();
@@ -1157,14 +1171,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               />
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 block ml-1">
-                  {t('addMovie.myReview')}
-                </label>
-                <textarea
-                  className="w-full bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/10 p-6 rounded-[2rem] font-medium text-sm outline-none focus:border-stone-200 dark:focus:border-white/30 transition-all min-h-[120px] resize-none shadow-sm dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
-                  placeholder={t('addMovie.reviewPlaceholder')}
+                <ReviewComposer
+                  title={formData.title}
+                  year={formData.year}
+                  criteria={reviewCriteria}
+                  rating={useBitterPlus ? adaptiveWeightedRating : bitterFinalRating}
+                  ready={reviewCriteria.length > 0}
                   value={formData.comment || ''}
-                  onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                  onChange={(comment) => setFormData({ ...formData, comment })}
                 />
 
                 {/* Placée après l'avis, au moment où l'on sait ce qu'on s'apprête
