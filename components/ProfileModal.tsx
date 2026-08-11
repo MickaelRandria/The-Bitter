@@ -1,4 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { avatarSrc } from '../utils/avatar';
+import AvatarPickerModal from './AvatarPickerModal';
 import {
   X,
   LogOut,
@@ -68,6 +70,8 @@ interface ProfileModalProps {
   /** Films pas encore sauvegardés en ligne, affichés en pastille. */
   pendingSyncCount?: number;
   onOpenAccountSync?: () => void;
+  /** Enregistre l'avatar choisi, localement et sur le compte. */
+  onAvatarChange?: (descriptor: string | null) => Promise<void> | void;
   /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
   cinemaSubscription?: CinemaSubscription;
   onManageCinemaSubscription?: () => void;
@@ -108,6 +112,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   isSignedIn = false,
   pendingSyncCount = 0,
   onOpenAccountSync,
+  onAvatarChange,
   cinemaSubscription,
   onManageCinemaSubscription,
 }) => {
@@ -128,6 +133,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   /** Session ouverte mais sans email : le compte ne survit pas à ce navigateur. */
   const isAnonymousAccount = isSignedIn && !accountEmail;
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -229,9 +235,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar bg-cream dark:bg-[#0c0c0c]">
           {/* SECTION 1: IDENTITY */}
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 bg-forest text-white rounded-[2rem] flex items-center justify-center text-3xl font-black shadow-xl shadow-forest/20 shrink-0">
-              {initial}
-            </div>
+            {/* L'avatar est aussi le bouton pour en changer : c'est l'endroit où on
+                le cherche, et ça évite une ligne de réglage de plus. */}
+            <button
+              onClick={() => {
+                haptics.soft();
+                setShowAvatarPicker(true);
+              }}
+              aria-label={t('avatar.title')}
+              className="relative w-20 h-20 bg-forest text-white rounded-[2rem] flex items-center justify-center text-3xl font-black shadow-xl shadow-forest/20 shrink-0 overflow-hidden active:scale-95 transition-transform"
+            >
+              {avatarSrc(profile.avatarUrl) ? (
+                <img
+                  src={avatarSrc(profile.avatarUrl) as string}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                initial
+              )}
+              <span className="absolute bottom-0 inset-x-0 bg-charcoal/70 text-white text-[8px] font-black uppercase tracking-widest py-0.5">
+                {t('avatar.edit')}
+              </span>
+            </button>
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-black text-charcoal dark:text-white tracking-tight leading-none mb-2 truncate">
                 {profile.firstName} {profile.lastName}
@@ -785,6 +811,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       </div>
 
       {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
+
+      {showAvatarPicker && (
+        <AvatarPickerModal
+          profileId={profile.id}
+          current={profile.avatarUrl}
+          onChoose={async (descriptor) => {
+            await onAvatarChange?.(descriptor);
+          }}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
     </div>
   );
 };

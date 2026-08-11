@@ -3,6 +3,7 @@ import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, Chevron
 import { SpaceMember, MemberFilm, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { avatarSrc } from '../utils/avatar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
@@ -233,8 +234,12 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
         <div className="p-8 overflow-y-auto no-scrollbar space-y-8">
           <div className="flex flex-col items-center">
             <div className="w-24 h-24 rounded-full bg-stone-100 dark:bg-[#252525] border-4 border-white dark:border-white/10 shadow-lg mb-4 flex items-center justify-center overflow-hidden">
-              {member.profile?.avatar_url ? (
-                <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              {avatarSrc(member.profile?.avatar_url) ? (
+                <img
+                  src={avatarSrc(member.profile?.avatar_url) as string}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <span className="text-3xl font-black text-stone-300 dark:text-stone-700">
                   {name[0].toUpperCase()}
