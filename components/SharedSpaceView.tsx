@@ -43,6 +43,7 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Movie } from '../types';
+import { useResumeRefresh } from '../utils/useResumeRefresh';
 import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
@@ -136,6 +137,21 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    * tables n'ayant pas de `space_id`. On regroupe donc les rafales dans un court
    * délai plutôt que de relancer trois lectures à chaque évènement reçu.
    */
+  /**
+   * Compteur de reprise.
+   *
+   * Il sert de dépendance à l'abonnement temps réel : l'incrémenter démonte les
+   * canaux et les rouvre. Un canal suspendu par iOS ne se réveille pas tout seul,
+   * et rien ne le signale : sans cette reconstruction, l'écran restait branché sur
+   * une connexion morte tout en paraissant à jour.
+   */
+  const [resumeTick, setResumeTick] = useState(0);
+
+  useResumeRefresh(() => {
+    setResumeTick((n) => n + 1);
+    loadData(true);
+  });
+
   useEffect(() => {
     let pending: ReturnType<typeof setTimeout> | null = null;
 
@@ -153,7 +169,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       if (pending) clearTimeout(pending);
       unsubscribe();
     };
-  }, [space.id]);
+  }, [space.id, resumeTick]);
 
   /**
    * `silent` sert aux rafraîchissements déclenchés par un autre membre : remettre
