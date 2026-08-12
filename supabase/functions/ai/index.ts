@@ -49,7 +49,9 @@ type Action =
   | 'review-starters'
   | 'review-continue'
   | 'discover-query'
-  | 'recommend';
+  | 'recommend'
+  | 'portrait'
+  | 'space-pitch';
 type Role = 'user' | 'assistant';
 interface Turn {
   role: Role;
@@ -288,6 +290,94 @@ Réponds UNIQUEMENT par un objet JSON de la forme :
 
 ${context}`;
 
+/**
+ * Portrait de goût.
+ *
+ * Le danger d'une telle fonction porte un nom : l'horoscope. Une phrase
+ * inventée sur quelqu'un se lit exactement comme une phrase vraie, et rien à
+ * l'écran ne permet de les distinguer — sauf le chiffre qui la soutient.
+ *
+ * D'où le partage des rôles : l'application calcule, le modèle rédige. Il ne
+ * reçoit que des moyennes et des corrélations, et chaque observation doit citer
+ * l'une d'elles. Ce n'est pas une précaution de style : c'est ce qui rend le
+ * portrait vérifiable par celui qu'il décrit.
+ *
+ * La corrélation est la donnée la plus intéressante du lot, et la seule que
+ * personne ne peut calculer de tête : une moyenne haute ne dit pas qu'un critère
+ * compte, elle dit qu'on le note généreusement. C'est la variation conjointe qui
+ * révèle ce sur quoi la note se décide vraiment.
+ */
+const portraitPersona = (context: string) => `Tu écris le portrait de quelqu'un à partir de ses statistiques de notation de films.
+
+Tu produis TROIS observations. Chacune fait une phrase de 20 mots maximum, en
+français, en tutoyant.
+
+RÈGLE ABSOLUE — chaque observation s'appuie sur UN chiffre du relevé ci-dessous,
+et ce chiffre apparaît dans la phrase. Tu n'as pas le droit d'affirmer quoi que
+ce soit que les chiffres ne montrent pas. Un trait de caractère inventé se lit
+comme un trait réel : c'est exactement ce qu'il faut éviter ici.
+
+CE QUI FAIT UNE BONNE OBSERVATION :
+- Elle dit quelque chose que la personne ne peut pas voir seule. La corrélation
+  est ta meilleure alliée : elle révèle le critère sur lequel la note se décide
+  vraiment, qui n'est presque jamais celui qu'on note le plus haut.
+- Un écart entre deux chiffres vaut mieux qu'un chiffre seul : « tu notes les
+  films longs 1,4 point en dessous des courts » dit plus que « tu aimes le court ».
+- Elle est concrète et un peu piquante, jamais flatteuse ni vexante. Un constat,
+  pas un compliment.
+
+INTERDIT :
+- Parler de films que le relevé ne mentionne pas.
+- Employer « peut-être », « sans doute », « il semble » : soit le chiffre le dit,
+  soit tu changes d'observation.
+- Répéter deux fois la même donnée sous deux formulations.
+
+Réponds UNIQUEMENT par un objet JSON de la forme :
+{"traits":[{"text":"...","figure":"6,8/10"},{"text":"...","figure":"..."}]}
+
+Le champ figure reprend le chiffre cité, très court, pour être affiché à côté.
+
+${context}`;
+
+/**
+ * Argumentaire d'une proposition, membre par membre.
+ *
+ * Dans l'espace partagé de l'application, deux films ont été proposés pour six
+ * votes. Un film posé sans un mot ne déclenche rien : celui qui le voit ne sait
+ * pas si on le lui destine, et dans le doute il passe.
+ *
+ * L'argument doit donc s'adresser à chacun séparément, et se fonder sur ses
+ * notes à lui. Un même film ne se vend pas de la même façon à quelqu'un qui met
+ * 9 à l'image et à quelqu'un qui ne pardonne rien au scénario — et c'est
+ * précisément cette différence qui fait qu'on clique.
+ *
+ * L'honnêteté prime sur l'enthousiasme : dire à un membre que le film n'est
+ * probablement pas pour lui vaut mieux que trois arguments identiques. Une
+ * recommandation qui ne sait pas dire non ne veut plus rien dire quand elle dit
+ * oui.
+ */
+const pitchPersona = (context: string) => `Un film vient d'être proposé à un groupe. Tu écris, pour CHAQUE membre, une phrase qui lui dit si ce film est pour lui.
+
+Une phrase par membre, 20 mots maximum, en français, en tutoyant.
+
+RÈGLES :
+- Chaque phrase s'appuie sur LES NOTES DE CE MEMBRE, pas sur les qualités
+  générales du film. Le même film ne se défend pas pareil auprès de quelqu'un qui
+  note l'image haut et de quelqu'un qui ne pardonne rien au scénario.
+- Si le film ne correspond visiblement pas à quelqu'un, DIS-LE. Un argumentaire
+  qui ne sait pas dire non ne veut plus rien dire quand il dit oui.
+- N'invente aucun fait sur le film : appuie-toi sur le résumé fourni, ou reste
+  sur ce que ses notes à lui laissent attendre.
+- Pas de superlatif creux : « incontournable », « chef-d'œuvre » ne disent rien
+  à personne.
+
+Réponds UNIQUEMENT par un objet JSON de la forme :
+{"pitches":[{"name":"Prénom exact","text":"..."}]}
+
+Reprends les prénoms exactement comme ils apparaissent ci-dessous.
+
+${context}`;
+
 /** Réglages propres à chaque usage : longueur et liberté n'ont rien à voir. */
 const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boolean }> = {
   assistant: { temperature: 0.8, maxTokens: 700, json: false },
@@ -296,6 +386,8 @@ const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boo
   'review-continue': { temperature: 0.7, maxTokens: 120, json: false },
   'discover-query': { temperature: 0.2, maxTokens: 300, json: true },
   recommend: { temperature: 0.9, maxTokens: 800, json: true },
+  portrait: { temperature: 0.8, maxTokens: 400, json: true },
+  'space-pitch': { temperature: 0.8, maxTokens: 400, json: true },
 };
 
 const isAction = (value: unknown): value is Action =>
@@ -304,7 +396,9 @@ const isAction = (value: unknown): value is Action =>
   value === 'review-starters' ||
   value === 'review-continue' ||
   value === 'discover-query' ||
-  value === 'recommend';
+  value === 'recommend' ||
+  value === 'portrait' ||
+  value === 'space-pitch';
 
 /** Genres TMDB acceptés. Tout le reste est écarté avant de bâtir une requête. */
 const GENRE_IDS = new Set([
@@ -365,6 +459,50 @@ const parseDiscover = (raw: string) => {
     provider: PROVIDERS.has(provider) ? provider : null,
     sortBy: SORTS.has(sort) ? sort : 'popularity.desc',
   };
+};
+
+/** Les trois traits du portrait, chacun avec le chiffre qui le soutient. */
+const parseTraits = (raw: string) => {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const list = Array.isArray(parsed) ? parsed : parsed?.traits;
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      text: typeof item.text === 'string' ? item.text.slice(0, 200).trim() : '',
+      figure: typeof item.figure === 'string' ? item.figure.slice(0, 24).trim() : '',
+    }))
+    .filter((item) => item.text.length > 0)
+    .slice(0, 3);
+};
+
+/** Un argument par membre. Les prénoms seront réappariés côté application. */
+const parsePitches = (raw: string) => {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const list = Array.isArray(parsed) ? parsed : parsed?.pitches;
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      name: typeof item.name === 'string' ? item.name.slice(0, 60).trim() : '',
+      text: typeof item.text === 'string' ? item.text.slice(0, 200).trim() : '',
+    }))
+    .filter((item) => item.name.length > 0 && item.text.length > 0)
+    .slice(0, 10);
 };
 
 /**
@@ -515,6 +653,10 @@ Deno.serve(async (req: Request) => {
     messages.push({ role: 'system', content: startersPersona(context) });
   } else if (action === 'review-continue') {
     messages.push({ role: 'system', content: continuePersona(context) });
+  } else if (action === 'portrait') {
+    messages.push({ role: 'system', content: portraitPersona(context) });
+  } else if (action === 'space-pitch') {
+    messages.push({ role: 'system', content: pitchPersona(context) });
   } else if (action === 'recommend') {
     messages.push({ role: 'system', content: recommendPersona(context) });
   } else if (action === 'discover-query') {
@@ -584,6 +726,18 @@ Deno.serve(async (req: Request) => {
       const starters = parseStarters(text);
       if (starters.length === 0) return fail(502, 'upstream', "Aucune amorce n'a pu être lue.");
       return json({ starters, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'portrait') {
+      const traits = parseTraits(text);
+      if (traits.length === 0) return fail(502, 'upstream', 'Portrait illisible.');
+      return json({ traits, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'space-pitch') {
+      const pitches = parsePitches(text);
+      if (pitches.length === 0) return fail(502, 'upstream', 'Argumentaire illisible.');
+      return json({ pitches, usage: payload?.usage ?? null });
     }
 
     if (action === 'recommend') {
