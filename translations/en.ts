@@ -303,6 +303,7 @@ export const en: Record<string, string> = {
   'pitch.ask': 'Who is this film for?',
   'pitch.thinking': 'Reading tastes…',
   'pitch.title': 'For each of you',
+  'pitch.noTaste': "Nobody has rated enough yet for your tastes to show.",
   'pitch.failed': "The pitch couldn't be written.",
   'portrait.title': 'What your scores say',
   'portrait.pitch': "You've rated {n} films. Enough for the numbers to show something you can't see on your own.",

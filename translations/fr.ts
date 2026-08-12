@@ -304,6 +304,7 @@ export const fr: Record<string, string> = {
   'pitch.ask': 'Pour qui est ce film ?',
   'pitch.thinking': 'Lecture des goûts…',
   'pitch.title': 'Pour chacun de vous',
+  'pitch.noTaste': "Personne n'a encore assez noté pour qu'on devine vos goûts.",
   'pitch.failed': "L'argumentaire n'a pas pu être écrit.",
   'portrait.title': 'Ce que tes notes disent',
   'portrait.pitch': 'Tu as noté {n} films. Assez pour que tes chiffres racontent quelque chose que tu ne peux pas voir seul.',

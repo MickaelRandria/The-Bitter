@@ -487,47 +487,27 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   /**
-   * La façon de noter de chaque membre, tirée des verdicts déjà posés ici.
+   * Les membres à qui un film peut être proposé.
    *
-   * Aucune requête supplémentaire : ces notes sont déjà en mémoire, et ce sont
-   * les bonnes. Le goût d'un membre mesuré sur les films de l'espace décrit
-   * exactement ce qui se joue quand on lui propose le suivant.
-   *
-   * En dessous de deux films notés, on ne dit rien de cette personne : une
-   * moyenne sur un seul film n'est pas un goût, et un argument bâti dessus
-   * ressemblerait à s'y méprendre à un argument fondé.
+   * Leur goût est laissé vide ici : il sera lu dans leur collection au moment
+   * où quelqu'un demande l'argumentaire. Une première version le calculait à
+   * partir des verdicts posés dans l'espace — élégant, aucune requête, données
+   * déjà en mémoire — mais l'espace n'en contenait aucun, donc personne n'avait
+   * de goût et le panneau se masquait lui-même. Or un espace qui démarre est
+   * exactement celui où l'on a le plus besoin qu'on nous dise si un film nous
+   * concerne.
    */
-  const memberTastes = useMemo<MemberTaste[]>(() => {
-    const byMember = new Map<string, { story: number[]; visuals: number[]; acting: number[]; sound: number[] }>();
-
-    for (const ratings of Object.values(movieRatings) as MovieRating[][]) {
-      for (const rating of ratings) {
-        if (!activeMemberIds.has(rating.profile_id)) continue;
-        const entry =
-          byMember.get(rating.profile_id) ?? { story: [], visuals: [], acting: [], sound: [] };
-        entry.story.push(Number(rating.story));
-        entry.visuals.push(Number(rating.visuals));
-        entry.acting.push(Number(rating.acting));
-        entry.sound.push(Number(rating.sound));
-        byMember.set(rating.profile_id, entry);
-      }
-    }
-
-    const avg = (values: number[]) =>
-      values.length === 0 ? 0 : Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10;
-
-    return members
-      .map((member) => {
-        const entry = byMember.get(member.profile_id);
-        if (!entry || entry.story.length < 2) return null;
-        return {
+  const memberTastes = useMemo<MemberTaste[]>(
+    () =>
+      members
+        .filter((member) => activeMemberIds.has(member.profile_id))
+        .map((member) => ({
           profileId: member.profile_id,
           name: member.profile?.first_name || t('shared.unknown'),
-          taste: `sur ${entry.story.length} films notés ici — scénario ${avg(entry.story)}/10, image ${avg(entry.visuals)}/10, jeu ${avg(entry.acting)}/10, son ${avg(entry.sound)}/10`,
-        } as MemberTaste;
-      })
-      .filter((m): m is MemberTaste => m !== null);
-  }, [movieRatings, members, activeMemberIds, t]);
+          taste: '',
+        })),
+    [members, activeMemberIds, t]
+  );
 
   const feedMovies = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const watchlistMovies = useMemo(() => {
