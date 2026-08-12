@@ -145,6 +145,67 @@ ${written}`,
   return (text || '').trim();
 };
 
+/** Une observation du portrait, et le chiffre qui la soutient. */
+export interface TasteTrait {
+  text: string;
+  figure: string;
+}
+
+/**
+ * Trois observations sur une façon de noter.
+ *
+ * Le partage des rôles est ce qui distingue ce portrait d'un horoscope :
+ * l'application calcule les moyennes et les corrélations, le modèle ne fait que
+ * les mettre en phrases, et chaque observation doit citer un chiffre. Une phrase
+ * inventée sur quelqu'un se lit exactement comme une phrase vraie — seul le
+ * chiffre affiché à côté permet de trancher.
+ */
+export const getTastePortrait = async (statsDescription: string): Promise<TasteTrait[]> => {
+  const { traits } = await callAI<{ traits?: TasteTrait[] }>({
+    action: 'portrait',
+    context: statsDescription,
+    text: 'Écris mon portrait.',
+  });
+  return Array.isArray(traits) ? traits.filter((tr) => tr?.text) : [];
+};
+
+/** Ce qu'un film proposé vaut pour un membre donné. */
+export interface SpacePitch {
+  name: string;
+  text: string;
+}
+
+/**
+ * Un argument par membre, pour un film proposé à un espace.
+ *
+ * Un film posé sans un mot ne déclenche rien : celui qui le voit ne sait pas
+ * s'il lui est destiné, et dans le doute il passe. L'argument s'adresse donc à
+ * chacun séparément, à partir de ses notes — un même film ne se défend pas de la
+ * même façon auprès de quelqu'un qui adore l'image et de quelqu'un qui ne
+ * pardonne rien au scénario.
+ */
+export const getSpacePitches = async (
+  film: { title: string; year?: number; overview?: string },
+  members: { name: string; taste: string }[]
+): Promise<SpacePitch[]> => {
+  if (members.length === 0) return [];
+
+  const context = `LE FILM PROPOSÉ :
+${film.title}${film.year ? ` (${film.year})` : ''}
+${film.overview ? `Résumé : ${film.overview.slice(0, 600)}` : ''}
+
+LES MEMBRES ET LEUR FAÇON DE NOTER :
+${members.map((m) => `— ${m.name} : ${m.taste}`).join('\n')}`;
+
+  const { pitches } = await callAI<{ pitches?: SpacePitch[] }>({
+    action: 'space-pitch',
+    context,
+    text: `Écris un argument pour chacun des ${members.length} membres.`,
+  });
+
+  return Array.isArray(pitches) ? pitches.filter((p) => p?.name && p?.text) : [];
+};
+
 /** Un film proposé, une fois retrouvé dans TMDB. */
 export interface PersonalRecommendation {
   tmdbId: number;

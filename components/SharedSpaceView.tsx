@@ -41,6 +41,7 @@ import {
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Movie } from '../types';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
@@ -484,6 +485,49 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       sound: ratings.reduce((acc, r) => acc + r.sound, 0) / ratings.length,
     };
   };
+
+  /**
+   * La façon de noter de chaque membre, tirée des verdicts déjà posés ici.
+   *
+   * Aucune requête supplémentaire : ces notes sont déjà en mémoire, et ce sont
+   * les bonnes. Le goût d'un membre mesuré sur les films de l'espace décrit
+   * exactement ce qui se joue quand on lui propose le suivant.
+   *
+   * En dessous de deux films notés, on ne dit rien de cette personne : une
+   * moyenne sur un seul film n'est pas un goût, et un argument bâti dessus
+   * ressemblerait à s'y méprendre à un argument fondé.
+   */
+  const memberTastes = useMemo<MemberTaste[]>(() => {
+    const byMember = new Map<string, { story: number[]; visuals: number[]; acting: number[]; sound: number[] }>();
+
+    for (const ratings of Object.values(movieRatings) as MovieRating[][]) {
+      for (const rating of ratings) {
+        if (!activeMemberIds.has(rating.profile_id)) continue;
+        const entry =
+          byMember.get(rating.profile_id) ?? { story: [], visuals: [], acting: [], sound: [] };
+        entry.story.push(Number(rating.story));
+        entry.visuals.push(Number(rating.visuals));
+        entry.acting.push(Number(rating.acting));
+        entry.sound.push(Number(rating.sound));
+        byMember.set(rating.profile_id, entry);
+      }
+    }
+
+    const avg = (values: number[]) =>
+      values.length === 0 ? 0 : Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10;
+
+    return members
+      .map((member) => {
+        const entry = byMember.get(member.profile_id);
+        if (!entry || entry.story.length < 2) return null;
+        return {
+          profileId: member.profile_id,
+          name: member.profile?.first_name || t('shared.unknown'),
+          taste: `sur ${entry.story.length} films notés ici — scénario ${avg(entry.story)}/10, image ${avg(entry.visuals)}/10, jeu ${avg(entry.acting)}/10, son ${avg(entry.sound)}/10`,
+        } as MemberTaste;
+      })
+      .filter((m): m is MemberTaste => m !== null);
+  }, [movieRatings, members, activeMemberIds, t]);
 
   const feedMovies = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const watchlistMovies = useMemo(() => {
@@ -1157,6 +1201,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       ) : (
                         <>
                           <div className="grid gap-4">
+                            {/* Avant de demander un avis, dire à qui le film
+                                s'adresse. Un titre posé sans un mot ne dit pas
+                                s'il nous concerne, et dans le doute on passe. */}
+                            <SpacePitchPanel
+                              film={{
+                                title: movie.title,
+                                year: movie.year ?? undefined,
+                                overview: movie.review ?? undefined,
+                              }}
+                              members={memberTastes}
+                            />
+
                             {/* Deux réponses possibles, et non plus une seule.
                                 Avec un unique bouton, « ça ne me dit rien » était
                                 indiscernable de « je n'ai pas encore vu la

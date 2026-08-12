@@ -47,6 +47,7 @@ import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaSubscriptionCard from './CinemaSubscriptionCard';
+import TastePortrait from './TastePortrait';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -1341,6 +1342,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       {/* ─── TAB : PROFIL ─── */}
       {activeTab === 'overview' && (
         <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+          {/* Placé sous l'archétype, qui dit ce qu'on est ; celui-ci dit ce que
+              les chiffres montrent, ce qui appelle une lecture plus attentive. */}
+          <TastePortrait movies={movies} />
+
           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2.5rem] p-8 text-center relative overflow-hidden shadow-xl dark:shadow-black/40 transition-all">
             <div className="absolute top-0 right-0 w-64 h-64 bg-forest/20 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10">
