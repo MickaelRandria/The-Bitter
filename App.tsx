@@ -75,6 +75,7 @@ import { resizeTmdbImage } from './utils/tmdbImage';
 import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
+import ErrorBoundary from './components/ErrorBoundary';
 import { restoreBackupPreferences, TheBitterBackup } from './utils/dataBackup';
 import { getAdvancedArchetype } from './utils/archetypes';
 import {
@@ -2016,6 +2017,15 @@ const App: React.FC = () => {
               : '1.5rem',
         }}
       >
+        {/* Une erreur de rendu effaçait jusqu'ici tout l'écran, sans message ni
+            moyen de repartir. La frontière est posée ici plutôt qu'à la racine :
+            l'en-tête et la navigation restent debout, donc on peut toujours
+            quitter l'écran fautif au lieu d'être coincé dedans.
+
+            La clé sur `viewMode` la remet à zéro à chaque changement de vue :
+            sans elle, une erreur survenue une fois resterait affichée même après
+            avoir navigué ailleurs. */}
+        <ErrorBoundary key={viewMode} where={viewMode === 'SharedSpace' ? 'Espace partagé' : undefined}>
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center py-20">
@@ -2587,6 +2597,7 @@ const App: React.FC = () => {
             </div>
           )}
         </Suspense>
+        </ErrorBoundary>
       </main>
 
       <BottomNav
