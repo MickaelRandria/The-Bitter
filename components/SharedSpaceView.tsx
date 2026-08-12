@@ -1243,12 +1243,34 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               </button>
                             </div>
 
+                            {/* Noter passe devant basculer. Il fallait jusqu'ici
+                                qu'une personne pense à marquer le film comme vu
+                                avant que quiconque puisse dire ce qu'il en avait
+                                pensé : le groupe attendait un geste au lieu
+                                d'attendre un avis. Le film bascule maintenant
+                                tout seul quand le premier verdict arrive. */}
                             <button
-                              onClick={(e) => handleMarkAsWatched(e, movie.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                haptics.medium();
+                                onRateMovie(movie, myRating ?? null);
+                              }}
                               className="w-full bg-bitter-lime text-charcoal py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
                             >
-                              <Ticket size={18} strokeWidth={2.5} />
-                              {t('shared.markWatched')}
+                              <Star size={18} strokeWidth={2.5} fill="currentColor" />
+                              {myRating ? t('shared.editVerdict') : t('shared.seenAndRate')}
+                            </button>
+
+                            {/* Conservé pour le cas où le groupe a vu le film
+                                ensemble et note plus tard : sans lui, un film vu
+                                resterait coincé dans « à voir » tant que
+                                personne n'ouvre l'écran de notation. */}
+                            <button
+                              onClick={(e) => handleMarkAsWatched(e, movie.id)}
+                              className="w-full py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-stone-400 dark:text-stone-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Ticket size={13} strokeWidth={2.5} />
+                              {t('shared.markWatchedOnly')}
                             </button>
 
                             {/* La suppression n'existait que dans l'onglet des verdicts :

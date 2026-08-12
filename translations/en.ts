@@ -1012,6 +1012,8 @@ export const en: Record<string, string> = {
   'shared.submitVerdict': 'Submit my verdict',
   'shared.iWantToSee': 'I WANT TO SEE IT',
   'shared.imIn': "I'M IN",
+  'shared.seenAndRate': 'I saw it, let me rate',
+  'shared.markWatchedOnly': 'Just mark as watched',
   'shared.markWatched': 'MARK AS WATCHED',
   'shared.memberProfile': 'Member Profile',
   'shared.publicProfile': 'PUBLIC PROFILE',
