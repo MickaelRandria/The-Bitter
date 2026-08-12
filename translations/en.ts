@@ -615,7 +615,19 @@ export const en: Record<string, string> = {
   'newFeatures.feed.title1': 'My',
   'newFeatures.feed.title2': 'people.',
   'newFeatures.feed.desc': 'See <b>what people in your spaces watched</b>, their ratings next to yours, and the full breakdown. You choose what you share, film by film.',
-  'newFeatures.newBadge': 'New v0.89',
+  'newFeatures.review.title1': 'You rate.',
+  'newFeatures.review.title2': 'Now say why.',
+  'newFeatures.review.desc':
+    'Three <b>opening lines</b> wait for you after every rating, drawn from the score you just gave. One tap and you are writing. A button extends it by <b>one sentence</b>, in your direction — the last one is always yours.',
+  'newFeatures.mood.title1': 'Tonight,',
+  'newFeatures.mood.title2': 'I feel like…',
+  'newFeatures.mood.desc':
+    'Describe what you want instead of setting six filters: <b>"nothing too long, nothing heavy, for two"</b>. No film is invented — your sentence becomes a search, and real entries come back.',
+  'newFeatures.portrait.title1': 'What your scores',
+  'newFeatures.portrait.title2': 'say about you.',
+  'newFeatures.portrait.desc':
+    'In Stats, three observations on how you rate — <b>each with the number that proves it</b>. Including the one nobody works out in their head: the criterion that actually decides your scores.',
+  'newFeatures.newBadge': 'New v0.91',
   'newFeatures.tour.title1': 'GUIDED',
   'newFeatures.tour.title2': 'TOUR',
   'newFeatures.tour.desc':
