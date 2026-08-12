@@ -43,7 +43,7 @@ import ViewingContextPicker from './ViewingContextPicker';
 import ReviewComposer from './ReviewComposer';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
-import { SharedSpace, addMovieToSpace, upsertMovieRating } from '../services/supabase';
+import { SharedSpace, addMovieToSpace, upsertMovieRating, markMovieAsWatched } from '../services/supabase';
 import { getSharedMovieDetails } from '../services/tmdb';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -622,6 +622,27 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           haptics.error();
           onToast?.(published.error ?? t('shared.ratingError'));
           return;
+        }
+
+        /**
+         * Poser un verdict, c'est avoir vu le film.
+         *
+         * Le passage en « vu » était jusqu'ici une action à part, avec sa
+         * confirmation, et il fallait l'avoir faite avant de pouvoir noter. Le
+         * groupe attendait donc qu'une personne pense à basculer la suggestion
+         * pour que les autres puissent dire ce qu'ils en avaient pensé.
+         *
+         * La bascule suit maintenant la note plutôt que de la précéder. Elle
+         * n'est tentée que si le film est encore en attente : la refaire à
+         * chaque verdict coûterait une requête pour ne rien changer.
+         */
+        if (sharedMovieToRate.status === 'watchlist') {
+          const moved = await markMovieAsWatched(sharedMovieToRate.id);
+          // Un échec ici ne perd rien : le verdict est enregistré, et le film
+          // reste dans « à voir » où quelqu'un pourra le basculer à la main.
+          if (!moved.ok && import.meta.env.DEV) {
+            console.warn('[Espace] Bascule en vu après le verdict :', moved.error);
+          }
         }
 
         haptics.success();

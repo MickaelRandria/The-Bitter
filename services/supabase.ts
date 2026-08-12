@@ -527,7 +527,10 @@ export async function markMovieAsWatched(movieId: string): Promise<SpaceWrite> {
   if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
   const { data, error } = await supabase
     .from('shared_movies')
-    .update({ status: 'watched' })
+    // La date manquait : les films basculés restaient à `date_watched` nul, et
+    // rien ne permettait de les ordonner dans le temps ni de dire quand le
+    // groupe les avait vus.
+    .update({ status: 'watched', date_watched: new Date().toISOString() })
     .eq('id', movieId)
     .select('id');
   return wrote('Passage en vu', data, error);
