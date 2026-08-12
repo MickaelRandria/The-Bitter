@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { getSpacePitches, SpacePitch } from '../services/ai';
+import { getMemberFilms } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export interface MemberTaste {
   profileId: string;
   name: string;
-  /** Sa façon de noter, résumée en une ligne à partir des notes de l'espace. */
+  /** Sa façon de noter, résumée en une ligne. Vide tant qu'on ne l'a pas lue. */
   taste: string;
 }
 
@@ -15,6 +16,34 @@ interface Props {
   film: { title: string; year?: number; overview?: string };
   members: MemberTaste[];
 }
+
+/**
+ * Le goût d'un membre, lu dans sa propre collection.
+ *
+ * Première version : je calculais ce goût à partir des notes posées dans
+ * l'espace. C'était élégant — aucune requête, les données déjà en mémoire — et
+ * faux dès le premier essai : l'espace ne contenait aucun verdict, donc aucun
+ * membre n'avait de goût, donc le panneau se masquait lui-même. Un espace qui
+ * démarre est précisément celui où l'on a le plus besoin qu'on nous dise si un
+ * film nous concerne.
+ *
+ * On lit donc la collection personnelle, qui existe elle. Au moment du clic
+ * seulement : ces requêtes ne doivent pas partir à l'affichage de chaque film
+ * proposé.
+ */
+const readTaste = async (profileId: string): Promise<string | null> => {
+  const { data } = await getMemberFilms(profileId);
+  if (!data || data.length < 3) return null;
+
+  const avg = (pick: (f: (typeof data)[number]) => number) =>
+    Math.round((data.reduce((sum, f) => sum + pick(f), 0) / data.length) * 10) / 10;
+
+  return (
+    `sur ${data.length} films notés — scénario ${avg((f) => f.criteria.story)}/10, ` +
+    `image ${avg((f) => f.criteria.visuals)}/10, jeu ${avg((f) => f.criteria.acting)}/10, ` +
+    `son ${avg((f) => f.criteria.sound)}/10, moyenne générale ${avg((f) => f.rating)}/10`
+  );
+};
 
 /**
  * Pour qui ce film est-il, membre par membre.
@@ -44,10 +73,22 @@ const SpacePitchPanel: React.FC<Props> = ({ film, members }) => {
     setError(null);
     setLoading(true);
     try {
-      const result = await getSpacePitches(
-        film,
-        members.map((m) => ({ name: m.name, taste: m.taste }))
+      // Les goûts se lisent au clic, en parallèle : les charger à l'affichage
+      // ferait partir une requête par membre pour chaque film proposé, et le
+      // plus souvent pour rien.
+      const withTaste = await Promise.all(
+        members.map(async (m) => ({ name: m.name, taste: m.taste || (await readTaste(m.profileId)) }))
       );
+
+      const usable = withTaste.filter((m): m is { name: string; taste: string } => !!m.taste);
+      if (usable.length === 0) {
+        // Personne n'a assez noté pour qu'on sache quoi que ce soit de ses
+        // goûts. Le dire vaut mieux qu'un argumentaire inventé de toutes pièces.
+        setError(t('pitch.noTaste'));
+        return;
+      }
+
+      const result = await getSpacePitches(film, usable);
       if (result.length === 0) {
         setError(t('pitch.failed'));
         return;
@@ -61,8 +102,10 @@ const SpacePitchPanel: React.FC<Props> = ({ film, members }) => {
     }
   };
 
-  // Sans notes, il n'y a rien sur quoi fonder un argument : le modèle
-  // inventerait des goûts, ce qui est pire que de se taire.
+  // Le bouton reste visible même sans goût connu d'avance : c'est le clic qui
+  // ira les chercher. Se masquer par précaution reviendrait à cacher la
+  // fonction à ceux qui en ont le plus besoin — un espace qui démarre n'a
+  // justement encore rien noté.
   if (members.length === 0) return null;
 
   return (
