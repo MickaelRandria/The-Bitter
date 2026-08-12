@@ -359,6 +359,31 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    * type serait plus juste qu'une amplitude, mais l'amplitude se lit sans
    * explication, et c'est elle qui fait discuter.
    */
+  /**
+   * Note d'un membre sur un film.
+   *
+   * La note pondérée de Bitter+ prime dès qu'elle existe : c'est celle que son
+   * auteur a réellement vue à l'écran. On ne retombe sur la moyenne simple des
+   * quatre critères que pour les notes posées avant l'unification, ou en mode
+   * Bitter. Moyenner les deux formes sans distinction fausserait le verdict du
+   * groupe, une note pondérée n'étant presque jamais égale à la moyenne brute.
+   *
+   * Déclarée AVANT `groupStats`, et cet ordre n'est pas cosmétique : le corps
+   * d'un `useMemo` s'exécute au moment où on l'écrit, pas plus tard. Placée en
+   * dessous, cette fonction était encore dans sa zone morte quand `groupStats`
+   * l'appelait — « Cannot access uninitialized variable », et tout l'écran
+   * disparaissait.
+   *
+   * Le défaut a dormi depuis le premier jour : `groupStats` n'atteint cet appel
+   * qu'en parcourant les notes du groupe, et il n'y en avait aucune. La toute
+   * première note posée dans l'espace l'a réveillé.
+   */
+  const ratingValue = (r: MovieRating): number => {
+    const weighted = r.adaptive_rating?.weightedRating;
+    if (typeof weighted === 'number' && Number.isFinite(weighted)) return weighted;
+    return (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
+  };
+
   const groupStats = useMemo(() => {
     if (members.length < 2) return null;
 
@@ -455,20 +480,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
 
 
-  /**
-   * Note d'un membre sur un film.
-   *
-   * La note pondérée de Bitter+ prime dès qu'elle existe : c'est celle que son
-   * auteur a réellement vue à l'écran. On ne retombe sur la moyenne simple des
-   * quatre critères que pour les notes posées avant l'unification, ou en mode
-   * Bitter. Moyenner les deux formes sans distinction fausserait le verdict du
-   * groupe, une note pondérée n'étant presque jamais égale à la moyenne brute.
-   */
-  const ratingValue = (r: MovieRating): number => {
-    const weighted = r.adaptive_rating?.weightedRating;
-    if (typeof weighted === 'number' && Number.isFinite(weighted)) return weighted;
-    return (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
-  };
 
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
