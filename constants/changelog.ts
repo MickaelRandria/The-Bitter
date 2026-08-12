@@ -14,6 +14,57 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.91',
+    date: '12 Août 2026',
+    title: "Une IA qui s'appuie sur tes notes, jamais sur son imagination",
+    changes: [
+      {
+        type: 'feature',
+        text: "Des amorces pour commencer ton avis. Sur 90 films notés dans l'app, un seul portait un avis écrit — le champ n'était ni caché ni compliqué, il était simplement vide et arrivait après tout le travail de la notation. Trois amorces sont maintenant prêtes quand tu y arrives, tirées de la note que tu viens de poser : « J'ai décroché au moment où… », « Ce qui m'a scotché, c'est… ». Une touche, et tu écris.",
+      },
+      {
+        type: 'feature',
+        text: "Un bouton « Continuer la phrase » qui ajoute UNE phrase, dans la direction que tes mots ont déjà prise. Jamais deux, jamais une conclusion : la dernière phrase reste toujours à toi. Et il n'apparaît pas tant que le champ est vide — il n'existe aucun moyen de faire écrire ton avis à ta place.",
+      },
+      {
+        type: 'feature',
+        text: "Une amorce te dit DE QUOI parler, jamais ce que tu en penses. « Ce qui m'a scotché, c'est… » est proposé ; « ce qui m'a scotché, c'est la photo » ne le sera jamais. Ta note dit déjà si tu as aimé — ce verdict est le tien, et l'app s'y appuie. C'est la raison qui doit rester la tienne.",
+      },
+      {
+        type: 'feature',
+        text: "Décris ton envie au lieu de régler six filtres. « Un truc pas trop long, pas prise de tête, à regarder à deux » remplit la grille d'Explorer. Aucun film n'est inventé : ta phrase est traduite en critères de recherche, et c'est la base TMDB qui répond. Un bandeau affiche ce qui a été compris, avec une croix pour revenir en arrière.",
+      },
+      {
+        type: 'feature',
+        text: "Les recommandations « Pour toi » s'appuient enfin sur ta façon de noter. Elles interrogeaient jusqu'ici un simple « ceux qui ont aimé X ont aimé Y », aveugle à la raison pour laquelle tu as aimé X. Chaque film proposé arrive maintenant avec une justification tirée de tes propres notes, critère par critère — et tes notes basses comptent autant que les hautes, car elles disent ce que tu ne pardonnes pas.",
+      },
+      {
+        type: 'feature',
+        text: "Ton portrait, dans Statistiques → Profil. Trois observations sur ta façon de noter, et chacune affiche le chiffre qui la soutient : c'est ce qui la rend vérifiable. La plus parlante vient d'un calcul que personne ne fait de tête — quel critère décide vraiment de ta note finale. Ce n'est presque jamais celui que tu notes le plus haut.",
+      },
+      {
+        type: 'feature',
+        text: "Dans les espaces, « Pour qui est ce film ? ». Un titre proposé sans un mot ne dit à personne s'il le concerne, et dans le doute chacun passe. L'app écrit maintenant une phrase par membre, à partir des notes de chacun. Elle a le droit de dire non : un argumentaire qui ne sait pas décourager ne veut plus rien dire quand il encourage.",
+      },
+      {
+        type: 'fix',
+        text: "Le Ciné-Assistant et la recherche approfondie ne fonctionnaient plus du tout en ligne. Les deux cherchaient leur clé dans une variable qui n'existe pas dans un navigateur : chaque appel levait une erreur, silencieusement. Ils remarchent, sur un nouveau moteur.",
+      },
+      {
+        type: 'fix',
+        text: "La clé de l'IA ne quitte plus jamais l'application. Toute clé placée dans le code d'une app web finit en clair dans le fichier téléchargé par ton navigateur — pour une clé facturée à l'usage, cela revient à publier un moyen de paiement. Elle vit désormais sur le serveur, et l'app lui parle à travers un relais qui exige une vraie session.",
+      },
+      {
+        type: 'fix',
+        text: "Un plafond de 40 demandes par personne et par jour. Il protège la facture sans jamais gêner un usage normal : noter trois films, faire dix recherches et tirer un portrait en consomme moins de la moitié.",
+      },
+      {
+        type: 'fix',
+        text: "L'ancien moteur d'IA est retiré, avec sa bibliothèque : le morceau de code correspondant passe de 294 Ko à 26 Ko. L'app démarre plus vite pour tout le monde, y compris ceux qui n'utilisent jamais l'IA.",
+      },
+    ],
+  },
+  {
     version: 'v0.90',
     date: '10 Août 2026',
     title: 'Espaces partagés remis en service, et le fil des proches',

@@ -11,6 +11,7 @@ import {
   MousePointerClick,
   MessageSquareText,
   Compass,
+  Fingerprint,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -47,20 +48,20 @@ const NewFeaturesModal: React.FC<NewFeaturesModalProps> = ({ onClose, onNeverSho
    */
   const features = [
     {
-      key: 'backup',
-      icon: CloudUpload,
+      key: 'review',
+      icon: MessageSquareText,
       accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
     },
     {
-      key: 'spaces',
-      icon: Users,
+      key: 'mood',
+      icon: Compass,
       accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
     },
     {
-      key: 'feed',
-      icon: Rss,
+      key: 'portrait',
+      icon: Fingerprint,
       accent: 'text-bitter-lime',
       badge: t('newFeatures.newBadge'),
     },

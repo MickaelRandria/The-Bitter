@@ -620,7 +620,19 @@ export const fr: Record<string, string> = {
   'newFeatures.feed.title1': 'Mes',
   'newFeatures.feed.title2': 'proches.',
   'newFeatures.feed.desc': 'Vois <b>ce que les membres de tes espaces ont vu</b>, leurs notes à côté des tiennes, et le détail critère par critère. Tu choisis ce que tu partages, film par film.',
-  'newFeatures.newBadge': 'Nouveau v0.89',
+  'newFeatures.review.title1': 'Tu notes.',
+  'newFeatures.review.title2': 'Dis pourquoi.',
+  'newFeatures.review.desc':
+    "Trois <b>amorces de phrase</b> t'attendent après chaque note, tirées de ce que tu viens de mettre. Une touche, et tu écris. Un bouton prolonge d'<b>une seule phrase</b>, dans ta direction — la dernière reste toujours à toi.",
+  'newFeatures.mood.title1': 'Ce soir,',
+  'newFeatures.mood.title2': "j'ai envie de…",
+  'newFeatures.mood.desc':
+    "Décris ton envie plutôt que de régler six filtres : <b>« pas trop long, pas prise de tête, à deux »</b>. Aucun film n'est inventé — ta phrase devient une recherche, et ce sont de vraies fiches qui remontent.",
+  'newFeatures.portrait.title1': 'Ce que tes notes',
+  'newFeatures.portrait.title2': 'disent de toi.',
+  'newFeatures.portrait.desc':
+    "Dans Statistiques, trois observations sur ta façon de noter — <b>chacune avec le chiffre qui la prouve</b>. Dont celle que personne ne calcule de tête : le critère qui décide vraiment de tes notes.",
+  'newFeatures.newBadge': 'Nouveau v0.91',
   'newFeatures.tour.title1': 'VISITE',
   'newFeatures.tour.title2': 'GUIDÉE',
   'newFeatures.tour.desc':
