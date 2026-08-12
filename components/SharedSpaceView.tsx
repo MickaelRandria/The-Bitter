@@ -476,13 +476,26 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     return (total / ratings.length).toFixed(1);
   };
 
+  /**
+   * Postgres rend ses colonnes `numeric` sous forme de texte, pour ne pas perdre
+   * de précision en route. Les notes arrivent donc en « 6.1 » et non en 6.1,
+   * alors que le type TypeScript annonce un nombre — le compilateur ne peut rien
+   * voir, et l'addition devient une concaténation.
+   *
+   * Toute valeur venue de la base passe donc par ici avant le moindre calcul.
+   */
+  const asNumber = (value: unknown): number => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   const calculateCriteriaAverages = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
     return {
-      story: ratings.reduce((acc, r) => acc + r.story, 0) / ratings.length,
-      visuals: ratings.reduce((acc, r) => acc + r.visuals, 0) / ratings.length,
-      acting: ratings.reduce((acc, r) => acc + r.acting, 0) / ratings.length,
-      sound: ratings.reduce((acc, r) => acc + r.sound, 0) / ratings.length,
+      story: ratings.reduce((acc, r) => acc + asNumber(r.story), 0) / ratings.length,
+      visuals: ratings.reduce((acc, r) => acc + asNumber(r.visuals), 0) / ratings.length,
+      acting: ratings.reduce((acc, r) => acc + asNumber(r.acting), 0) / ratings.length,
+      sound: ratings.reduce((acc, r) => acc + asNumber(r.sound), 0) / ratings.length,
     };
   };
 
@@ -1045,7 +1058,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                   <span>{movie.genres.join(', ')}</span>
                                 )}
                                 {movie.tmdb_rating && (
-                                  <span className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg">⭐ {movie.tmdb_rating.toFixed(1)} TMDB</span>
+                                  <span className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg">⭐ {asNumber(movie.tmdb_rating).toFixed(1)} TMDB</span>
                                 )}
                               </div>
                               {movie.actors && (
@@ -1120,10 +1133,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           {ratings.length > 0 ? (
                             <div className="grid gap-3">
                               {ratings.map((rating) => {
-                                const avg = (
-                                  (rating.story + rating.visuals + rating.acting + rating.sound) /
-                                  4
-                                ).toFixed(1);
+                                const avg = ratingValue(rating).toFixed(1);
                                 const isMe = rating.profile_id === currentUserId;
                                 return (
                                   <div
@@ -1188,7 +1198,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               film={{
                                 title: movie.title,
                                 year: movie.year ?? undefined,
-                                overview: movie.review ?? undefined,
+                                // `synopsis`, et non `review` : c'est le nom de la
+                                // colonne dans shared_movies. L'argumentaire partait
+                                // sans résumé, donc sur la seule mémoire du modèle.
+                                overview: movie.synopsis ?? undefined,
                               }}
                               members={memberTastes}
                             />
