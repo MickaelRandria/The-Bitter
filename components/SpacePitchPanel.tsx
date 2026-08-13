@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
-import { getSpacePitches, SpacePitch } from '../services/ai';
+import { getSpacePitches, SpacePitch, describeLovedFilms } from '../services/ai';
 import { getMemberFilms } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -31,17 +31,32 @@ interface Props {
  * seulement : ces requêtes ne doivent pas partir à l'affichage de chaque film
  * proposé.
  */
-const readTaste = async (profileId: string): Promise<string | null> => {
+const readTaste = async (profileId: string, name: string): Promise<string | null> => {
   const { data } = await getMemberFilms(profileId);
   if (!data || data.length < 3) return null;
 
-  const avg = (pick: (f: (typeof data)[number]) => number) =>
-    Math.round((data.reduce((sum, f) => sum + pick(f), 0) / data.length) * 10) / 10;
-
-  return (
-    `sur ${data.length} films notés — scénario ${avg((f) => f.criteria.story)}/10, ` +
-    `image ${avg((f) => f.criteria.visuals)}/10, jeu ${avg((f) => f.criteria.acting)}/10, ` +
-    `son ${avg((f) => f.criteria.sound)}/10, moyenne générale ${avg((f) => f.rating)}/10`
+  // Les films qu'il a aimés, film par film, plutôt que la moyenne de tout.
+  // Une moyenne d'image à 6,4 décrit aussi bien quelqu'un que l'image
+  // bouleverse que quelqu'un qu'elle laisse froid : elle écrase exactement ce
+  // qu'on cherchait à connaître.
+  return describeLovedFilms(
+    data.map((film) => ({
+      title: film.title,
+      year: film.year,
+      score: Number(film.rating),
+      // La grille complète d'abord : c'est « Humour 10 » ou « Facteur peur 8 »
+      // qui distingue un goût, pas un quatrième chiffre sur les mêmes axes que
+      // tout le monde. Les quatre critères historiques servent de repli.
+      criteria: film.allCriteria?.length
+        ? film.allCriteria
+        : [
+            { label: 'Scénario', value: Number(film.criteria.story) },
+            { label: 'Image', value: Number(film.criteria.visuals) },
+            { label: 'Jeu', value: Number(film.criteria.acting) },
+            { label: 'Son', value: Number(film.criteria.sound) },
+          ],
+    })),
+    name
   );
 };
 
@@ -77,7 +92,7 @@ const SpacePitchPanel: React.FC<Props> = ({ film, members }) => {
       // ferait partir une requête par membre pour chaque film proposé, et le
       // plus souvent pour rien.
       const withTaste = await Promise.all(
-        members.map(async (m) => ({ name: m.name, taste: m.taste || (await readTaste(m.profileId)) }))
+        members.map(async (m) => ({ name: m.name, taste: m.taste || (await readTaste(m.profileId, m.name)) }))
       );
 
       const usable = withTaste.filter((m): m is { name: string; taste: string } => !!m.taste);

@@ -225,37 +225,102 @@ export interface PersonalRecommendation {
  * Envoyer les soixante films coûterait cher pour n'ajouter que du milieu de
  * tableau, qui ne tranche rien.
  */
-const describeTaste = (movies: Movie[]): string => {
-  const rated = movies
-    .filter((m) => m.status === 'watched')
-    .map((m) => {
-      const criteria = m.adaptiveRating?.criteria?.length
-        ? m.adaptiveRating.criteria.map((c) => `${c.label} ${c.value}`)
-        : [
-            `Scénario ${m.ratings.story}`,
-            `Image ${m.ratings.visuals}`,
-            `Jeu ${m.ratings.acting}`,
-            `Son ${m.ratings.sound}`,
-          ];
-      const score =
-        m.adaptiveRating?.weightedRating ??
-        (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-      return { title: m.title, year: m.year, score, criteria: criteria.join(', ') };
+/** Un film noté, réduit à ce qui sert à décrire un goût. */
+export interface RatedFilm {
+  title: string;
+  year?: number;
+  score: number;
+  criteria: { label: string; value: number }[];
+}
+
+/**
+ * Décrit quelqu'un par les films qu'il a aimés, critère par critère.
+ *
+ * La tentation est de résumer un goût par des moyennes : « image 6,4/10 ». C'est
+ * commode et ça ne décrit personne. Quelqu'un qui met 9 à l'image des films
+ * qu'il adore et 3 à celle des films qu'il déteste ressort à 6 — exactement
+ * comme quelqu'un que l'image laisse indifférent. La moyenne écrase précisément
+ * ce qu'on cherchait à voir.
+ *
+ * On regarde donc ce qu'il RÉCOMPENSE : les critères des films qu'il a bien
+ * notés, film par film. Et on joint ses moyennes de référence, sans quoi un 8 ne
+ * se lit pas — c'est un exploit chez quelqu'un qui plafonne à 6, une déception
+ * chez quelqu'un qui distribue des 9.
+ */
+export const describeLovedFilms = (films: RatedFilm[], name?: string): string => {
+  if (films.length === 0) return '';
+
+  const sorted = [...films].sort((a, b) => b.score - a.score);
+
+  // Le seuil du « bien noté » suit la personne, pas une constante : chez un
+  // sévère, 7 est déjà un compliment rare, et un seuil fixe ne retiendrait rien.
+  const median = sorted[Math.floor(sorted.length / 2)]?.score ?? 0;
+  const bar = Math.max(median, 6.5);
+  const loved = sorted.filter((f) => f.score >= bar).slice(0, 10);
+  const kept = loved.length >= 3 ? loved : sorted.slice(0, Math.min(5, sorted.length));
+
+  // Les moyennes ne servent que de repère de lecture, jamais de portrait.
+  const baseline = new Map<string, number[]>();
+  for (const film of films) {
+    for (const c of film.criteria) {
+      baseline.set(c.label, [...(baseline.get(c.label) ?? []), c.value]);
+    }
+  }
+  const reference = [...baseline.entries()]
+    .map(([label, values]) => {
+      const avg = values.reduce((s, v) => s + v, 0) / values.length;
+      return `${label} ${avg.toFixed(1)}`;
     })
-    .sort((a, b) => b.score - a.score);
+    .join(', ');
 
-  const line = (m: (typeof rated)[number]) =>
-    `- ${m.title} (${m.year}) — ${m.score.toFixed(1)}/10 · ${m.criteria}`;
+  const line = (f: RatedFilm) =>
+    `- ${f.title}${f.year ? ` (${f.year})` : ''} — ${f.score.toFixed(1)}/10 · ` +
+    f.criteria.map((c) => `${c.label} ${c.value}`).join(', ');
 
-  const best = rated.slice(0, 12).map(line).join('\n');
-  const worst = rated.slice(-5).reverse().map(line).join('\n');
+  const disliked = sorted
+    .filter((f) => f.score < Math.min(5, bar - 2))
+    .slice(-4)
+    .reverse();
 
-  return `SES FILMS LES MIEUX NOTÉS :
-${best}
+  const who = name ? `${name.toUpperCase()} — ` : '';
 
-SES FILMS LES MOINS BIEN NOTÉS — ce qu'il ne pardonne pas :
-${worst}`;
+  return `${who}${films.length} films notés.
+
+CE QU'IL RÉCOMPENSE — ses films les mieux notés, critère par critère.
+C'est là que se lit son goût : regarde QUELS critères portent ces notes, pas la
+note globale.
+${kept.map(line).join('\n')}
+
+SES MOYENNES DE RÉFÉRENCE, pour savoir lire les chiffres ci-dessus :
+${reference}
+${
+  disliked.length > 0
+    ? `\nCE QU'IL NE PARDONNE PAS — ses plus mauvaises notes :\n${disliked.map(line).join('\n')}`
+    : ''
+}`;
 };
+
+/** Les films de la collection locale, ramenés à la forme commune. */
+const toRatedFilms = (movies: Movie[]): RatedFilm[] =>
+  movies
+    .filter((m) => m.status === 'watched')
+    .map((m) => ({
+      title: m.title,
+      year: m.year,
+      score:
+        m.adaptiveRating?.weightedRating ??
+        (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4,
+      criteria: m.adaptiveRating?.criteria?.length
+        ? m.adaptiveRating.criteria.map((c) => ({ label: c.label, value: Number(c.value) }))
+        : [
+            { label: 'Scénario', value: Number(m.ratings.story) },
+            { label: 'Image', value: Number(m.ratings.visuals) },
+            { label: 'Jeu', value: Number(m.ratings.acting) },
+            { label: 'Son', value: Number(m.ratings.sound) },
+          ],
+    }));
+
+const describeTaste = (movies: Movie[]): string => describeLovedFilms(toRatedFilms(movies));
 
 /**
  * Cinq films choisis d'après la façon de noter, et non d'après un graphe de

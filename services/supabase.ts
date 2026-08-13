@@ -762,6 +762,8 @@ export interface MemberFilm {
   rating: number;
   /** Les quatre critères bruts, pour comparer non plus des notes mais des regards. */
   criteria: { story: number; visuals: number; acting: number; sound: number };
+  /** La grille complète quand elle existe, critères propres au genre compris. */
+  allCriteria?: { label: string; value: number }[];
 }
 
 /**
@@ -807,6 +809,20 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
       posterUrl: row.poster_url || undefined,
       rating,
       criteria: extractCriteria(row),
+      /**
+       * La grille complète, telle qu'elle a été posée.
+       *
+       * `criteria` ne rend que les quatre critères historiques, ce qui suffit à
+       * comparer deux personnes sur un même axe. Mais c'est justement ce qui
+       * déborde de ces quatre-là qui décrit un goût : « Humour 10 » sur The
+       * Office, « Facteur peur 8 » sur un film d'horreur. Les écraser revenait à
+       * décrire tout le monde avec le même vocabulaire.
+       */
+      allCriteria: Array.isArray(row.adaptive_rating?.criteria)
+        ? row.adaptive_rating.criteria
+            .filter((c: any) => c && typeof c.label === 'string' && Number.isFinite(Number(c.value)))
+            .map((c: any) => ({ label: c.label as string, value: Number(c.value) }))
+        : undefined,
     } as MemberFilm;
   });
 
