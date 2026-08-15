@@ -1,6 +1,7 @@
 import { UserProfile, Movie } from '../types';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
 import { supabase } from './supabase';
+import { currentCriterionLabel } from '../config/ratingProfiles';
 
 export interface AISearchResult {
   text: string;
@@ -311,12 +312,15 @@ const toRatedFilms = (movies: Movie[]): RatedFilm[] =>
         m.adaptiveRating?.weightedRating ??
         (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4,
       criteria: m.adaptiveRating?.criteria?.length
-        ? m.adaptiveRating.criteria.map((c) => ({ label: c.label, value: Number(c.value) }))
+        ? m.adaptiveRating.criteria.map((c) => ({
+            label: currentCriterionLabel(c.label, c.key),
+            value: Number(c.value),
+          }))
         : [
             { label: 'Scénario', value: Number(m.ratings.story) },
             { label: 'Image', value: Number(m.ratings.visuals) },
-            { label: 'Jeu', value: Number(m.ratings.acting) },
-            { label: 'Son', value: Number(m.ratings.sound) },
+            { label: 'Jeu des acteurs', value: Number(m.ratings.acting) },
+            { label: 'Son & musique', value: Number(m.ratings.sound) },
           ],
     }));
 

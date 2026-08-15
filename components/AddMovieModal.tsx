@@ -38,6 +38,7 @@ import {
   AdaptiveRatingCriterion,
   CinemaSubscription,
   ViewingContext,
+  EmotionalImprint,
 } from '../types';
 import ViewingContextPicker from './ViewingContextPicker';
 import ReviewComposer from './ReviewComposer';
@@ -207,10 +208,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   const [mode, setMode] = useState<MovieStatus>(initialStatus);
-  // Bitter+ = advanced adaptive rating. Bitter = simple 4-criteria average (default).
-  const [useBitterPlus, setUseBitterPlus] = useState(false);
+  // Bitter+ est le parcours naturel ; la notation Bitter reste un raccourci volontaire.
+  const [useBitterPlus, setUseBitterPlus] = useState(true);
   const [profileId, setProfileId] = useState<RatingProfileId>('standard');
   const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({});
+  const [quickRating, setQuickRating] = useState<number | null>(null);
+  const [emotionalImprints, setEmotionalImprints] = useState<EmotionalImprint[]>([]);
   const [customWeights, setCustomWeights] = useState<Record<string, number>>({ ...DEFAULT_CUSTOM_WEIGHTS });
   const [profileManuallySet, setProfileManuallySet] = useState(false);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
@@ -235,13 +238,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setQuickRating(null);
       if (initialData) {
         skipSearchRef.current = true;
         setFormData({ ...initialData, comment: initialData.comment || '' });
         setMode(initialData.status || 'watched');
-        // Bitter+ when the saved data contains an adaptive rating (advanced grid).
-        // Otherwise, default to Bitter (simple 4-criteria average).
-        setUseBitterPlus(!!initialData.adaptiveRating);
+        // Le verdict existant s'ouvre dans Bitter+ pour garder une seule expérience
+        // de notation, tout en reprenant ses quatre valeurs historiques.
+        setUseBitterPlus(true);
         setShareToFeed(initialData.shareToFeed !== false);
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
         // Restore adaptive rating state when editing
@@ -255,6 +259,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           const values: Record<string, number> = {};
           for (const c of initialData.adaptiveRating.criteria) values[c.key] = c.value;
           setCriteriaValues(values);
+          setEmotionalImprints(initialData.adaptiveRating.imprints ?? []);
           // Restore custom weights from stored criteria when the saved profile is custom
           if (restoredProfile === 'custom') {
             const weights: Record<string, number> = { ...DEFAULT_CUSTOM_WEIGHTS };
@@ -275,6 +280,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             interpretation: qm?.acting ?? initialData.ratings.acting,
             sound: qm?.sound ?? initialData.ratings.sound,
           });
+          setEmotionalImprints([]);
         }
         if (initialData.dateWatched)
           setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
@@ -284,6 +290,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         handleSelectTMDBMovie(tmdbIdToLoad, type);
         setMode(initialStatus);
         setSelectedDate(new Date().toISOString().split('T')[0]);
+        setEmotionalImprints([]);
       } else {
         skipSearchRef.current = false;
         setFormData({ ...INITIAL_FORM_STATE });
@@ -296,7 +303,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setProfileManuallySet(false);
         setCriteriaValues({});
         setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
-        setUseBitterPlus(false);
+        setUseBitterPlus(true);
+        setQuickRating(null);
+        setEmotionalImprints([]);
         setViewingContext(undefined);
       }
     }
@@ -366,6 +375,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     }));
 
     const adaptive = sharedRatingToEdit?.adaptive_rating;
+    setEmotionalImprints(adaptive?.imprints ?? []);
     if (adaptive?.criteria?.length) {
       const values: Record<string, number> = {};
       for (const c of adaptive.criteria) values[c.key] = c.value;
@@ -503,6 +513,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       : Math.round(
           (bitterCriteria.reduce((s, c) => s + c.value, 0) / bitterCriteria.length) * 10
         ) / 10;
+  const activeRatingCriteria = useBitterPlus ? adaptiveCriteria : bitterCriteria;
+  const isRatingReady =
+    mode === 'watchlist' ||
+    activeRatingCriteria.every((criterion) => criteriaValues[criterion.key] != null);
 
   /**
    * Ce que la note dit, pour les amorces d'avis.
@@ -539,12 +553,30 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   };
 
   const setCriterionValue = (key: string, value: number) => {
+    setQuickRating(null);
     setCriteriaValues((prev) => ({ ...prev, [key]: Math.min(10, Math.max(0, value)) }));
+  };
+
+  const applyQuickRating = (value: number) => {
+    haptics.soft();
+    setQuickRating(value);
+    setCriteriaValues(
+      Object.fromEntries(adaptiveCriteria.map((criterion) => [criterion.key, value]))
+    );
   };
 
   const handleSelectProfile = (id: RatingProfileId) => {
     haptics.soft();
     setProfileId(id);
+    if (quickRating != null) {
+      setCriteriaValues(
+        Object.fromEntries(
+          buildCriteriaForProfile(id, undefined, id === 'custom' ? customWeights : undefined).map(
+            (criterion) => [criterion.key, quickRating]
+          )
+        )
+      );
+    }
     setProfileManuallySet(true);
     setShowProfilePicker(false);
   };
@@ -575,6 +607,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         criteria: adaptiveCriteria,
         weightedRating: adaptiveWeightedRating,
         legacyRating: legacyAvg,
+        imprints: emotionalImprints.length > 0 ? emotionalImprints : undefined,
       };
       const byKey = new Map(adaptiveCriteria.map((c) => [c.key, c.value]));
       const scenario = byKey.get('scenario') ?? 5;
@@ -952,10 +985,31 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           {mode === 'watched' && (
             <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {/* Bitter / Bitter+ mode switch — Bitter is the default, Bitter+ opens the advanced grid */}
-              {!sharedSpace && (
-              <div
-                data-tour="add-rating-mode"
-                className="bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-[2rem] p-2 shadow-sm"
+               {!sharedSpace && (
+               <>
+               <div className="flex items-center justify-between gap-4 rounded-[2rem] border border-bitter-lime/25 bg-charcoal p-4 text-white shadow-lg dark:bg-[#1a1a1a]">
+                 <div className="min-w-0">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+                     {useBitterPlus ? t('addMovie.bitterPlusMode') : t('addMovie.bitterMode')}
+                   </p>
+                   <p className="mt-1 text-[11px] font-medium leading-snug text-stone-300">
+                     {useBitterPlus ? t('addMovie.bitterPlusModeHint') : t('addMovie.bitterModeHint')}
+                   </p>
+                 </div>
+                 <button
+                   type="button"
+                   onClick={() => {
+                     haptics.soft();
+                     setUseBitterPlus((enabled) => !enabled);
+                   }}
+                   className="shrink-0 rounded-full bg-white/10 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white transition-colors hover:bg-white/15"
+                 >
+                   {useBitterPlus ? t('addMovie.quickMode') : t('addMovie.backToBitterPlus')}
+                 </button>
+               </div>
+               <div
+                 data-tour="add-rating-mode"
+                 className="hidden"
               >
                 <div className="flex items-stretch gap-1" role="tablist" aria-label="Mode de notation">
                   <button
@@ -998,8 +1052,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-3 mb-1 ml-2 leading-snug">
                   {useBitterPlus ? t('addMovie.bitterPlusModeHint') : t('addMovie.bitterModeHint')}
                 </p>
-              </div>
-              )}
+               </div>
+               </>
+               )}
 
               {sharedSpace && (
                 <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 ml-2 leading-snug">
@@ -1015,6 +1070,10 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     criteria={adaptiveCriteria}
                     weightedRating={adaptiveWeightedRating}
                     customWeights={customWeights}
+                    quickRating={quickRating}
+                    ratedKeys={criteriaValues}
+                    isReady={isRatingReady}
+                    onQuickRating={applyQuickRating}
                     onChange={setCriterionValue}
                     onChangeCustomWeight={setCustomWeight}
                     onOpenProfilePicker={() => {
@@ -1022,7 +1081,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       setShowProfilePicker(true);
                     }}
                   />
-                  <div
+                  <RatingDisclosure
+                    title={t('addMovie.experience')}
+                    description={t('addMovie.experienceHint')}
+                  >
+                    <div
                     data-tour="add-distraction"
                     className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 sm:p-8 rounded-[2rem] shadow-xl transition-all"
                   >
@@ -1143,50 +1206,24 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <VibeBox
-                      icon={<Heart size={14} />}
-                      label={t('addMovie.emotion')}
-                      value={formData.vibe?.emotion || 5}
-                      onChange={(v) =>
-                        setFormData({ ...formData, vibe: { ...formData.vibe!, emotion: v } })
-                      }
+                  </RatingDisclosure>
+
+                  <RatingDisclosure
+                    title={t('addMovie.feelings')}
+                    description={t('addMovie.feelingsHint')}
+                  >
+                    <FeelingPicker
+                      selected={emotionalImprints}
+                      onToggle={(imprint) => {
+                        setEmotionalImprints((current) => {
+                          if (current.includes(imprint)) {
+                            return current.filter((item) => item !== imprint);
+                          }
+                          return current.length < 7 ? [...current, imprint] : current;
+                        });
+                      }}
                     />
-                    <VibeBox
-                      icon={<Zap size={14} />}
-                      label={t('addMovie.tension')}
-                      value={formData.vibe?.tension || 5}
-                      onChange={(v) =>
-                        setFormData({ ...formData, vibe: { ...formData.vibe!, tension: v } })
-                      }
-                    />
-                    <VibeBox
-                      icon={<Smile size={14} />}
-                      label={t('addMovie.fun')}
-                      value={formData.vibe?.fun || 5}
-                      onChange={(v) =>
-                        setFormData({ ...formData, vibe: { ...formData.vibe!, fun: v } })
-                      }
-                    />
-                    <VibeBox
-                      icon={<BrainCircuit size={14} />}
-                      label={t('addMovie.cerebral')}
-                      value={formData.vibe?.story || 5}
-                      onChange={(v) =>
-                        setFormData({ ...formData, vibe: { ...formData.vibe!, story: v } })
-                      }
-                    />
-                    <div className="col-span-2">
-                      <VibeBox
-                        icon={<Aperture size={14} />}
-                        label={t('addMovie.visual')}
-                        value={formData.vibe?.visual || 5}
-                        onChange={(v) =>
-                          setFormData({ ...formData, vibe: { ...formData.vibe!, visual: v } })
-                        }
-                      />
-                    </div>
-                  </div>
+                  </RatingDisclosure>
                 </div>
               ) : (
                 <BitterRatingSection
@@ -1201,13 +1238,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               )}
 
               {/* Contexte de visionnage : deux rangées de puces, rien d'obligatoire. */}
-              <ViewingContextPicker
-                value={viewingContext}
-                onChange={setViewingContext}
-                subscription={cinemaSubscription?.active ? cinemaSubscription : undefined}
-              />
+              <RatingDisclosure title={t('addMovie.context')}>
+                <ViewingContextPicker
+                  value={viewingContext}
+                  onChange={setViewingContext}
+                  subscription={cinemaSubscription?.active ? cinemaSubscription : undefined}
+                />
+              </RatingDisclosure>
 
-              <div className="space-y-4">
+              <RatingDisclosure title={t('addMovie.opinion')}>
+                <div className="space-y-4">
                 <ReviewComposer
                   title={formData.title}
                   year={formData.year}
@@ -1248,7 +1288,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                     </span>
                   </span>
                 </button>
-              </div>
+                </div>
+              </RatingDisclosure>
             </div>
           )}
         </div>
@@ -1256,7 +1297,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         <div className="p-8 border-t border-black/5 dark:border-white/10 bg-white dark:bg-[#1a1a1a] rounded-b-[3.5rem] shrink-0 transition-colors">
           <button
             onClick={handleSubmit}
-            disabled={isSaving}
+            disabled={isSaving || (mode === 'watched' && !isRatingReady)}
             className="w-full bg-charcoal dark:bg-forest text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : t('addMovie.confirm')}
@@ -1329,7 +1370,7 @@ const BitterRatingSection: React.FC<{
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
           Critères de notation
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-3">
           {criteria.map((c) => (
             <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} hideImportance />
           ))}
@@ -1447,6 +1488,10 @@ const AdaptiveRatingSection: React.FC<{
   criteria: AdaptiveRatingCriterion[];
   weightedRating: number;
   customWeights: Record<string, number>;
+  quickRating: number | null;
+  ratedKeys: Record<string, number>;
+  isReady: boolean;
+  onQuickRating: (value: number) => void;
   onChange: (key: string, value: number) => void;
   onChangeCustomWeight: (key: string, weight: number) => void;
   onOpenProfilePicker: () => void;
@@ -1456,17 +1501,19 @@ const AdaptiveRatingSection: React.FC<{
   criteria,
   weightedRating,
   customWeights,
+  quickRating,
+  ratedKeys,
+  isReady,
+  onQuickRating,
   onChange,
   onChangeCustomWeight,
   onOpenProfilePicker,
 }) => {
+  const { t } = useLanguage();
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
   const base = criteria.filter((c) => c.group === 'base');
   const specific = criteria.filter((c) => c.group === 'specific');
   const isCustom = profileId === 'custom';
-  const reinforcedLabels = criteria
-    .filter((c) => c.weightLabel === 'Essentiel' || c.weightLabel === 'Important')
-    .map((c) => c.label);
 
   return (
     <div className="space-y-6">
@@ -1486,18 +1533,8 @@ const AdaptiveRatingSection: React.FC<{
             <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-2 leading-snug">
               {isCustom
                 ? 'Choisis les critères qui comptent le plus dans ta manière de noter ce film.'
-                : 'La grille est adaptée automatiquement au type d’expérience du film, mais tu peux la changer.'}
+                : 'La grille s’adapte au type de film. Tu peux la changer à tout moment.'}
             </p>
-            {!isCustom && reinforcedLabels.length > 0 && (
-              <div className="mt-3">
-                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-                  Critères renforcés
-                </p>
-                <p className="text-[12px] font-bold text-charcoal dark:text-white mt-0.5 leading-snug">
-                  {reinforcedLabels.join(' · ')}
-                </p>
-              </div>
-            )}
           </div>
           <button
             type="button"
@@ -1522,14 +1559,41 @@ const AdaptiveRatingSection: React.FC<{
         )}
       </div>
 
+      <div className="rounded-[2rem] border border-bitter-lime/20 bg-charcoal p-5 text-white shadow-xl dark:bg-[#1a1a1a]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+              {t('addMovie.startingPoint')}
+            </p>
+            <p className="mt-1 text-[11px] font-medium leading-snug text-stone-300">
+              {t('addMovie.startingPointHint')}
+            </p>
+          </div>
+          <span className="text-3xl font-black tracking-tighter text-bitter-lime tabular-nums">
+            {quickRating == null ? '—' : quickRating.toFixed(1)}
+          </span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="10"
+          step="0.5"
+          value={quickRating ?? 5}
+          onChange={(event) => onQuickRating(Number(event.target.value))}
+          aria-label={t('addMovie.startingPoint')}
+          className="mt-5 w-full accent-bitter-lime"
+        />
+        <div className="mt-1 flex justify-between text-[9px] font-bold text-stone-500"><span>0</span><span>10</span></div>
+      </div>
+
       {/* Base criteria */}
       <div data-tour="add-criteria">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
           Critères de notation
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-3">
           {base.map((c) => (
-            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} />
+            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} isSet={ratedKeys[c.key] != null} />
           ))}
         </div>
       </div>
@@ -1538,14 +1602,14 @@ const AdaptiveRatingSection: React.FC<{
       {specific.length > 0 && (
         <div data-tour="add-specific">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
-            Critère spécifique
+            Ce qui compte le plus ici
           </p>
           <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 ml-1 mb-3 leading-snug">
-            L’élément clé pour évaluer ce type de film.
+            {specific[0].label} pèse davantage dans ta note pour ce type de film.
           </p>
           <div className="grid grid-cols-1 gap-3">
             {specific.map((c) => (
-              <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} showDescription />
+              <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} showDescription isSet={ratedKeys[c.key] != null} />
             ))}
           </div>
         </div>
@@ -1561,7 +1625,7 @@ const AdaptiveRatingSection: React.FC<{
             Note finale
           </p>
           <span className="text-5xl font-black text-bitter-lime tracking-tighter shrink-0">
-            {weightedRating.toFixed(1)}
+            {isReady ? weightedRating.toFixed(1) : '—'}
           </span>
         </div>
       </div>
@@ -1635,72 +1699,103 @@ const AdaptiveCriterionStepper: React.FC<{
   onChange: (key: string, value: number) => void;
   showDescription?: boolean;
   hideImportance?: boolean;
-}> = ({ criterion, onChange, showDescription, hideImportance }) => {
+  isSet?: boolean;
+}> = ({ criterion, onChange, showDescription, hideImportance, isSet = true }) => {
   const { key, label, value, weight, weightLabel, description } = criterion;
+  const currentValue = isSet ? value : 5;
+
+  /**
+   * L'explication à la demande.
+   *
+   * L'afficher en permanence sous chaque critère alourdissait un écran déjà
+   * long, et celui qui a compris n'a pas besoin de la relire à chaque film.
+   * L'afficher nulle part laissait deviner ce qu'on note. Un (i) règle les
+   * deux : discret pour qui sait, à portée de pouce pour qui doute.
+   */
+  const [showHelp, setShowHelp] = useState(false);
+  const helpId = `aide-${key}`;
+  const helpVisible = showDescription || showHelp;
+
   return (
-    <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] p-3 sm:p-4 border border-stone-100 dark:border-white/10 flex flex-col h-full shadow-sm">
-      {/* Top row: label (full width, never truncated) + value */}
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] p-4 border border-stone-100 dark:border-white/10 shadow-sm">
       <div className="flex justify-between items-start gap-2">
-        <span className="text-[10px] sm:text-[11px] font-black text-charcoal dark:text-white uppercase tracking-widest leading-tight break-words flex-1 min-w-0">
-          {label}
-        </span>
+        <div className="min-w-0">
+          <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-charcoal dark:text-white uppercase tracking-widest leading-tight">
+            <span className="break-words">{label}</span>
+            {description && !showDescription && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.soft();
+                  setShowHelp((v) => !v);
+                }}
+                aria-expanded={showHelp}
+                aria-controls={helpId}
+                aria-label={`Que veut dire « ${label} » ?`}
+                className={`w-4 h-4 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                  showHelp
+                    ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                    : 'bg-stone-100 dark:bg-white/10 text-stone-400 dark:text-stone-500'
+                }`}
+              >
+                <Info size={10} strokeWidth={3} />
+              </button>
+            )}
+          </span>
+          {!hideImportance && (
+            <span className="mt-2 inline-flex items-center gap-2">
+              <WeightPips weight={weight} weightLabel={weightLabel} size="sm" />
+              <span className="text-[9px] font-bold text-stone-400 dark:text-stone-500">{weightLabel}</span>
+            </span>
+          )}
+        </div>
         <span className="text-2xl font-black tracking-tighter text-charcoal dark:text-white shrink-0 leading-none tabular-nums">
-          {value.toFixed(1)}
+          {isSet ? value.toFixed(1) : '—'}
         </span>
       </div>
-      {/* Importance pips (hidden in Bitter mode) */}
-      {!hideImportance && (
-        <div className="mt-2">
-          <WeightPips weight={weight} weightLabel={weightLabel} size="sm" />
-        </div>
-      )}
-      {/* Optional description (specific criteria) */}
-      {showDescription && description && (
-        <p className="text-[11px] leading-snug text-stone-500 dark:text-stone-400 mt-3">
+      {helpVisible && description && (
+        <p
+          id={helpId}
+          className="text-[11px] leading-snug text-stone-500 dark:text-stone-400 mt-2"
+        >
           {description}
         </p>
       )}
-      {/* Stepper control */}
-      <div className="flex items-center justify-between gap-1 mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
+      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-stone-100 dark:border-white/5">
         <button
           type="button"
           aria-label="Diminuer la note"
           onClick={() => {
             haptics.soft();
-            onChange(key, Math.max(0, value - 0.5));
+            onChange(key, Math.max(0, currentValue - 0.5));
           }}
           className="w-8 h-8 rounded-xl bg-stone-50 dark:bg-[#161616] border border-stone-200 dark:border-white/5 flex items-center justify-center active:scale-90 transition-all shadow-sm shrink-0"
         >
           <Minus size={12} strokeWidth={3} className="text-charcoal dark:text-white" />
         </button>
         <input
-          type="number"
-          inputMode="decimal"
+          type="range"
           step="0.5"
           min="0"
           max="10"
           aria-label={`Note pour ${label}`}
-          value={value === 0 ? '' : value}
-          placeholder="0"
-          onChange={(e) => {
-            const val = parseFloat(e.target.value.replace(',', '.'));
-            if (!isNaN(val)) onChange(key, Math.min(10, Math.max(0, val)));
-            else if (e.target.value === '') onChange(key, 0);
-          }}
-          className="flex-1 min-w-0 text-center text-base font-bold tracking-tight text-stone-500 dark:text-stone-400 bg-transparent outline-none py-0 appearance-none border-none ring-0 focus:ring-0"
+          value={currentValue}
+          onChange={(e) => onChange(key, Number(e.target.value))}
+          className="flex-1 min-w-0 accent-bitter-lime"
         />
         <button
           type="button"
           aria-label="Augmenter la note"
           onClick={() => {
             haptics.soft();
-            onChange(key, Math.min(10, value + 0.5));
+            onChange(key, Math.min(10, currentValue + 0.5));
           }}
           className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-all shadow-md shrink-0 bg-bitter-lime text-charcoal"
         >
           <Plus size={12} strokeWidth={3} />
         </button>
       </div>
+      <div className="mt-1 flex justify-between px-11 text-[9px] font-bold text-stone-300 dark:text-stone-600"><span>0</span><span>10</span></div>
     </div>
   );
 };
@@ -1733,6 +1828,7 @@ const ProfilePicker: React.FC<{
       <div className="p-3 space-y-1">
         {PROFILE_OPTIONS.map((opt) => {
           const selected = opt.id === currentProfileId;
+          const keyCriterion = getRatingProfile(opt.id).criteria.find((criterion) => criterion.group === 'specific');
           return (
             <button
               key={opt.id}
@@ -1744,7 +1840,14 @@ const ProfilePicker: React.FC<{
                   : 'bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white border border-stone-100 dark:border-white/10'
               }`}
             >
-              {opt.label}
+              <span className="block">{opt.label}</span>
+              {keyCriterion && (
+                <span className={`mt-1 block text-[10px] font-bold normal-case tracking-normal ${
+                  selected ? 'text-white/65 dark:text-charcoal/65' : 'text-stone-400 dark:text-stone-500'
+                }`}>
+                  Ce qui compte le plus : {keyCriterion.label}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1753,41 +1856,117 @@ const ProfilePicker: React.FC<{
   </div>
 );
 
-const VibeBox: React.FC<{
-  icon: any;
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}> = ({ icon, label, value, onChange }) => (
-  <div className="bg-white dark:bg-[#1a1a1a] p-4 rounded-[1.5rem] border border-stone-100 dark:border-white/10 flex flex-col items-center gap-2 shadow-sm transition-colors">
-    <div className="text-stone-300 dark:text-stone-700">{icon}</div>
-    <span className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 text-center leading-none truncate w-full">
-      {label}
-    </span>
-    <div className="flex items-center justify-between gap-1 w-full mt-1">
-      <button
-        onClick={() => {
-          haptics.soft();
-          onChange(Math.max(0, value - 1));
-        }}
-        className="text-stone-300 dark:text-stone-700 hover:text-charcoal dark:hover:text-white p-1 active:scale-90 transition-colors"
-      >
-        <Minus size={10} strokeWidth={4} />
-      </button>
-      <span className="text-base font-black text-charcoal dark:text-white leading-none">
-        {value}
+const RatingDisclosure: React.FC<{
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}> = ({ title, description, children }) => (
+  <details className="group rounded-[1.75rem] border border-stone-100 bg-white shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 marker:content-none">
+      <span className="min-w-0">
+        <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white">
+          {title}
+        </span>
+        {description && (
+          <span className="mt-1 block text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-500">
+            {description}
+          </span>
+        )}
       </span>
-      <button
-        onClick={() => {
-          haptics.soft();
-          onChange(Math.min(10, value + 1));
-        }}
-        className="text-stone-300 dark:text-stone-700 hover:text-charcoal dark:hover:text-white p-1 active:scale-90 transition-colors"
-      >
-        <Plus size={10} strokeWidth={4} />
-      </button>
-    </div>
-  </div>
+      <Plus size={18} className="shrink-0 text-stone-400 transition-transform group-open:rotate-45" />
+    </summary>
+    <div className="space-y-4 px-4 pb-4">{children}</div>
+  </details>
 );
+
+const FeelingPicker: React.FC<{
+  selected: EmotionalImprint[];
+  onToggle: (imprint: EmotionalImprint) => void;
+}> = ({ selected, onToggle }) => {
+  const { t } = useLanguage();
+  const groups: Array<{
+    title: string;
+    imprints: Array<{ key: EmotionalImprint; label: string; icon: React.ReactNode }>;
+  }> = [
+    {
+      title: t('addMovie.imprintsLifted'),
+      imprints: [
+        { key: 'emotion', label: t('addMovie.emotion'), icon: <Heart size={16} /> },
+        { key: 'wonder', label: t('addMovie.wonder'), icon: <Aperture size={16} /> },
+        { key: 'jubilation', label: t('addMovie.jubilation'), icon: <Smile size={16} /> },
+        { key: 'fascination', label: t('addMovie.fascination'), icon: <Eye size={16} /> },
+      ],
+    },
+    {
+      title: t('addMovie.imprintsShaken'),
+      imprints: [
+        { key: 'tension', label: t('addMovie.tension'), icon: <Zap size={16} /> },
+        { key: 'malaise', label: t('addMovie.malaise'), icon: <FlaskConical size={16} /> },
+        { key: 'trouble', label: t('addMovie.trouble'), icon: <Info size={16} /> },
+        { key: 'shock', label: t('addMovie.shock'), icon: <FastForward size={16} /> },
+        { key: 'haunting', label: t('addMovie.haunting'), icon: <Clock size={16} /> },
+      ],
+    },
+    {
+      title: t('addMovie.imprintsStayed'),
+      imprints: [
+        { key: 'reflection', label: t('addMovie.reflection'), icon: <BrainCircuit size={16} /> },
+        { key: 'frustration', label: t('addMovie.frustration'), icon: <Gauge size={16} /> },
+        { key: 'disappointment', label: t('addMovie.disappointment'), icon: <X size={16} /> },
+        { key: 'indifference', label: t('addMovie.indifference'), icon: <Minus size={16} /> },
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <p className="text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-500">
+        {t('addMovie.imprintsGuidance')}
+      </p>
+      {groups.map(({ title, imprints }) => (
+        <div key={title}>
+          <p className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-stone-400 dark:text-stone-600">
+            {title}
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {imprints.map(({ key, label, icon }) => {
+              const position = selected.indexOf(key);
+              const isSelected = position !== -1;
+              const isDominant = position >= 0 && position < 3;
+              const disabled = !isSelected && selected.length >= 7;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={disabled}
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    haptics.soft();
+                    onToggle(key);
+                  }}
+                  className={`flex min-h-16 items-center gap-2 rounded-2xl px-3 py-3 text-left transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 ${
+                    isDominant
+                      ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal'
+                      : isSelected
+                        ? 'border border-bitter-lime/50 bg-bitter-lime/10 text-charcoal dark:bg-bitter-lime/15 dark:text-white'
+                        : 'bg-stone-50 text-stone-500 dark:bg-[#161616] dark:text-stone-400'
+                  }`}
+                >
+                  <span className={isDominant ? 'text-bitter-lime dark:text-charcoal' : isSelected ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 dark:text-stone-600'}>{icon}</span>
+                  <span className="min-w-0 flex-1 text-[10px] font-black uppercase tracking-wider leading-tight">{label}</span>
+                  {isDominant && (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-[9px] font-black text-bitter-lime dark:bg-charcoal/10 dark:text-charcoal">
+                      {position + 1}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default AddMovieModal;

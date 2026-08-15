@@ -9,6 +9,11 @@ export type RatingProfileId =
   | 'thriller'
   | 'music'
   | 'documentary'
+  | 'drama'
+  | 'fantasy'
+  | 'crime'
+  | 'adventure'
+  | 'historical'
   | 'custom';
 
 /** Available weight levels for a custom profile. */
@@ -49,29 +54,42 @@ export interface RatingProfileDefinition {
   criteria: CriterionDefinition[];
 }
 
+/**
+ * Les libellés et les explications, en français de tous les jours.
+ *
+ * Les premières versions parlaient de « mise en scène », de « direction
+ * artistique » et de « sound design ». C'est le vocabulaire du métier, et il
+ * demande de savoir ce qu'on note avant de pouvoir noter — exactement l'inverse
+ * de ce qu'il faut. Chaque explication est donc une question à laquelle on peut
+ * répondre par oui ou non, à la deuxième personne, sur une ligne.
+ */
 const BASE_CRITERIA: Omit<CriterionDefinition, 'weight'>[] = [
   {
     key: 'scenario',
     label: 'Scénario',
-    description: 'Histoire, structure, dialogues, cohérence narrative',
+    description:
+      "L'histoire tient debout ? Tu comprends où on t'emmène, et les dialogues sonnent juste.",
     group: 'base',
   },
   {
     key: 'image',
     label: 'Image',
-    description: 'Photographie, cadrage, esthétique, direction artistique',
+    description:
+      'Tout ce que tu vois : les plans, la lumière, les décors, les costumes. C’est beau, ou au moins réussi ?',
     group: 'base',
   },
   {
     key: 'interpretation',
-    label: 'Interprétation',
-    description: 'Jeu d’acteur, présence, crédibilité émotionnelle',
+    label: 'Jeu des acteurs',
+    description:
+      'Tu crois aux personnages, ou tu vois des acteurs en train de jouer ?',
     group: 'base',
   },
   {
     key: 'sound',
-    label: 'Sonore',
-    description: 'Musique, mixage, sound design, ambiance',
+    label: 'Son & musique',
+    description:
+      'La musique, les bruits, les voix. Ça ajoute quelque chose au film, ou tu ne l’as pas remarqué ?',
     group: 'base',
   },
 ];
@@ -96,8 +114,9 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.8 }),
       {
         key: 'fear',
-        label: 'Facteur peur',
-        description: 'Tension, malaise, atmosphère, capacité à te mettre mal à l’aise.',
+        label: 'Peur',
+        description:
+          'Tu as eu peur, ou au moins été mal à l’aise ? C’est tout ce qu’on demande à un film d’horreur.',
         group: 'specific',
         weight: 1.8,
       },
@@ -111,7 +130,8 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       {
         key: 'humor',
         label: 'Humour',
-        description: 'Est-ce que le film est vraiment drôle, bien rythmé et efficace dans ses blagues ?',
+        description:
+          'Tu as ri ? Vraiment ri, pas juste souri poliment.',
         group: 'specific',
         weight: 1.8,
       },
@@ -125,7 +145,8 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       {
         key: 'animation',
         label: 'Animation',
-        description: 'Fluidité, style visuel, expressivité et créativité de l’animation.',
+        description:
+          'Les mouvements sont fluides, et le film a un style à lui plutôt que celui de tout le monde ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -138,8 +159,9 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 0.7, image: 1.4, interpretation: 1.0, sound: 1.4 }),
       {
         key: 'action',
-        label: 'Action',
-        description: 'Intensité, lisibilité, chorégraphie et efficacité des scènes d’action.',
+        label: 'Scènes d’action',
+        description:
+          'Tu comprends ce qui se passe pendant les bagarres et les poursuites, et ça te fait de l’effet ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -152,8 +174,9 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 1.8, sound: 1.0 }),
       {
         key: 'chemistry',
-        label: 'Alchimie',
-        description: 'Est-ce que la relation fonctionne, touche et paraît crédible ?',
+        label: 'Le couple',
+        description:
+          'Tu y crois, à cette histoire entre eux ? Sans ça, une romance ne tient pas.',
         group: 'specific',
         weight: 1.8,
       },
@@ -166,8 +189,9 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 1.4, image: 1.8, interpretation: 1.0, sound: 1.0 }),
       {
         key: 'universe',
-        label: 'Univers',
-        description: 'Force du concept, cohérence du monde et capacité à faire voyager.',
+        label: 'L’univers',
+        description:
+          'Le monde inventé tient debout, et tu aurais envie d’y passer du temps ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -181,7 +205,8 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       {
         key: 'suspense',
         label: 'Suspense',
-        description: 'Tension, rythme, imprévisibilité et montée dramatique.',
+        description:
+          'Tu avais hâte de savoir la suite, ou tu regardais l’heure ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -194,8 +219,9 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 0.7, image: 1.0, interpretation: 1.4, sound: 1.8 }),
       {
         key: 'songs',
-        label: 'Musique',
-        description: 'Impact des chansons, performances musicales et émotion sonore.',
+        label: 'Les chansons',
+        description:
+          'Les morceaux sont bons, et ils font avancer le film au lieu de l’arrêter ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -208,8 +234,84 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 0.7, sound: 1.0 }),
       {
         key: 'impact',
-        label: 'Impact',
-        description: 'Est-ce que le documentaire informe, marque ou change ton regard sur le sujet ?',
+        label: 'Ce que ça t’apprend',
+        description:
+          'Tu vois le sujet autrement qu’avant d’avoir regardé ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  drama: {
+    id: 'drama',
+    label: 'Drame',
+    criteria: [
+      ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 1.8, sound: 1.0 }),
+      {
+        key: 'emotional_truth',
+        label: 'Émotion',
+        description:
+          'Ça t’a touché sans en faire trop, ou tu as senti qu’on tirait sur la corde ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  fantasy: {
+    id: 'fantasy',
+    label: 'Fantastique',
+    criteria: [
+      ...buildBase({ scenario: 1.4, image: 1.8, interpretation: 1.0, sound: 1.4 }),
+      {
+        key: 'imaginary',
+        label: 'Magie',
+        description:
+          'Le film croit assez à son monde pour que tu y croies aussi ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  crime: {
+    id: 'crime',
+    label: 'Polar / Crime',
+    criteria: [
+      ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 1.0, sound: 1.4 }),
+      {
+        key: 'investigation',
+        label: 'L’enquête',
+        description:
+          'La solution tient la route, ou le film triche pour s’en sortir ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  adventure: {
+    id: 'adventure',
+    label: 'Aventure',
+    criteria: [
+      ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 0.7, sound: 1.4 }),
+      {
+        key: 'adventure',
+        label: 'Le voyage',
+        description:
+          'Tu avais envie de partir avec eux, et le voyage valait le coup ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  historical: {
+    id: 'historical',
+    label: 'Historique / Guerre',
+    criteria: [
+      ...buildBase({ scenario: 1.4, image: 1.4, interpretation: 1.0, sound: 1.0 }),
+      {
+        key: 'historical_scope',
+        label: 'L’époque',
+        description:
+          'Tu y es vraiment, et le film a quelque chose à dire au-delà du décor ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -224,29 +326,65 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
   },
 };
 
+/**
+ * Le nom actuel de chaque critère, indexé par sa clé.
+ *
+ * Le libellé est enregistré avec la note, et il a déjà changé trois fois : la
+ * base contient « Sonore » (34 fois), « Son & musique » (5) et bientôt le
+ * troisième, tous sous la même clé `sound`. Chercher par libellé obligerait à
+ * énumérer chaque variante historique, et il en manquerait toujours une.
+ *
+ * La table se construit depuis les profils eux-mêmes : renommer un critère plus
+ * haut suffit, il n'y a rien à tenir à jour ici.
+ */
+const LABEL_BY_KEY: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const profile of Object.values(RATING_PROFILES)) {
+    for (const criterion of profile.criteria) out[criterion.key] = criterion.label;
+  }
+  return out;
+})();
+
+/**
+ * Rend le nom actuel d'un critère, quel que soit celui sous lequel il a été
+ * enregistré. Sans la clé, on ne peut rien deviner : le libellé est rendu tel quel.
+ */
+export const currentCriterionLabel = (label: string, key?: string): string =>
+  (key && LABEL_BY_KEY[key]) || label;
+
 export const PROFILE_OPTIONS: { id: RatingProfileId; label: string }[] = [
   { id: 'standard', label: 'Standard' },
-  { id: 'horror', label: 'Horreur' },
+  { id: 'drama', label: 'Drame' },
   { id: 'comedy', label: 'Comédie' },
-  { id: 'animation', label: 'Animation' },
-  { id: 'action', label: 'Action' },
   { id: 'romance', label: 'Romance' },
-  { id: 'science_fiction', label: 'Science-fiction' },
+  { id: 'action', label: 'Action' },
+  { id: 'adventure', label: 'Aventure' },
   { id: 'thriller', label: 'Thriller' },
+  { id: 'crime', label: 'Polar / Crime' },
+  { id: 'horror', label: 'Horreur' },
+  { id: 'fantasy', label: 'Fantastique' },
+  { id: 'science_fiction', label: 'Science-fiction' },
+  { id: 'animation', label: 'Animation' },
   { id: 'music', label: 'Musical / Musique' },
+  { id: 'historical', label: 'Historique / Guerre' },
   { id: 'documentary', label: 'Documentaire' },
   { id: 'custom', label: 'Profil perso' },
 ];
 
-// Ordre de priorité : Documentary > Horror > Animation > Comedy > Action > SF > Thriller > Romance > Music
+// Ordre de priorité : les expériences les plus structurantes passent avant les genres compagnons.
 const TMDB_GENRE_TO_PROFILE: { match: RegExp; profile: RatingProfileId }[] = [
   { match: /documentary|documentaire/i, profile: 'documentary' },
   { match: /horror|horreur|épouvante|epouvante/i, profile: 'horror' },
   { match: /animation|animé|anime/i, profile: 'animation' },
+  { match: /fantasy|fantastique/i, profile: 'fantasy' },
+  { match: /science[- ]?fiction|sci[- ]?fi/i, profile: 'science_fiction' },
+  { match: /crime|polar|mystery|mystère|mystere/i, profile: 'crime' },
+  { match: /thriller|suspense/i, profile: 'thriller' },
+  { match: /war|guerre|history|historique/i, profile: 'historical' },
+  { match: /adventure|aventure/i, profile: 'adventure' },
+  { match: /drama|drame/i, profile: 'drama' },
   { match: /comedy|comédie|comedie/i, profile: 'comedy' },
   { match: /action/i, profile: 'action' },
-  { match: /science[- ]?fiction|sci[- ]?fi/i, profile: 'science_fiction' },
-  { match: /thriller|suspense/i, profile: 'thriller' },
   { match: /romance|romantique/i, profile: 'romance' },
   { match: /music|musical|musique/i, profile: 'music' },
 ];
