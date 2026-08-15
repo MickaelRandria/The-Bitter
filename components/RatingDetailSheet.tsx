@@ -7,6 +7,7 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { currentCriterionLabel } from '../config/ratingProfiles';
 import { useDialog } from '../utils/useDialog';
 
 interface Props {
@@ -23,14 +24,20 @@ const criteriaOf = (
   fallback?: { story: number; visuals: number; acting: number; sound: number }
 ) => {
   if (adaptive?.criteria?.length) {
-    return adaptive.criteria.map((c) => ({ key: c.key, label: c.label, value: c.value, weight: c.weight }));
+    return adaptive.criteria.map((c) => ({
+      key: c.key,
+      // Le libellé enregistré peut dater d'avant un renommage.
+      label: currentCriterionLabel(c.label, c.key),
+      value: c.value,
+      weight: c.weight,
+    }));
   }
   if (!fallback) return [];
   return [
     { key: 'scenario', label: 'Scénario', value: Number(fallback.story), weight: 1 },
     { key: 'image', label: 'Image', value: Number(fallback.visuals), weight: 1 },
-    { key: 'interpretation', label: 'Jeu', value: Number(fallback.acting), weight: 1 },
-    { key: 'sound', label: 'Son', value: Number(fallback.sound), weight: 1 },
+    { key: 'interpretation', label: 'Jeu des acteurs', value: Number(fallback.acting), weight: 1 },
+    { key: 'sound', label: 'Son & musique', value: Number(fallback.sound), weight: 1 },
   ];
 };
 

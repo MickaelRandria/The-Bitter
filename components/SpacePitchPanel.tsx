@@ -4,6 +4,7 @@ import { getSpacePitches, SpacePitch, describeLovedFilms } from '../services/ai'
 import { getMemberFilms } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { currentCriterionLabel } from '../config/ratingProfiles';
 
 export interface MemberTaste {
   profileId: string;
@@ -48,12 +49,12 @@ const readTaste = async (profileId: string, name: string): Promise<string | null
       // qui distingue un goût, pas un quatrième chiffre sur les mêmes axes que
       // tout le monde. Les quatre critères historiques servent de repli.
       criteria: film.allCriteria?.length
-        ? film.allCriteria
+        ? film.allCriteria.map((c) => ({ label: currentCriterionLabel(c.label, c.key), value: c.value }))
         : [
             { label: 'Scénario', value: Number(film.criteria.story) },
             { label: 'Image', value: Number(film.criteria.visuals) },
-            { label: 'Jeu', value: Number(film.criteria.acting) },
-            { label: 'Son', value: Number(film.criteria.sound) },
+            { label: 'Jeu des acteurs', value: Number(film.criteria.acting) },
+            { label: 'Son & musique', value: Number(film.criteria.sound) },
           ],
     })),
     name

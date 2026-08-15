@@ -763,7 +763,7 @@ export interface MemberFilm {
   /** Les quatre critères bruts, pour comparer non plus des notes mais des regards. */
   criteria: { story: number; visuals: number; acting: number; sound: number };
   /** La grille complète quand elle existe, critères propres au genre compris. */
-  allCriteria?: { label: string; value: number }[];
+  allCriteria?: { key: string; label: string; value: number }[];
 }
 
 /**
@@ -821,7 +821,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
       allCriteria: Array.isArray(row.adaptive_rating?.criteria)
         ? row.adaptive_rating.criteria
             .filter((c: any) => c && typeof c.label === 'string' && Number.isFinite(Number(c.value)))
-            .map((c: any) => ({ label: c.label as string, value: Number(c.value) }))
+            .map((c: any) => ({ key: c.key as string, label: c.label as string, value: Number(c.value) }))
         : undefined,
     } as MemberFilm;
   });

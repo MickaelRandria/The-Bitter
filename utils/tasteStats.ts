@@ -1,4 +1,5 @@
 import { Movie } from '../types';
+import { currentCriterionLabel } from '../config/ratingProfiles';
 
 /** Une observation chiffrée, prête à être mise en mots. */
 export interface CriterionStat {
@@ -74,13 +75,18 @@ const round = (value: number, digits = 1): number => {
 /** Les quatre notes d'un film, quel que soit le mode de notation employé. */
 const criteriaOf = (movie: Movie): { label: string; value: number }[] => {
   if (movie.adaptiveRating?.criteria?.length) {
-    return movie.adaptiveRating.criteria.map((c) => ({ label: c.label, value: Number(c.value) }));
+    return movie.adaptiveRating.criteria.map((c) => ({
+      // Sans ce passage, un critère renommé compterait pour deux dans les
+      // moyennes : l'ancien nom et le nouveau, chacun avec la moitié des films.
+      label: currentCriterionLabel(c.label, c.key),
+      value: Number(c.value),
+    }));
   }
   return [
     { label: 'Scénario', value: Number(movie.ratings.story) },
     { label: 'Image', value: Number(movie.ratings.visuals) },
-    { label: 'Jeu', value: Number(movie.ratings.acting) },
-    { label: 'Son', value: Number(movie.ratings.sound) },
+    { label: 'Jeu des acteurs', value: Number(movie.ratings.acting) },
+    { label: 'Son & musique', value: Number(movie.ratings.sound) },
   ];
 };
 
