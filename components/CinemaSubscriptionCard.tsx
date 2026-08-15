@@ -69,11 +69,14 @@ const CinemaSubscriptionCard: React.FC<CinemaSubscriptionCardProps> = ({
         haptics.soft();
         onOpenDetails();
       }}
-      className={`w-full text-left border p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all active:scale-[0.99] ${brand.cardClass}`}
+      /* `tileClass` et non `cardClass` : c'est la seule surface où la marque
+         doit se voir de loin, puisque c'est par elle qu'on reconnaît son
+         abonnement sans avoir à lire. */
+      className={`w-full text-left border p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all active:scale-[0.99] ${brand.tileClass}`}
     >
       <div className="flex items-center gap-3 mb-4">
         <CinemaSubscriptionArtwork provider={subscription.provider} />
-        <h3 className={`text-sm font-black uppercase tracking-widest flex-1 min-w-0 truncate ${brand.labelClass}`}>
+        <h3 className={`text-sm font-black uppercase tracking-widest flex-1 min-w-0 truncate ${brand.actionTextClass}`}>
           {t('cinemaSub.card.title')}
         </h3>
         <ChevronRight size={14} strokeWidth={3} className={`shrink-0 ${brand.actionTextClass}`} />
@@ -93,7 +96,11 @@ const CinemaSubscriptionCard: React.FC<CinemaSubscriptionCardProps> = ({
         </>
       ) : (
         <>
-          <p className={`text-3xl font-black tracking-tighter ${brand.titleClass}`}>
+          {/* Le chiffre porte la couleur de la marque tant que l'abonnement
+              n'est pas rentabilisé. Une fois qu'il l'est, c'est le vert de
+              l'application qui prend le relais : l'économie appartient à
+              l'utilisateur, pas à l'enseigne. */}
+          <p className={`text-3xl font-black tracking-tighter ${brand.actionTextClass}`}>
             {t('cinemaSub.card.sessionsLeft', { count: String(stats.sessionsToBreakEven) })}
           </p>
           <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-1 ${brand.labelClass}`}>
