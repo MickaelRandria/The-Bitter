@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarRange, HelpCircle, Loader2, Shuffle, X } from 'lucide-react';
+import { ArrowUpRight, CalendarRange, HelpCircle, Loader2, Shuffle, X } from 'lucide-react';
 import { Movie } from '../types';
 import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rating';
 import { dominantGenre } from '../utils/movieStats';
@@ -31,6 +31,8 @@ interface WeeklyRecapStoryProps {
   /** Historique des films vus. Le configurateur les regroupe par semaine calendaire. */
   movies: Movie[];
   className?: string;
+  /** Carte éditoriale réservée au calendrier, sans ajouter un bouton secondaire. */
+  variant?: 'default' | 'calendar';
 }
 
 type TFunction = (key: string, params?: Record<string, string | number>) => string;
@@ -1283,6 +1285,7 @@ const StatPreviewTile: React.FC<{
 const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
   movies,
   className = '',
+  variant = 'default',
 }) => {
   const { t, language } = useLanguage();
   const [isSharing, setIsSharing] = useState(false);
@@ -1428,29 +1431,63 @@ const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
   };
 
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
+  const selectedMovieCount = selectedWeek?.movies.length ?? 0;
 
   return (
     <>
-      <div className={`flex items-center gap-2 ${className}`}>
+      {variant === 'calendar' ? (
         <button
           type="button"
           onClick={() => setShowPreview(true)}
           disabled={!recap.hero}
           aria-haspopup="dialog"
-          className="flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-[#D9FF00] text-black shadow-lg shadow-lime-400/20 active:scale-95 transition-all disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
+          aria-label={`${t('recap.button')} · ${recap.rangeLabel}`}
+          className={`group relative h-28 w-full overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#151515] px-5 text-left text-white shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:border-bitter-lime/40 active:translate-y-0 disabled:opacity-40 dark:shadow-black/40 ${className}`}
         >
-          <CalendarRange size={14} strokeWidth={2.5} /> {t('recap.button')}
+          {recap.hero?.posterUrl && (
+            <img
+              src={resizeTmdbImage(recap.hero.posterUrl, 'w342')}
+              alt=""
+              className="absolute inset-y-0 right-0 h-full w-[42%] object-cover opacity-70 transition duration-500 group-hover:scale-105"
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+          <span className="absolute inset-0 bg-gradient-to-r from-[#151515] via-[#151515]/95 to-[#151515]/10" />
+          <span className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(217,255,0,0.16),transparent_31%)]" />
+          <span className="relative flex h-full max-w-[72%] flex-col justify-center">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-bitter-lime">{t('recap.header')}</span>
+            <span className="mt-1 text-lg font-black tracking-tight">{t('recap.button')}</span>
+            <span className="mt-1 text-[10px] font-bold text-stone-400">
+              {recap.rangeLabel} · {selectedMovieCount} {t(selectedMovieCount > 1 ? 'recap.films' : 'recap.film')}
+            </span>
+          </span>
+          <span className="absolute right-4 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-bitter-lime text-charcoal shadow-lg shadow-black/20 transition group-hover:translate-x-0.5">
+            <ArrowUpRight size={17} strokeWidth={2.5} />
+          </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setShowHelp(true)}
-          aria-label={t('recap.help')}
-          aria-haspopup="dialog"
-          className="w-11 h-11 shrink-0 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-500 flex items-center justify-center active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
-        >
-          <HelpCircle size={16} strokeWidth={2.5} />
-        </button>
-      </div>
+      ) : (
+        <div className={`flex items-center gap-2 ${className}`}>
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            disabled={!recap.hero}
+            aria-haspopup="dialog"
+            className="flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-[#D9FF00] text-black shadow-lg shadow-lime-400/20 active:scale-95 transition-all disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
+          >
+            <CalendarRange size={14} strokeWidth={2.5} /> {t('recap.button')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHelp(true)}
+            aria-label={t('recap.help')}
+            aria-haspopup="dialog"
+            className="w-11 h-11 shrink-0 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-500 flex items-center justify-center active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
+          >
+            <HelpCircle size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
 
       {showPreview &&
         recap.hero &&

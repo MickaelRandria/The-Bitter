@@ -13,6 +13,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      // Le worker généré par défaut sait mettre le cache à jour, mais ne sait pas
+      // afficher une Web Push. Cette version conserve le précache Workbox et
+      // ajoute le traitement push + clic sur une notification.
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      // Conserver le nom historique : les PWA déjà installées avaient /sw.js.
+      // Ainsi, le navigateur récupère cette nouvelle version au lieu de rester
+      // bloqué sur le worker précédent et son cache.
+      filename: 'sw.js',
       devOptions: {
         enabled: false,
       },

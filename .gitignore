@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Vercel
+.vercel
+
 # Environment variables (NEVER commit)
 .env
 .env.local

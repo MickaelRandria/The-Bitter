@@ -56,6 +56,42 @@ export interface CinemaSubscription {
   createdAt: string;
 }
 
+/**
+ * Une sortie prévue, avant tout lien éventuel avec la watchlist ou un film vu.
+ * Un titre libre est autorisé : on ne connaît pas toujours la fiche TMDB au
+ * moment où quelqu'un réserve sa séance.
+ */
+export type CinemaScreeningStatus = 'scheduled' | 'cancelled' | 'completed';
+
+export interface CinemaScreening {
+  id: string;
+  profileId: string;
+  tmdbId?: number;
+  title: string;
+  posterUrl?: string;
+  startsAt: number;
+  cinemaName?: string;
+  cinemaAddress?: string;
+  format?: string;
+  notes?: string;
+  status: CinemaScreeningStatus;
+  reminderOffsetsMinutes: number[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CinemaScreeningInput {
+  tmdbId?: number;
+  title: string;
+  posterUrl?: string;
+  startsAt: number;
+  cinemaName?: string;
+  cinemaAddress?: string;
+  format?: string;
+  notes?: string;
+  reminderOffsetsMinutes?: number[];
+}
+
 export type ViewingLocationType = 'cinema' | 'home' | 'other';
 
 export type CinemaViewingPaymentType = 'subscription' | 'paid' | 'invitation' | 'other';
@@ -105,11 +141,32 @@ export interface AdaptiveRatingProfileRef {
   version: number;
 }
 
+/**
+ * Les traces laissées par un film. L'ordre est significatif : les trois premières
+ * sont les empreintes dominantes, les suivantes des nuances.
+ */
+export type EmotionalImprint =
+  | 'emotion'
+  | 'wonder'
+  | 'jubilation'
+  | 'fascination'
+  | 'tension'
+  | 'malaise'
+  | 'trouble'
+  | 'shock'
+  | 'haunting'
+  | 'reflection'
+  | 'frustration'
+  | 'disappointment'
+  | 'indifference';
+
 export interface AdaptiveRatingData {
   profile: AdaptiveRatingProfileRef;
   criteria: AdaptiveRatingCriterion[];
   weightedRating: number;
   legacyRating?: number;
+  /** Persisté dans le JSON Bitter+ : aucune colonne ou règle d'accès supplémentaire. */
+  imprints?: EmotionalImprint[];
 }
 
 export interface Movie {

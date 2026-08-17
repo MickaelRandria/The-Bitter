@@ -94,8 +94,6 @@ import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './service
 import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
-import { ProfileCompletionWidget } from './components/ProfileCompletionWidget';
-import { AIUnlockWidget } from './components/AIUnlockWidget';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
@@ -388,6 +386,7 @@ const App: React.FC = () => {
   const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
   const [selectedMood, setSelectedMood] = useState<MoodPreset>(null);
   const [activeVibeSort, setActiveVibeSort] = useState<VibeAxis | null>(null);
+  const [showTonightControls, setShowTonightControls] = useState(false);
   const [minRatingFilter, setMinRatingFilter] = useState(0);
   const [yearMinFilter, setYearMinFilter] = useState<number | null>(null);
   const [yearMaxFilter, setYearMaxFilter] = useState<number | null>(null);
@@ -1689,6 +1688,21 @@ const App: React.FC = () => {
     return count;
   }, [minRatingFilter, yearMinFilter, yearMaxFilter]);
 
+  const activeCollectionFilterCount =
+    activeAdvancedFilterCount +
+    ((feedTab === 'history' ? historyGenreFilter !== 'all' : watchlistGenreFilter !== 'all') ? 1 : 0) +
+    (sortBy !== 'Date' ? 1 : 0);
+
+  const resetCollectionFilters = () => {
+    haptics.soft();
+    setHistoryGenreFilter('all');
+    setWatchlistGenreFilter('all');
+    setMinRatingFilter(0);
+    setYearMinFilter(null);
+    setYearMaxFilter(null);
+    setSortBy('Date');
+  };
+
   const filteredAndSortedMovies = useMemo(() => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
@@ -2054,6 +2068,11 @@ const App: React.FC = () => {
               onNavigateToCalendar={() => setViewMode('Calendar')}
               onRecalibrate={() => setShowCalibration(true)}
               onViewDirector={(name, id) => setPreviewDirector({ name, id })}
+              onViewMovie={(movie) => {
+                if (!movie.tmdbId) return;
+                setPreviewTmdbId(movie.tmdbId);
+                setPreviewMediaType(movie.mediaType ?? 'movie');
+              }}
               onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
               onOpenCinemaDetails={() => setShowCinemaDetails(true)}
             />
@@ -2076,7 +2095,12 @@ const App: React.FC = () => {
               onProposeToSpace={handleProposeToSpace}
             />
           ) : viewMode === 'Calendar' ? (
-            <CalendarView movies={uniqueMovies} />
+            <CalendarView
+              movies={uniqueMovies}
+              profileId={session?.user?.id}
+              onAddToWatchlist={(tmdbId) => void handleQuickWatchlist(tmdbId, 'movie')}
+              onToast={setToastMessage}
+            />
           ) : viewMode === 'Deck' ? (
             <MovieDeck
               onRate={(id) => {
@@ -2129,19 +2153,32 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-12">
-                  {activeProfile && (
-                    <ProfileCompletionWidget
-                      profile={activeProfile}
-                      onCompleteProfile={() => setShowCalibration(true)}
-                    />
-                  )}
-                  <AIUnlockWidget
-                    watchedCount={feedStats?.watchedCount ?? 0}
-                    onAddMovie={() => setIsModalOpen(true)}
-                  />
+                <div className="space-y-7">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptics.soft();
+                      setViewMode('Analytics');
+                    }}
+                    className="flex w-full items-end justify-between border-b border-stone-200/70 pb-4 text-left dark:border-white/10"
+                  >
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+                        {t('nav.feed')}
+                      </p>
+                      <h1 className="mt-1 text-3xl font-black tracking-tight text-charcoal dark:text-white">
+                        {uniqueMovies.length} {t('feed.filmsLabel')}
+                      </h1>
+                      <p className="mt-1 text-[11px] font-bold text-stone-400 dark:text-stone-500">
+                        {feedStats?.watchedCount ?? 0} {t('feed.watched').toLowerCase()} · {feedStats?.queueCount ?? queueStats?.count ?? 0} {t('feed.toWatch').toLowerCase()}
+                      </p>
+                    </div>
+                    <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
+                      {t('feed.myStats')} <ChevronRight size={13} strokeWidth={2.5} />
+                    </span>
+                  </button>
                   <div className="space-y-2">
-                    {(feedTab === 'history' ? feedStats : queueStats) && (
+                    {false && (feedTab === 'history' ? feedStats : queueStats) && (
                     <div className="flex flex-col items-center">
                       <button
                         onClick={() => {
@@ -2306,16 +2343,49 @@ const App: React.FC = () => {
                     activeProfile &&
                     activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist')
                       .length > 0 && (
-                      <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
+                      <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
                         <button
-                          onClick={handleTonightPick}
-                          className="w-full bg-bitter-lime text-charcoal py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-lime-400/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                          type="button"
+                          onClick={() => {
+                            haptics.soft();
+                            setShowTonightControls((open) => !open);
+                          }}
+                          aria-expanded={showTonightControls}
+                          className="w-full rounded-[1.7rem] border border-white/10 bg-charcoal px-5 py-4 text-left text-white shadow-xl shadow-black/10 transition-all active:scale-[0.98] dark:bg-[#1a1a1a]"
                         >
-                          <Shuffle size={18} strokeWidth={2.5} />
-                          {selectedMood
-                            ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) })
-                            : t('feed.tonight')}
+                          <span className="flex items-center justify-between gap-4">
+                            <span className="flex items-center gap-3">
+                              <span className="grid h-10 w-10 place-items-center rounded-full bg-bitter-lime text-charcoal">
+                                <Shuffle size={17} strokeWidth={2.5} />
+                              </span>
+                              <span>
+                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-bitter-lime">{t('feed.tonight')}</span>
+                                <span className="mt-0.5 block text-sm font-black">
+                                  {selectedMood ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) }) : t('feed.suggestion')}
+                                </span>
+                              </span>
+                            </span>
+                            <ChevronRight size={18} className={`text-bitter-lime transition-transform ${showTonightControls ? 'rotate-90' : ''}`} />
+                          </span>
                         </button>
+                        {showTonightControls && (
+                          <div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
+                            <MoodPicker
+                              selectedMood={selectedMood}
+                              onSelectMood={setSelectedMood}
+                              activeVibeSort={activeVibeSort}
+                              onSelectVibeSort={setActiveVibeSort}
+                              matchCount={filteredAndSortedMovies.length}
+                              vibeCount={watchlistVibeCount}
+                              minVibes={MIN_MOVIES_FOR_VIBES}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleTonightPick}
+                              className="w-full rounded-2xl bg-bitter-lime py-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-charcoal shadow-lg shadow-lime-400/20 active:scale-[0.98] transition-all"
+                            >
+                              {selectedMood ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) }) : t('feed.tonight')}
+                            </button>
                         {tonightPick && !isPickAnimating && (
                           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
                             {tonightPick.posterUrl && (
@@ -2351,16 +2421,9 @@ const App: React.FC = () => {
                             </button>
                           </div>
                         )}
-                        <MoodPicker
-                          selectedMood={selectedMood}
-                          onSelectMood={setSelectedMood}
-                          activeVibeSort={activeVibeSort}
-                          onSelectVibeSort={setActiveVibeSort}
-                          matchCount={filteredAndSortedMovies.length}
-                          vibeCount={watchlistVibeCount}
-                          minVibes={MIN_MOVIES_FOR_VIBES}
-                        />
-                        {watchlistGenres.length > 1 && (
+                          </div>
+                        )}
+                        {false && watchlistGenres.length > 1 && (
                           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                             <button
                               onClick={() => setWatchlistGenreFilter('all')}
@@ -2382,7 +2445,7 @@ const App: React.FC = () => {
                       </div>
                     )}
 
-                  {feedTab === 'history' && historyGenres.length > 1 && (
+                  {false && feedTab === 'history' && historyGenres.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 animate-[fadeIn_0.3s_ease-out]">
                       <button
                         onClick={() => setHistoryGenreFilter('all')}
@@ -2407,37 +2470,47 @@ const App: React.FC = () => {
                         {feedTab === 'history' ? t('feed.filmsWatched') : t('feed.toWatchLabel')} (
                         {filteredAndSortedMovies.length})
                       </h2>
-                      <SortMenu
-                        value={sortBy}
-                        onChange={setSortBy}
-                        options={sortOptions}
-                      />
                     </div>
-                    <div className="relative">
-                      <Search
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
-                      />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder={t('feed.search')}
-                        className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-2.5 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-charcoal dark:hover:text-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search
+                          size={14}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+                        />
+                        <input
+                          ref={searchInputRef}
+                          type="search"
+                          placeholder={t('feed.search')}
+                          className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-3 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            aria-label={t('feed.clearFilter')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-charcoal dark:hover:text-white"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          haptics.soft();
+                          setShowAdvancedFilters((open) => !open);
+                        }}
+                        aria-expanded={showAdvancedFilters}
+                        className={`grid h-10 min-w-10 place-items-center rounded-full border px-3 text-[10px] font-black uppercase tracking-widest transition-colors ${showAdvancedFilters || activeCollectionFilterCount > 0 ? 'border-forest bg-forest text-white dark:border-bitter-lime dark:bg-bitter-lime dark:text-charcoal' : 'border-stone-200 bg-white text-stone-500 dark:border-white/10 dark:bg-[#1a1a1a] dark:text-stone-400'}`}
+                      >
+                        <span className="flex items-center gap-1.5"><SlidersHorizontal size={14} /> <span className="hidden sm:inline">{t('feed.filters')}</span>{activeCollectionFilterCount > 0 && <span>· {activeCollectionFilterCount}</span>}</span>
+                      </button>
                     </div>
 
                     {/* ── FILTRES AVANCÉS ── */}
-                    <div className="flex items-center justify-between">
+                    <div className="hidden">
                       <button
                         onClick={() => setShowAdvancedFilters((p) => !p)}
                         className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${showAdvancedFilters || activeAdvancedFilterCount > 0 ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
@@ -2464,8 +2537,56 @@ const App: React.FC = () => {
                       )}
                     </div>
 
+                    {activeCollectionFilterCount > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 animate-[fadeIn_0.2s_ease-out]">
+                        {(feedTab === 'history' ? historyGenreFilter : watchlistGenreFilter) !== 'all' && (
+                          <span className="rounded-full bg-stone-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500 dark:bg-[#1a1a1a] dark:text-stone-400">
+                            {feedTab === 'history' ? historyGenreFilter : watchlistGenreFilter}
+                          </span>
+                        )}
+                        {minRatingFilter > 0 && <span className="rounded-full bg-stone-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500 dark:bg-[#1a1a1a] dark:text-stone-400">{minRatingFilter}+</span>}
+                        {(yearMinFilter !== null || yearMaxFilter !== null) && <span className="rounded-full bg-stone-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500 dark:bg-[#1a1a1a] dark:text-stone-400">{yearMinFilter ?? yearBounds.min}–{yearMaxFilter ?? yearBounds.max}</span>}
+                        {sortBy !== 'Date' && <span className="rounded-full bg-stone-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500 dark:bg-[#1a1a1a] dark:text-stone-400">{sortOptions.find((option) => option.value === sortBy)?.label}</span>}
+                        <button type="button" onClick={resetCollectionFilters} className="grid h-7 w-7 place-items-center rounded-full text-stone-400 transition-colors hover:bg-stone-100 hover:text-charcoal dark:hover:bg-white/10 dark:hover:text-white" aria-label={t('feed.clearFilters')}><X size={13} strokeWidth={3} /></button>
+                      </div>
+                    )}
+
                     {showAdvancedFilters && (
                       <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/5 rounded-2xl p-4 space-y-5 animate-[fadeIn_0.2s_ease-out]">
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="space-y-2">
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-stone-400">
+                              {t('profileModal.genre')}
+                            </span>
+                            <select
+                              value={feedTab === 'history' ? historyGenreFilter : watchlistGenreFilter}
+                              onChange={(event) => {
+                                if (feedTab === 'history') setHistoryGenreFilter(event.target.value);
+                                else setWatchlistGenreFilter(event.target.value);
+                              }}
+                              className="w-full appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-bold text-charcoal outline-none focus:border-forest dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-bitter-lime"
+                            >
+                              <option value="all">{t('common.all')}</option>
+                              {(feedTab === 'history' ? historyGenres : watchlistGenres).map((genre) => (
+                                <option key={genre} value={genre}>{genre}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-2">
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-stone-400">
+                              {t('feed.sortRecent')}
+                            </span>
+                            <select
+                              value={sortBy}
+                              onChange={(event) => setSortBy(event.target.value as SortOption)}
+                              className="w-full appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-bold text-charcoal outline-none focus:border-forest dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-bitter-lime"
+                            >
+                              {sortOptions.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
                         {/* Note minimum */}
                         <div>
                           <div className="flex justify-between items-center mb-2">
@@ -2530,6 +2651,17 @@ const App: React.FC = () => {
                             />
                           </div>
                         </div>
+                        {activeCollectionFilterCount > 0 && (
+                          <div className="flex justify-end border-t border-stone-100 pt-4 dark:border-white/5">
+                            <button
+                              type="button"
+                              onClick={resetCollectionFilters}
+                              className="text-[10px] font-black uppercase tracking-widest text-stone-400 transition-colors hover:text-charcoal dark:hover:text-white"
+                            >
+                              {t('feed.clearFilters')}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

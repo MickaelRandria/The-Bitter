@@ -28,6 +28,7 @@ import {
   History,
   Layers,
   Bookmark,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { UserProfile, Movie } from '../types';
 import { haptics } from '../utils/haptics';
@@ -42,6 +43,7 @@ import { SharedSpace } from '../services/supabase';
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
 type TimePeriod = 'this_month' | 'this_year' | 'all_time';
+type SearchMode = 'title' | 'mood';
 
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
@@ -123,6 +125,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('title');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('popularity');
   const [streamingFilter, setStreamingFilter] = useState<
@@ -174,7 +178,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     return map;
   }, [movies]);
 
-  const isSearchActive = searchQuery.length > 0;
+  const isSearchActive = searchMode === 'title' && searchQuery.length > 0;
+  const activeFilterCount = [
+    mediaType !== 'movie',
+    timePeriod !== 'all_time',
+    streamingFilter !== 'all',
+    sortBy !== 'popularity',
+  ].filter(Boolean).length;
 
   // Collection sets for badge detection
   const { watchedIds, watchlistIds } = useMemo(() => {
@@ -285,20 +295,46 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     const timer = setTimeout(
       () => {
         fetchItems();
-        if (searchQuery.length >= 2) saveRecentSearch(searchQuery);
+        if (isSearchActive && searchQuery.length >= 2) saveRecentSearch(searchQuery);
       },
       isSearchActive ? 500 : 200
     );
     return () => clearTimeout(timer);
-  }, [searchQuery, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);
+  }, [searchQuery, searchMode, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);
 
   const handleDeepSearch = async () => {
-    if (!searchQuery) return;
+    if (!isSearchActive) return;
     haptics.medium();
     setIsAiSearching(true);
     setAiResult(null);
     setAiResult(await deepMovieSearch(searchQuery));
     setIsAiSearching(false);
+  };
+
+  const handleSearchModeChange = (nextMode: SearchMode) => {
+    if (nextMode === searchMode) return;
+    haptics.soft();
+    setSearchMode(nextMode);
+    setAiResult(null);
+
+    if (nextMode === 'mood') {
+      setSearchQuery('');
+      setIsSearchFocused(false);
+      return;
+    }
+
+    if (moodSummary) {
+      setMoodSummary(null);
+      fetchItems();
+    }
+  };
+
+  const resetFilters = () => {
+    haptics.soft();
+    setMediaType('movie');
+    setTimePeriod('all_time');
+    setStreamingFilter('all');
+    setSortBy('popularity');
   };
 
   return (
@@ -356,6 +392,27 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       <>
       {/* Décrire son envie plutôt que régler six filtres : c'est la question
           qu'on se pose en ouvrant l'écran, elle passe donc avant le reste. */}
+      <section className="space-y-4">
+        <div className="inline-flex rounded-full border border-stone-200/70 bg-stone-100 p-1 dark:border-white/10 dark:bg-[#161616]">
+          <button
+            type="button"
+            onClick={() => handleSearchModeChange('title')}
+            aria-pressed={searchMode === 'title'}
+            className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${searchMode === 'title' ? 'bg-white text-charcoal shadow-sm dark:bg-[#202020] dark:text-white' : 'text-stone-400 dark:text-stone-600'}`}
+          >
+            <Search size={13} /> {t('discover.titleMode')}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSearchModeChange('mood')}
+            aria-pressed={searchMode === 'mood'}
+            className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${searchMode === 'mood' ? 'bg-charcoal text-white shadow-sm dark:bg-bitter-lime dark:text-charcoal' : 'text-stone-400 dark:text-stone-600'}`}
+          >
+            <Sparkles size={13} /> {t('discover.moodMode')}
+          </button>
+        </div>
+
+      {searchMode === 'mood' && (
       <MoodSearch
         favoriteGenres={userProfile?.favoriteGenres}
         activeSummary={moodSummary}
@@ -369,9 +426,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           fetchItems();
         }}
       />
+      )}
+      </section>
 
-      {/* MEDIA TOGGLE */}
-      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
+      {searchMode === 'title' && (
+      <>
+      {filtersOpen && (
+      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors animate-[fadeIn_0.2s_ease-out]">
         <button
           onClick={() => {
             haptics.soft();
@@ -391,6 +452,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           <Tv size={14} /> {t('addMovie.series').toUpperCase()}
         </button>
       </div>
+      )}
 
       {/* SEARCH BAR */}
       <div className="space-y-3">
@@ -402,26 +464,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             data-tour="discover-search"
             type="text"
             placeholder={t('discover.search')}
-            className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-32 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
+            className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-14 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
           />
           <div className="absolute inset-y-0 right-2 flex items-center gap-2">
-            {isSearchActive && (
-              <button
-                onClick={handleDeepSearch}
-                className="bg-bitter-lime text-charcoal px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-transform"
-              >
-                {isAiSearching ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Globe size={14} />
-                )}{' '}
-                Deep Info
-              </button>
-            )}
             {isSearchActive && !isAiSearching && (
               <button
                 onClick={() => {
@@ -484,6 +533,32 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         )}
       </div>
 
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            setFiltersOpen((open) => !open);
+          }}
+          aria-expanded={filtersOpen}
+          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-colors ${activeFilterCount ? 'border-forest bg-forest text-white dark:border-bitter-lime dark:bg-bitter-lime dark:text-charcoal' : 'border-stone-200 bg-white text-stone-500 hover:border-stone-300 dark:border-white/10 dark:bg-[#161616] dark:text-stone-400'}`}
+        >
+          <SlidersHorizontal size={14} /> {t('feed.filters')}
+          {activeFilterCount > 0 && <span className="opacity-75">· {activeFilterCount}</span>}
+        </button>
+        {isSearchActive && (
+          <button
+            type="button"
+            onClick={handleDeepSearch}
+            disabled={isAiSearching}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-stone-400 transition-colors hover:bg-stone-100 hover:text-charcoal disabled:opacity-50 dark:text-stone-500 dark:hover:bg-white/5 dark:hover:text-white"
+          >
+            {isAiSearching ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+            Deep info
+          </button>
+        )}
+      </div>
+
       {/* AI RESULT */}
       {aiResult && (
         <div className="bg-stone-900 text-white rounded-[2.5rem] p-8 space-y-6 animate-[slideUp_0.4s_ease-out] border border-bitter-lime/20 relative overflow-hidden">
@@ -504,8 +579,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       )}
 
       {/* FILTERS */}
-      {!aiResult && (
-        <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
+      {filtersOpen && !aiResult && (
+        <div className="space-y-8 rounded-[2rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616] sm:p-5">
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2">
               <Clock size={12} /> {t('feed.period')}
@@ -583,7 +658,20 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               ))}
             </div>
           </div>
+          {activeFilterCount > 0 && (
+            <div className="flex justify-end border-t border-stone-100 pt-4 dark:border-white/5">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[10px] font-black uppercase tracking-widest text-stone-400 transition-colors hover:text-charcoal dark:hover:text-white"
+              >
+                {t('feed.clearFilters')}
+              </button>
+            </div>
+          )}
         </div>
+      )}
+      </>
       )}
 
       {/* RESULTS GRID */}

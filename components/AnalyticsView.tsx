@@ -1,21 +1,17 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Movie, UserProfile } from '../types';
+import { EmotionalImprint, Movie, UserProfile } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import {
-  countCustomVibes,
+  countMoviesWithImprints,
   dominantGenre,
-  MIN_MOVIES_FOR_VIBES,
+  hasEmotionalImprints,
+  MIN_MOVIES_FOR_IMPRINTS,
   totalWatchHours,
 } from '../utils/movieStats';
 import {
   Smartphone,
-  Brain,
-  Radar,
-  Zap,
   Heart,
-  Aperture,
-  Smile,
   Film,
   Scale,
   ArrowUp,
@@ -48,6 +44,7 @@ import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaSubscriptionCard from './CinemaSubscriptionCard';
 import TastePortrait from './TastePortrait';
+import AdnRadialChart from './AdnRadialChart';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -55,6 +52,7 @@ interface AnalyticsViewProps {
   onNavigateToCalendar?: () => void;
   onRecalibrate?: () => void;
   onViewDirector?: (name: string, id?: number) => void;
+  onViewMovie?: (movie: Movie) => void;
   onConfigureCinemaSubscription?: () => void;
   onOpenCinemaDetails?: () => void;
 }
@@ -62,10 +60,218 @@ interface AnalyticsViewProps {
 type TabMode = 'overview' | 'notes' | 'psycho';
 
 const MIN_MOVIES_FOR_ANALYTICS = 5;
+const MIN_MOVIES_FOR_VERDICT_INSIGHTS = 8;
 
-const getVibePhrase = (key: string, value: number, t: (k: string) => string): string => {
-  const tier = value > 7 ? 'high' : value >= 4 ? 'mid' : 'low';
-  return t(`vibe.phrase.${key}.${tier}`);
+type ImprintGroupKey = 'lifted' | 'shaken' | 'stayed';
+
+const IMPRINT_META: Record<EmotionalImprint, { group: ImprintGroupKey; labelKey: string }> = {
+  emotion: { group: 'lifted', labelKey: 'addMovie.emotion' },
+  wonder: { group: 'lifted', labelKey: 'addMovie.wonder' },
+  jubilation: { group: 'lifted', labelKey: 'addMovie.jubilation' },
+  fascination: { group: 'lifted', labelKey: 'addMovie.fascination' },
+  tension: { group: 'shaken', labelKey: 'addMovie.tension' },
+  malaise: { group: 'shaken', labelKey: 'addMovie.malaise' },
+  trouble: { group: 'shaken', labelKey: 'addMovie.trouble' },
+  shock: { group: 'shaken', labelKey: 'addMovie.shock' },
+  haunting: { group: 'shaken', labelKey: 'addMovie.haunting' },
+  reflection: { group: 'stayed', labelKey: 'addMovie.reflection' },
+  frustration: { group: 'stayed', labelKey: 'addMovie.frustration' },
+  disappointment: { group: 'stayed', labelKey: 'addMovie.disappointment' },
+  indifference: { group: 'stayed', labelKey: 'addMovie.indifference' },
+};
+
+interface ImprintTally {
+  key: EmotionalImprint;
+  group: ImprintGroupKey;
+  points: number;
+  primaryCount: number;
+  movieCount: number;
+  movies: Movie[];
+}
+
+const buildImprintTally = (movies: Movie[]) => {
+  const tallies = new Map<EmotionalImprint, ImprintTally>();
+
+  movies.filter(hasEmotionalImprints).forEach((movie) => {
+    const imprints = [...new Set(movie.adaptiveRating?.imprints ?? [])].slice(0, 7);
+    imprints.forEach((key, index) => {
+      const current = tallies.get(key) ?? {
+        key,
+        group: IMPRINT_META[key].group,
+        points: 0,
+        primaryCount: 0,
+        movieCount: 0,
+        movies: [],
+      };
+      const isPrimary = index < 3;
+      current.points += isPrimary ? 2 : 1;
+      current.primaryCount += isPrimary ? 1 : 0;
+      current.movieCount += 1;
+      current.movies.push(movie);
+      tallies.set(key, current);
+    });
+  });
+
+  const rank = (a: ImprintTally, b: ImprintTally) =>
+    b.points - a.points || b.primaryCount - a.primaryCount || b.movieCount - a.movieCount;
+  const all = [...tallies.values()].sort(rank);
+  const byGroup: Record<ImprintGroupKey, ImprintTally[]> = {
+    lifted: all.filter((item) => item.group === 'lifted'),
+    shaken: all.filter((item) => item.group === 'shaken'),
+    stayed: all.filter((item) => item.group === 'stayed'),
+  };
+
+  return { all, byGroup, signature: all.slice(0, 3) };
+};
+
+const BASE_CRITERION_KEYS = ['scenario', 'image', 'interpretation', 'sound'] as const;
+type BaseCriterionKey = (typeof BASE_CRITERION_KEYS)[number];
+type JudgmentAxisKey = 'meaning' | 'form' | 'human' | 'atmosphere';
+
+const JUDGMENT_AXES: Array<{
+  key: JudgmentAxisKey;
+  criterionKey: BaseCriterionKey;
+  labelKey: string;
+}> = [
+  { key: 'meaning', criterionKey: 'scenario', labelKey: 'analytics.axisMeaning' },
+  { key: 'form', criterionKey: 'image', labelKey: 'analytics.axisForm' },
+  { key: 'human', criterionKey: 'interpretation', labelKey: 'analytics.axisHuman' },
+  { key: 'atmosphere', criterionKey: 'sound', labelKey: 'analytics.axisAtmosphere' },
+];
+
+interface JudgmentMovieEntry {
+  movie: Movie;
+  finalRating: number;
+  baseAverage: number;
+  values: Record<BaseCriterionKey, number>;
+}
+
+interface JudgmentAxis {
+  key: JudgmentAxisKey;
+  criterionKey: BaseCriterionKey;
+  labelKey: string;
+  raw: number;
+  evidenceMovies: Movie[];
+}
+
+interface JudgmentProfile {
+  entryCount: number;
+  axes: JudgmentAxis[];
+  isBalanced: boolean;
+  topAxisMovies: Movie[];
+}
+
+const pearsonCorrelation = (first: number[], second: number[]): number => {
+  if (first.length < 2 || first.length !== second.length) return 0;
+
+  const firstMean = first.reduce((sum, value) => sum + value, 0) / first.length;
+  const secondMean = second.reduce((sum, value) => sum + value, 0) / second.length;
+  let covariance = 0;
+  let firstVariance = 0;
+  let secondVariance = 0;
+
+  first.forEach((value, index) => {
+    const firstDelta = value - firstMean;
+    const secondDelta = second[index] - secondMean;
+    covariance += firstDelta * secondDelta;
+    firstVariance += firstDelta * firstDelta;
+    secondVariance += secondDelta * secondDelta;
+  });
+
+  const denominator = Math.sqrt(firstVariance * secondVariance);
+  return denominator > 0 ? covariance / denominator : 0;
+};
+
+/**
+ * Le radar ne montre pas les moyennes de notes. Pour chaque film, un axe vaut
+ * sa place par rapport aux trois autres critères de ce même film, puis on mesure
+ * ce qui accompagne réellement la note finale Bitter+. Il décrit donc le regard
+ * du spectateur, pas la qualité moyenne des films de sa collection.
+ */
+const buildJudgmentProfile = (movies: Movie[]): JudgmentProfile => {
+  const entries: JudgmentMovieEntry[] = movies.flatMap((movie) => {
+    const adaptiveRating = movie.adaptiveRating;
+    if (!adaptiveRating || !Number.isFinite(adaptiveRating.weightedRating)) return [];
+
+    const valuesByKey = new Map(adaptiveRating.criteria.map((criterion) => [criterion.key, criterion.value]));
+    const values = {} as Record<BaseCriterionKey, number>;
+    for (const key of BASE_CRITERION_KEYS) {
+      const value = valuesByKey.get(key);
+      if (!Number.isFinite(value)) return [];
+      values[key] = value as number;
+    }
+
+    const baseAverage = BASE_CRITERION_KEYS.reduce((sum, key) => sum + values[key], 0) / BASE_CRITERION_KEYS.length;
+    return [{ movie, finalRating: adaptiveRating.weightedRating, baseAverage, values }];
+  });
+
+  if (entries.length === 0) return { entryCount: 0, axes: [], isBalanced: true, topAxisMovies: [] };
+
+  const segmentSize = Math.max(2, Math.floor(entries.length / 3));
+  const favorites = [...entries]
+    .sort((a, b) => b.finalRating - a.finalRating)
+    .slice(0, segmentSize);
+  const lessLoved = [...entries]
+    .sort((a, b) => a.finalRating - b.finalRating)
+    .slice(0, segmentSize);
+  const axes = JUDGMENT_AXES.map((axis) => {
+    const favoriteAverage =
+      favorites.reduce((sum, entry) => sum + entry.values[axis.criterionKey], 0) /
+      favorites.length;
+    const lessLovedAverage =
+      lessLoved.reduce((sum, entry) => sum + entry.values[axis.criterionKey], 0) /
+      lessLoved.length;
+
+    return {
+      ...axis,
+      raw: favoriteAverage - lessLovedAverage,
+      evidenceMovies: [...favorites]
+        .sort(
+          (a, b) =>
+            b.values[axis.criterionKey] - a.values[axis.criterionKey] ||
+            b.finalRating - a.finalRating
+        )
+        .map((entry) => entry.movie),
+    };
+  });
+  const rankedAxes = [...axes].sort(
+    (a, b) =>
+      b.raw - a.raw ||
+      JUDGMENT_AXES.findIndex((axis) => axis.key === a.key) -
+        JUDGMENT_AXES.findIndex((axis) => axis.key === b.key)
+  );
+  const topAxis = rankedAxes[0];
+  const range = rankedAxes[0].raw - rankedAxes.at(-1)!.raw;
+
+  return {
+    entryCount: entries.length,
+    axes,
+    isBalanced: range < 0.4,
+    topAxisMovies: topAxis.evidenceMovies,
+  };
+  /*
+    // Le radar compare les repères entre eux, sans les faire passer pour une note sur 100.
+    value: range < 0.08 ? 55 : Math.round(35 + ((axis.raw - minRaw) / range) * 55),
+  }));
+  const rankedAxes = [...axes].sort((a, b) => b.raw - a.raw || JUDGMENT_AXES.findIndex((axis) => axis.key === a.key) - JUDGMENT_AXES.findIndex((axis) => axis.key === b.key));
+  const topAxis = rankedAxes[0];
+  const topAxisMovies = entries
+    .filter((entry) => entry.values[topAxis.criterionKey] - entry.baseAverage > 0.25)
+    .sort(
+      (a, b) =>
+        b.values[topAxis.criterionKey] - b.baseAverage -
+        (a.values[topAxis.criterionKey] - a.baseAverage)
+    )
+    .map((entry) => entry.movie);
+
+  return {
+    entryCount: entries.length,
+    axes,
+    isBalanced: range < 0.08,
+    topAxisMovies,
+  };
+};
+  */
 };
 
 /** Un point de la courbe de tendance : une semaine. */
@@ -549,7 +755,11 @@ const TrendDetailModal: React.FC<{
   );
 };
 
-const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
+const RadarChart: React.FC<{
+  data: { label: string; value: number }[];
+  maxValue?: number;
+  showLabels?: boolean;
+}> = ({ data, maxValue = 10, showLabels = false }) => {
   const cx = 100,
     cy = 100,
     r = 70;
@@ -559,7 +769,7 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
     x: cx + r * frac * Math.cos(angle(i)),
     y: cy + r * frac * Math.sin(angle(i)),
   });
-  const dataPoints = data.map((d, i) => toXY(i, d.value / 10));
+  const dataPoints = data.map((d, i) => toXY(i, Math.max(0, Math.min(1, d.value / maxValue))));
   const dataPath =
     dataPoints
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
@@ -620,7 +830,7 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
           className="text-forest dark:text-lime-500"
         />
       ))}
-      {data.map((d, i) => {
+      {showLabels && data.map((d, i) => {
         const lr = r + 20;
         const lx = cx + lr * Math.cos(angle(i));
         const ly = cy + lr * Math.sin(angle(i));
@@ -746,6 +956,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   userProfile,
   onRecalibrate,
   onViewDirector,
+  onViewMovie,
   onConfigureCinemaSubscription,
   onOpenCinemaDetails,
 }) => {
@@ -760,6 +971,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [selectedTrendPeriodKey, setSelectedTrendPeriodKey] = useState('');
   const [trendStartDate, setTrendStartDate] = useState('');
   const [trendEndDate, setTrendEndDate] = useState('');
+  const [selectedImprint, setSelectedImprint] = useState<ImprintTally | null>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
 
@@ -807,6 +1019,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     const watched = movies.filter((m) => m.status === 'watched');
     const count = watched.length;
     if (count === 0) return null;
+    const imprintCount = countMoviesWithImprints(watched);
+    const imprintTally = buildImprintTally(watched);
+    const judgmentProfile = buildJudgmentProfile(watched);
+    const judgmentImprint = judgmentProfile.isBalanced
+      ? null
+      : buildImprintTally(judgmentProfile.topAxisMovies).signature[0]?.key ?? null;
 
     const sums = watched.reduce(
       (acc, m) => {
@@ -1148,7 +1366,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       ratingAverages,
       totalHours,
       favoriteGenre: dominantGenre(watched),
-      vibeCount: countCustomVibes(watched),
+      imprintCount,
+      imprintTally,
+      judgmentProfile,
+      judgmentImprint,
       bestRated,
       worstRated,
       advancedArchetype,
@@ -1239,7 +1460,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     averages,
     criteriaScores,
     totalHours,
-    vibeCount,
+    imprintCount,
+    imprintTally,
+    judgmentProfile,
+    judgmentImprint,
     bestRated,
     worstRated,
     advancedArchetype,
@@ -1270,6 +1494,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     pacingInsight,
   } = stats;
 
+  const hasImprintDna = imprintCount >= MIN_MOVIES_FOR_IMPRINTS;
+  const hasVerdictInsights = judgmentProfile.entryCount >= MIN_MOVIES_FOR_VERDICT_INSIGHTS;
+  const rankedJudgmentAxes = [...judgmentProfile.axes].sort(
+    (a, b) => b.raw - a.raw || a.key.localeCompare(b.key)
+  );
+  const primaryJudgmentAxis = rankedJudgmentAxes[0];
+  const verdictMaxImpact = Math.max(
+    ...rankedJudgmentAxes.map((axis) => Math.max(axis.raw, 0)),
+    0.1
+  );
   const maxDecadeCount = Math.max(...decadeData.map((d) => d.count), 1);
   const trendMinDate = weeklyTrend[0] ? toDateInputValue(weeklyTrend[0].weekStart) : '';
   const trendMaxDate = weeklyTrend.at(-1) ? toDateInputValue(weeklyTrend.at(-1)!.weekStart) : '';
@@ -2187,78 +2421,352 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </AnalyticsSheet>
       )}
 
+      {selectedImprint && (
+        <AnalyticsSheet
+          title={t('analytics.imprintDetailTitle', {
+            imprint: t(IMPRINT_META[selectedImprint.key].labelKey),
+          })}
+          subtitle={t('analytics.imprintDetailSubtitle', {
+            count: selectedImprint.movieCount,
+            s: selectedImprint.movieCount > 1 ? 's' : '',
+          })}
+          onClose={() => setSelectedImprint(null)}
+        >
+          <div className="space-y-3">
+            {selectedImprint.movies.map((movie) => {
+              const imprintPosition = (movie.adaptiveRating?.imprints ?? []).indexOf(selectedImprint.key);
+              const isDominant = imprintPosition >= 0 && imprintPosition < 3;
+              const criteria = movie.adaptiveRating?.criteria ?? [];
+
+              return (
+                <article
+                  key={movie.id}
+                  className="overflow-hidden rounded-[1.8rem] border border-stone-100 bg-stone-50 p-4 dark:border-white/5 dark:bg-[#161616]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-200 dark:bg-stone-800">
+                      {movie.posterUrl ? (
+                        <img
+                          src={resizeTmdbImage(movie.posterUrl, 'w185')}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Film size={15} className="m-auto mt-8 text-stone-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black text-charcoal dark:text-white">
+                        {movie.title}
+                      </p>
+                      <span className="mt-2 inline-flex rounded-full bg-bitter-lime/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-charcoal dark:text-white">
+                        {isDominant
+                          ? t('analytics.imprintDominant')
+                          : t('analytics.imprintNuance')}
+                      </span>
+                      <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-stone-400 dark:text-stone-600">
+                        {t('analytics.imprintYourBitterRating')}
+                        <span className="ml-2 text-base text-forest dark:text-bitter-lime">
+                          {movie.adaptiveRating?.weightedRating.toFixed(1) ?? '—'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {criteria.map((criterion) => (
+                      <div
+                        key={criterion.key}
+                        className="min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2.5 dark:border-white/5 dark:bg-[#202020]"
+                      >
+                        <p className="truncate text-[9px] font-bold text-stone-400 dark:text-stone-500">
+                          {criterion.label}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-charcoal dark:text-white">
+                          {criterion.value.toFixed(1)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {movie.review && (
+                    <p className="mt-4 line-clamp-2 text-[11px] font-medium leading-relaxed text-stone-500 dark:text-stone-400">
+                      {movie.review}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={!onViewMovie || !movie.tmdbId}
+                    onClick={() => {
+                      if (!movie.tmdbId) return;
+                      setSelectedImprint(null);
+                      onViewMovie?.(movie);
+                    }}
+                    className="mt-4 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-[10px] font-black uppercase tracking-widest text-charcoal transition-colors enabled:hover:border-forest enabled:active:scale-[0.99] disabled:opacity-40 dark:border-white/10 dark:bg-[#202020] dark:text-white dark:enabled:hover:border-bitter-lime"
+                  >
+                    {t('analytics.imprintOpenMovie')}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </AnalyticsSheet>
+      )}
+
       {/* ─── TAB : ADN ─── */}
       {activeTab === 'psycho' && (
         <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-          {/* Pas assez d'ambiances renseignées : le radar serait plat et mensonger */}
-          {vibeCount < MIN_MOVIES_FOR_VIBES ? (
-            <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-8 rounded-[2.5rem] shadow-sm dark:shadow-black/20 text-center">
-              <div className="w-16 h-16 mx-auto bg-stone-50 dark:bg-[#161616] rounded-3xl flex items-center justify-center text-stone-300 dark:text-stone-600 mb-5">
-                <Radar size={28} />
+          {hasImprintDna ? (
+            <>
+              <details className="group overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#111111] text-white">
+                <summary className="cursor-pointer list-none p-7 marker:content-none">
+                  <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+                    {t('analytics.dnaTitle')}
+                  </p>
+                  <p className="mt-2 text-[11px] font-medium text-stone-400">
+                    {t('analytics.dnaSubtitle')}
+                  </p>
+                  <AdnRadialChart
+                    data={imprintTally.all.map((imprint) => ({
+                      label: t(IMPRINT_META[imprint.key].labelKey),
+                      value: imprint.points,
+                      count: imprint.movieCount,
+                    }))}
+                  />
+                  <div className="mt-4 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-widest text-stone-500">
+                    <span>
+                      {t('analytics.dnaBasedOn', {
+                        count: imprintCount,
+                        s: imprintCount > 1 ? 's' : '',
+                      })}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 text-bitter-lime">
+                      {t('analytics.dnaExplore')}
+                      <ChevronRight size={15} className="transition-transform group-open:rotate-90" />
+                    </span>
+                  </div>
+                  </div>
+                </summary>
+
+                <div className="border-t border-white/10 px-7 pb-7 pt-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                  {t('analytics.imprintFilmsTitle')}
+                </p>
+                <p className="mt-2 text-[11px] font-medium leading-snug text-stone-400">
+                  {t('analytics.imprintFilmsHint')}
+                </p>
+                <div className="mt-5 space-y-3">
+                  {imprintTally.signature.map((imprint) => (
+                    <button
+                      key={imprint.key}
+                      type="button"
+                      onClick={() => setSelectedImprint(imprint)}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-[1.5rem] bg-white/5 p-3 text-left transition-colors hover:bg-white/10"
+                    >
+                      <div className="flex -space-x-3 overflow-hidden py-1 pl-1">
+                        {imprint.movies.slice(0, 3).map((movie) => (
+                          <div
+                            key={movie.id}
+                            className="h-12 w-9 shrink-0 overflow-hidden rounded-lg border-2 border-charcoal bg-stone-700"
+                          >
+                            {movie.posterUrl ? (
+                              <img
+                                src={resizeTmdbImage(movie.posterUrl, 'w185')}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Film size={13} className="m-auto mt-4 text-stone-500" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-white">
+                          {t(IMPRINT_META[imprint.key].labelKey)}
+                        </p>
+                          <p className="mt-1 truncate text-[11px] font-medium text-stone-400">
+                          {imprint.movies.slice(0, 2).map((movie) => movie.title).join(' · ')}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-black text-stone-400">
+                        {imprint.movieCount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                </div>
+              </details>
+            </>
+          ) : (
+            <div className="rounded-[2.5rem] border border-stone-100 bg-white p-8 text-center shadow-sm dark:border-white/10 dark:bg-[#202020] dark:shadow-black/20">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-stone-50 text-stone-300 dark:bg-[#161616] dark:text-stone-600">
+                <Heart size={28} />
               </div>
-              <h3 className="text-lg font-black tracking-tighter text-charcoal dark:text-white mb-2">
-                {t('analytics.vibesLocked')}
+              <h3 className="mb-2 text-lg font-black tracking-tighter text-charcoal dark:text-white">
+                {t('analytics.imprintsLocked')}
               </h3>
-              <p className="text-xs font-medium text-stone-500 dark:text-stone-400 leading-relaxed max-w-xs mx-auto mb-6">
-                {t('analytics.vibesLockedDesc', {
-                  n: String(MIN_MOVIES_FOR_VIBES - vibeCount),
-                  s: MIN_MOVIES_FOR_VIBES - vibeCount > 1 ? 's' : '',
+              <p className="mx-auto mb-6 max-w-xs text-xs font-medium leading-relaxed text-stone-500 dark:text-stone-400">
+                {t('analytics.imprintsLockedDesc', {
+                  n: String(MIN_MOVIES_FOR_IMPRINTS - imprintCount),
+                  s: MIN_MOVIES_FOR_IMPRINTS - imprintCount > 1 ? 's' : '',
                 })}
               </p>
-              <div className="w-full max-w-[200px] mx-auto bg-stone-100 dark:bg-[#161616] h-2 rounded-full overflow-hidden">
+              <div className="mx-auto h-2 w-full max-w-[200px] overflow-hidden rounded-full bg-stone-100 dark:bg-[#161616]">
                 <div
-                  className="h-full bg-forest dark:bg-lime-500 transition-all duration-700"
-                  style={{ width: `${(vibeCount / MIN_MOVIES_FOR_VIBES) * 100}%` }}
+                  className="h-full bg-forest transition-all duration-700 dark:bg-lime-500"
+                  style={{ width: `${(imprintCount / MIN_MOVIES_FOR_IMPRINTS) * 100}%` }}
                 />
               </div>
               <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
-                {t('analytics.vibesProgress', {
-                  done: String(vibeCount),
-                  total: String(MIN_MOVIES_FOR_VIBES),
+                {t('analytics.imprintsProgress', {
+                  done: String(imprintCount),
+                  total: String(MIN_MOVIES_FOR_IMPRINTS),
                 })}
               </p>
             </div>
-          ) : (
-          /* RADAR CHART */
-          <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
-            <RadarChart
-              data={[
-                { label: t('vibe.story'), value: averages.cerebral },
-                { label: t('vibe.tension'), value: averages.tension },
-                { label: t('vibe.fun'), value: averages.fun },
-                { label: t('vibe.visual'), value: averages.visual },
-                { label: t('vibe.emotion'), value: averages.emotion },
-              ]}
-            />
-            <div className="mt-5 space-y-2">
-              {[
-                { key: 'story', val: averages.cerebral, icon: Brain },
-                { key: 'tension', val: averages.tension, icon: Zap },
-                { key: 'fun', val: averages.fun, icon: Smile },
-                { key: 'visual', val: averages.visual, icon: Aperture },
-                { key: 'emotion', val: averages.emotion, icon: Heart },
-              ].map((item) => (
-                <div key={item.key} className="flex items-center gap-3">
-                  <div className="p-1.5 bg-stone-50 dark:bg-[#161616] rounded-lg text-stone-400 dark:text-stone-500 shrink-0">
-                    <item.icon size={13} />
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400 w-20 shrink-0">
-                    {t(`vibe.${item.key}`)}
-                  </span>
-                  <p className="text-[10px] font-medium text-stone-500 dark:text-stone-400 flex-1 leading-tight">
-                    {getVibePhrase(item.key, item.val, t)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
           )}
+
+          <section className="overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#111111] p-6 text-white">
+            {hasVerdictInsights && primaryJudgmentAxis ? (
+              judgmentProfile.isBalanced ? (
+                <>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                    {t('analytics.verdictTitle')}
+                  </p>
+                  <div className="mt-4 border border-bitter-lime/30 bg-bitter-lime/10 p-4 text-[12px] font-medium leading-relaxed text-white">
+                    {t('analytics.verdictBalanced')}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-bitter-lime">
+                      {t('analytics.verdictPrimary')}
+                    </p>
+                    <p className="mt-2 text-[26px] font-black uppercase leading-none tracking-[-0.04em] text-white sm:text-3xl">
+                      {t(primaryJudgmentAxis.labelKey)}
+                    </p>
+                    <div className="mt-7 space-y-3.5 border-t border-white/10 pt-5">
+                      {rankedJudgmentAxes.map((axis, index) => {
+                        const isPrimary = index === 0;
+                        const influence = isPrimary
+                          ? 100
+                          : Math.max(0, (Math.max(axis.raw, 0) / verdictMaxImpact) * 100);
+                        const metric = `${axis.raw >= 0 ? '+' : ''}${axis.raw.toFixed(1)}/10`;
+
+                        return (
+                          <div key={axis.key}>
+                            <div
+                              className={`mb-1.5 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-wider ${
+                                isPrimary ? 'text-white' : 'text-[#888888]'
+                              }`}
+                            >
+                              <span className="truncate">{t(axis.labelKey)}</span>
+                              <span className={isPrimary ? 'shrink-0 text-bitter-lime' : 'shrink-0'}>
+                                {metric}
+                              </span>
+                            </div>
+                            <div className="h-1 w-full bg-[#2A2A2A]">
+                              <div
+                                className={isPrimary ? 'h-full bg-bitter-lime' : 'h-full bg-[#555555]'}
+                                style={{ width: `${influence}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-7">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-stone-400">
+                      {t('analytics.verdictProofTitle')}
+                    </p>
+                    <div className="-mx-6 mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {primaryJudgmentAxis.evidenceMovies.slice(0, 3).map((movie) => {
+                        const criterion = movie.adaptiveRating?.criteria.find(
+                          (item) => item.key === primaryJudgmentAxis.criterionKey
+                        );
+                        return (
+                          <button
+                            key={movie.id}
+                            type="button"
+                            disabled={!onViewMovie || !movie.tmdbId}
+                            onClick={() => onViewMovie?.(movie)}
+                            className="w-[112px] shrink-0 snap-start text-left transition-transform enabled:active:scale-[0.98]"
+                          >
+                            <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#2A2A2A]">
+                              {movie.posterUrl ? (
+                                <img
+                                  src={resizeTmdbImage(movie.posterUrl, 'w185')}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Film size={16} className="m-auto mt-[72%] text-stone-500" />
+                              )}
+                              <span className="absolute bottom-2 right-2 rounded-md bg-bitter-lime px-1.5 py-1 text-[10px] font-black leading-none text-charcoal">
+                                {movie.adaptiveRating?.weightedRating.toFixed(1) ?? '—'}
+                              </span>
+                            </div>
+                            <p className="mt-2 truncate text-[11px] font-black text-white">{movie.title}</p>
+                            <p className="mt-1 text-[9px] font-medium leading-snug text-stone-400">
+                              {t('analytics.verdictCriterionRating', {
+                                axis: t(primaryJudgmentAxis.labelKey),
+                                rating: criterion ? criterion.value.toFixed(1) : '—',
+                              })}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )
+            ) : (
+              <div className="text-center">
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-3xl bg-white/5 text-stone-500">
+                  <Scale size={24} />
+                </div>
+                <h3 className="text-lg font-black tracking-tighter text-white">
+                  {t('analytics.verdictLocked')}
+                </h3>
+                <p className="mx-auto mt-2 max-w-xs text-xs font-medium leading-relaxed text-stone-400">
+                  {t('analytics.verdictLockedDesc', {
+                    n: String(Math.max(0, MIN_MOVIES_FOR_VERDICT_INSIGHTS - judgmentProfile.entryCount)),
+                    s:
+                      MIN_MOVIES_FOR_VERDICT_INSIGHTS - judgmentProfile.entryCount > 1 ? 's' : '',
+                  })}
+                </p>
+                <div className="mx-auto mt-6 h-2 w-full max-w-[200px] overflow-hidden rounded-full bg-[#2A2A2A]">
+                  <div
+                    className="h-full bg-bitter-lime transition-all duration-700"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (judgmentProfile.entryCount / MIN_MOVIES_FOR_VERDICT_INSIGHTS) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-stone-500">
+                  {t('analytics.verdictProgress', {
+                    done: String(judgmentProfile.entryCount),
+                    total: String(MIN_MOVIES_FOR_VERDICT_INSIGHTS),
+                  })}
+                </p>
+              </div>
+            )}
+          </section>
 
           <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 rounded-[2.5rem] relative overflow-hidden shadow-xl dark:shadow-black/40 transition-all">
             <div className="absolute top-0 right-0 w-32 h-32 bg-forest/20 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10 flex justify-between items-center mb-4">
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 flex items-center gap-2">
-                <Smartphone size={16} /> {t('analytics.immersion')}
+                <Smartphone size={16} /> {t('analytics.viewingStyle')}
               </h3>
               <span className="text-2xl font-black text-white">{100 - averages.smartphone}%</span>
             </div>
