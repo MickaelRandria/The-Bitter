@@ -186,6 +186,28 @@ export const en: Record<string, string> = {
   'profileModal.signOut': 'Sign out',
   'profileModal.language': 'Language',
 
+  // ── Privacy and account deletion ──────────────────────────────────────────
+  'profileModal.privacy': 'Privacy',
+  'profileModal.privacyPolicy': 'Privacy policy',
+  'profileModal.privacyPolicyDesc': 'What is collected, why, and for how long',
+  'profileModal.analytics': 'Audience measurement',
+  'profileModal.analyticsOn': 'Accepted',
+  'profileModal.analyticsOff': 'Declined',
+  'profileModal.deleteAccount': 'Delete my account',
+  'profileModal.deleteAccountDesc': 'Permanently erase the account and all its data',
+  'deleteAccount.title': 'Delete your account',
+  'deleteAccount.warning':
+    'This is permanent. Your account, films, ratings, screenings and reminders will be erased. Nothing can be restored.',
+  'deleteAccount.spacesNotice':
+    'Shared spaces you created will be handed to their longest-standing member. Those where you are the only member will be deleted.',
+  'deleteAccount.word': 'DELETE',
+  'deleteAccount.prompt': 'Type {word} to confirm',
+  'deleteAccount.cancel': 'Cancel',
+  'deleteAccount.confirm': 'Delete permanently',
+  'deleteAccount.working': 'Deleting…',
+  'deleteAccount.done': 'Your account has been deleted.',
+  'deleteAccount.failed': 'The deletion could not complete. Try again in a moment.',
+
   // ── Notification labels ───────────────────────────────────────────────────
   'notif.streak': 'Consecutive day streak',
   'notif.weekly': 'Weekly recap',
@@ -368,10 +390,13 @@ export const en: Record<string, string> = {
   'aiUnlock.addMovie': 'Add a film',
 
   // ── Consent ───────────────────────────────────────────────────────────────
-  'consent.title': 'Transparency',
-  'consent.desc1': 'To improve The Bitter experience, we have enabled activity trackers.',
-  'consent.desc2': 'We now track your navigation and interactions within the app for analytics and statistics purposes.',
-  'consent.accept': 'Got it',
+  'consent.title': 'Audience measurement',
+  'consent.desc1': 'The Bitter can measure how the app is used, to understand what helps and what gets in the way.',
+  'consent.desc2': 'Nothing loads until you answer. Declining removes no feature.',
+  'consent.accept': 'Accept',
+  'consent.decline': 'Decline',
+  'consent.policy': 'Privacy policy',
+  'consent.revocable': 'Changeable at any time in your profile',
   'consent.thanks': 'Thank you for your trust',
 
   // ── Mood presets ──────────────────────────────────────────────────────────

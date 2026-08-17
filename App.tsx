@@ -86,10 +86,12 @@ import {
   VibeAxis,
 } from './utils/tonightPick';
 import MoodPicker from './components/MoodPicker';
-import { initAnalytics } from './utils/analytics';
+import { initAnalytics, stopAnalytics } from './utils/analytics';
+import { readConsent, saveConsent } from './utils/consent';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
+import DeleteAccountModal from './components/DeleteAccountModal';
 import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
 import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
@@ -405,7 +407,12 @@ const App: React.FC = () => {
   const [sharedSpaceRefreshTrigger, setSharedSpaceRefreshTrigger] = useState(0);
   const [showCalibration, setShowCalibration] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
-  const [showConsent, setShowConsent] = useState(true);
+  /**
+   * La bannière ne s'affiche que tant que la question n'a pas été tranchée. Elle
+   * réapparaissait à chaque ouverture parce que le choix n'était jamais relu.
+   */
+  const [showConsent, setShowConsent] = useState(() => readConsent() === null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showCineAssistant, setShowCineAssistant] = useState(false);
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
   const [showNewFeatures, setShowNewFeatures] = useState(false);
@@ -1852,6 +1859,35 @@ const App: React.FC = () => {
     window.setTimeout(() => window.location.reload(), 0);
   };
 
+  /**
+   * Un accord donné lors d'une visite précédente doit rearmer les traceurs sans
+   * reposer la question. Sans cela, le choix était mémorisé mais jamais appliqué.
+   */
+  useEffect(() => {
+    if (readConsent() === 'granted') void initAnalytics();
+  }, []);
+
+  /**
+   * Le compte serveur est supprimé : il reste à effacer la session et l'état
+   * local, puis à rendre l'application à son écran d'accueil.
+   */
+  const handleAccountDeleted = async () => {
+    setShowDeleteAccount(false);
+    setShowProfile(false);
+    try {
+      await (supabase?.auth as any)?.signOut();
+    } catch {
+      // L'identité n'existe plus côté serveur : l'échec local est sans portée.
+    }
+    setSession(null);
+    setActiveProfileId(null);
+    setActiveSharedSpace(null);
+    setViewMode('Feed');
+    localStorage.removeItem(LAST_PROFILE_ID_KEY);
+    setToastMessage(t('deleteAccount.done'));
+    setShowWelcome(true);
+  };
+
   const handleSignOutConfirmed = async () => {
     haptics.medium();
     setShowSignOutConfirm(false);
@@ -1918,12 +1954,26 @@ const App: React.FC = () => {
             });
           }}
         />
+        {showDeleteAccount && (
+          <DeleteAccountModal
+            onClose={() => setShowDeleteAccount(false)}
+            onDeleted={handleAccountDeleted}
+          />
+        )}
+
         {showConsent && (
           <ConsentModal
             onAccept={() => {
               haptics.success();
               setShowConsent(false);
-              initAnalytics();
+              saveConsent('granted');
+              void initAnalytics();
+            }}
+            onDecline={() => {
+              haptics.soft();
+              setShowConsent(false);
+              saveConsent('denied');
+              stopAnalytics();
             }}
           />
         )}
@@ -2967,6 +3017,7 @@ const App: React.FC = () => {
               setShowCalibration(true);
             }}
             onSignOut={handleSignOut}
+            onDeleteAccount={session ? () => { setShowProfile(false); setShowDeleteAccount(true); } : undefined}
             onImportBackup={handleImportBackup}
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}

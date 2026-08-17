@@ -56,6 +56,25 @@ export const initAnalytics = (): Promise<void> => {
   return initPromise;
 };
 
+/**
+ * Coupe les traceurs après coup, quand l'utilisateur revient sur son accord.
+ *
+ * PostHog garde son opt-in en localStorage : sans `opt_out_capturing()`, un refus
+ * exprimé après une acceptation resterait sans effet jusqu'au rechargement. GA4 ne
+ * propose pas d'équivalent, on neutralise donc la référence : `trackEvent` et
+ * `trackPageView` testent `ga?.isInitialized` avant chaque envoi.
+ */
+export const stopAnalytics = (): void => {
+  try {
+    posthog?.opt_out_capturing();
+  } catch {
+    // Silence
+  }
+  posthog = null;
+  ga = null;
+  initPromise = null;
+};
+
 // --- TRACKING ---
 
 /**
