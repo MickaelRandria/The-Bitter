@@ -38,3 +38,14 @@ export const countCustomVibes = (movies: Movie[]): number => movies.filter(hasCu
 
 /** Seuil à partir duquel le radar ADN et les moods deviennent exploitables. */
 export const MIN_MOVIES_FOR_VIBES = 3;
+
+/** Un film nourrit le nouvel ADN dès qu'au moins une empreinte Bitter+ a été choisie. */
+export const hasEmotionalImprints = (movie: Movie): boolean =>
+  (movie.adaptiveRating?.imprints?.length ?? 0) > 0;
+
+/** Nombre de films qui peuvent alimenter la signature d'empreintes. */
+export const countMoviesWithImprints = (movies: Movie[]): number =>
+  movies.filter(hasEmotionalImprints).length;
+
+/** Cinq films évitent qu'une signature repose sur une seule soirée de cinéma. */
+export const MIN_MOVIES_FOR_IMPRINTS = 5;
