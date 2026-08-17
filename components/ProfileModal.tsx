@@ -27,6 +27,9 @@ import {
   MessageSquareText,
   Ticket,
   CloudUpload,
+  ShieldCheck,
+  ScanEye,
+  Trash2,
 } from 'lucide-react';
 import { CinemaSubscription, UserProfile } from '../types';
 import { formatCurrency } from '../utils/cinemaSubscription';
@@ -45,6 +48,8 @@ import {
 } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { ConsentChoice, readConsent, saveConsent } from '../utils/consent';
+import { initAnalytics, stopAnalytics } from '../utils/analytics';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -75,6 +80,11 @@ interface ProfileModalProps {
   /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
   cinemaSubscription?: CinemaSubscription;
   onManageCinemaSubscription?: () => void;
+  /**
+   * Ouvre la confirmation de suppression définitive du compte. Absent, la ligne
+   * n'est pas rendue — elle n'a de sens que pour un compte en ligne.
+   */
+  onDeleteAccount?: () => void;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -115,7 +125,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onAvatarChange,
   cinemaSubscription,
   onManageCinemaSubscription,
+  onDeleteAccount,
 }) => {
+  /**
+   * Le consentement est révocable : on le relit à l'ouverture du profil plutôt
+   * que de le recevoir en prop, pour qu'il reste juste même si la bannière a été
+   * répondue entre-temps dans cette même session.
+   */
+  const [consent, setConsent] = useState<ConsentChoice | null>(() => readConsent());
+
+  const applyConsent = (choice: ConsentChoice) => {
+    haptics.soft();
+    setConsent(choice);
+    saveConsent(choice);
+    if (choice === 'granted') void initAnalytics();
+    else stopAnalytics();
+  };
+
   /**
    * Les espaces partagés écrivent sous `auth.uid()` et affichent aux autres membres
    * le prénom porté par le compte. Une session anonyme satisfait la première
@@ -786,6 +812,88 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </button>
             )}
+
+            {/* Confidentialité : la politique, le choix sur la mesure d'audience,
+                et la suppression définitive exigée par l'App Store. */}
+            <div className="mt-4 pt-4 border-t border-sand dark:border-white/5">
+              <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+                {t('profileModal.privacy')}
+              </p>
+
+              <a
+                href="/confidentialite"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => haptics.soft()}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                  <ShieldCheck size={14} />
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
+                    {t('profileModal.privacyPolicy')}
+                  </span>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                    {t('profileModal.privacyPolicyDesc')}
+                  </span>
+                </div>
+              </a>
+
+              <div className="p-4">
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white shrink-0">
+                    <ScanEye size={14} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('profileModal.analytics')}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => applyConsent('denied')}
+                    aria-pressed={consent === 'denied'}
+                    className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                      consent === 'denied'
+                        ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                        : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {t('profileModal.analyticsOff')}
+                  </button>
+                  <button
+                    onClick={() => applyConsent('granted')}
+                    aria-pressed={consent === 'granted'}
+                    className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                      consent === 'granted'
+                        ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                        : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {t('profileModal.analyticsOn')}
+                  </button>
+                </div>
+              </div>
+
+              {onDeleteAccount && session && (
+                <button
+                  onClick={() => { haptics.medium(); onDeleteAccount(); }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shrink-0">
+                    <Trash2 size={14} />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-xs font-black uppercase tracking-wide text-red-500 block">
+                      {t('profileModal.deleteAccount')}
+                    </span>
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                      {t('profileModal.deleteAccountDesc')}
+                    </span>
+                  </div>
+                </button>
+              )}
+            </div>
 
             {session && (
               <button

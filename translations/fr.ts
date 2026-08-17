@@ -187,6 +187,28 @@ export const fr: Record<string, string> = {
   'profileModal.signOut': 'Se déconnecter',
   'profileModal.language': 'Langue',
 
+  // ── Confidentialité et suppression de compte ──────────────────────────────
+  'profileModal.privacy': 'Confidentialité',
+  'profileModal.privacyPolicy': 'Politique de confidentialité',
+  'profileModal.privacyPolicyDesc': 'Ce qui est collecté, pourquoi, et pour combien de temps',
+  'profileModal.analytics': 'Mesure d’audience',
+  'profileModal.analyticsOn': 'Acceptée',
+  'profileModal.analyticsOff': 'Refusée',
+  'profileModal.deleteAccount': 'Supprimer mon compte',
+  'profileModal.deleteAccountDesc': 'Efface définitivement le compte et toutes ses données',
+  'deleteAccount.title': 'Supprimer ton compte',
+  'deleteAccount.warning':
+    'Cette action est définitive. Ton compte, tes films, tes notes, tes séances et tes rappels seront effacés. Rien ne pourra être restauré.',
+  'deleteAccount.spacesNotice':
+    'Les espaces partagés que tu as créés seront transmis à leur plus ancien membre. Ceux dont tu es seul membre seront supprimés.',
+  'deleteAccount.word': 'SUPPRIMER',
+  'deleteAccount.prompt': 'Écris {word} pour confirmer',
+  'deleteAccount.cancel': 'Annuler',
+  'deleteAccount.confirm': 'Supprimer définitivement',
+  'deleteAccount.working': 'Suppression en cours…',
+  'deleteAccount.done': 'Ton compte a été supprimé.',
+  'deleteAccount.failed': 'La suppression n’a pas pu aboutir. Réessaie dans un instant.',
+
   // ── Notification labels ───────────────────────────────────────────────────
   'notif.streak': 'Streak jours consécutifs',
   'notif.weekly': 'Récap hebdomadaire',
@@ -369,10 +391,13 @@ export const fr: Record<string, string> = {
   'aiUnlock.addMovie': 'Ajouter un film',
 
   // ── Consent ───────────────────────────────────────────────────────────────
-  'consent.title': 'Transparence',
-  'consent.desc1': "Pour améliorer l'expérience The Bitter, nous avons activé des traceurs d'activité.",
-  'consent.desc2': 'Nous suivons désormais ta navigation et tes interactions au sein de l\'application à des fins d\'analyse et de statistiques.',
-  'consent.accept': "D'accord",
+  'consent.title': 'Mesure d’audience',
+  'consent.desc1': "The Bitter peut mesurer comment l'application est utilisée, pour comprendre ce qui sert et ce qui gêne.",
+  'consent.desc2': 'Rien n’est chargé tant que tu n’as pas répondu. Refuser ne retire aucune fonctionnalité.',
+  'consent.accept': 'Accepter',
+  'consent.decline': 'Refuser',
+  'consent.policy': 'Politique de confidentialité',
+  'consent.revocable': 'Modifiable à tout moment dans ton profil',
   'consent.thanks': 'Merci de ta confiance',
 
   // ── Mood presets ──────────────────────────────────────────────────────────
