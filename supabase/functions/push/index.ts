@@ -135,8 +135,11 @@ const notificationFor = (delivery: ClaimedDelivery) => {
   return {
     title,
     body,
-    icon: 'https://thebitter.watch/pwa-192x192.png',
-    badge: 'https://thebitter.watch/pwa-192x192.png',
+    // Ce fichier n'a jamais existé : les vrais rappels partaient donc avec une
+    // icône introuvable, alors que la notification de test, qui pointe ailleurs,
+    // s'affichait correctement. D'où un bug invisible en test.
+    icon: 'https://thebitter.watch/favicon_io/android-chrome-192x192.png',
+    badge: 'https://thebitter.watch/favicon_io/android-chrome-192x192.png',
     tag: `screening-${delivery.screening_id}-${delivery.reminder_offset_minutes}`,
     data: { url: `/?screening=${delivery.screening_id}`, screeningId: delivery.screening_id },
   };
