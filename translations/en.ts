@@ -188,6 +188,9 @@ export const en: Record<string, string> = {
 
   // ── Privacy and account deletion ──────────────────────────────────────────
   'profileModal.privacy': 'Privacy',
+  'profileModal.credits': 'Sources',
+  'tmdb.attribution': 'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+  'tmdb.dataSource': 'Film details, posters and cast come from TMDB.',
   'profileModal.privacyPolicy': 'Privacy policy',
   'profileModal.privacyPolicyDesc': 'What is collected, why, and for how long',
   'profileModal.analytics': 'Audience measurement',
