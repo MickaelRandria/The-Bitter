@@ -33,6 +33,16 @@ export const TMDB_GENRE_MAP: Record<string, number> = {
 
 export const THEME_COLORS: ThemeColor[] = ['orange', 'green', 'yellow', 'blue', 'purple', 'black'];
 
-export const TMDB_API_KEY = (import.meta.env.VITE_TMDB_API_KEY as string) ?? 'c0b50025397f8839b2c49a4bcf377527';
+/**
+ * Clé TMDB, fournie uniquement par l'environnement de build.
+ *
+ * Elle a longtemps eu une valeur de repli écrite ici. Cela paraissait pratique,
+ * mais une clé en dur dans le code finit en clair dans le JavaScript livré, reste
+ * dans l'historique git, et surtout survit à sa propre révocation : le jour où on
+ * la régénère, le bundle déployé continue de présenter l'ancienne, et TMDB répond
+ * 401 sans que rien ne l'explique. Sans repli, une variable manquante se voit au
+ * build plutôt que six mois plus tard.
+ */
+export const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string;
 export const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 export const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w780';
