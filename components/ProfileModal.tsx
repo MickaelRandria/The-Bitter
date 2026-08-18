@@ -895,6 +895,33 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
             </div>
 
+            {/* Attribution TMDB. Leurs conditions d'utilisation imposent le logo et
+                cette mention des lors qu'on affiche leurs fiches, affiches ou castings. */}
+            <div className="mt-4 pt-4 border-t border-sand dark:border-white/5">
+              <p className="px-4 mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+                {t('profileModal.credits')}
+              </p>
+              <a
+                href="https://www.themoviedb.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => haptics.soft()}
+                className="block px-4 pb-2 group"
+              >
+                <img
+                  src="/icons/tmdb.svg"
+                  alt="The Movie Database"
+                  className="h-3 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+                />
+                <p className="mt-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
+                  {t('tmdb.dataSource')}
+                </p>
+                <p className="mt-1 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
+                  {t('tmdb.attribution')}
+                </p>
+              </a>
+            </div>
+
             {session && (
               <button
                 onClick={() => { haptics.medium(); onSignOut(); }}

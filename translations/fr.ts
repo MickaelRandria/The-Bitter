@@ -189,6 +189,9 @@ export const fr: Record<string, string> = {
 
   // ── Confidentialité et suppression de compte ──────────────────────────────
   'profileModal.privacy': 'Confidentialité',
+  'profileModal.credits': 'Sources',
+  'tmdb.attribution': 'Ce produit utilise l’API TMDB mais n’est ni approuvé ni certifié par TMDB.',
+  'tmdb.dataSource': 'Fiches, affiches et castings viennent de TMDB.',
   'profileModal.privacyPolicy': 'Politique de confidentialité',
   'profileModal.privacyPolicyDesc': 'Ce qui est collecté, pourquoi, et pour combien de temps',
   'profileModal.analytics': 'Mesure d’audience',
