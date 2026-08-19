@@ -211,7 +211,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
                 {t('spaces.yours', { count: String(spaces.length) })}
               </h3>
-              <div className="grid gap-3">
+              <div className="grid gap-3 tab:grid-cols-2">
                 {spaces.map((space) => (
                   <div
                     key={space.id}
@@ -271,7 +271,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
           <div className="space-y-4 pt-4 border-t border-sand/50 dark:border-white/5">
             {/* Créer un espace */}
             {!showCreateForm && !showJoinForm ? (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 tab:grid-cols-2">
                 <button
                   onClick={() => {
                     setShowCreateForm(true);

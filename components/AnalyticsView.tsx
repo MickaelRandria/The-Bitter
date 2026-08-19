@@ -1553,7 +1553,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               : t('analytics.trendWindow');
 
   return (
-    <div className="pb-24 animate-[fadeIn_0.3s_ease-out]">
+    /*
+      Cette vue est montée directement dans le <main> de App.tsx, qui n'a pas de
+      plafond de largeur (il est partagé par les six vues). Sans le sien, le bento
+      s'étalait sur toute la largeur de l'écran : les deux tuiles carrées passaient
+      à 480px de côté sur iPad Pro portrait pour y afficher une icône de 40px.
+    */
+    <div className="pb-24 animate-[fadeIn_0.3s_ease-out] mx-auto w-full tab:max-w-3xl lg:max-w-4xl">
       {/* Navigation Tabs */}
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 mb-8 w-full max-w-md mx-auto transition-colors">
         {(['overview', 'notes', 'psycho'] as TabMode[]).map((tab) => (
@@ -1618,7 +1624,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/*
+            Quatre colonnes en tablette, pas deux tuiles plus larges : `aspect-square`
+            fait croître la hauteur autant que la largeur, une tuile élargie devient
+            donc un carré géant à moitié vide (480px de côté à 1024px d'écran pour une
+            icône et deux mots). En quatre colonnes le côté retombe à 162px sur iPad
+            mini et 232px sur iPad Pro — l'échelle du mobile.
+
+            L'encart d'abonnement est entré dans la même grille pour compléter la
+            rangée (1 + 1 + 2 = 4). Sous 720px, `col-span-2` dans une grille à deux
+            colonnes lui rend exactement la pleine largeur qu'il avait avant.
+          */}
+          <div className="grid grid-cols-2 gap-4 tab:grid-cols-4">
             <div className="bg-white dark:bg-[#202020] p-5 rounded-[2rem] border border-stone-100 dark:border-white/10 shadow-sm dark:shadow-black/20 flex flex-col justify-between aspect-square transition-all">
               <div className="w-10 h-10 bg-stone-50 dark:bg-[#161616] rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500">
                 <Clock size={20} />
@@ -1641,17 +1658,19 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 </p>
               </div>
             </div>
-          </div>
 
-          {/* Abonnement cinéma : encart compact, trois états gérés en interne. */}
-          {(onConfigureCinemaSubscription || onOpenCinemaDetails) && (
-            <CinemaSubscriptionCard
-              movies={movies}
-              subscription={userProfile?.cinemaSubscription}
-              onConfigure={() => onConfigureCinemaSubscription?.()}
-              onOpenDetails={() => onOpenCinemaDetails?.()}
-            />
-          )}
+            {/* Abonnement cinéma : encart compact, trois états gérés en interne. */}
+            {(onConfigureCinemaSubscription || onOpenCinemaDetails) && (
+              <div className="col-span-2">
+                <CinemaSubscriptionCard
+                  movies={movies}
+                  subscription={userProfile?.cinemaSubscription}
+                  onConfigure={() => onConfigureCinemaSubscription?.()}
+                  onOpenDetails={() => onOpenCinemaDetails?.()}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Graphique 12 derniers mois */}
           {last12Months.some((m) => m.count > 0) &&
@@ -1667,13 +1686,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       {t('analytics.activity12m')}
                     </h3>
                   </div>
-                  <div className="flex items-end gap-1.5 h-20">
+                  {/*
+                    Hauteur des barres en pourcentage et non en pixels : à 64px fixes
+                    dans un conteneur qui, lui, s'élargissait avec la page, les douze
+                    barres passaient de bâtonnets verticaux à des dalles couchées. Un
+                    style inline en px est de surcroît hors d'atteinte de tout préfixe
+                    responsive — il fallait le convertir avant de pouvoir faire varier
+                    la hauteur du conteneur. 80 % de h-20 (80px) valent les 64px
+                    d'origine : le rendu mobile est inchangé au pixel près.
+                  */}
+                  <div className="flex items-end gap-1.5 h-20 tab:h-32">
                     {last12Months.map((m, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
                         <div
                           className="w-full rounded-t-md transition-all duration-700"
                           style={{
-                            height: `${(m.count / maxCount) * 64}px`,
+                            height: `${(m.count / maxCount) * 80}%`,
                             minHeight: m.count > 0 ? '4px' : '0',
                             backgroundColor: m.count > 0 ? '#3E5238' : 'transparent',
                             opacity: m.count > 0 ? 0.4 + (m.count / maxCount) * 0.6 : 1,
@@ -1742,7 +1770,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 )}
               </div>
             </div>
-            <div className="relative h-1.5 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden">
+            {/* Plafonnée : 6px de haut pour toute la largeur d'un iPad, et le
+                repère central de 2px devient un cheveu au milieu d'un trait. */}
+            <div className="relative h-1.5 bg-stone-100 dark:bg-[#161616] rounded-full overflow-hidden tab:h-2 tab:max-w-2xl">
               <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-stone-300 dark:bg-stone-700 z-10" />
               <div
                 className={`absolute top-0 bottom-0 transition-all duration-1000 ${delta > 0 ? 'bg-forest' : 'bg-orange-400'}`}
@@ -1791,8 +1821,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   </div>
                   <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
                     {movie?.posterUrl ? (
+                      /*
+                        `srcSet` plutôt qu'une source unique plus grande : la colonne
+                        passe d'environ 140px sur téléphone à 220px sur iPad, où un
+                        w185 affiché sur un écran Retina réclamerait 440px de source.
+                        Le téléphone continue de télécharger le w185, la tablette prend
+                        le w342 — personne ne paie pour l'autre.
+                      */
                       <img
                         src={resizeTmdbImage(movie.posterUrl, 'w185')}
+                        srcSet={`${resizeTmdbImage(movie.posterUrl, 'w185')} 185w, ${resizeTmdbImage(movie.posterUrl, 'w342')} 342w`}
+                        sizes="(min-width: 720px) 220px, 45vw"
                         className={`w-full h-full object-cover ${dim ? 'opacity-60 grayscale' : ''}`}
                         alt=""
                         loading="lazy"
@@ -2649,7 +2688,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <p className="mt-2 text-[26px] font-black uppercase leading-none tracking-[-0.04em] text-white sm:text-3xl">
                       {t(primaryJudgmentAxis.labelKey)}
                     </p>
-                    <div className="mt-7 space-y-3.5 border-t border-white/10 pt-5">
+                    {/* Plafonné : ces jauges font 4px de haut. Étalées sur toute la
+                        largeur d'une tablette, elles cessent d'être des jauges pour
+                        devenir des filets horizontaux, et l'étiquette de gauche se
+                        retrouve à un demi-écran de sa valeur. */}
+                    <div className="mt-7 space-y-3.5 border-t border-white/10 pt-5 tab:max-w-xl">
                       {rankedJudgmentAxes.map((axis, index) => {
                         const isPrimary = index === 0;
                         const influence = isPrimary
@@ -2770,7 +2813,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </h3>
               <span className="text-2xl font-black text-white">{100 - averages.smartphone}%</span>
             </div>
-            <div className="w-full bg-white/10 dark:bg-white/5 h-2 rounded-full overflow-hidden mb-4 transition-colors">
+            <div className="w-full bg-white/10 dark:bg-white/5 h-2 rounded-full overflow-hidden mb-4 transition-colors tab:h-3 tab:max-w-2xl">
               <div
                 className="h-full bg-forest dark:bg-lime-500"
                 style={{ width: `${100 - averages.smartphone}%` }}

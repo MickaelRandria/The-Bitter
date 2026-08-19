@@ -68,7 +68,11 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
       viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
       role="img"
       aria-label="Répartition de tes empreintes cinéma"
-      className="mt-5 block h-auto w-full"
+      /* Plafond dur : le viewBox garde le ratio, donc le graphe ne se déforme
+         jamais — il grossit. Sans limite il montait à près de 600px de haut sur
+         iPad, étiquettes comprises. 400px est au-dessus de toute largeur atteinte
+         sur téléphone : le rendu mobile est inchangé. */
+      className="mt-5 block h-auto w-full max-w-[400px] tab:max-w-[460px]"
     >
       <g fill="none" stroke="#222222" strokeWidth={strokeWidth} strokeLinecap="butt">
         {items.map((_, index) => (

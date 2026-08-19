@@ -5,6 +5,7 @@ import {
   MovieWatch,
   ViewingContext,
 } from '../types';
+import { newId } from './id';
 
 /**
  * Logique de rentabilité de l'abonnement cinéma.
@@ -202,7 +203,7 @@ export const withFirstWatchContext = (movie: Movie, context?: ViewingContext): M
     ...movie,
     watches: [
       {
-        id: crypto.randomUUID(),
+        id: newId(),
         watch_number: 1,
         watched_at: new Date(movie.dateWatched ?? movie.dateAdded ?? Date.now()).toISOString(),
         ratings: movie.ratings,

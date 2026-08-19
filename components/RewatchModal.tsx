@@ -33,6 +33,7 @@ import {
 import { buildCriteriaForProfile, calculateWeightedRating, detectRatingProfile } from '../utils/rating';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import { newId } from '../utils/id';
 
 const SENTIMENTS: {
   id: RewatchSentiment;
@@ -213,7 +214,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
       };
     }
     const watch: MovieWatch = {
-      id: crypto.randomUUID(),
+      id: newId(),
       watch_number: watchNumber,
       watched_at: new Date().toISOString(),
       ratings,
@@ -236,7 +237,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#1a1a1a] w-full sm:max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl max-h-[92vh] overflow-y-auto border border-sand dark:border-white/10"
+        className="bg-white dark:bg-[#1a1a1a] w-full sm:max-w-lg tab:max-w-2xl rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl max-h-[92dvh] overflow-y-auto border border-sand dark:border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -340,7 +341,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
             <p className="text-[11px] font-medium text-stone-500 dark:text-stone-500 mt-1 mb-3 leading-snug">
               Dis-nous ce que ce nouveau visionnage t’a fait ressentir.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 tab:grid-cols-3">
               {SENTIMENTS.map((s) => {
                 const Icon = s.icon;
                 const isSelected = sentiment === s.id;

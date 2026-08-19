@@ -94,7 +94,10 @@ const ViewingContextPicker: React.FC<ViewingContextPickerProps> = ({
         </label>
       )}
 
-      <div className="flex gap-2">
+      {/* Plafonné : ces puces sont en flex-1 et ce composant est embarqué dans
+          trois modales, qui viennent de gagner en largeur. Sans limite, chacune
+          deviendrait une pastille de 250px pour un seul mot. */}
+      <div className="flex gap-2 tab:max-w-md">
         {LOCATIONS.map(({ id, labelKey, Icon }) => (
           <button
             key={id}

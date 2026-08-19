@@ -789,12 +789,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center">
+    <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center sm:p-6 tab:p-10">
       <div
         className="absolute inset-0 bg-charcoal/60 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300"
         onClick={onClose}
       />
-      <div className="bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md rounded-t-[3.5rem] sm:rounded-[3.5rem] shadow-2xl dark:shadow-black/60 relative z-10 max-h-[92vh] flex flex-col animate-[springSlideUp_0.5s_cubic-bezier(0.175,0.885,0.32,1.1)] border-t dark:border-white/10 sm:border dark:border-white/10 transition-colors will-change-transform">
+      <div className="bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md tab:max-w-2xl rounded-t-[3.5rem] sm:rounded-[3.5rem] shadow-2xl dark:shadow-black/60 relative z-10 max-h-[92dvh] flex flex-col animate-[springSlideUp_0.5s_cubic-bezier(0.175,0.885,0.32,1.1)] border-t dark:border-white/10 sm:border dark:border-white/10 transition-colors will-change-transform">
         <style>{`
           @keyframes springSlideUp {
             0% { transform: translateY(100%) scale(0.95); opacity: 0; }
@@ -1928,7 +1928,7 @@ const FeelingPicker: React.FC<{
           <p className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-stone-400 dark:text-stone-600">
             {title}
           </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 tab:grid-cols-4">
             {imprints.map(({ key, label, icon }) => {
               const position = selected.indexOf(key);
               const isSelected = position !== -1;

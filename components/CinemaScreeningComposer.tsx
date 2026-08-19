@@ -214,7 +214,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <button className="absolute inset-0 bg-charcoal/70 backdrop-blur-md" onClick={onClose} aria-label="Fermer" />
-      <section className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111] sm:rounded-[2rem]">
+      <section className="relative z-10 flex max-h-[92dvh] w-full max-w-lg tab:max-w-2xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111] sm:rounded-[2rem]">
         <header className="flex items-start justify-between border-b border-stone-200/80 px-6 pb-5 pt-6 dark:border-white/10">
           <div>
             <div className="mb-2 flex items-center gap-2 text-bitter-lime">

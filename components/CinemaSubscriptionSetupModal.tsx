@@ -11,6 +11,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { getCinemaProviderBrand } from '../utils/cinemaBrand';
 import CinemaSubscriptionArtwork from './CinemaSubscriptionArtwork';
+import { newId } from '../utils/id';
 
 interface CinemaSubscriptionSetupModalProps {
   /** Abonnement existant en édition, absent à la première configuration. */
@@ -64,7 +65,7 @@ const CinemaSubscriptionSetupModal: React.FC<CinemaSubscriptionSetupModalProps> 
 
   const draft: CinemaSubscription = useMemo(
     () => ({
-      id: existing?.id ?? crypto.randomUUID(),
+      id: existing?.id ?? newId(),
       provider,
       name: name.trim(),
       monthlyPrice: parsedMonthly,

@@ -123,7 +123,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
             <img
               src={resizeTmdbImage(`${TMDB_IMAGE_URL}${film.posterPath}`, 'w154')}
               alt=""
-              className="w-14 rounded-lg object-cover aspect-[2/3] shrink-0"
+              className="w-14 tab:w-20 rounded-lg object-cover aspect-[2/3] shrink-0"
               loading="lazy"
               decoding="async"
             />
@@ -269,7 +269,11 @@ const TheatreReleasesSection: React.FC<Props> = ({
               <RefreshCw size={13} />
             </button>
           </div>
-          <div className="space-y-3">{data.thisWeek.map(renderCard)}</div>
+          {/* Deux puis trois cartes par rangée, à largeur constante : ces cartes
+              sont des lignes horizontales, élargies leur affiche de 56px se perd
+              dans un bandeau vide. `grid-cols-1 gap-3` rend exactement ce que
+              `space-y-3` rendait : le mobile ne bouge pas d'un pixel. */}
+          <div className="grid grid-cols-1 gap-3 tab:grid-cols-2 lg:grid-cols-3">{data.thisWeek.map(renderCard)}</div>
         </section>
       )}
 
@@ -284,7 +288,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-700 ml-1">
                 {formatDay(day)}
               </p>
-              <div className="space-y-3">{films.map(renderCard)}</div>
+              <div className="grid grid-cols-1 gap-3 tab:grid-cols-2 lg:grid-cols-3">{films.map(renderCard)}</div>
             </div>
           ))}
         </section>

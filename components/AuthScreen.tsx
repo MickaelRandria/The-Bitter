@@ -111,7 +111,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
   };
 
   return (
-    <div className="min-h-screen bg-cream dark:bg-[#0c0c0c] flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
+    <div className="min-h-[100dvh] bg-cream dark:bg-[#0c0c0c] flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
       <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand dark:bg-white/5 rounded-full blur-[140px] opacity-30 animate-blob" />
       <div
         className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 dark:bg-white/5 rounded-full blur-[120px] opacity-50 animate-blob"

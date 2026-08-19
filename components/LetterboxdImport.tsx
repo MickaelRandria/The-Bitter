@@ -9,6 +9,7 @@ import { supabase } from '../services/supabase';
 import { searchMovieForImport } from '../services/tmdb';
 import { Movie, MovieFormData } from '../types';
 import { useDialog } from '../utils/useDialog';
+import { newId } from '../utils/id';
 
 interface Props {
   userId: string;
@@ -135,7 +136,7 @@ function buildMovieObject(
 ): Movie {
   const r = rating ?? 0;
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     tmdbId: data.tmdbId,
     title: data.title,
     director: data.director,

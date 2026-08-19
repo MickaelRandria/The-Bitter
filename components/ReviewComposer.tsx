@@ -207,7 +207,9 @@ const ReviewComposer: React.FC<Props> = ({
 
       <textarea
         ref={areaRef}
-        className="w-full bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/10 p-6 rounded-[2rem] font-medium text-sm outline-none focus:border-stone-200 dark:focus:border-white/30 transition-all min-h-[120px] resize-none shadow-sm dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
+        /* 16px minimum, sinon iOS zoome à la mise au point (le viewport n'interdit
+           plus la mise à l'échelle, cf. index.html). */
+        className="w-full bg-white dark:bg-[#161616] border border-stone-100 dark:border-white/10 p-6 rounded-[2rem] font-medium text-base tab:max-w-[60ch] outline-none focus:border-stone-200 dark:focus:border-white/30 transition-all min-h-[120px] resize-none shadow-sm dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
         placeholder={t('addMovie.reviewPlaceholder')}
         value={value}
         onChange={(e) => onChange(e.target.value)}

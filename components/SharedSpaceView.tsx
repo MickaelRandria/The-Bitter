@@ -581,7 +581,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   }
 
   return (
-    <div className="max-w-2xl mx-auto w-full pb-32 animate-[fadeIn_0.3s_ease-out]">
+    <div className="max-w-2xl mx-auto w-full pb-32 animate-[fadeIn_0.3s_ease-out] lg:max-w-4xl">
       <style>{`
         .slider::-webkit-slider-thumb {
           appearance: none;
@@ -610,13 +610,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
           </button>
           <div className="flex-1 bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner overflow-x-auto no-scrollbar transition-colors">
-            <div className="flex min-w-max">
+            <div className="flex min-w-max tab:w-full tab:min-w-0">
               <button
                 onClick={() => {
                   haptics.soft();
                   setActiveTab('feed');
                 }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 tab:flex-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
               >
                 <History size={14} /> {t('shared.tabFeed')}
               </button>
@@ -625,7 +625,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   haptics.soft();
                   setActiveTab('watchlist');
                 }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 tab:flex-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
               >
                 <Bookmark size={14} /> {t('shared.tabWatchlist')}
                 {watchlistMovies.length > 0 && (
@@ -637,7 +637,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   haptics.soft();
                   setActiveTab('members');
                 }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 tab:flex-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
               >
                 <Users size={14} /> {t('shared.tabMembers')}
               </button>
@@ -874,6 +874,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </div>
             )}
 
+            {/* Deux membres par rangée dès la tablette : une carte pleine largeur
+                pour un avatar de 48px, un prénom et un chevron laissait la moitié
+                de la ligne vide, et un espace de six membres devenait une colonne
+                interminable. */}
+            <div className="space-y-3 tab:space-y-0 tab:grid tab:grid-cols-2 tab:gap-3">
             {members.map((member) => (
               <div
                 key={member.id}
@@ -916,6 +921,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 <ChevronRight size={16} className="text-stone-300 dark:text-stone-700" />
               </div>
             ))}
+            </div>
           </div>
         ) : (activeTab === 'feed' ? feedMovies : watchlistMovies).length === 0 ? (
           <div className="py-24 text-center bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-stone-100 dark:border-white/5 shadow-sm dark:shadow-none flex flex-col items-center">
@@ -962,7 +968,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     className="p-6 cursor-pointer hover:bg-stone-50 dark:hover:bg-[#252525] transition-colors"
                   >
                     <div className="flex gap-5">
-                      <div className="w-16 aspect-[2/3] bg-stone-200 dark:bg-[#161616] rounded-2xl overflow-hidden shadow-md shrink-0 border border-white dark:border-white/10">
+                      <div className="w-16 tab:w-24 aspect-[2/3] bg-stone-200 dark:bg-[#161616] rounded-2xl overflow-hidden shadow-md shrink-0 border border-white dark:border-white/10">
                         {movie.poster_url ? (
                           <img
                             src={resizeTmdbImage(movie.poster_url, 'w185')}
@@ -1103,7 +1109,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                   {t('shared.groupAvg')}
                                 </h4>
                               </div>
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-4 tab:grid-cols-4 tab:gap-3">
                                 {[
                                   { l: t('criteria.story'), v: criteriaAvg.story },
                                   { l: t('criteria.visuals'), v: criteriaAvg.visuals },
@@ -1142,7 +1148,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           </div>
 
                           {ratings.length > 0 ? (
-                            <div className="grid gap-3">
+                            <div className="grid gap-3 tab:grid-cols-2">
                               {ratings.map((rating) => {
                                 const avg = ratingValue(rating).toFixed(1);
                                 const isMe = rating.profile_id === currentUserId;
@@ -1223,7 +1229,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 suggestion », ce qui est précisément ce qu'un groupe
                                 a besoin de départager. Réappuyer sur son propre
                                 choix l'annule. */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-3 tab:max-w-md">
                               <button
                                 onClick={(e) => handleVote(e, movie.id, true)}
                                 aria-pressed={myVote?.interested === true}
@@ -1345,7 +1351,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       {/* Modale de confirmation custom (remplace window.confirm) */}
       {confirmAction && (
         <div
-          className="fixed inset-0 z-[200] flex items-end justify-center p-6 bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-6 bg-black/40 backdrop-blur-sm"
           onClick={() => setConfirmAction(null)}
         >
           <div

@@ -322,7 +322,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
         onClick={onClose}
       />
 
-      <div className="bg-cream w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] pointer-events-auto overflow-hidden">
+      {/* `sm:h-auto` a été remplacé par une hauteur figée : pendant le chargement
+          le corps est vide, la carte s'effondrait donc à la hauteur du chargeur
+          puis sautait à sa taille réelle — visible seulement au-dessus de 640px,
+          c'est-à-dire sur tablette. `dvh` plutôt que `vh` pour le clavier. */}
+      <div className="bg-cream w-full sm:max-w-md tab:max-w-2xl h-[85dvh] sm:h-[85dvh] sm:max-h-[90dvh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] pointer-events-auto overflow-hidden">
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <Loader2 size={40} className="animate-spin text-forest mb-4" />
@@ -368,7 +372,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
             <div className="flex-1 overflow-y-auto -mt-12 relative z-10 px-8 pb-32 no-scrollbar">
               {/* Poster & Title Block */}
               <div className="flex gap-5 mb-8">
-                <div className="w-24 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white shrink-0 -mt-8 bg-stone-200">
+                <div className="w-24 tab:w-32 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white shrink-0 -mt-8 bg-stone-200">
                   <img
                     src={tmdbImage(movie.poster_path, 'w342')}
                     className="w-full h-full object-cover"

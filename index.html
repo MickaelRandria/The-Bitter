@@ -2,7 +2,19 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!--
+      `maximum-scale` et `user-scalable=no` ont été retirés : Safari les ignore en
+      onglet, mais les applique en mode installé et dans la WebView TWA — c'est-à-dire
+      exactement là où l'application est censée vivre. L'interface étant truffée de
+      libellés de 7 à 10px, priver l'utilisateur du zoom à deux doigts y était une
+      vraie barrière.
+
+      Contrepartie traitée avec ce changement : sans `maximum-scale`, iOS zoome de
+      lui-même à la mise au point d'un champ dont la police fait moins de 16px. Les
+      quatre champs concernés ont donc été passés à 16px (recherche du Feed,
+      composeur d'avis, assistant, saisie de code de synchronisation).
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#FDFCF8" />

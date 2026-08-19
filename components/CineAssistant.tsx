@@ -169,7 +169,9 @@ const CineAssistant: React.FC<CineAssistantProps> = ({ isOpen, onClose, userProf
             <input
               type="text"
               placeholder="Pose-moi une question..."
-              className="w-full bg-stone-100 border-2 border-transparent focus:border-forest/20 p-5 pr-16 rounded-[2rem] font-black text-sm outline-none transition-all placeholder:text-stone-300"
+              /* 16px minimum : en dessous, iOS zoome à la mise au point depuis que
+                 le viewport n'interdit plus la mise à l'échelle (cf. index.html). */
+              className="w-full bg-stone-100 border-2 border-transparent focus:border-forest/20 p-5 pr-16 rounded-[2rem] font-black text-base outline-none transition-all placeholder:text-stone-300"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend(input)}

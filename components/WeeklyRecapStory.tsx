@@ -1442,7 +1442,12 @@ const WeeklyRecapStory: React.FC<WeeklyRecapStoryProps> = ({
           disabled={!recap.hero}
           aria-haspopup="dialog"
           aria-label={`${t('recap.button')} · ${recap.rangeLabel}`}
-          className={`group relative h-28 w-full overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#151515] px-5 text-left text-white shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:border-bitter-lime/40 active:translate-y-0 disabled:opacity-40 dark:shadow-black/40 ${className}`}
+          /* La hauteur grandit avec la colonne du calendrier parce que l'affiche,
+             elle, est en pourcentage (w-[42%]) : à hauteur constante dans un
+             conteneur élargi, son recadrage passait de 1,7:1 à 2,3:1 et il n'en
+             restait qu'une bande horizontale. C'est le seul visuel de l'application
+             qui se dégrade réellement en s'élargissant. */
+          className={`group relative h-28 tab:h-36 lg:h-40 w-full overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#151515] px-5 text-left text-white shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:border-bitter-lime/40 active:translate-y-0 disabled:opacity-40 dark:shadow-black/40 ${className}`}
         >
           {recap.hero?.posterUrl && (
             <img

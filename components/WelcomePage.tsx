@@ -146,7 +146,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-cream dark:bg-[#0c0c0c] flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
+    <div className="min-h-[100dvh] bg-cream dark:bg-[#0c0c0c] flex flex-col relative overflow-hidden font-sans selection:bg-forest selection:text-white">
       <div className="absolute top-[-5%] right-[-15%] w-[80vh] h-[80vh] bg-sand dark:bg-white/5 rounded-full blur-[140px] opacity-30 animate-blob" />
       <div
         className="absolute bottom-[-5%] left-[-5%] w-[60vh] h-[60vh] bg-stone-100 dark:bg-white/5 rounded-full blur-[120px] opacity-50 animate-blob"
@@ -170,7 +170,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
         <ThemeToggle />
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl mx-auto">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl tab:max-w-2xl mx-auto">
         {step === 'landing' && (
           <div className="text-center animate-[slideUp_0.6s_ease-out] w-full flex flex-col items-center">
             <div className="mb-12 relative inline-block group">
@@ -299,7 +299,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
             </div>
 
             {existingProfiles.length > 0 ? (
-              <div className="grid gap-6 max-h-[60vh] overflow-y-auto no-scrollbar px-4 pt-4 pb-12 -mx-4">
+              <div className="grid gap-6 tab:grid-cols-2 tab:gap-4 max-h-[60vh] tab:max-h-[50vh] overflow-y-auto no-scrollbar px-4 pt-4 pb-12 -mx-4">
                 {sortedProfiles.map((p) => {
                   const isLast = p.id === lastProfileId;
                   return (
@@ -480,7 +480,11 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                   <label className="text-[11px] font-black uppercase text-stone-500 dark:text-stone-400 tracking-[0.2em] block ml-1">
                     {t('createProfile.favPlatforms')}
                   </label>
-                  <div className="grid grid-cols-4 gap-3">
+                  {/* Plafonnée, surtout pas élargie : ces logos sont des images
+                      externes non redimensionnables (l'une est servie en 210px de
+                      haut). Les agrandir les rendrait floues, et passer à moins de
+                      colonnes doublerait leur taille. */}
+                  <div className="grid grid-cols-4 gap-3 tab:max-w-md tab:mx-auto">
                     {PLATFORMS.map((p) => {
                       const isSelected = formData.streamingPlatforms.includes(p.id);
                       return (

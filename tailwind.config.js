@@ -13,6 +13,26 @@ export default {
     './services/**/*.{ts,tsx}',
   ],
   theme: {
+    /*
+      Redéclaré en entier, et non via `extend` : Tailwind range les écrans ajoutés
+      par `extend` à la FIN de la liste, quelle que soit leur valeur. Un `tab:`
+      déclaré ainsi serait émis après `xl:` et l'emporterait dans la cascade sur
+      les grands écrans. Les valeurs par défaut sont donc recopiées telles quelles,
+      ce qui préserve à l'identique les `sm:`/`md:`/`lg:` déjà écrits partout.
+
+      `tab` vaut 720px et non 768px (le `md` par défaut) parce que l'iPad mini en
+      portrait fait 744px : il tombe dans la bande `sm` et resterait au rendu
+      téléphone. 720 passe au-dessus de la plus large fenêtre Split View (694px),
+      qui doit elle rester en rendu téléphone.
+    */
+    screens: {
+      sm: '640px',
+      tab: '720px',
+      md: '768px',
+      lg: '1024px',
+      xl: '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         cream: '#FDFCF8',

@@ -192,7 +192,11 @@ const FriendsFeed: React.FC<Props> = ({
             qu'un aperçu de la suivante invite à balayer. Le calage par `snap`
             garantit qu'on retombe toujours sur une carte entière.
           */}
-          <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 pb-1">
+          {/* Le rail à défilement devient une grille : le `-mx-6` était calibré sur
+              le padding du <main>, or Découverte est désormais une colonne centrée —
+              le débordement serait allé dans la marge vide. Et sur un écran large on
+              ne voyait toujours que trois cartes sur une rangée à moitié vide. */}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 pb-1 tab:mx-0 tab:grid tab:grid-cols-3 tab:gap-4 tab:overflow-visible tab:px-0 lg:grid-cols-4">
             {entries.map((item) => {
               const mine = item.tmdbId != null ? myRatingByTmdb.get(item.tmdbId) : undefined;
               const gap = mine != null ? item.rating - mine : null;
@@ -201,7 +205,7 @@ const FriendsFeed: React.FC<Props> = ({
               return (
                 <article
                   key={item.movieId}
-                  className="relative shrink-0 snap-start w-[78%] max-w-[300px] aspect-[9/16] rounded-[1.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616] border border-sand dark:border-white/10"
+                  className="relative shrink-0 snap-start w-[78%] max-w-[300px] aspect-[9/16] rounded-[1.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616] border border-sand dark:border-white/10 tab:w-full tab:shrink tab:mx-auto"
                 >
                   <button
                     onClick={() => {

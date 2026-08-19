@@ -113,6 +113,7 @@ const CinemaSubscriptionDetailsModal = lazy(
   () => import('./components/CinemaSubscriptionDetailsModal')
 );
 import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
+import { newId } from './utils/id';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -134,6 +135,19 @@ const LetterboxdImport = lazy(() => import('./components/LetterboxdImport'));
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
+
+/**
+ * Largeur de la colonne de page, partagée par l'en-tête et le contenu du Feed.
+ *
+ * Ces deux-là vivaient sur des échelles différentes — 672px pour l'en-tête, 448px
+ * pour le Feed — soit 112px de décalage de chaque côté dès qu'un écran dépassait
+ * 496px de large : la colonne de cartes flottait visiblement à l'intérieur de son
+ * propre en-tête. Un seul jeton évite que les deux redivergent.
+ *
+ * Le `<main>` lui-même reste sans plafond : il est partagé par les six vues, et
+ * chacune (Analytics, Discover, Calendar…) pose le sien, adapté à son contenu.
+ */
+const PAGE_COLUMN = 'mx-auto w-full max-w-md tab:max-w-3xl lg:max-w-4xl';
 
 const BottomNav = memo(
   ({
@@ -197,7 +211,10 @@ const BottomNav = memo(
               setIsModalOpen(true);
             }}
             aria-label={t('nav.add')}
-            className={`bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}
+            /* `p-4.5` n'existe pas dans l'échelle d'espacement de Tailwind et aucun
+               `spacing` n'est étendu : la classe était inerte, le bouton n'avait
+               aucun rembourrage. */
+            className={`bg-forest text-white p-4 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}
           >
             <Plus size={24} strokeWidth={3} />
           </button>
@@ -522,7 +539,7 @@ const App: React.FC = () => {
               ...movie,
               watches: [
                 {
-                  id: crypto.randomUUID(),
+                  id: newId(),
                   watch_number: 1,
                   watched_at: movie.dateWatched
                     ? new Date(movie.dateWatched).toISOString()
@@ -1089,7 +1106,7 @@ const App: React.FC = () => {
         data.ratings.acting > 0 ||
         data.ratings.sound > 0);
     const determinedStatus: MovieStatus = hasRatings ? 'watched' : data.status || 'watchlist';
-    const newMovieId = crypto.randomUUID();
+    const newMovieId = newId();
     const newMovieTimestamp = Date.now();
     let finalMovie: Movie = editingMovie
       ? { ...editingMovie, ...data, status: determinedStatus }
@@ -1219,7 +1236,7 @@ const App: React.FC = () => {
         }
 
         const restored: UserProfile = {
-          id: crypto.randomUUID(),
+          id: newId(),
           firstName: session.user.email?.split('@')[0] || 'Moi',
           lastName: '',
           movies: remote,
@@ -1924,7 +1941,7 @@ const App: React.FC = () => {
           }}
           onCreateProfile={(f, l, g, a, vp, sp) => {
             const newP: UserProfile = {
-              id: crypto.randomUUID(),
+              id: newId(),
               firstName: f,
               lastName: l,
               gender: g,
@@ -1995,8 +2012,15 @@ const App: React.FC = () => {
       </div>
     );
 
+  /*
+    `overflow-x-clip` et non `overflow-x-hidden` sur la racine : `hidden` force le
+    calcul de l'axe vertical à `auto`, ce qui fait de cette div un conteneur de
+    défilement et vole au <header sticky> son référent — il se collait à une div
+    qui ne défile jamais, donc il ne collait à rien. `clip` masque le débordement
+    sans créer ce conteneur.
+  */
   return (
-    <div className="min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative overflow-x-hidden bg-cream dark:bg-[#0c0c0c] transition-colors">
+    <div className="min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative overflow-x-clip bg-cream dark:bg-[#0c0c0c] transition-colors">
       <style>{`@keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }`}</style>
 
       {viewMode !== 'SharedSpace' && (
@@ -2004,7 +2028,7 @@ const App: React.FC = () => {
           className="px-6 sticky top-0 z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >
-          <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">
+          <div className={`flex items-center justify-between h-14 ${PAGE_COLUMN}`}>
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-2">
                 {viewMode !== 'Feed' && (
@@ -2163,7 +2187,7 @@ const App: React.FC = () => {
               advanceTrigger={deckAdvanceTrigger}
             />
           ) : (
-            <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+            <div className={`${PAGE_COLUMN} space-y-8 animate-[fadeIn_0.3s_ease-out]`}>
               {!activeProfile || activeProfile.movies.length === 0 ? (
                 <div
                   data-tour="feed-empty"
@@ -2393,7 +2417,11 @@ const App: React.FC = () => {
                     activeProfile &&
                     activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist')
                       .length > 0 && (
-                      <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
+                      /* Borné : le bandeau « Ce soir », son panneau d'humeurs et la
+                         suggestion tiennent en quelques mots et une vignette de
+                         64px. Étalés sur les 768px de la colonne tablette, ils
+                         deviendraient des bandes presque vides. */
+                      <div className="space-y-3 animate-[fadeIn_0.3s_ease-out] tab:max-w-lg">
                         <button
                           type="button"
                           onClick={() => {
@@ -2522,7 +2550,10 @@ const App: React.FC = () => {
                       </h2>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
+                      {/* Plafonné : une pilule de recherche de 768px pour trois
+                          caractères tapés, avec la loupe et la croix aux deux
+                          extrémités, n'est plus un champ mais une barre. */}
+                      <div className="relative flex-1 tab:max-w-sm">
                         <Search
                           size={14}
                           className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
@@ -2531,7 +2562,10 @@ const App: React.FC = () => {
                           ref={searchInputRef}
                           type="search"
                           placeholder={t('feed.search')}
-                          className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-3 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
+                          /* 16px minimum : en dessous, iOS zoome de lui-même à la
+                             mise au point depuis que le viewport n'interdit plus
+                             la mise à l'échelle. */
+                          className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-3 pl-9 pr-8 rounded-full font-medium text-base outline-none transition-all text-charcoal dark:text-white"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -2602,7 +2636,11 @@ const App: React.FC = () => {
                     )}
 
                     {showAdvancedFilters && (
-                      <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/5 rounded-2xl p-4 space-y-5 animate-[fadeIn_0.2s_ease-out]">
+                      /* Le panneau devient une bande large et basse au lieu d'une
+                         colonne haute : ses quatre blocs passent côte à côte plutôt
+                         que de s'empiler, et les deux sélecteurs cessent de faire
+                         370px chacun pour afficher un mot. */
+                      <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/5 rounded-2xl p-4 space-y-5 animate-[fadeIn_0.2s_ease-out] tab:grid tab:grid-cols-2 tab:gap-6 tab:space-y-0">
                         <div className="grid grid-cols-2 gap-3">
                           <label className="space-y-2">
                             <span className="block text-[10px] font-black uppercase tracking-widest text-stone-400">
@@ -2743,7 +2781,19 @@ const App: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-8">
+                    /*
+                      Deux colonnes à partir de la tablette, et pas une carte plus
+                      large : l'affiche est un fond en `cover` tiré d'une source
+                      w780 (constants.ts), qu'une carte de plus de ~440px rendrait
+                      floue sur écran Retina. En deux colonnes la carte plafonne à
+                      432px, donc l'affiche gagne même en netteté.
+
+                      `items-start` n'est pas décoratif : la hauteur des cartes
+                      alterne entre h-64 et h-80 (MovieCard), et sans lui le
+                      `stretch` par défaut étirerait le conteneur de la petite carte
+                      à la hauteur de sa voisine, laissant une bande vide dessous.
+                    */
+                    <div className="grid grid-cols-1 gap-8 tab:grid-cols-2 tab:items-start">
                       {visibleMovies.map((movie, index) => (
                         <MovieCard
                           key={movie.id}
@@ -2767,7 +2817,10 @@ const App: React.FC = () => {
                       {visibleMovies.length < filteredAndSortedMovies.length && (
                         <button
                           onClick={() => setFeedPage((p) => p + 1)}
-                          className="w-full py-3 text-xs font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 border border-stone-200 dark:border-white/5 rounded-2xl active:scale-95 transition-all"
+                          /* Enfant direct de la grille : sans `col-span`, il
+                             n'occuperait qu'une demi-cellule sous la dernière
+                             carte, avec un trou à côté. */
+                          className="w-full py-3 text-xs font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 border border-stone-200 dark:border-white/5 rounded-2xl active:scale-95 transition-all tab:col-span-2"
                         >
                           {t('feed.loadMore')} · {filteredAndSortedMovies.length - visibleMovies.length}
                         </button>

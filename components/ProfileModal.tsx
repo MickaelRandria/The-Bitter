@@ -236,7 +236,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         onClick={onClose}
       />
 
-      <div className="relative z-10 bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20">
+      <div className="relative z-10 bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md tab:max-w-2xl rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20">
         {/* Drag Handle */}
         <div
           className="w-full flex justify-center pt-3 pb-1 bg-white dark:bg-[#1a1a1a] cursor-grab active:cursor-grabbing"
@@ -258,7 +258,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar bg-cream dark:bg-[#0c0c0c]">
+        {/*
+          Les sept sections passent sur deux colonnes en tablette. Élargir la modale
+          sans ça n'aurait fait qu'étirer chaque section : la grille de statistiques
+          serait passée à deux tuiles de 300px pour y afficher un nombre à deux
+          chiffres. En deux colonnes, chaque section retrouve sa largeur de téléphone
+          et la hauteur totale de défilement est divisée par deux.
+
+          `items-start` est nécessaire : les sections ont des hauteurs très inégales,
+          sans lui chaque rangée s'alignerait sur la plus haute.
+        */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar bg-cream dark:bg-[#0c0c0c] tab:grid tab:grid-cols-2 tab:content-start tab:items-start tab:gap-x-8 tab:gap-y-8 tab:space-y-0">
           {/* SECTION 1: IDENTITY */}
           <div className="flex items-center gap-5">
             {/* L'avatar est aussi le bouton pour en changer : c'est l'endroit où on

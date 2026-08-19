@@ -338,8 +338,14 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
-      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
+    /*
+      Plafond plus généreux que celui du Feed ou d'Analytics : cette vue est une
+      grille d'affiches, et l'espace supplémentaire y sert à en montrer plus par
+      rangée — pas à les agrandir. Les blocs de cette vue qui ne sont pas des
+      grilles (recherche, filtres, état vide) sont bornés individuellement.
+    */
+    <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24 mx-auto w-full tab:max-w-4xl lg:max-w-5xl">
+      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors tab:max-w-md">
         {(['foryou', 'theatre', 'feed'] as const).map((key) => (
           <button
             key={key}
@@ -455,7 +461,10 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       )}
 
       {/* SEARCH BAR */}
-      <div className="space-y-3">
+      {/* Borné : un champ de recherche large comme la page, loupe à un bout et
+          croix à l'autre, n'est plus un champ. Le plafond est posé sur le bloc
+          pour que la ligne des recherches récentes suive. */}
+      <div className="space-y-3 tab:max-w-xl">
         <div className="relative group">
           <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-stone-300 dark:text-stone-700 group-focus-within:text-charcoal dark:group-focus-within:text-white transition-colors">
             <Search size={20} strokeWidth={3} />
@@ -571,8 +580,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               Gemini Insight
             </h3>
           </div>
+          {/* La tuile garde le droit d'occuper la rangée — c'est une tuile d'accent —
+              mais pas la ligne de texte : au-delà d'environ 75 caractères, l'œil perd
+              le début de la ligne suivante. */}
           <p
-            className="text-sm font-medium leading-relaxed text-stone-300"
+            className="text-sm font-medium leading-relaxed text-stone-300 tab:max-w-[65ch]"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aiResult.text) }}
           />
         </div>
@@ -580,7 +592,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {/* FILTERS */}
       {filtersOpen && !aiResult && (
-        <div className="space-y-8 rounded-[2rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616] sm:p-5">
+        <div className="space-y-8 rounded-[2rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616] sm:p-5 tab:max-w-2xl">
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2">
               <Clock size={12} /> {t('feed.period')}
@@ -610,7 +622,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1">
               {t('discover.platform')}
             </h3>
-            <div data-tour="discover-platform" className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+            <div data-tour="discover-platform" className="flex gap-3 overflow-x-auto no-scrollbar pb-2 tab:flex-wrap tab:overflow-x-visible tab:pb-0">
               {PROVIDERS.map((provider) => {
                 if (mediaType === 'tv' && provider.id === 'cinema') return null;
                 const isActive = streamingFilter === provider.id;
@@ -677,7 +689,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       {/* RESULTS GRID */}
       <div className="space-y-6">
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 tab:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out]">
                 <div className="relative aspect-[2/3] rounded-[2.5rem] bg-stone-100 dark:bg-[#161616] overflow-hidden">
@@ -695,7 +707,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all">
+          <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all tab:mx-auto tab:max-w-lg tab:py-16">
             <div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6">
               <Search size={24} />
             </div>
@@ -707,7 +719,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 tab:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
             {items.map((item) => {
               const isWatched = watchedIds.has(item.id);
               const isInWatchlist = watchlistIds.has(item.id);

@@ -360,7 +360,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
 
   return (
     <div className="animate-[fadeIn_0.4s_ease-out] bg-transparent -mx-6 -mt-4">
-      <header className="mx-auto max-w-md px-6 pb-5 pt-6">
+      {/*
+        Le plafond de largeur est posé sur les quatre enfants et surtout PAS sur
+        la racine : son `-mx-6` annule volontairement le padding du <main> pour
+        que l'en-tête ait le sien. Un `mx-auto` à cet endroit ferait déborder ces
+        marges négatives — invisiblement, puisque le body est en overflow-x caché,
+        mais tout le calendrier serait décalé.
+
+        Les quatre vivaient jusqu'ici sur trois largeurs différentes : en-tête et
+        récapitulatif à 448px, grille des jours et heatmap sans plafond du tout.
+      */}
+      <header className="mx-auto max-w-md tab:max-w-2xl lg:max-w-3xl px-6 pb-5 pt-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-2xl font-black tracking-tight text-charcoal dark:text-white">
@@ -444,7 +454,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
       </header>
 
       {viewMode === 'month' && recapMovies.length > 0 && (
-        <div className="mx-auto max-w-md px-6 pb-5">
+        <div className="mx-auto max-w-md tab:max-w-2xl lg:max-w-3xl px-6 pb-5">
           <Suspense fallback={<div className="h-28 animate-pulse rounded-[1.7rem] bg-stone-200/70 dark:bg-white/5" />}>
             <WeeklyRecapStory movies={recapMovies} variant="calendar" />
           </Suspense>
@@ -453,8 +463,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
 
       {viewMode === 'heatmap' ? (
         /* Annual heatmap: 4×3 grid */
-        <div className="px-6 pb-6">
-          <div className="grid grid-cols-4 gap-3">
+        <div className="mx-auto max-w-md tab:max-w-2xl lg:max-w-3xl px-6 pb-6">
+          <div className="grid grid-cols-4 gap-3 tab:grid-cols-6 lg:grid-cols-12">
             {MONTHS_SHORT.map((label, i) => {
               const count = yearData[i];
               const isCurrentMonth =
@@ -476,7 +486,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
         </div>
       ) : (
         /* Monthly grid */
-        <div className="px-6">
+        <div className="mx-auto max-w-md tab:max-w-2xl lg:max-w-3xl px-6">
           {/* Un seul filtre compact, plutôt qu'une rangée de boutons. */}
           {monthData.genres.length > 0 && (
             <div className="mb-4 flex items-center justify-between border-b border-stone-200/70 pb-3 dark:border-white/10">
@@ -531,6 +541,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
                       {(items[0].movie?.posterUrl || items[0].screening?.posterUrl) ? (
                         <img
                           src={resizeTmdbImage(items[0].movie?.posterUrl || items[0].screening?.posterUrl || '', 'w154')}
+                          srcSet={`${resizeTmdbImage(items[0].movie?.posterUrl || items[0].screening?.posterUrl || '', 'w154')} 154w, ${resizeTmdbImage(items[0].movie?.posterUrl || items[0].screening?.posterUrl || '', 'w342')} 342w`}
+                          sizes="(min-width: 1024px) 100px, (min-width: 720px) 86px, 13vw"
                           className="w-full h-full object-cover rounded-xl shadow-md transition-shadow"
                           alt=""
                           loading="lazy"
