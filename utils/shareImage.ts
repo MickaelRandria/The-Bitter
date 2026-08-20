@@ -5,6 +5,8 @@
  * Sortie explicite plutôt qu'un booléen : l'appelant a besoin de distinguer
  * « partagé », « tombé en téléchargement » et « annulé » pour son message.
  */
+import { dataUrlToBlob } from './dataUrl';
+
 export type ShareImageOutcome = 'shared' | 'downloaded' | 'cancelled';
 
 export async function shareImage(
@@ -12,7 +14,9 @@ export async function shareImage(
   fileName: string,
   meta: { title: string; text: string }
 ): Promise<ShareImageOutcome> {
-  const blob = await (await fetch(dataUrl)).blob();
+  // Surtout pas `fetch(dataUrl)` : la CSP de production ne liste pas `data:`
+  // dans `connect-src`, la requête y était bloquée. Voir utils/dataUrl.ts.
+  const blob = dataUrlToBlob(dataUrl);
   const file = new File([blob], fileName, { type: 'image/png' });
 
   const download = () => {

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { EmotionalImprint, Movie, UserProfile } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { dataUrlToBlob } from '../utils/dataUrl';
 import {
   countMoviesWithImprints,
   dominantGenre,
@@ -988,7 +989,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       const opts = { pixelRatio: 2, backgroundColor: '#1A1A1A' };
       await toPng(el, opts); // warm-up: loads fonts/resources into cache
       const dataUrl = await toPng(el, opts);
-      const blob = await (await fetch(dataUrl)).blob();
+      // Décodage local : un fetch() sur une data URL est soumis à `connect-src`,
+      // qui ne l'autorise pas en production. Voir utils/dataUrl.ts.
+      const blob = dataUrlToBlob(dataUrl);
       const file = new File([blob], 'mon-archetype-the-bitter.png', { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({

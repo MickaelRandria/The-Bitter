@@ -5,6 +5,7 @@ import { Movie } from '../types';
 import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { dataUrlToBlob } from '../utils/dataUrl';
 
 type StoryFormat = 'classic' | 'editorial';
 
@@ -978,8 +979,10 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     try {
       const imageDataUrl =
         type === 'classic' ? await generateClassicStoryImage() : await generateEditorialStoryImage();
-      const response = await fetch(imageDataUrl);
-      const blob = await response.blob();
+      // Décodage local plutôt qu'un fetch() : une data URL passe par `connect-src`,
+      // que la CSP de production restreint aux origines légitimes. La requête y
+      // était refusée, et Safari la remontait en « Load failed ». Voir utils/dataUrl.ts.
+      const blob = dataUrlToBlob(imageDataUrl);
       const fileName = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
 
