@@ -90,13 +90,13 @@ const FavoriteCinemaModal: React.FC<FavoriteCinemaModalProps> = ({ existing, onS
               <span className="text-[10px] font-black uppercase tracking-[0.18em]">The Bitter · cinéma</span>
             </div>
             <h2 className="text-2xl font-black tracking-tight text-charcoal dark:text-white">Ton cinéma favori</h2>
-            <p className="mt-1 text-xs font-medium text-stone-500">
+            <p className="mt-1 text-xs font-medium text-stone-500 dark:text-stone-400">
               Les fiches films t’y montreront directement les séances à venir.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-500 shadow-sm transition hover:text-charcoal dark:bg-white/10 dark:hover:text-white"
+            className="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-500 dark:text-stone-400 shadow-sm transition hover:text-charcoal dark:bg-white/10 dark:hover:text-white"
             aria-label="Fermer"
           >
             <X size={18} />
@@ -109,7 +109,7 @@ const FavoriteCinemaModal: React.FC<FavoriteCinemaModalProps> = ({ existing, onS
               <Check size={15} className="shrink-0 text-bitter-lime" />
               <div className="min-w-0">
                 <p className="truncate text-xs font-black text-charcoal dark:text-white">{existing.name}</p>
-                <p className="truncate text-[11px] font-bold text-stone-500">{existing.city}</p>
+                <p className="truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">{existing.city}</p>
               </div>
             </div>
           )}
@@ -195,7 +195,7 @@ const FavoriteCinemaModal: React.FC<FavoriteCinemaModalProps> = ({ existing, onS
                 onRemove();
                 onClose();
               }}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-stone-200 text-[11px] font-black uppercase tracking-[0.15em] text-stone-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-stone-200 text-[11px] font-black uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <Trash2 size={15} /> Retirer mon cinéma favori
             </button>
