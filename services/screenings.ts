@@ -103,18 +103,26 @@ const toRow = (input: CinemaScreeningInput) => {
 
 export const listUpcomingScreenings = async (profileId: string): Promise<CinemaScreening[]> => {
   if (!supabase || !profileId) return [];
-  const { data, error } = await supabase
-    .from('cinema_screenings')
-    .select('*')
-    .eq('profile_id', profileId)
-    .gte('starts_at', new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString())
-    .neq('status', 'cancelled')
-    .order('starts_at', { ascending: true });
-  if (error) {
-    console.warn('[Séances] Chargement échoué', error);
+  // Même raison que `listScreeningsForMovie` : au retour d'un arrière-plan, la
+  // requête ne rend pas une erreur, elle rejette. Sans ce filet, le calendrier
+  // ne se remplissait plus jusqu'au redémarrage de l'application.
+  try {
+    const { data, error } = await supabase
+      .from('cinema_screenings')
+      .select('*')
+      .eq('profile_id', profileId)
+      .gte('starts_at', new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString())
+      .neq('status', 'cancelled')
+      .order('starts_at', { ascending: true });
+    if (error) {
+      console.warn('[Séances] Chargement échoué', error);
+      return [];
+    }
+    return (data as ScreeningRow[]).map(fromRow);
+  } catch (error) {
+    console.warn('[Séances] Calendrier injoignable', error);
     return [];
   }
-  return (data as ScreeningRow[]).map(fromRow);
 };
 
 /**
@@ -129,19 +137,28 @@ export const listScreeningsForMovie = async (
   tmdbId: number
 ): Promise<CinemaScreening[]> => {
   if (!supabase || !profileId || !Number.isFinite(tmdbId)) return [];
-  const { data, error } = await supabase
-    .from('cinema_screenings')
-    .select('*')
-    .eq('profile_id', profileId)
-    .eq('tmdb_id', tmdbId)
-    .gte('starts_at', new Date().toISOString())
-    .neq('status', 'cancelled')
-    .order('starts_at', { ascending: true });
-  if (error) {
-    console.warn('[Séances] Séances du film introuvables', error);
+  // Le try/catch n'est pas décoratif : quand le client Supabase revient d'une
+  // mise en arrière-plan, `auth.getSession()` peut REJETER au bout de cinq
+  // secondes au lieu de rendre une erreur. Sans lui, la promesse remontait
+  // jusqu'à l'appelant et la fiche film restait sur son écran de chargement.
+  try {
+    const { data, error } = await supabase
+      .from('cinema_screenings')
+      .select('*')
+      .eq('profile_id', profileId)
+      .eq('tmdb_id', tmdbId)
+      .gte('starts_at', new Date().toISOString())
+      .neq('status', 'cancelled')
+      .order('starts_at', { ascending: true });
+    if (error) {
+      console.warn('[Séances] Séances du film introuvables', error);
+      return [];
+    }
+    return (data as ScreeningRow[]).map(fromRow);
+  } catch (error) {
+    console.warn('[Séances] Séances du film injoignables', error);
     return [];
   }
-  return (data as ScreeningRow[]).map(fromRow);
 };
 
 export const createScreening = async (
