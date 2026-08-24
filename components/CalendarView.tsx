@@ -1,8 +1,9 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { CinemaScreening, Movie } from '../types';
+import { CinemaScreening, FavoriteCinema, Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
+import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import { confirmScreening, deleteScreening, listUpcomingScreenings } from '../services/screenings';
 import { enablePushNotifications, isLikelyInstalledPwa, testPushNotification } from '../services/pushNotifications';
 import {
@@ -28,6 +29,8 @@ const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
 interface CalendarViewProps {
   movies: Movie[];
   profileId?: string;
+  /** Pré-remplit le cinéma du sélecteur de séance. */
+  favoriteCinema?: FavoriteCinema;
   onAddToWatchlist?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
 }
@@ -177,7 +180,7 @@ const DayDetailModal: React.FC<{
   );
 };
 
-const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToWatchlist, onToast }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, favoriteCinema, onAddToWatchlist, onToast }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const { days: DAYS, months: MONTHS, monthsShort: MONTHS_SHORT } = useMemo(
@@ -191,7 +194,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
   const [viewMode, setViewMode] = useState<'month' | 'heatmap'>('month');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [screenings, setScreenings] = useState<CinemaScreening[]>([]);
-  const [showComposer, setShowComposer] = useState(false);
+  /**
+   * Deux façons d'ajouter une séance, et l'ordre est un choix : `programme` lit
+   * le vrai programme UGC et couvre l'écrasante majorité des cas ; `manual`
+   * reste accessible pour ce qu'UGC ne publie pas — un cinéma non UGC, un
+   * festival, ou la semaine suivante avant son basculement du mercredi.
+   */
+  const [composer, setComposer] = useState<'programme' | 'manual' | null>(null);
   const [showPushEducation, setShowPushEducation] = useState(false);
   const [isEnablingPush, setIsEnablingPush] = useState(false);
   const [pushActivationError, setPushActivationError] = useState('');
@@ -498,7 +507,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
         <button
           onClick={() =>
             profileId
-              ? setShowComposer(true)
+              ? setComposer('programme')
               : onToast?.('Connecte-toi pour planifier une séance et recevoir ses rappels.')
           }
           className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-charcoal px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:scale-[1.02] active:scale-95 dark:bg-bitter-lime dark:text-charcoal"
@@ -632,10 +641,22 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
         </div>
       )}
 
-      {showComposer && profileId && (
+      {composer === 'programme' && profileId && (
+        <ScreeningProgrammePicker
+          profileId={profileId}
+          favoriteCinema={favoriteCinema}
+          onClose={() => setComposer(null)}
+          onCreated={() => void refreshScreenings()}
+          onManualEntry={() => setComposer('manual')}
+          onAddToWatchlist={onAddToWatchlist}
+          onToast={onToast}
+        />
+      )}
+
+      {composer === 'manual' && profileId && (
         <CinemaScreeningComposer
           profileId={profileId}
-          onClose={() => setShowComposer(false)}
+          onClose={() => setComposer(null)}
           onCreated={() => void refreshScreenings()}
           onAddToWatchlist={onAddToWatchlist}
           onToast={onToast}

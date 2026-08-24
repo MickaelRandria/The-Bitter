@@ -32,6 +32,8 @@ type UgcCity = { id: string; label: string; city: string; cinemas: UgcCinema[] }
 type UgcShowing = {
   id: string;
   title: string;
+  /** Identifiant UGC du film : il regroupe les séances d'une même affiche. */
+  filmId: string;
   cinemaName: string;
   version: string;
   room: string;
@@ -43,7 +45,7 @@ type UgcShowing = {
 };
 
 let cachedDirectory: { expiresAt: number; cities: UgcCity[] } | null = null;
-const cachedShowtimes = new Map<string, { expiresAt: number; showings: UgcShowing[] }>();
+const cachedShowtimes = new Map<string, { expiresAt: number; showings: UgcShowing[]; posters: Record<string, string> }>();
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -250,6 +252,7 @@ const parseUgcShowings = (html: string): UgcShowing[] => {
     showings.push({
       id: match[1],
       title,
+      filmId: attributes['data-filmid'] || '',
       cinemaName: cleanText(attributes['data-cinema'], 240),
       version: cleanText(attributes['data-version'], 40),
       // La salle n'est publiée que le jour même : elle reste souvent vide.
@@ -262,11 +265,30 @@ const parseUgcShowings = (html: string): UgcShowing[] => {
   return showings;
 };
 
+/**
+ * L'affiche de chaque film, relevée sur son bloc de programmation.
+ *
+ * Les boutons de séance ne la portent pas : elle vit plus haut dans la page,
+ * sur le bloc du film. On associe les deux par l'identifiant UGC du film.
+ * Le chargement paresseux d'UGC met l'URL dans `data-src`, pas dans `src`.
+ */
+const parseUgcPosters = (html: string): Record<string, string> => {
+  const posters: Record<string, string> = {};
+  for (const block of html.matchAll(/id="bloc-showing-film-(\d+)"([\s\S]*?)(?=id="bloc-showing-film-|$)/g)) {
+    const poster = block[2].match(/data-src="(https:\/\/www\.ugc\.fr\/dynamique\/films\/[^"]+)"/)?.[1];
+    if (poster) posters[block[1]] = poster;
+  }
+  return posters;
+};
+
 /** Une journée d'un cinéma, mise en cache sous sa forme déjà analysée (quelques Ko, pas 800). */
-const getCinemaShowings = async (cinemaId: string, date: string): Promise<UgcShowing[]> => {
+const getCinemaDay = async (
+  cinemaId: string,
+  date: string
+): Promise<{ showings: UgcShowing[]; posters: Record<string, string> }> => {
   const key = `${cinemaId}|${date}`;
   const cached = cachedShowtimes.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.showings;
+  if (cached && cached.expiresAt > Date.now()) return cached;
 
   const response = await fetchWithTimeout(UGC_SHOWTIMES_URL, {
     method: 'POST',
@@ -274,7 +296,8 @@ const getCinemaShowings = async (cinemaId: string, date: string): Promise<UgcSho
     body: new URLSearchParams({ cinemaId, date }).toString(),
   });
   if (!response.ok) throw new Error(`UGC showtimes ${response.status}`);
-  const showings = parseUgcShowings(await response.text());
+  const html = await response.text();
+  const day = { showings: parseUgcShowings(html), posters: parseUgcPosters(html) };
 
   // Map conserve l'ordre d'insertion, mais `set` sur une clé existante ne la
   // déplace pas : on la retire d'abord pour qu'un rafraîchissement la remette en
@@ -284,9 +307,10 @@ const getCinemaShowings = async (cinemaId: string, date: string): Promise<UgcSho
     const oldest = cachedShowtimes.keys().next();
     if (!oldest.done) cachedShowtimes.delete(oldest.value);
   }
-  cachedShowtimes.set(key, { showings, expiresAt: Date.now() + SHOWTIMES_CACHE_MS });
-  return showings;
+  cachedShowtimes.set(key, { ...day, expiresAt: Date.now() + SHOWTIMES_CACHE_MS });
+  return day;
 };
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -324,6 +348,113 @@ Deno.serve(async (req) => {
    * Cette action ne dépend pas de l'annuaire : elle est traitée avant lui pour
    * qu'une liste des villes en panne ne prive pas la fiche film de ses horaires.
    */
+  /**
+   * Les `days` prochaines journées du cinéma, lues trois par trois : assez pour
+   * tenir la latence, assez peu pour ne pas envoyer une rafale d'appels à UGC.
+   * Une journée qui échoue vaut journée vide — c'est au reste de continuer.
+   */
+  const readDays = async (cinemaId: string, days: number) => {
+    const dates = parisDaysFromToday(days);
+    const collected: { date: string; showings: UgcShowing[]; posters: Record<string, string> }[] = [];
+    let failures = 0;
+
+    for (let index = 0; index < dates.length; index += 3) {
+      const batch = await Promise.all(
+        dates.slice(index, index + 3).map(async (date) => {
+          try {
+            return { date, ...(await getCinemaDay(cinemaId, date)) };
+          } catch (error) {
+            console.warn('[Cinema directory] Grille UGC indisponible', { cinemaId, date, error: String(error) });
+            failures += 1;
+            return { date, showings: [] as UgcShowing[], posters: {} as Record<string, string> };
+          }
+        })
+      );
+      collected.push(...batch);
+    }
+    return { dates, collected, failures };
+  };
+
+  /** jj/mm/aaaa + hh:mm parisiens → instant, ou null si la séance est passée. */
+  const instantOf = (showing: UgcShowing, now: number) => {
+    const [day, month, year] = showing.date.split('/').map(Number);
+    const [hour, minute] = showing.time.split(':').map(Number);
+    const startsAt = parisToInstant(year, month, day, hour, minute);
+    return Number.isFinite(startsAt) && startsAt > now ? startsAt : null;
+  };
+
+  /**
+   * La programmation complète d'un cinéma : de quoi remplacer la saisie à la
+   * main d'un titre, d'une date et d'une heure par un choix dans le vrai
+   * programme. On renvoie l'état des sept jours — y compris ceux qui sont
+   * vides — pour que le sélecteur de jour puisse les griser au lieu de laisser
+   * croire à une panne : UGC ne publie la semaine suivante qu'au basculement
+   * du mercredi, et un lundi soir les jours lointains sont réellement vides.
+   */
+  if (body.action === 'programme') {
+    const cinemaId = cleanText(body.cinemaId, 12);
+    if (!/^\d{1,8}$/.test(cinemaId)) return fail(400, 'invalid-cinema', 'Cinéma invalide.');
+
+    const { dates, collected, failures } = await readDays(cinemaId, MAX_SHOWTIME_DAYS);
+    if (failures === dates.length) {
+      return fail(503, 'ugc-showtimes-unavailable', 'Le programme UGC est momentanément indisponible.');
+    }
+
+    const now = Date.now();
+    const perDay = collected.map((entry) => {
+      const upcoming = entry.showings
+        .map((showing) => ({ showing, startsAt: instantOf(showing, now) }))
+        .filter((item): item is { showing: UgcShowing; startsAt: number } => item.startsAt !== null);
+      return { ...entry, upcoming };
+    });
+
+    const requested = cleanText(body.date, 10);
+    // Par défaut, le premier jour qui a réellement quelque chose à proposer :
+    // un soir à 22 h, « aujourd'hui » n'a plus une seule séance à vendre.
+    const selected =
+      (requested && perDay.find((day) => day.date === requested)) ||
+      perDay.find((day) => day.upcoming.length > 0) ||
+      perDay[0];
+
+    const grouped = new Map<string, { filmId: string; title: string; posterUrl: string; showtimes: unknown[] }>();
+    selected.upcoming
+      .sort((a, b) => a.startsAt - b.startsAt)
+      .forEach(({ showing, startsAt }) => {
+        const key = showing.filmId || normalize(showing.title);
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            filmId: showing.filmId,
+            title: showing.title,
+            posterUrl: selected.posters[showing.filmId] || '',
+            showtimes: [],
+          });
+        }
+        grouped.get(key)!.showtimes.push({
+          id: showing.id,
+          startsAt: new Date(startsAt).toISOString(),
+          version: showing.version,
+          room: showing.room,
+          endTime: showing.endTime,
+          bookingUrl: `${UGC_BOOKING_URL}${showing.id}`,
+        });
+      });
+
+    return json({
+      date: selected.date,
+      days: perDay.map((day) => {
+        const [d, m, y] = day.date.split('/');
+        return {
+          date: day.date,
+          iso: `${y}-${m}-${d}`,
+          showings: day.upcoming.length,
+          films: new Set(day.upcoming.map((item) => item.showing.filmId || item.showing.title)).size,
+        };
+      }),
+      films: [...grouped.values()].sort((a, b) => a.title.localeCompare(b.title, 'fr')),
+      partial: failures > 0,
+    });
+  }
+
   if (body.action === 'showtimes') {
     const cinemaId = cleanText(body.cinemaId, 12);
     if (!/^\d{1,8}$/.test(cinemaId)) return fail(400, 'invalid-cinema', 'Cinéma invalide.');
@@ -337,24 +468,7 @@ Deno.serve(async (req) => {
       ? Math.min(MAX_SHOWTIME_DAYS, Math.max(1, Math.round(requestedDays)))
       : MAX_SHOWTIME_DAYS;
 
-    // Trois requêtes à la fois : assez pour tenir la latence, assez peu pour ne
-    // pas envoyer une rafale de sept appels simultanés au site d'UGC.
-    const dates = parisDaysFromToday(days);
-    const collected: UgcShowing[] = [];
-    let failures = 0;
-    for (let index = 0; index < dates.length; index += 3) {
-      const batch = await Promise.all(
-        dates.slice(index, index + 3).map((date) =>
-          getCinemaShowings(cinemaId, date).catch((error) => {
-            console.warn('[Cinema directory] Grille UGC indisponible', { cinemaId, date, error: String(error) });
-            failures += 1;
-            return [] as UgcShowing[];
-          })
-        )
-      );
-      batch.forEach((showings) => collected.push(...showings));
-    }
-
+    const { dates, collected, failures } = await readDays(cinemaId, days);
     if (failures === dates.length) {
       return fail(503, 'ugc-showtimes-unavailable', 'Les horaires UGC sont momentanément indisponibles.');
     }
@@ -363,13 +477,10 @@ Deno.serve(async (req) => {
     // lecture, ce qui rend inoffensif un cache vieux de quelques heures.
     const now = Date.now();
     const items = collected
+      .flatMap((day) => day.showings)
       .filter((showing) => wanted.includes(normalize(showing.title)))
-      .map((showing) => {
-        const [day, month, year] = showing.date.split('/').map(Number);
-        const [hour, minute] = showing.time.split(':').map(Number);
-        return { showing, startsAt: parisToInstant(year, month, day, hour, minute) };
-      })
-      .filter((entry) => Number.isFinite(entry.startsAt) && entry.startsAt > now)
+      .map((showing) => ({ showing, startsAt: instantOf(showing, now) }))
+      .filter((entry): entry is { showing: UgcShowing; startsAt: number } => entry.startsAt !== null)
       .sort((a, b) => a.startsAt - b.startsAt)
       .map(({ showing, startsAt }) => ({
         id: showing.id,
