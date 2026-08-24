@@ -1237,6 +1237,8 @@ export const en: Record<string, string> = {
   'cinemaSub.profile.sub': 'Track whether your cinema subscription pays off.',
   'cinemaSub.profile.configure': 'Set up',
   'cinemaSub.profile.edit': 'Edit',
+  'favoriteCinema.profile.title': 'Favourite cinema',
+  'favoriteCinema.profile.sub': 'See a film’s showtimes and book from its page.',
   'cinemaSub.setup.title': 'Your cinema subscription',
   'cinemaSub.setup.step1Title': 'Your cinema subscription',
   'cinemaSub.setup.step1Sub': 'Find out how much your subscription really saves you.',

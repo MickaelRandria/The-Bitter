@@ -30,8 +30,9 @@ import {
   ShieldCheck,
   ScanEye,
   Trash2,
+  MapPin,
 } from 'lucide-react';
-import { CinemaSubscription, UserProfile } from '../types';
+import { CinemaSubscription, FavoriteCinema, UserProfile } from '../types';
 import { formatCurrency } from '../utils/cinemaSubscription';
 import { getCinemaProviderBrand } from '../utils/cinemaBrand';
 import CinemaSubscriptionArtwork from './CinemaSubscriptionArtwork';
@@ -80,6 +81,9 @@ interface ProfileModalProps {
   /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
   cinemaSubscription?: CinemaSubscription;
   onManageCinemaSubscription?: () => void;
+  /** Cinéma favori : c'est lui qui alimente les séances affichées sur les fiches films. */
+  favoriteCinema?: FavoriteCinema;
+  onManageFavoriteCinema?: () => void;
   /**
    * Ouvre la confirmation de suppression définitive du compte. Absent, la ligne
    * n'est pas rendue — elle n'a de sens que pour un compte en ligne.
@@ -125,6 +129,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onAvatarChange,
   cinemaSubscription,
   onManageCinemaSubscription,
+  favoriteCinema,
+  onManageFavoriteCinema,
   onDeleteAccount,
 }) => {
   /**
@@ -714,6 +720,30 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   {cinemaSubscription?.active
                     ? t('cinemaSub.profile.edit')
                     : t('cinemaSub.profile.configure')}
+                </span>
+              </button>
+            )}
+
+            {onManageFavoriteCinema && (
+              <button
+                onClick={() => { haptics.soft(); onManageFavoriteCinema(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                    <MapPin size={14} />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <span className="block text-xs font-black uppercase tracking-wide truncate text-charcoal dark:text-white">
+                      {t('favoriteCinema.profile.title')}
+                    </span>
+                    <span className="block text-[9px] font-bold mt-0.5 truncate text-stone-400 dark:text-stone-500">
+                      {favoriteCinema ? favoriteCinema.name : t('favoriteCinema.profile.sub')}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 text-forest dark:text-lime-500">
+                  {favoriteCinema ? t('cinemaSub.profile.edit') : t('cinemaSub.profile.configure')}
                 </span>
               </button>
             )}

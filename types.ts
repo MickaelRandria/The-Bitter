@@ -57,11 +57,41 @@ export interface CinemaSubscription {
 }
 
 /**
+ * Le cinéma où l'utilisateur va habituellement. Un seul, volontairement : c'est
+ * lui qu'on interroge pour savoir si un film est programmé près de chez lui.
+ * L'identifiant est celui d'UGC, il vient de l'annuaire (`cinema-directory`).
+ */
+export interface FavoriteCinema {
+  id: string;
+  name: string;
+  city: string;
+}
+
+/** Un horaire réel proposé par UGC, avec son lien de réservation. */
+export interface CinemaShowtime {
+  /** Identifiant de séance UGC, unique et réutilisable dans le lien de réservation. */
+  id: string;
+  title: string;
+  startsAt: number;
+  /** VO, VF, VOSTF… tel qu'UGC l'annonce. */
+  version?: string;
+  /** Publié le jour même seulement. */
+  room?: string;
+  endTime?: string;
+  cinemaName?: string;
+  bookingUrl: string;
+}
+
+/**
  * Une sortie prévue, avant tout lien éventuel avec la watchlist ou un film vu.
  * Un titre libre est autorisé : on ne connaît pas toujours la fiche TMDB au
  * moment où quelqu'un réserve sa séance.
+ *
+ * `pending` est le statut d'une séance ouverte depuis la fiche film : le lien de
+ * réservation UGC a été suivi, mais rien ne dit que la réservation est allée à
+ * son terme. Tant qu'elle n'est pas confirmée, **aucun rappel n'est programmé**.
  */
-export type CinemaScreeningStatus = 'scheduled' | 'cancelled' | 'completed';
+export type CinemaScreeningStatus = 'pending' | 'scheduled' | 'cancelled' | 'completed';
 
 export interface CinemaScreening {
   id: string;
@@ -90,6 +120,8 @@ export interface CinemaScreeningInput {
   format?: string;
   notes?: string;
   reminderOffsetsMinutes?: number[];
+  /** Absent = 'scheduled', le statut des séances saisies à la main. */
+  status?: CinemaScreeningStatus;
 }
 
 export type ViewingLocationType = 'cinema' | 'home' | 'other';
@@ -235,6 +267,7 @@ export interface UserProfile {
   /** Descripteur `dicebear:style:graine`, ou URL d'image. Voir utils/avatar.ts. */
   avatarUrl?: string;
   cinemaSubscription?: CinemaSubscription;
+  favoriteCinema?: FavoriteCinema;
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;

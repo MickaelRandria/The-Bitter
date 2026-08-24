@@ -46,12 +46,14 @@ import {
   migrateLocalStorageToSupabase,
   resyncAllMoviesToSupabase,
   syncCinemaSubscriptionToSupabase,
+  syncFavoriteCinemaToSupabase,
   syncMovieToSupabase,
   syncMoviesToSupabase,
   syncProfileFieldsToSupabase,
 } from './services/migration';
 import {
   CinemaSubscription,
+  FavoriteCinema,
   Movie,
   MovieFormData,
   MovieStatus,
@@ -112,6 +114,7 @@ const CinemaHistoryImportModal = lazy(() => import('./components/CinemaHistoryIm
 const CinemaSubscriptionDetailsModal = lazy(
   () => import('./components/CinemaSubscriptionDetailsModal')
 );
+const FavoriteCinemaModal = lazy(() => import('./components/FavoriteCinemaModal'));
 import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
 
 // Lazy loading components
@@ -431,6 +434,8 @@ const App: React.FC = () => {
   const [showCinemaSetup, setShowCinemaSetup] = useState(false);
   const [showCinemaImport, setShowCinemaImport] = useState(false);
   const [showCinemaDetails, setShowCinemaDetails] = useState(false);
+  // Cinéma favori : d'où viennent les séances proposées sur la fiche film.
+  const [showFavoriteCinema, setShowFavoriteCinema] = useState(false);
   // Sauvegarde en ligne du profil rattaché.
   const [showAccountSync, setShowAccountSync] = useState(false);
   /**
@@ -779,11 +784,18 @@ const App: React.FC = () => {
         if (linkedLocal && linkedLocal.id !== existingProfile.id) {
           // On récupère tout de même ce que le serveur a en plus et que cet
           // appareil ignore, typiquement un abonnement réglé ailleurs.
-          if (existingProfile.cinema_subscription && !linkedLocal.cinemaSubscription) {
+          if (
+            (existingProfile.cinema_subscription && !linkedLocal.cinemaSubscription) ||
+            (existingProfile.favorite_cinema && !linkedLocal.favoriteCinema)
+          ) {
             setProfiles((prev) =>
               prev.map((p) =>
                 p.id === linkedLocal.id
-                  ? { ...p, cinemaSubscription: existingProfile.cinema_subscription }
+                  ? {
+                      ...p,
+                      cinemaSubscription: p.cinemaSubscription ?? existingProfile.cinema_subscription,
+                      favoriteCinema: p.favoriteCinema ?? existingProfile.favorite_cinema,
+                    }
                   : p
               )
             );
@@ -820,6 +832,7 @@ const App: React.FC = () => {
                     // avant l'application de la migration SQL côté Supabase.
                     cinemaSubscription:
                       existingProfile.cinema_subscription ?? p.cinemaSubscription,
+                    favoriteCinema: existingProfile.favorite_cinema ?? p.favoriteCinema,
                     movies: p.movies,
                   }
                 : p
@@ -847,6 +860,7 @@ const App: React.FC = () => {
                 viewingPreference: existingProfile.viewing_preference || undefined,
                 streamingPlatforms: existingProfile.streaming_platforms || undefined,
                 cinemaSubscription: existingProfile.cinema_subscription ?? undefined,
+                favoriteCinema: existingProfile.favorite_cinema ?? undefined,
               },
             ];
           }
@@ -1287,6 +1301,24 @@ const App: React.FC = () => {
   const updateActiveProfile = (updater: (profile: UserProfile) => UserProfile) => {
     if (!activeProfileId) return;
     setProfiles((prev) => prev.map((p) => (p.id === activeProfileId ? updater(p) : p)));
+  };
+
+  /**
+   * Cinéma favori : un seul, choisi dans l'annuaire UGC. C'est lui que la fiche
+   * film interroge pour proposer des horaires ; le retirer ne fait donc que
+   * masquer la section, il ne touche à aucune séance déjà planifiée.
+   */
+  const handleSaveFavoriteCinema = (cinema: FavoriteCinema) => {
+    updateActiveProfile((p) => ({ ...p, favoriteCinema: cinema }));
+    if (session?.user?.id) void syncFavoriteCinemaToSupabase(session.user.id, cinema);
+  };
+
+  const handleRemoveFavoriteCinema = () => {
+    updateActiveProfile((p) => {
+      const { favoriteCinema: _removed, ...rest } = p;
+      return rest;
+    });
+    if (session?.user?.id) void syncFavoriteCinemaToSupabase(session.user.id);
   };
 
   const handleSaveCinemaSubscription = (subscription: CinemaSubscription) => {
@@ -1844,12 +1876,13 @@ const App: React.FC = () => {
     setProfiles(nextProfiles);
     setShowProfile(false);
 
-    // Le backup contient déjà cinemaSubscription et watches (avec viewingContext).
-    // On attend l'écriture distante avant le rechargement pour ne pas perdre ces
-    // données si l'utilisateur est connecté.
+    // Le backup contient déjà cinemaSubscription, favoriteCinema et watches (avec
+    // viewingContext). On attend l'écriture distante avant le rechargement pour ne
+    // pas perdre ces données si l'utilisateur est connecté.
     if (session?.user?.id) {
       await Promise.all([
         syncCinemaSubscriptionToSupabase(session.user.id, restoredProfile.cinemaSubscription),
+        syncFavoriteCinemaToSupabase(session.user.id, restoredProfile.favoriteCinema),
         syncMoviesToSupabase(session.user.id, restoredProfile.movies),
       ]);
     }
@@ -2920,6 +2953,9 @@ const App: React.FC = () => {
                     : undefined
                 }
                 onUpdateTmdbRating={handleUpdateTmdbRating}
+                profileId={session?.user?.id}
+                favoriteCinema={activeProfile?.favoriteCinema}
+                onToast={setToastMessage}
               />
             );
           })()}
@@ -3049,6 +3085,11 @@ const App: React.FC = () => {
             onManageCinemaSubscription={() => {
               setShowProfile(false);
               setShowCinemaSetup(true);
+            }}
+            favoriteCinema={activeProfile.favoriteCinema}
+            onManageFavoriteCinema={() => {
+              setShowProfile(false);
+              setShowFavoriteCinema(true);
             }}
           />
         )}
@@ -3183,6 +3224,15 @@ const App: React.FC = () => {
               setShowCinemaImport(false);
               setViewMode('Analytics');
             }}
+          />
+        )}
+
+        {showFavoriteCinema && (
+          <FavoriteCinemaModal
+            existing={activeProfile?.favoriteCinema}
+            onSave={handleSaveFavoriteCinema}
+            onRemove={handleRemoveFavoriteCinema}
+            onClose={() => setShowFavoriteCinema(false)}
           />
         )}
 
