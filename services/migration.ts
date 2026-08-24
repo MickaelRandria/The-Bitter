@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { CinemaSubscription, UserProfile, Movie } from '../types';
+import { CinemaSubscription, FavoriteCinema, UserProfile, Movie } from '../types';
 
 const PROFILES_STORAGE_KEY = 'the_bitter_profiles_v2';
 
@@ -230,6 +230,32 @@ export async function syncCinemaSubscriptionToSupabase(
 
   if (error && import.meta.env.DEV) {
     console.error('[Cinema subscription] Unable to sync subscription:', error);
+  }
+}
+
+/**
+ * Persiste le cinéma favori dans le profil Supabase.
+ *
+ * Même choix que pour l'abonnement : une préférence unique n'a pas besoin de sa
+ * propre table. Un échec est silencieux côté application — le réglage reste
+ * appliqué localement et la prochaine modification retentera l'écriture.
+ */
+export async function syncFavoriteCinemaToSupabase(
+  userId: string,
+  cinema?: FavoriteCinema
+): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      favorite_cinema: cinema ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error && import.meta.env.DEV) {
+    console.error('[Favorite cinema] Unable to sync favourite cinema:', error);
   }
 }
 

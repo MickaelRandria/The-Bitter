@@ -117,6 +117,33 @@ export const listUpcomingScreenings = async (profileId: string): Promise<CinemaS
   return (data as ScreeningRow[]).map(fromRow);
 };
 
+/**
+ * Les séances à venir déjà enregistrées pour un film donné.
+ *
+ * La fiche film s'en sert pour marquer les horaires déjà pris : sans cela, deux
+ * touchers sur le même créneau créeraient deux lignes, et le calendrier
+ * annoncerait deux fois la même sortie.
+ */
+export const listScreeningsForMovie = async (
+  profileId: string,
+  tmdbId: number
+): Promise<CinemaScreening[]> => {
+  if (!supabase || !profileId || !Number.isFinite(tmdbId)) return [];
+  const { data, error } = await supabase
+    .from('cinema_screenings')
+    .select('*')
+    .eq('profile_id', profileId)
+    .eq('tmdb_id', tmdbId)
+    .gte('starts_at', new Date().toISOString())
+    .neq('status', 'cancelled')
+    .order('starts_at', { ascending: true });
+  if (error) {
+    console.warn('[Séances] Séances du film introuvables', error);
+    return [];
+  }
+  return (data as ScreeningRow[]).map(fromRow);
+};
+
 export const createScreening = async (
   profileId: string,
   input: CinemaScreeningInput
@@ -125,9 +152,11 @@ export const createScreening = async (
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
   try {
+    // `status` est posé ici et pas dans `toRow` : une modification de séance ne
+    // doit jamais requalifier en « réservée » ce qui attendait confirmation.
     const { data, error } = await supabase
       .from('cinema_screenings')
-      .insert({ profile_id: profileId, ...toRow(input) })
+      .insert({ profile_id: profileId, ...toRow(input), status: input.status ?? 'scheduled' })
       .select('*')
       .abortSignal(controller.signal)
       .single();
@@ -178,6 +207,36 @@ export const updateScreeningStatus = async (
     return false;
   }
   return true;
+};
+
+/**
+ * « J'ai réservé » : la séance passe de `pending` à `scheduled`.
+ *
+ * C'est ce passage, et lui seul, qui programme les rappels — le trigger
+ * `sync_screening_reminders` s'exécute AFTER UPDATE OF status et n'insère de
+ * notifications que pour une séance `scheduled`. Tant que personne n'a confirmé,
+ * personne n'est prévenu d'une réservation qui n'existe peut-être pas.
+ *
+ * La condition `status = 'pending'` évite qu'un double toucher ne rejoue le
+ * trigger sur une séance déjà confirmée.
+ */
+export const confirmScreening = async (screeningId: string): Promise<ScreeningWrite> => {
+  if (!supabase) return { ok: false, error: 'Connecte-toi pour confirmer une séance.' };
+  if (!screeningId) return { ok: false, error: 'Séance invalide.' };
+
+  const { data, error } = await supabase
+    .from('cinema_screenings')
+    .update({ status: 'scheduled', updated_at: new Date().toISOString() })
+    .eq('id', screeningId)
+    .eq('status', 'pending')
+    .select('*')
+    .maybeSingle();
+
+  if (error || !data) {
+    console.warn('[Séances] Confirmation refusée', error);
+    return { ok: false, error: 'Impossible de confirmer cette séance. Réessaie dans un instant.' };
+  }
+  return { ok: true, screening: fromRow(data as ScreeningRow) };
 };
 
 /**

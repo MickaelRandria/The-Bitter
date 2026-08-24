@@ -15,9 +15,10 @@ import {
 } from 'lucide-react';
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
 import { tmdbImage } from '../utils/tmdbImage';
-import { MovieStatus } from '../types';
+import { FavoriteCinema, MovieStatus } from '../types';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import MovieShowtimes from './MovieShowtimes';
 
 interface MovieDetailModalProps {
   tmdbId: number;
@@ -30,6 +31,10 @@ interface MovieDetailModalProps {
   collectionTmdbRating?: number;
   collectionUserRating?: number;
   onUpdateTmdbRating?: (movieId: string, newRating: number) => void;
+  /** Séances UGC : sans profil connecté ni cinéma favori, la section ne s'affiche pas. */
+  profileId?: string;
+  favoriteCinema?: FavoriteCinema;
+  onToast?: (message: string) => void;
 }
 
 interface TMDBReview {
@@ -44,6 +49,8 @@ interface MovieDetail {
   id: number;
   title?: string;
   name?: string; // For TV
+  /** UGC affiche parfois le titre d'origine : les deux servent au rapprochement. */
+  original_title?: string;
   overview: string;
   poster_path: string;
   backdrop_path: string;
@@ -89,6 +96,9 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   collectionTmdbRating,
   collectionUserRating,
   onUpdateTmdbRating,
+  profileId,
+  favoriteCinema,
+  onToast,
 }) => {
   const dialog = useDialog(onClose);
   const [movie, setMovie] = useState<MovieDetail | null>(null);
@@ -281,6 +291,9 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
     runtime = movie.episode_run_time[0];
   }
 
+  // Les deux orthographes possibles côté UGC, dédoublonnées.
+  const showtimeTitles = [...new Set([title, movie?.original_title].filter(Boolean) as string[])];
+
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const providers = movie?.['watch/providers']?.results?.FR?.flatrate || [];
   const trailer = movie?.videos?.results?.find((v) => v.type === 'Trailer' && v.site === 'YouTube');
@@ -421,6 +434,19 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Séances au cinéma favori — avant le streaming : c'est le geste
+                  qu'on cherche à rendre immédiat depuis la découverte. */}
+              {mediaType === 'movie' && (
+                <MovieShowtimes
+                  tmdbId={tmdbId}
+                  titles={showtimeTitles}
+                  posterUrl={movie.poster_path ? tmdbImage(movie.poster_path, 'w780') : undefined}
+                  profileId={profileId}
+                  favoriteCinema={favoriteCinema}
+                  onToast={onToast}
+                />
+              )}
 
               {/* Providers */}
               {providers.length > 0 && (

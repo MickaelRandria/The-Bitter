@@ -3,7 +3,7 @@ import { CinemaScreening, Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
-import { deleteScreening, listUpcomingScreenings } from '../services/screenings';
+import { confirmScreening, deleteScreening, listUpcomingScreenings } from '../services/screenings';
 import { enablePushNotifications, isLikelyInstalledPwa, testPushNotification } from '../services/pushNotifications';
 import {
   BellRing,
@@ -18,6 +18,9 @@ import {
   CalendarDays,
   Flame,
   Trash2,
+  Check,
+  Loader2,
+  Clock3,
 } from 'lucide-react';
 
 const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
@@ -58,7 +61,9 @@ const DayDetailModal: React.FC<{
   items: CalendarItem[];
   onClose: () => void;
   onRemoveScreening: (screening: CinemaScreening) => void;
-}> = ({ day, monthName, items, onClose, onRemoveScreening }) => {
+  onConfirmScreening: (screening: CinemaScreening) => void;
+  confirmingScreeningId: string;
+}> = ({ day, monthName, items, onClose, onRemoveScreening, onConfirmScreening, confirmingScreeningId }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 transition-colors">
       <div
@@ -117,6 +122,32 @@ const DayDetailModal: React.FC<{
                     {item.screening.cinemaName && (
                       <p className="flex items-center gap-1 text-[10px] font-bold text-stone-400 dark:text-stone-400 truncate"><MapPin size={11} />{item.screening.cinemaName}</p>
                     )}
+                    {/* Une séance ouverte depuis une fiche film reste « à confirmer »
+                        tant que personne n'a dit avoir réservé : aucun rappel n'est
+                        programmé avant ce geste. */}
+                    {item.screening.status === 'pending' && (
+                      <div className="mt-2 rounded-xl border border-amber-300/60 bg-amber-50 px-2.5 py-2 dark:border-amber-400/30 dark:bg-amber-400/10">
+                        <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          <Clock3 size={11} /> Réservation à confirmer
+                        </p>
+                        <p className="mt-1 text-[10px] font-medium leading-relaxed text-amber-700/80 dark:text-amber-200/70">
+                          Aucun rappel ne partira tant que tu ne l’as pas confirmée.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onConfirmScreening(item.screening!)}
+                          disabled={confirmingScreeningId === item.screening.id}
+                          className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-charcoal px-3 text-[10px] font-black uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-50 dark:bg-bitter-lime dark:text-charcoal"
+                        >
+                          {confirmingScreeningId === item.screening.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Check size={12} />
+                          )}
+                          J’ai réservé
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => onRemoveScreening(item.screening!)}
@@ -167,6 +198,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
   const [screeningToDelete, setScreeningToDelete] = useState<CinemaScreening | null>(null);
   const [isDeletingScreening, setIsDeletingScreening] = useState(false);
   const [deleteScreeningError, setDeleteScreeningError] = useState('');
+  const [confirmingScreeningId, setConfirmingScreeningId] = useState('');
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -216,6 +248,36 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
     }
     setPushActivationError('');
     setShowPushEducation(true);
+  };
+
+  /**
+   * « J'ai réservé ». Le passage en `scheduled` est ce qui déclenche la création
+   * des rappels côté base : avant lui, la séance n'en avait aucun. On met à jour
+   * les deux états locaux (mois et jour ouvert) pour que le badge disparaisse
+   * sans attendre un rechargement.
+   */
+  const handleConfirmScreening = async (screening: CinemaScreening) => {
+    setConfirmingScreeningId(screening.id);
+    const result = await confirmScreening(screening.id);
+    setConfirmingScreeningId('');
+    if (!result.ok) {
+      onToast?.('error' in result ? result.error : 'Impossible de confirmer cette séance.');
+      return;
+    }
+
+    const confirmed = result.screening;
+    setScreenings((current) => current.map((item) => (item.id === confirmed.id ? confirmed : item)));
+    setSelectedDay((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.screening?.id === confirmed.id ? { ...item, screening: confirmed } : item
+            ),
+          }
+        : current
+    );
+    onToast?.('Séance confirmée : tes rappels sont programmés.');
   };
 
   const confirmScreeningDeletion = async () => {
@@ -329,8 +391,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
         }
       });
 
+    // Une séance « en attente » compte dans le calendrier : c'est justement là
+    // qu'on vient la confirmer. Seul son statut la distingue à l'affichage.
     screenings
-      .filter((screening) => screening.status === 'scheduled')
+      .filter((screening) => screening.status === 'scheduled' || screening.status === 'pending')
       .forEach((screening) => {
         const date = new Date(screening.startsAt);
         if (date.getMonth() !== month || date.getFullYear() !== year) return;
@@ -546,6 +610,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
                           +{items.length - 1}
                         </div>
                       )}
+                      {/* Une réservation en attente doit se repérer sans ouvrir le jour. */}
+                      {items.some((item) => item.screening?.status === 'pending') && (
+                        <span
+                          className="absolute bottom-1 left-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-white dark:ring-[#1a1a1a] z-20"
+                          title="Réservation à confirmer"
+                        />
+                      )}
                     </div>
                   ) : (
                     <span
@@ -626,6 +697,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
             setDeleteScreeningError('');
             setScreeningToDelete(screening);
           }}
+          onConfirmScreening={(screening) => void handleConfirmScreening(screening)}
+          confirmingScreeningId={confirmingScreeningId}
         />
       )}
 
@@ -642,7 +715,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, onAddToW
             </div>
             <h2 className="mt-5 text-2xl font-black tracking-tight text-charcoal dark:text-white">Retirer cette séance ?</h2>
             <p className="mt-2 text-sm font-medium leading-relaxed text-stone-500">
-              « {screeningToDelete.title} » disparaîtra de ton calendrier et ses rappels seront annulés.
+              « {screeningToDelete.title} » disparaîtra de ton calendrier
+              {screeningToDelete.status === 'pending'
+                ? '. Aucun rappel n’avait été programmé pour cette séance en attente.'
+                : ' et ses rappels seront annulés.'}
             </p>
             {deleteScreeningError && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700 dark:bg-red-500/10 dark:text-red-300">{deleteScreeningError}</p>}
             <button

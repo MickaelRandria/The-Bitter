@@ -1,3 +1,4 @@
+import { CinemaShowtime } from '../types';
 import { supabase } from './supabase';
 
 export interface CinemaCity {
@@ -49,3 +50,40 @@ export const searchCinemasNearCity = async (city: CinemaCity): Promise<Directory
     },
     'Impossible de charger les cinémas UGC de cette ville.'
   );
+
+/** Le serveur rend des dates ISO ; l'application manipule des timestamps. */
+interface ShowtimeItem extends Omit<CinemaShowtime, 'startsAt'> {
+  startsAt: string;
+}
+
+/**
+ * Les séances d'UN film dans UN cinéma, sur les prochains jours.
+ *
+ * Le titre voyage jusqu'au serveur, et c'est lui qui cherche dans la grille
+ * UGC : on ne descend jamais toute la programmation dans le navigateur. Les
+ * variantes de titre (TMDB rend un titre français et un titre original)
+ * partent ensemble — un seul aller-retour couvre les deux orthographes.
+ *
+ * Le résultat est déjà trié, débarrassé des séances passées, et chaque entrée
+ * porte son lien de réservation UGC.
+ */
+export const fetchMovieShowtimes = async (
+  cinemaId: string,
+  titles: string[],
+  days = 7
+): Promise<DirectoryResult<CinemaShowtime[]>> => {
+  const wanted = [...new Set(titles.map((title) => title?.trim()).filter(Boolean))].slice(0, 4);
+  if (!cinemaId || wanted.length === 0) return { data: [] };
+
+  const result = await invokeDirectory<ShowtimeItem>(
+    { action: 'showtimes', cinemaId, titles: wanted, days },
+    'Les horaires UGC sont momentanément indisponibles.'
+  );
+  if (result.error) return { data: [], error: result.error };
+
+  return {
+    data: result.data
+      .map((item) => ({ ...item, startsAt: new Date(item.startsAt).getTime() }))
+      .filter((item) => Number.isFinite(item.startsAt)),
+  };
+};

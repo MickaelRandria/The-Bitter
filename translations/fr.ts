@@ -1243,6 +1243,8 @@ export const fr: Record<string, string> = {
   'cinemaSub.profile.sub': 'Suis la rentabilité de ton abonnement cinéma.',
   'cinemaSub.profile.configure': 'Configurer',
   'cinemaSub.profile.edit': 'Modifier',
+  'favoriteCinema.profile.title': 'Cinéma favori',
+  'favoriteCinema.profile.sub': 'Vois les séances d’un film et réserve depuis sa fiche.',
   'cinemaSub.setup.title': 'Ton abonnement cinéma',
   'cinemaSub.setup.step1Title': 'Ton abonnement cinéma',
   'cinemaSub.setup.step1Sub': 'Découvre combien ton abonnement te fait réellement économiser.',
