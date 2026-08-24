@@ -155,7 +155,7 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
         <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-400">
           Au cinéma
         </h3>
-        <p className="flex items-start gap-2 rounded-2xl border border-stone-200 bg-white/60 px-4 py-3 text-xs font-medium text-stone-500 dark:border-white/10 dark:bg-white/5">
+        <p className="flex items-start gap-2 rounded-2xl border border-stone-200 bg-white/60 px-4 py-3 text-xs font-medium text-stone-500 dark:text-stone-400 dark:border-white/10 dark:bg-white/5">
           <MapPin size={14} className="mt-0.5 shrink-0 text-stone-400" />
           Choisis ton cinéma favori dans ton profil pour voir ici les séances et réserver en un geste.
         </p>
@@ -179,7 +179,7 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
       ) : error ? (
         <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{error}</p>
       ) : days.length === 0 ? (
-        <p className="flex items-start gap-2 text-xs font-medium text-stone-500">
+        <p className="flex items-start gap-2 text-xs font-medium text-stone-500 dark:text-stone-400">
           <CalendarClock size={14} className="mt-0.5 shrink-0 text-stone-400" />
           Pas de séance à {favoriteCinema.name} dans les {DAYS_AHEAD} prochains jours.
         </p>
@@ -218,7 +218,7 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
                       ) : screening ? (
                         <Check size={11} className="text-bitter-lime" />
                       ) : (
-                        <ExternalLink size={11} className="text-stone-300 dark:text-stone-500" />
+                        <ExternalLink size={11} className="text-stone-300 dark:text-stone-500 dark:text-stone-400" />
                       )}
                     </button>
                   );

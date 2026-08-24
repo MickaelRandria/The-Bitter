@@ -335,7 +335,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
         onClick={onClose}
       />
 
-      <div className="bg-cream w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] pointer-events-auto overflow-hidden">
+      <div className="bg-cream dark:bg-[#0c0c0c] w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] pointer-events-auto overflow-hidden">
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <Loader2 size={40} className="animate-spin text-forest mb-4" />
@@ -353,7 +353,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                 className="w-full h-full object-cover"
                 alt={title}
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-cream" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-cream dark:to-[#0c0c0c]" />
 
               {trailer && (
                 <button
@@ -381,7 +381,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
             <div className="flex-1 overflow-y-auto -mt-12 relative z-10 px-8 pb-32 no-scrollbar">
               {/* Poster & Title Block */}
               <div className="flex gap-5 mb-8">
-                <div className="w-24 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white shrink-0 -mt-8 bg-stone-200">
+                <div className="w-24 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white dark:border-white/10 shrink-0 -mt-8 bg-stone-200 dark:bg-[#252525]">
                   <img
                     src={tmdbImage(movie.poster_path, 'w342')}
                     className="w-full h-full object-cover"
@@ -390,13 +390,13 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   />
                 </div>
                 <div className="flex-1 pt-2">
-                  <h2 className="text-2xl font-black text-charcoal leading-tight mb-1 line-clamp-2">
+                  <h2 className="text-2xl font-black text-charcoal dark:text-white leading-tight mb-1 line-clamp-2">
                     {title}
                   </h2>
                   <p className="text-xs font-bold text-stone-400 dark:text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
                     {year} •{' '}
                     <span
-                      className={`transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 underline-offset-4' : ''}`}
+                      className={`transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 dark:decoration-current/30 underline-offset-4' : ''}`}
                       onClick={(e) => {
                         if (onViewDirector && director !== 'Inconnu') {
                           e.stopPropagation();
@@ -458,7 +458,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                     {providers.map((p) => (
                       <div
                         key={p.provider_name}
-                        className="flex items-center gap-2 bg-white border border-stone-100 pr-3 rounded-xl p-1 shadow-sm"
+                        className="flex items-center gap-2 bg-white dark:bg-white/5 border border-stone-100 dark:border-white/10 pr-3 rounded-xl p-1 shadow-sm"
                       >
                         <img
                           src={tmdbImage(p.logo_path, 'w92')}
@@ -467,7 +467,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                           loading="lazy"
                           decoding="async"
                         />
-                        <span className="text-[10px] font-bold text-charcoal whitespace-nowrap">
+                        <span className="text-[10px] font-bold text-charcoal dark:text-white whitespace-nowrap">
                           {p.provider_name}
                         </span>
                       </div>
@@ -489,7 +489,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               {/* Reviews */}
               {hasReviews && (
                 <div className="mb-8">
-                  <h3 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-3">
+                  <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mb-3">
                     Avis
                   </h3>
                   {/* Filter CTAs */}
@@ -500,7 +500,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                           haptics.soft();
                           setReviewFilter('good');
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'good' ? 'bg-forest text-white border-forest shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'good' ? 'bg-forest text-white border-forest shadow-sm' : 'bg-white dark:bg-white/5 text-stone-400 dark:text-stone-400 border-stone-200 dark:border-white/10'}`}
                       >
                         👍 Les + enthousiastes
                       </button>
@@ -511,7 +511,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                           haptics.soft();
                           setReviewFilter('bad');
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'bad' ? 'bg-charcoal text-white border-charcoal shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'bad' ? 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal border-charcoal dark:border-bitter-lime shadow-sm' : 'bg-white dark:bg-white/5 text-stone-400 dark:text-stone-400 border-stone-200 dark:border-white/10'}`}
                       >
                         👎 Les + critiques
                       </button>
@@ -522,7 +522,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                           haptics.soft();
                           setReviewFilter('matching');
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'matching' ? 'bg-bitter-lime text-charcoal border-bitter-lime shadow-sm' : 'bg-white text-stone-400 border-stone-200'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${reviewFilter === 'matching' ? 'bg-bitter-lime text-charcoal border-bitter-lime shadow-sm' : 'bg-white dark:bg-white/5 text-stone-400 dark:text-stone-400 border-stone-200 dark:border-white/10'}`}
                       >
                         🎯 Comme moi ({matchingReviews.length})
                       </button>
@@ -544,10 +544,10 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                               haptics.soft();
                               setExpandedReview(r);
                             }}
-                            className="min-w-[240px] max-w-[260px] shrink-0 bg-stone-50 rounded-2xl border border-stone-100 p-4 flex flex-col gap-2 text-left active:scale-[0.98] transition-transform"
+                            className="min-w-[240px] max-w-[260px] shrink-0 bg-stone-50 dark:bg-[#161616] rounded-2xl border border-stone-100 dark:border-white/10 p-4 flex flex-col gap-2 text-left active:scale-[0.98] transition-transform"
                           >
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full overflow-hidden bg-stone-200 shrink-0 flex items-center justify-center text-[11px] font-black text-stone-500">
+                              <div className="w-7 h-7 rounded-full overflow-hidden bg-stone-200 dark:bg-[#252525] shrink-0 flex items-center justify-center text-[11px] font-black text-stone-500 dark:text-stone-400">
                                 {avatarUrl ? (
                                   <img
                                     src={avatarUrl}
@@ -558,22 +558,22 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                                   r.author.charAt(0).toUpperCase()
                                 )}
                               </div>
-                              <span className="text-[11px] font-black text-charcoal truncate flex-1">
+                              <span className="text-[11px] font-black text-charcoal dark:text-white truncate flex-1">
                                 {r.author}
                               </span>
                               {r.author_details.rating != null && (
                                 <div className="flex items-center gap-0.5 shrink-0">
                                   <Star size={9} fill="currentColor" className="text-bitter-lime" />
-                                  <span className="text-[10px] font-black text-stone-500">
+                                  <span className="text-[10px] font-black text-stone-500 dark:text-stone-400">
                                     {r.author_details.rating.toFixed(1)}
                                   </span>
                                 </div>
                               )}
                             </div>
-                            <p className="text-[11px] font-medium text-stone-600 leading-relaxed line-clamp-4 flex-1">
+                            <p className="text-[11px] font-medium text-stone-600 dark:text-stone-300 leading-relaxed line-clamp-4 flex-1">
                               {r.content}
                             </p>
-                            <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest">
+                            <p className="text-[9px] font-bold text-stone-300 dark:text-stone-600 uppercase tracking-widest">
                               {monthYear} · Lire la suite →
                             </p>
                           </button>
@@ -581,7 +581,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       })}
                     </div>
                   ) : (
-                    <p className="text-xs text-stone-400 font-medium">
+                    <p className="text-xs text-stone-400 dark:text-stone-500 font-medium">
                       Aucun avis dans cette catégorie.
                     </p>
                   )}
@@ -596,7 +596,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
                   {cast.map((person) => (
                     <div key={person.name} className="w-16 shrink-0 flex flex-col gap-1">
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-stone-100 shadow-sm">
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-stone-100 dark:bg-[#252525] shadow-sm">
                         {person.profile_path ? (
                           <img
                             src={tmdbImage(person.profile_path, 'w185')}
@@ -606,12 +606,12 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                             decoding="async"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-stone-300">
+                          <div className="w-full h-full flex items-center justify-center text-stone-300 dark:text-stone-600">
                             <User size={20} />
                           </div>
                         )}
                       </div>
-                      <p className="text-[9px] font-bold text-charcoal leading-tight truncate">
+                      <p className="text-[9px] font-bold text-charcoal dark:text-white leading-tight truncate">
                         {person.name}
                       </p>
                       <p className="text-[8px] font-medium text-stone-400 dark:text-stone-500 truncate">
@@ -630,11 +630,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                 onClick={() => setExpandedReview(null)}
               >
                 <div
-                  className="bg-cream w-full sm:max-w-md max-h-[70vh] rounded-3xl shadow-2xl flex flex-col animate-[slideUp_0.25s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
+                  className="bg-cream dark:bg-[#111] w-full sm:max-w-md max-h-[70vh] rounded-3xl shadow-2xl flex flex-col animate-[slideUp_0.25s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center gap-3 p-5 border-b border-sand shrink-0">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-200 shrink-0 flex items-center justify-center text-[12px] font-black text-stone-500">
+                  <div className="flex items-center gap-3 p-5 border-b border-sand dark:border-white/10 shrink-0">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-200 dark:bg-[#252525] shrink-0 flex items-center justify-center text-[12px] font-black text-stone-500 dark:text-stone-400">
                       {getAvatarUrl(expandedReview) ? (
                         <img
                           src={getAvatarUrl(expandedReview)!}
@@ -646,10 +646,10 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-black text-charcoal truncate">
+                      <p className="text-[12px] font-black text-charcoal dark:text-white truncate">
                         {expandedReview.author}
                       </p>
-                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest">
+                      <p className="text-[9px] text-stone-400 dark:text-stone-500 font-bold uppercase tracking-widest">
                         {new Date(expandedReview.created_at).toLocaleDateString('fr-FR', {
                           day: 'numeric',
                           month: 'long',
@@ -661,13 +661,13 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                     </div>
                     <button
                       onClick={() => setExpandedReview(null)}
-                      className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 active:scale-90 transition-transform shrink-0"
+                      className="w-8 h-8 rounded-full bg-stone-100 dark:bg-white/10 flex items-center justify-center text-stone-400 dark:text-stone-300 active:scale-90 transition-transform shrink-0"
                     >
                       <X size={14} strokeWidth={2.5} />
                     </button>
                   </div>
                   <div className="overflow-y-auto p-5 no-scrollbar">
-                    <p className="text-sm font-medium text-stone-600 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-sm font-medium text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-wrap">
                       {expandedReview.content}
                     </p>
                   </div>
@@ -676,13 +676,13 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
             )}
 
             {/* Sticky Actions */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-cream border-t border-sand flex gap-3 z-30">
+            <div className="absolute bottom-0 left-0 right-0 p-6 bg-cream dark:bg-[#0c0c0c] border-t border-sand dark:border-white/10 flex gap-3 z-30">
               <button
                 onClick={() => {
                   haptics.soft();
                   onAction(movie.id, 'watched');
                 }}
-                className="flex-1 bg-charcoal text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="flex-1 bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Eye size={18} /> J'ai vu
               </button>
@@ -691,7 +691,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   haptics.soft();
                   onAction(movie.id, 'watchlist');
                 }}
-                className="flex-1 bg-white text-charcoal border border-stone-200 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="flex-1 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Plus size={18} /> À voir
               </button>
