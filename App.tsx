@@ -2186,6 +2186,7 @@ const App: React.FC = () => {
             <CalendarView
               movies={uniqueMovies}
               profileId={session?.user?.id}
+              favoriteCinema={activeProfile?.favoriteCinema}
               onAddToWatchlist={(tmdbId) => void handleQuickWatchlist(tmdbId, 'movie')}
               onToast={setToastMessage}
             />

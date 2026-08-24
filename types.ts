@@ -71,7 +71,8 @@ export interface FavoriteCinema {
 export interface CinemaShowtime {
   /** Identifiant de séance UGC, unique et réutilisable dans le lien de réservation. */
   id: string;
-  title: string;
+  /** Absent quand la séance est déjà rangée sous son film dans une programmation. */
+  title?: string;
   startsAt: number;
   /** VO, VF, VOSTF… tel qu'UGC l'annonce. */
   version?: string;
@@ -80,6 +81,37 @@ export interface CinemaShowtime {
   endTime?: string;
   cinemaName?: string;
   bookingUrl: string;
+}
+
+/**
+ * Une journée de programmation, telle qu'UGC l'a publiée.
+ *
+ * Les jours vides sont décrits eux aussi : le sélecteur les grise au lieu de
+ * les cacher. UGC ne publie la semaine suivante qu'au basculement du mercredi,
+ * et un jour sans séance doit se lire comme « rien de prévu », pas comme une panne.
+ */
+export interface CinemaProgrammeDay {
+  /** jj/mm/aaaa — la forme qu'UGC attend. */
+  date: string;
+  /** aaaa-mm-jj, pour construire une date sans réinterpréter la précédente. */
+  iso: string;
+  showings: number;
+  films: number;
+}
+
+export interface CinemaProgrammeFilm {
+  /** Identifiant UGC, pas TMDB : il ne sert qu'à regrouper les séances. */
+  filmId: string;
+  title: string;
+  posterUrl?: string;
+  showtimes: CinemaShowtime[];
+}
+
+export interface CinemaProgramme {
+  /** Le jour effectivement retenu, qui n'est pas toujours celui demandé. */
+  date: string;
+  days: CinemaProgrammeDay[];
+  films: CinemaProgrammeFilm[];
 }
 
 /**
