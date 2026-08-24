@@ -43,6 +43,26 @@ const wakeSupabase = (active: boolean) => {
  * @param minAwayMs Durée d'absence en dessous de laquelle on ne fait rien. Passer
  *   d'un onglet à l'autre une seconde ne justifie pas de tout relire.
  */
+/**
+ * Réveille le client Supabase au retour au premier plan, sans rien recharger.
+ *
+ * À poser UNE fois, à la racine. `useResumeRefresh` ne s'occupait du verrou que
+ * sur les deux écrans sociaux où il était monté ; partout ailleurs — dont la
+ * fiche film — le client restait verrouillé après une mise en arrière-plan, et
+ * la moindre requête échouait jusqu'au redémarrage de l'application.
+ *
+ * Le cas est banal depuis les séances UGC : toucher un horaire ouvre la
+ * billetterie dans un autre onglet, donc met la PWA en arrière-plan à chaque
+ * réservation.
+ */
+export const useSupabaseWake = () => {
+  useEffect(() => {
+    const onVisibility = () => wakeSupabase(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+};
+
 export const useResumeRefresh = (onResume: () => void, minAwayMs = 3000) => {
   const callback = useRef(onResume);
   callback.current = onResume;

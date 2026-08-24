@@ -104,6 +104,7 @@ import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
 import { notifySplashReady } from './utils/splash';
+import { useSupabaseWake } from './utils/useResumeRefresh';
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
@@ -333,6 +334,10 @@ const SortMenu = memo(
 
 const App: React.FC = () => {
   const { t } = useLanguage();
+  // À la racine, donc valable sur tous les écrans : sans ça, le client Supabase
+  // reste verrouillé après un passage en arrière-plan et plus aucune requête ne
+  // part, jusqu'au redémarrage de l'application. Voir utils/useResumeRefresh.
+  useSupabaseWake();
   const STORAGE_KEY = 'the_bitter_profiles_v2';
   const LAST_PROFILE_ID_KEY = 'THE_BITTER_LAST_PROFILE_ID';
   const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';

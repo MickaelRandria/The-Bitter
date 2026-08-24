@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, Check, Clock3, ExternalLink, Loader2, MapPin, Ticket } from 'lucide-react';
+import { CalendarClock, Check, Clock3, ExternalLink, Loader2, MapPin, RotateCw, Ticket } from 'lucide-react';
 import { CinemaScreening, CinemaShowtime, FavoriteCinema } from '../types';
 import { fetchMovieShowtimes } from '../services/cinemaDirectory';
 import { createScreening, listScreeningsForMovie } from '../services/screenings';
@@ -59,6 +59,8 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [pendingId, setPendingId] = useState('');
+  /** Incrémenté par « Réessayer » : c'est ce qui relance l'effet de chargement. */
+  const [reloadToken, setReloadToken] = useState(0);
   /**
    * Les créneaux déjà envoyés à la base. Une ref, pas un état : deux touchers
    * rapprochés lisent le même rendu, et `existing` n'a pas encore bougé — le
@@ -78,18 +80,27 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
     setIsLoading(true);
     setError('');
     void (async () => {
-      const [result, alreadyPlanned] = await Promise.all([
-        fetchMovieShowtimes(cinemaId, wantedTitles, DAYS_AHEAD),
-        profileId ? listScreeningsForMovie(profileId, tmdbId) : Promise.resolve([] as CinemaScreening[]),
-      ]);
-      if (cancelled) return;
-      submitted.current = new Set(
-        alreadyPlanned.map((screening) => String(screening.startsAt))
-      );
-      setShowtimes(result.data);
-      setExisting(alreadyPlanned);
-      setError(result.error || '');
-      setIsLoading(false);
+      try {
+        const [result, alreadyPlanned] = await Promise.all([
+          fetchMovieShowtimes(cinemaId, wantedTitles, DAYS_AHEAD),
+          profileId ? listScreeningsForMovie(profileId, tmdbId) : Promise.resolve([] as CinemaScreening[]),
+        ]);
+        if (cancelled) return;
+        submitted.current = new Set(
+          alreadyPlanned.map((screening) => String(screening.startsAt))
+        );
+        setShowtimes(result.data);
+        setExisting(alreadyPlanned);
+        setError(result.error || '');
+      } catch (error) {
+        // Aucune de ces deux lectures ne doit pouvoir laisser la section sur son
+        // écran de chargement : un `finally` vaut mieux qu'un chemin d'erreur
+        // qu'on croit exhaustif.
+        console.warn('[Séances] Chargement des horaires interrompu', error);
+        if (!cancelled) setError('Les horaires n’ont pas pu être chargés.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     })();
 
     return () => {
@@ -97,7 +108,7 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
     };
     // titleKey plutôt que le tableau : sa référence change à chaque rendu du parent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cinemaId, titleKey, profileId, tmdbId]);
+  }, [cinemaId, titleKey, profileId, tmdbId, reloadToken]);
 
   const days = useMemo(() => {
     const grouped = new Map<number, CinemaShowtime[]>();
@@ -177,7 +188,15 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({
           <Loader2 size={14} className="animate-spin" /> Recherche des séances…
         </p>
       ) : error ? (
-        <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{error}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{error}</p>
+          <button
+            onClick={() => setReloadToken((token) => token + 1)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-stone-500 dark:text-stone-400 transition hover:border-forest hover:text-forest dark:border-white/10 dark:hover:border-bitter-lime dark:hover:text-bitter-lime"
+          >
+            <RotateCw size={11} /> Réessayer
+          </button>
+        </div>
       ) : days.length === 0 ? (
         <p className="flex items-start gap-2 text-xs font-medium text-stone-500 dark:text-stone-400">
           <CalendarClock size={14} className="mt-0.5 shrink-0 text-stone-400" />
