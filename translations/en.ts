@@ -528,6 +528,10 @@ export const en: Record<string, string> = {
   'tourPrompt.rating.body':
     'This is your first add. We can take a moment on the criteria and Bitter+ mode, or you can just rate.',
   'tourPrompt.rating.duration': '{count} steps, about 1 minute',
+  'tourPrompt.demo.title': 'Shall we look around the demo?',
+  'tourPrompt.demo.body':
+    'Alex’s profile is already full: 31 rated films, a complete DNA, a subscription that pays for itself. The tour runs on full screens, not an empty app.',
+  'tourPrompt.demo.duration': '{count} steps, about 2 minutes',
 
   // ── Guided tour ──────────────────────────────────────────────────────────
   'tour.skip': 'Skip the tour',
@@ -610,6 +614,36 @@ export const en: Record<string, string> = {
   'tour.outro.title': 'Over to you',
   'tour.outro.body':
     'Add your first film and we’ll step back in to explain rating. This tour stays right here, under “Replay the tour”.',
+
+  // ── Guided tour: demo-only steps ───────────────────────────────
+  'tour.demo-welcome.title': 'Why a demo account',
+  'tour.demo-welcome.body':
+    'You are looking at Alex’s profile: 31 films rated over ten months. This is the whole app, filled in — the only way to judge what it is actually worth.',
+  'tour.demo-welcome.b1': 'No sign-up, no email asked',
+  'tour.demo-welcome.b2': 'Full screens: DNA, analytics, calendar',
+  'tour.demo-welcome.b3': 'Rate it, change it, break it: nothing is saved',
+  'tour.demo-welcome.b4': 'Your real account stays untouched, one tap away',
+
+  'tour.demo-collection.title': 'Alex’s collection',
+  'tour.demo-collection.body':
+    '31 films watched, 6 waiting. This block shows the total and leads to the analytics.',
+  'tour.demo-collection.b1': 'The Watched and To watch tabs',
+  'tour.demo-collection.b2': 'Every film keeps its score and its review',
+  'tour.demo-collection.b3': 'Rewatches are counted separately',
+
+  'tour.demo-analytics.title': 'Three readings of your ratings',
+  'tour.demo-analytics.body':
+    'With 31 films everything is unlocked. This is exactly what your own account will show once it fills up.',
+  'tour.demo-analytics.b1': 'Profile: your archetype and taste portrait',
+  'tour.demo-analytics.b2': 'Ratings: how harsh you are, your genres, your directors',
+  'tour.demo-analytics.b3': 'DNA: the imprints films leave on you',
+  'tour.demo-analytics.cta': 'Open the DNA tab',
+
+  'tour.demo-outro.title': 'What you just saw is real',
+  'tour.demo-outro.body':
+    'No mock-ups: this is the app, with real data and real calculations. Yours will fill up the same way.',
+  'tour.demo-outro.b1': 'Nothing from this demo was saved',
+  'tour.demo-outro.b2': '“Create my real account”, at the top, whenever you want',
 
   // ── Guided tour: rating ──────────────────────────────────────────────────
   'tour.add-status.title': 'Watched, or to watch?',
@@ -1320,4 +1354,12 @@ export const en: Record<string, string> = {
   'viewing.paid': 'Paid ticket',
   'viewing.invitation': 'Invitation',
   'viewing.otherPayment': 'Other',
+  // ── Demo mode ───────────────────────────────────────────────────────
+  'demo.badge': 'Demo mode',
+  'demo.banner': 'You are exploring a pre-filled profile.',
+  'demo.exit': 'Create my real account',
+  'demo.start': 'Explore with a demo account',
+  'demo.startDesc': 'A full profile, no sign-up',
+  'demo.blocked': 'Demo mode: nothing is saved here.',
+  'demo.left': 'Demo mode closed. Over to you.',
 };

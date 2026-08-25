@@ -4,7 +4,12 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 
-export type TourPromptVariant = 'main' | 'rating';
+/**
+ * `demo` n'est pas un troisième parcours : c'est le parcours `main` joué sur le
+ * profil de démonstration. La variante ne change que le texte de la proposition,
+ * qui n'a aucune raison de parler d'« ton profil » quand il s'agit de celui d'Alex.
+ */
+export type TourPromptVariant = 'main' | 'rating' | 'demo';
 
 interface TourPromptProps {
   variant: TourPromptVariant;

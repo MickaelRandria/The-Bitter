@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { DEMO_BLOCKED_MESSAGE, isDemoMode } from '../utils/demoMode';
 
 export type PushSetupResult =
   | { ok: true }
@@ -73,6 +74,7 @@ const invoke = async <T>(body: Record<string, unknown>): Promise<{ data: T | nul
 };
 
 export const enablePushNotifications = async (): Promise<PushSetupResult> => {
+  if (isDemoMode()) return { ok: false, code: 'server-error', message: DEMO_BLOCKED_MESSAGE };
   if (!supabase) return { ok: false, code: 'server-error', message: 'Synchronisation indisponible.' };
   if (!isPushSupported()) {
     return {
@@ -135,6 +137,7 @@ export const enablePushNotifications = async (): Promise<PushSetupResult> => {
 
 /** Envoie un vrai push depuis le serveur, seulement aux appareils du compte connecté. */
 export const testPushNotification = async (): Promise<PushTestResult> => {
+  if (isDemoMode()) return { ok: false, message: DEMO_BLOCKED_MESSAGE };
   if (!supabase || !isPushSupported()) {
     return { ok: false, message: 'Les notifications ne sont pas disponibles sur cet appareil.' };
   }

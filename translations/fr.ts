@@ -530,6 +530,10 @@ export const fr: Record<string, string> = {
   'tourPrompt.rating.body':
     'C’est ton premier ajout. On peut prendre un instant pour les critères et le mode Bitter+, ou tu notes directement.',
   'tourPrompt.rating.duration': '{count} étapes, environ 1 minute',
+  'tourPrompt.demo.title': 'On visite avec le compte démo ?',
+  'tourPrompt.demo.body':
+    "Le profil d’Alex est déjà rempli : 31 films notés, un ADN complet, un abonnement rentabilisé. Le tuto passe donc sur des écrans pleins, pas sur une app vide.",
+  'tourPrompt.demo.duration': '{count} étapes, environ 2 minutes',
 
   // ── Visite guidée ────────────────────────────────────────────────────────
   'tour.skip': 'Passer le tuto',
@@ -614,6 +618,36 @@ export const fr: Record<string, string> = {
   'tour.outro.title': 'À toi de jouer',
   'tour.outro.body':
     "Ajoute ton premier film : on reprendra la main pour t’expliquer la notation. Ce tuto reste ici, dans « Revoir le tuto ».",
+
+  // ── Visite guidée : étapes propres au mode démo ──────────────────────
+  'tour.demo-welcome.title': 'Pourquoi un compte démo',
+  'tour.demo-welcome.body':
+    "Tu regardes le profil d’Alex : 31 films notés sur dix mois. C’est l’application entière, remplie — la seule façon de juger ce qu’elle vaut vraiment.",
+  'tour.demo-welcome.b1': 'Aucune inscription, aucun email demandé',
+  'tour.demo-welcome.b2': 'Des écrans pleins : ADN, statistiques, calendrier',
+  'tour.demo-welcome.b3': 'Note, modifie, casse tout : rien n’est enregistré',
+  'tour.demo-welcome.b4': 'Ton vrai compte reste intact, à un bouton d’ici',
+
+  'tour.demo-collection.title': 'La collection d’Alex',
+  'tour.demo-collection.body':
+    "31 films vus, 6 en attente. Le bloc affiche le total et mène aux statistiques.",
+  'tour.demo-collection.b1': 'Les onglets Vus et À voir',
+  'tour.demo-collection.b2': 'Chaque film garde sa note et sa critique',
+  'tour.demo-collection.b3': 'Les revisionnages comptent à part',
+
+  'tour.demo-analytics.title': 'Trois lectures de tes notes',
+  'tour.demo-analytics.body':
+    "Avec 31 films, tout est débloqué. C’est exactement ce que ton compte affichera une fois rempli.",
+  'tour.demo-analytics.b1': 'Profil : ton archétype et ton portrait de goût',
+  'tour.demo-analytics.b2': 'Notes : ta sévérité, tes genres, tes réalisateurs',
+  'tour.demo-analytics.b3': 'ADN : les empreintes que les films te laissent',
+  'tour.demo-analytics.cta': 'Ouvre l’onglet ADN',
+
+  'tour.demo-outro.title': 'Ce que tu viens de voir est réel',
+  'tour.demo-outro.body':
+    "Aucune maquette : c’est l’application, avec de vraies données et de vrais calculs. Le tien se remplira au même rythme.",
+  'tour.demo-outro.b1': 'Rien de cette démo n’a été enregistré',
+  'tour.demo-outro.b2': '« Créer mon vrai compte », en haut de l’écran, quand tu veux',
 
   // ── Visite guidée : notation ─────────────────────────────────────────────
   'tour.add-status.title': 'Vu, ou à voir ?',
@@ -1326,4 +1360,12 @@ export const fr: Record<string, string> = {
   'viewing.paid': 'Place payée',
   'viewing.invitation': 'Invitation',
   'viewing.otherPayment': 'Autre',
+  // ── Mode démo ─────────────────────────────────────────────────────────
+  'demo.badge': 'Mode démo',
+  'demo.banner': 'Tu explores un profil pré-rempli.',
+  'demo.exit': 'Créer mon vrai compte',
+  'demo.start': 'Découvrir avec un compte démo',
+  'demo.startDesc': 'Un profil complet, sans inscription',
+  'demo.blocked': 'Mode démo : rien n’est enregistré ici.',
+  'demo.left': 'Mode démo quitté. À toi de jouer.',
 };

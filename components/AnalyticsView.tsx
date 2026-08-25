@@ -1558,7 +1558,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   return (
     <div className="pb-24 animate-[fadeIn_0.3s_ease-out]">
       {/* Navigation Tabs */}
-      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 mb-8 w-full max-w-md mx-auto transition-colors">
+      {/* `analytics-locked` n'est rendu que sous 5 films : le tuto a besoin d'une
+          cible ici aussi quand tout est débloqué. */}
+      <div
+        data-tour="analytics-tabs"
+        className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 mb-8 w-full max-w-md mx-auto transition-colors"
+      >
         {(['overview', 'notes', 'psycho'] as TabMode[]).map((tab) => (
           <button
             key={tab}

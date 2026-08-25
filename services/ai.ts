@@ -2,6 +2,8 @@ import { UserProfile, Movie } from '../types';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
 import { supabase } from './supabase';
 import { currentCriterionLabel } from '../config/ratingProfiles';
+import { DEMO_AI_MESSAGE, isDemoMode } from '../utils/demoMode';
+import { DEMO_TASTE_TRAITS } from '../constants/demoData';
 
 export interface AISearchResult {
   text: string;
@@ -28,6 +30,9 @@ const cleanAIResponse = (text: string): string => {
  * quand personne n'est connecté, plutôt qu'un échec muet.
  */
 const callAI = async <T>(payload: Record<string, unknown>): Promise<T> => {
+  // Le relais exige une session : en démo il répondrait « connecte-toi », ce qui
+  // se lit comme une panne. On nomme la limite plutôt que de la laisser deviner.
+  if (isDemoMode()) throw new Error(DEMO_AI_MESSAGE);
   if (!supabase) throw new Error("L'assistant n'est pas disponible hors connexion.");
 
   const { data, error } = await supabase.functions.invoke('ai', { body: payload });
@@ -162,6 +167,10 @@ export interface TasteTrait {
  * chiffre affiché à côté permet de trancher.
  */
 export const getTastePortrait = async (statsDescription: string): Promise<TasteTrait[]> => {
+  // Le portrait est la carte de tête de l'onglet Profil : la démo la sert
+  // pré-écrite, chiffres réels à l'appui, plutôt que de montrer un refus.
+  if (isDemoMode()) return DEMO_TASTE_TRAITS;
+
   const { traits } = await callAI<{ traits?: TasteTrait[] }>({
     action: 'portrait',
     context: statsDescription,

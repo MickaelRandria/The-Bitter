@@ -1,5 +1,7 @@
 import { CinemaScreening, CinemaScreeningInput, CinemaScreeningStatus } from '../types';
 import { supabase } from './supabase';
+import { DEMO_BLOCKED_MESSAGE, isDemoMode } from '../utils/demoMode';
+import { buildDemoScreenings } from '../constants/demoData';
 
 interface ScreeningRow {
   id: string;
@@ -102,6 +104,11 @@ const toRow = (input: CinemaScreeningInput) => {
 };
 
 export const listUpcomingScreenings = async (profileId: string): Promise<CinemaScreening[]> => {
+  // Mode démo : les séances viennent du jeu de données local. L'interception est
+  // avant la garde `!supabase` — sans clés d'environnement le client est nul, et
+  // le calendrier resterait vide de toute sortie prévue.
+  if (isDemoMode()) return buildDemoScreenings();
+
   if (!supabase || !profileId) return [];
   // Même raison que `listScreeningsForMovie` : au retour d'un arrière-plan, la
   // requête ne rend pas une erreur, elle rejette. Sans ce filet, le calendrier
@@ -136,6 +143,12 @@ export const listScreeningsForMovie = async (
   profileId: string,
   tmdbId: number
 ): Promise<CinemaScreening[]> => {
+  if (isDemoMode()) {
+    return buildDemoScreenings().filter(
+      (screening) => screening.tmdbId === tmdbId && screening.startsAt >= Date.now()
+    );
+  }
+
   if (!supabase || !profileId || !Number.isFinite(tmdbId)) return [];
   // Le try/catch n'est pas décoratif : quand le client Supabase revient d'une
   // mise en arrière-plan, `auth.getSession()` peut REJETER au bout de cinq
@@ -165,6 +178,7 @@ export const createScreening = async (
   profileId: string,
   input: CinemaScreeningInput
 ): Promise<ScreeningWrite> => {
+  if (isDemoMode()) return { ok: false, error: DEMO_BLOCKED_MESSAGE };
   if (!supabase) return { ok: false, error: 'Connecte-toi pour planifier une séance.' };
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
@@ -190,6 +204,7 @@ export const updateScreening = async (
   screeningId: string,
   input: CinemaScreeningInput
 ): Promise<ScreeningWrite> => {
+  if (isDemoMode()) return { ok: false, error: DEMO_BLOCKED_MESSAGE };
   if (!supabase) return { ok: false, error: 'Connecte-toi pour modifier une séance.' };
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
@@ -214,6 +229,7 @@ export const updateScreeningStatus = async (
   screeningId: string,
   status: CinemaScreeningStatus
 ): Promise<boolean> => {
+  if (isDemoMode()) return false;
   if (!supabase) return false;
   const { error } = await supabase
     .from('cinema_screenings')
@@ -238,6 +254,7 @@ export const updateScreeningStatus = async (
  * trigger sur une séance déjà confirmée.
  */
 export const confirmScreening = async (screeningId: string): Promise<ScreeningWrite> => {
+  if (isDemoMode()) return { ok: false, error: DEMO_BLOCKED_MESSAGE };
   if (!supabase) return { ok: false, error: 'Connecte-toi pour confirmer une séance.' };
   if (!screeningId) return { ok: false, error: 'Séance invalide.' };
 
@@ -262,6 +279,7 @@ export const confirmScreening = async (screeningId: string): Promise<ScreeningWr
  * La policy RLS limite la suppression au propriétaire de la séance.
  */
 export const deleteScreening = async (screeningId: string): Promise<ScreeningDelete> => {
+  if (isDemoMode()) return { ok: false, error: DEMO_BLOCKED_MESSAGE };
   if (!supabase) return { ok: false, error: 'Connecte-toi pour retirer une séance.' };
   if (!screeningId) return { ok: false, error: 'Séance invalide.' };
 

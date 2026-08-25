@@ -16,6 +16,7 @@ import {
   Globe,
   CheckCircle2,
   ChevronLeft,
+  Wand2,
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import type { AuthError } from '@supabase/supabase-js';
@@ -25,11 +26,16 @@ import ThemeToggle from './ThemeToggle';
 
 interface AuthScreenProps {
   onContinueAsGuest: () => void;
+  /**
+   * Ouvre le profil de démonstration, sans passer par le formulaire. Optionnel :
+   * absent, le bouton n'est pas rendu.
+   */
+  onStartDemo?: () => void;
 }
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest, onStartDemo }) => {
   const { t, language, setLanguage } = useLanguage();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -409,6 +415,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onContinueAsGuest }) => {
                 </span>
                 <div className="h-px bg-stone-300 dark:bg-white/20 flex-1" />
               </div>
+            )}
+
+            {/* Découvrir avant de s'inscrire. Sous le mode invité et non au-dessus :
+                un profil de démonstration montre l'application, il ne remplace pas
+                la création d'un compte. */}
+            {authMode !== 'forgot' && onStartDemo && (
+              <button
+                type="button"
+                onClick={() => { haptics.medium(); onStartDemo(); }}
+                className="w-full bg-charcoal/[0.03] dark:bg-white/5 text-stone-500 dark:text-stone-400 border-2 border-dashed border-sand dark:border-white/10 hover:border-forest/40 dark:hover:border-forest/60 hover:text-charcoal dark:hover:text-white py-5 px-6 rounded-[2rem] transition-all active:scale-95 flex items-center gap-4"
+              >
+                <Wand2 size={18} className="shrink-0" />
+                <div className="text-left">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.2em]">{t('demo.start')}</span>
+                  <span className="block text-[9px] font-medium text-stone-400 mt-0.5">
+                    {t('demo.startDesc')}
+                  </span>
+                </div>
+              </button>
             )}
 
             {authMode !== 'forgot' && (

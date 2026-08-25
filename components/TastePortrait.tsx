@@ -5,6 +5,8 @@ import { computeTasteStats, describeStats } from '../utils/tasteStats';
 import { getTastePortrait, TasteTrait } from '../services/ai';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { isDemoMode } from '../utils/demoMode';
+import { DEMO_TASTE_TRAITS } from '../constants/demoData';
 
 interface Props {
   movies: Movie[];
@@ -43,6 +45,9 @@ const TastePortrait: React.FC<Props> = ({ movies }) => {
   const stats = useMemo(() => computeTasteStats(movies), [movies]);
 
   const [traits, setTraits] = useState<TasteTrait[]>(() => {
+    // En démo le portrait est déjà là : l'onglet Profil doit être complet à
+    // l'arrivée. Et le cache n'est pas lu, il appartient au vrai profil.
+    if (isDemoMode()) return DEMO_TASTE_TRAITS;
     try {
       const cached: Cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
       return cached?.traits ?? [];
@@ -62,7 +67,9 @@ const TastePortrait: React.FC<Props> = ({ movies }) => {
     }
   }, [traits]);
 
-  const stale = traits.length > 0 && stats.count - cachedCount >= 5;
+  // Le portrait de démo n'a pas de cache daté : `cachedCount` vaut zéro et
+  // l'écart le ferait passer pour périmé dès la première seconde.
+  const stale = !isDemoMode() && traits.length > 0 && stats.count - cachedCount >= 5;
 
   const draw = async () => {
     if (loading) return;
@@ -76,10 +83,15 @@ const TastePortrait: React.FC<Props> = ({ movies }) => {
         return;
       }
       setTraits(result);
-      localStorage.setItem(
-        CACHE_KEY,
-        JSON.stringify({ count: stats.count, traits: result } satisfies Cached)
-      );
+      // Le cache est indexé sur une seule clé, partagée par tous les profils de
+      // l'appareil : y écrire le portrait de la démo remplacerait celui de son
+      // propriétaire.
+      if (!isDemoMode()) {
+        localStorage.setItem(
+          CACHE_KEY,
+          JSON.stringify({ count: stats.count, traits: result } satisfies Cached)
+        );
+      }
       haptics.success();
     } catch (e: any) {
       setError(e?.message || t('portrait.failed'));
