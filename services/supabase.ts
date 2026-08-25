@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { AdaptiveRatingData } from '../types';
+import { isDemoMode } from '../utils/demoMode';
+import { buildDemoFriendsActivity } from '../constants/demoData';
 
 // 🔑 Access environment variables safely
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -992,6 +994,16 @@ export interface FriendActivity {
  * aux co-membres doit s'appliquer avant la lecture, pas après.
  */
 export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendActivity>> {
+  /**
+   * Le fil de démonstration se construit sur l'appareil.
+   *
+   * L'interception est AVANT la garde `!supabase` et non après : sans variables
+   * d'environnement, le client vaut `null` et la démo n'afficherait qu'un écran
+   * d'erreur « Sauvegarde en ligne indisponible » là où elle doit montrer ce que
+   * le fil sait faire.
+   */
+  if (isDemoMode()) return { data: buildDemoFriendsActivity().slice(0, limit) };
+
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error, timedOut } = await withTimeout(

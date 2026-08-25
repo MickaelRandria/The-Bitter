@@ -83,6 +83,55 @@ export const TOUR_STEPS: TourStep[] = [
 ];
 
 /**
+ * Le même parcours, joué sur le profil de démonstration.
+ *
+ * Deux étapes du parcours normal deviennent inapplicables dès que la collection
+ * est pleine, et il ne s'agit pas d'un détail de rédaction : leurs cibles
+ * n'existent tout simplement plus dans le DOM.
+ *
+ * - `feed-empty` n'est rendu que si `movies.length === 0` (App.tsx). Avec 31
+ *   films il disparaît, et l'étape resterait trois secondes à chercher une cible
+ *   introuvable avant de retomber sur une carte centrée qui parle d'un écran vide.
+ * - `analytics-locked` n'est rendu que sous 5 films notés (AnalyticsView). Même
+ *   problème, avec en plus un texte qui annonce « encore verrouillé » devant des
+ *   statistiques entièrement débloquées.
+ *
+ * Elles sont donc remplacées par `demo-collection` et `demo-analytics`, qui
+ * visent des éléments présents quand la collection est fournie. `demo-welcome`
+ * s'ajoute en tête pour dire ce qu'est ce profil et pourquoi on le montre, et
+ * `demo-outro` remplace la sortie, qui invitait à ajouter un premier film.
+ */
+export const DEMO_TOUR_STEPS: TourStep[] = [
+  // ── Feed ────────────────────────────────────────────────────────────────────
+  step('demo-welcome', 'Feed', null, { bullets: 4 }),
+  step('intro', 'Feed', null),
+  step('demo-collection', 'Feed', 'feed-collection', { bullets: 3 }),
+  step('nav-add', 'Feed', 'nav-add'),
+  step('nav-discover', 'Feed', 'nav-discover', { action: 'click' }),
+
+  // ── Discover ────────────────────────────────────────────────────────────────
+  step('discover-search', 'Discover', 'discover-search'),
+  step('discover-period', 'Discover', 'discover-period', { action: 'click' }),
+  step('discover-platform', 'Discover', 'discover-platform', { action: 'click' }),
+  step('nav-calendar', 'Discover', 'nav-calendar', { action: 'click' }),
+
+  // ── Calendar ────────────────────────────────────────────────────────────────
+  step('calendar-toggle', 'Calendar', 'calendar-toggle', { action: 'click' }),
+  step('calendar-grid', 'Calendar', 'calendar-nav', { action: 'click' }),
+  step('nav-analytics', 'Calendar', 'nav-analytics', { action: 'click' }),
+
+  // ── Analytics ───────────────────────────────────────────────────────────────
+  step('demo-analytics', 'Analytics', 'analytics-tabs', { action: 'click', bullets: 3 }),
+  step('nav-profile', 'Analytics', 'nav-profile', { action: 'click' }),
+
+  // ── Profil ──────────────────────────────────────────────────────────────────
+  step('profile-calibration', 'Profile', 'profile-calibration', { bullets: 2 }),
+  step('profile-notifications', 'Profile', 'profile-notifications', { action: 'click' }),
+  step('profile-export', 'Profile', 'profile-export'),
+  step('demo-outro', 'Profile', null, { bullets: 2 }),
+];
+
+/**
  * Second parcours, déclenché à la première ouverture de l'écran d'ajout plutôt
  * qu'à la création du profil : la notation ne s'explique bien qu'au moment où on
  * s'apprête à noter. L'écran rend toute la grille sans qu'un film soit

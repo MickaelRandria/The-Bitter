@@ -105,6 +105,9 @@ import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
 import { notifySplashReady } from './utils/splash';
 import { useSupabaseWake } from './utils/useResumeRefresh';
+import { disableDemoMode, enableDemoMode, isDemoMode } from './utils/demoMode';
+import { buildDemoProfile, DEMO_PROFILE_ID } from './constants/demoData';
+import DemoBanner from './components/DemoBanner';
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
@@ -116,7 +119,12 @@ const CinemaSubscriptionDetailsModal = lazy(
   () => import('./components/CinemaSubscriptionDetailsModal')
 );
 const FavoriteCinemaModal = lazy(() => import('./components/FavoriteCinemaModal'));
-import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
+import {
+  TOUR_STEPS,
+  DEMO_TOUR_STEPS,
+  RATING_TOUR_STEPS,
+  RATING_TOUR_SEEN_ID,
+} from './constants/tour';
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -138,6 +146,13 @@ const LetterboxdImport = lazy(() => import('./components/LetterboxdImport'));
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
+
+/**
+ * Hauteur du bandeau de démo, à retrancher du haut de l'en-tête tant qu'il est
+ * affiché. Il est `fixed` : sans ce décalage il recouvrirait le titre. Voir
+ * components/DemoBanner.tsx, qui fixe la même hauteur (h-11).
+ */
+const DEMO_BANNER_OFFSET = '2.75rem';
 
 const BottomNav = memo(
   ({
@@ -345,18 +360,46 @@ const App: React.FC = () => {
   const SEEN_TOOLTIPS_KEY = 'the_bitter_seen_tooltips';
   const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
+  /**
+   * Mode démo.
+   *
+   * Lu de façon SYNCHRONE au premier rendu, pas dans un effet : l'effet
+   * d'amorçage et l'effet d'authentification tournent avant, et il serait trop
+   * tard pour les court-circuiter. `isDemoMode()` a déjà tranché au chargement du
+   * module (paramètre d'URL ou drapeau mémorisé), cet état ne fait que suivre.
+   */
+  const [isDemo, setIsDemo] = useState<boolean>(() => isDemoMode());
+  /**
+   * Le drapeau lu au moment de l'exécution. Les gardes posés dans des effets et
+   * des rappels différés doivent voir la valeur courante, pas celle capturée à la
+   * création de la fonction — même raison que `sessionRef` juste en dessous.
+   */
+  const isDemoRef = useRef(isDemo);
+  isDemoRef.current = isDemo;
+
   const [session, setSession] = useState<any | null>(null);
   /** Session lue au moment de l'exécution, pour les traitements différés. */
   const sessionRef = useRef<any | null>(null);
   sessionRef.current = session;
-  const [authLoading, setAuthLoading] = useState(true);
+  // En démo, aucune session n'est vérifiée : ni attente, ni splash prolongé.
+  const [authLoading, setAuthLoading] = useState(() => !isDemoMode());
   // Amorçage complet : vérification de session PUIS migration éventuelle. Distinct
   // de `authLoading`, qui retombe dès la session connue pour ne pas retenir l'UI
   // pendant une migration réseau. Sert uniquement à retirer le splash.
-  const [bootstrapping, setBootstrapping] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [bootstrapping, setBootstrapping] = useState(() => !isDemoMode());
+  const [showWelcome, setShowWelcome] = useState(() => !isDemoMode());
   const [showProfileLinking, setShowProfileLinking] = useState(false);
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  /**
+   * En démo, le profil est semé ici et nulle part ailleurs.
+   *
+   * Dans l'initialiseur plutôt que dans un effet : l'effet d'amorçage lirait
+   * localStorage entre-temps et l'écran d'accueil apparaîtrait le temps d'un
+   * rendu. Et comme c'est un initialiseur, le double montage de StrictMode ne
+   * peut pas créer deux profils.
+   */
+  const [profiles, setProfiles] = useState<UserProfile[]>(() =>
+    isDemoMode() ? [buildDemoProfile()] : []
+  );
   /**
    * Profils lus au moment de l'exécution. L'effet de téléchargement ne dépend pas
    * de `profiles` (il bouclerait sur lui-même), il a pourtant besoin de savoir
@@ -365,7 +408,9 @@ const App: React.FC = () => {
    */
   const profilesRef = useRef<UserProfile[]>([]);
   profilesRef.current = profiles;
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(() =>
+    isDemoMode() ? DEMO_PROFILE_ID : null
+  );
   /**
    * Vrai quand l'utilisateur a lui-même demandé le sélecteur de profils.
    *
@@ -419,7 +464,7 @@ const App: React.FC = () => {
    * La bannière ne s'affiche que tant que la question n'a pas été tranchée. Elle
    * réapparaissait à chaque ouverture parce que le choix n'était jamais relu.
    */
-  const [showConsent, setShowConsent] = useState(() => readConsent() === null);
+  const [showConsent, setShowConsent] = useState(() => !isDemoMode() && readConsent() === null);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showCineAssistant, setShowCineAssistant] = useState(false);
   const [deckAdvanceTrigger, setDeckAdvanceTrigger] = useState(0);
@@ -463,7 +508,14 @@ const App: React.FC = () => {
   // Les deux parcours démarrent tout seuls : on demande d'abord, on n'impose pas.
   const [pendingTour, setPendingTour] = useState<'main' | 'rating' | null>(null);
   const [tourStepIndex, setTourStepIndex] = useState(0);
-  const tourSteps = activeTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS;
+  /**
+   * Le parcours principal a deux versions. Celle de la démo vise des cibles qui
+   * n'existent qu'avec une collection fournie : `feed-empty` et `analytics-locked`
+   * disparaissent du DOM dès qu'il y a des films, et le tuto chercherait dans le
+   * vide. Voir constants/tour.ts.
+   */
+  const mainTourSteps = isDemo ? DEMO_TOUR_STEPS : TOUR_STEPS;
+  const tourSteps = activeTour === 'rating' ? RATING_TOUR_STEPS : mainTourSteps;
   const tourStep = activeTour ? tourSteps[tourStepIndex] : null;
   const tourActive = activeTour !== null;
   const [activeTooltip, setActiveTooltip] = useState<{
@@ -479,6 +531,14 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
+    /**
+     * En démo, le profil est déjà en place (initialiseur de `profiles`). Relire
+     * localStorage ici l'écraserait par les vrais profils de l'appareil, et la
+     * ligne `removeItem(LAST_PROFILE_ID_KEY)` plus bas effacerait le dernier
+     * profil choisi par la personne qui possède le téléphone.
+     */
+    if (isDemoRef.current) return;
+
     const savedProfiles = localStorage.getItem(STORAGE_KEY);
     let loadedProfiles: UserProfile[] = [];
     if (savedProfiles) {
@@ -553,19 +613,26 @@ const App: React.FC = () => {
     );
   }, []);
 
+  // Les trois écritures qui suivent sont les seules à toucher les clés des vrais
+  // profils. En démo elles sont neutralisées : ce qu'on note pendant une
+  // démonstration vit en mémoire et disparaît au rechargement, sans jamais se
+  // mélanger aux films de la personne à qui appartient l'appareil.
   useEffect(() => {
+    if (isDemoRef.current) return;
     if (activeProfileId) {
       localStorage.setItem(LAST_PROFILE_ID_KEY, activeProfileId);
     }
   }, [activeProfileId]);
 
   useEffect(() => {
+    if (isDemoRef.current) return;
     if (profiles.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
     }
   }, [profiles]);
 
   useEffect(() => {
+    if (isDemoRef.current) return;
     localStorage.setItem(SEEN_TOOLTIPS_KEY, JSON.stringify(seenTooltips));
   }, [seenTooltips]);
 
@@ -643,7 +710,9 @@ const App: React.FC = () => {
   // se joue dans l'écran d'ajout que l'utilisateur vient d'ouvrir lui-même.
   useEffect(() => {
     if (activeTour !== 'main') return;
-    const step = TOUR_STEPS[tourStepIndex];
+    // `mainTourSteps` et non `TOUR_STEPS` : en démo les deux listes n'ont ni la
+    // même longueur ni les mêmes pages, et la navigation se décalerait d'un cran.
+    const step = mainTourSteps[tourStepIndex];
     if (!step) return;
 
     if (step.page === 'Profile') {
@@ -652,7 +721,8 @@ const App: React.FC = () => {
       setShowProfile(false);
       setViewMode(step.page);
     }
-  }, [activeTour, tourStepIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTour, tourStepIndex, isDemo]);
 
   // Le parcours notation se déclenche à la première ouverture de l'écran d'ajout,
   // au moment où ses explications servent vraiment. On l'écarte en édition (pas de
@@ -920,6 +990,15 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    /**
+     * La démo n'ouvre aucune session, et elle en coupe une déjà ouverte : sans ce
+     * garde, quelqu'un de connecté qui ouvre `?demo=true` verrait la migration,
+     * la resynchronisation et la descente de ses vrais films s'exécuter par-dessus
+     * le profil de démonstration. `session` restant nul, tous les appels
+     * d'écriture gardés par `session?.user?.id` sont morts d'eux-mêmes.
+     */
+    if (isDemo) return;
+
     if (!supabase) {
       setAuthLoading(false);
       setBootstrapping(false);
@@ -986,7 +1065,11 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+    // `isDemo` et non `[]` : sortir de la démonstration doit relancer l'amorçage
+    // normal, sinon quelqu'un déjà connecté avant d'ouvrir la démo resterait
+    // déconnecté jusqu'au prochain rechargement de l'application.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo]);
 
   /*
    * L'effet `loadMySpaces` qui se trouvait ici a été retiré. Il appelait le réseau
@@ -1865,8 +1948,110 @@ const App: React.FC = () => {
     setShowSignOutConfirm(true);
   };
 
+  /**
+   * Quitte la démonstration.
+   *
+   * Trois choses à défaire, dans cet ordre : le drapeau (et le paramètre d'URL,
+   * sinon un rechargement rouvrirait la démo), le profil factice, puis l'état de
+   * navigation. Les vrais profils sont relus depuis localStorage parce que
+   * l'effet d'amorçage ne l'a jamais fait : il s'était court-circuité au montage.
+   */
+  const exitDemo = () => {
+    disableDemoMode();
+    isDemoRef.current = false;
+    setIsDemo(false);
+
+    let realProfiles: UserProfile[] = [];
+    try {
+      realProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch {
+      realProfiles = [];
+    }
+
+    /**
+     * Les bulles vues pendant la démo ne doivent pas compter pour le vrai profil.
+     * L'effet qui persiste `seenTooltips` était neutralisé, mais l'état, lui, a
+     * bien bougé : à la prochaine bulle refermée il écrirait le tout. On le
+     * ramène donc à ce que localStorage contient réellement.
+     */
+    try {
+      setSeenTooltips(JSON.parse(localStorage.getItem(SEEN_TOOLTIPS_KEY) || '[]'));
+    } catch {
+      setSeenTooltips([]);
+    }
+
+    /**
+     * La visite en cours porte sur le scénario de démo, plus long d'une étape :
+     * la laisser tourner la ferait pointer sur un index hors du parcours normal,
+     * et le tuto disparaîtrait sans jamais se refermer — `tourActive` resterait
+     * vrai et bloquerait les bulles contextuelles.
+     */
+    setActiveTour(null);
+    setPendingTour(null);
+    setTourStepIndex(0);
+
+    setProfiles(realProfiles);
+    setActiveProfileId(null);
+    setActiveSharedSpace(null);
+    setShowProfile(false);
+    setViewMode('Feed');
+    setShowWelcome(true);
+    // Un retour volontaire au sélecteur, pas un appareil vierge : sans ce drapeau
+    // l'effet de descente serveur recréerait un profil et le réactiverait aussitôt.
+    setChoosingProfile(true);
+  };
+
+  /** « Créer mon vrai compte » : on sort, et on le dit. */
+  const handleExitDemo = () => {
+    haptics.medium();
+    exitDemo();
+    setToastMessage(t('demo.left'));
+  };
+
+  /**
+   * Entre en démonstration depuis un bouton.
+   *
+   * `setSession(null)` n'est pas une déconnexion : la session Supabase reste
+   * valide côté serveur, on cesse simplement de la voir. C'est indispensable, car
+   * une session visible ferait synchroniser les films de démonstration vers le
+   * vrai compte de la personne — tous les appels d'écriture sont gardés par
+   * `session?.user?.id`. L'effet d'authentification la retrouvera à la sortie.
+   */
+  const handleStartDemo = () => {
+    haptics.medium();
+    enableDemoMode();
+    isDemoRef.current = true;
+    setIsDemo(true);
+    setSession(null);
+    setProfiles([buildDemoProfile()]);
+    setActiveProfileId(DEMO_PROFILE_ID);
+    setChoosingProfile(false);
+    setShowWelcome(false);
+    setViewMode('Feed');
+    setFeedTab('history');
+    // « Quoi de neuf » se superposerait à la proposition de visite.
+    setShowNewFeatures(false);
+    setShowConsent(false);
+    /**
+     * La visite guidée est proposée, pas imposée — comme à la création d'un vrai
+     * profil. C'est sur un profil rempli qu'elle vaut le plus : elle montre des
+     * écrans pleins au lieu d'expliquer ce qui apparaîtra plus tard.
+     */
+    setTourStepIndex(0);
+    setPendingTour('main');
+  };
+
   const handleImportBackup = async (backup: TheBitterBackup) => {
     if (!activeProfileId) return;
+    /**
+     * Cette fonction écrit STORAGE_KEY directement, sans passer par l'effet
+     * neutralisé plus haut : elle remplacerait donc les vrais profils par le
+     * profil de démonstration augmenté d'une sauvegarde importée.
+     */
+    if (isDemoRef.current) {
+      setToastMessage(t('demo.blocked'));
+      return;
+    }
 
     // Le profil importé remplace le profil local actif. On conserve son ID local :
     // il peut être lié à un compte Supabase et ne fait pas partie des données cinéma à restaurer.
@@ -1921,7 +2106,7 @@ const App: React.FC = () => {
     setActiveProfileId(null);
     setActiveSharedSpace(null);
     setViewMode('Feed');
-    localStorage.removeItem(LAST_PROFILE_ID_KEY);
+    if (!isDemoRef.current) localStorage.removeItem(LAST_PROFILE_ID_KEY);
     setToastMessage(t('deleteAccount.done'));
     setShowWelcome(true);
   };
@@ -1936,7 +2121,9 @@ const App: React.FC = () => {
     setViewMode('Feed');
     setActiveSharedSpace(null);
     setShowProfile(false);
-    localStorage.removeItem(LAST_PROFILE_ID_KEY);
+    // En démo il n'y a rien à oublier, et la clé appartient au vrai profil.
+    if (isDemoRef.current) exitDemo();
+    else localStorage.removeItem(LAST_PROFILE_ID_KEY);
   };
 
   if (authLoading)
@@ -1981,6 +2168,7 @@ const App: React.FC = () => {
             setPendingTour('main');
           }}
           onOpenAccountSync={() => setShowAccountSync(true)}
+          onStartDemo={handleStartDemo}
           onDeleteProfile={(id) => {
             setProfiles((prev) => {
               const updated = prev.filter((x) => x.id !== id);
@@ -2037,10 +2225,18 @@ const App: React.FC = () => {
     <div className="min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative overflow-x-hidden bg-cream dark:bg-[#0c0c0c] transition-colors">
       <style>{`@keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }`}</style>
 
+      {isDemo && <DemoBanner onExit={handleExitDemo} />}
+
       {viewMode !== 'SharedSpace' && (
         <header
           className="px-6 sticky top-0 z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
+          style={{
+            // Le bandeau de démo est `fixed` : il faut lui réserver sa hauteur,
+            // sinon il recouvre le titre et l'avatar.
+            paddingTop: `calc(env(safe-area-inset-top, 0px) + 1.25rem${
+              isDemo ? ` + ${DEMO_BANNER_OFFSET}` : ''
+            })`,
+          }}
         >
           <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">
             <div className="flex flex-col justify-center">
@@ -2115,7 +2311,9 @@ const App: React.FC = () => {
         style={{
           paddingTop:
             viewMode === 'SharedSpace'
-              ? 'calc(env(safe-area-inset-top, 0px) + 1.5rem)'
+              ? `calc(env(safe-area-inset-top, 0px) + 1.5rem${
+                  isDemo ? ` + ${DEMO_BANNER_OFFSET}` : ''
+                })`
               : '1.5rem',
         }}
       >
@@ -2185,7 +2383,10 @@ const App: React.FC = () => {
           ) : viewMode === 'Calendar' ? (
             <CalendarView
               movies={uniqueMovies}
-              profileId={session?.user?.id}
+              /* En démo, l'identifiant factice suffit : `listUpcomingScreenings`
+                 rend les séances locales sans jamais appeler le réseau, et sans
+                 lui le calendrier n'afficherait aucune sortie prévue. */
+              profileId={isDemo ? DEMO_PROFILE_ID : session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
               onAddToWatchlist={(tmdbId) => void handleQuickWatchlist(tmdbId, 'movie')}
               onToast={setToastMessage}
@@ -2245,6 +2446,10 @@ const App: React.FC = () => {
                 <div className="space-y-7">
                   <button
                     type="button"
+                    /* Pendant du `feed-empty` d'à côté : le tuto a besoin d'une
+                       cible dans le feed quelle que soit la taille de la
+                       collection, et celle-ci n'existe que s'il y a des films. */
+                    data-tour="feed-collection"
                     onClick={() => {
                       haptics.soft();
                       setViewMode('Analytics');
@@ -3050,7 +3255,8 @@ const App: React.FC = () => {
               setShowProfile(false);
               setChoosingProfile(true);
               setActiveProfileId(null);
-              localStorage.removeItem(LAST_PROFILE_ID_KEY);
+              if (isDemoRef.current) exitDemo();
+              else localStorage.removeItem(LAST_PROFILE_ID_KEY);
               setShowWelcome(true);
               setViewMode('Feed');
             }}
@@ -3072,6 +3278,10 @@ const App: React.FC = () => {
             isSignedIn={!!session?.user}
             pendingSyncCount={pendingSyncCount}
             onOpenAccountSync={() => {
+              if (isDemoRef.current) {
+                setToastMessage(t('demo.blocked'));
+                return;
+              }
               setShowProfile(false);
               setShowAccountSync(true);
             }}
@@ -3265,8 +3475,8 @@ const App: React.FC = () => {
 
       {pendingTour && !activeTour && (
         <TourPrompt
-          variant={pendingTour}
-          stepCount={(pendingTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS).length}
+          variant={pendingTour === 'main' && isDemo ? 'demo' : pendingTour}
+          stepCount={(pendingTour === 'rating' ? RATING_TOUR_STEPS : mainTourSteps).length}
           onAccept={acceptTour}
           onDecline={declineTour}
         />

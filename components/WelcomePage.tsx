@@ -15,6 +15,7 @@ import {
   Clapperboard,
   ChevronLeft,
   Smartphone,
+  Wand2,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { haptics } from '../utils/haptics';
@@ -39,6 +40,11 @@ interface WelcomePageProps {
   onDeleteProfile: (profileId: string) => void;
   /** Ouvre la reconnexion à un compte existant, pour un appareil neuf. */
   onOpenAccountSync?: () => void;
+  /**
+   * Ouvre le profil de démonstration. Absent, le bouton n'est pas rendu — une
+   * app sans jeu de données de démo ne doit pas en promettre un.
+   */
+  onStartDemo?: () => void;
 }
 
 const PLATFORMS = [
@@ -66,6 +72,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   onCreateProfile,
   onDeleteProfile,
   onOpenAccountSync,
+  onStartDemo,
 }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState<'landing' | 'select' | 'create'>('landing');
@@ -261,6 +268,30 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
                 >
                   <div className="flex items-center gap-5">{t('welcome.start')}</div>
                   <ArrowRight size={22} className="group-hover:translate-x-2 transition-transform duration-300" />
+                </button>
+              )}
+
+              {/* Une visite avant l'inscription. Présenté comme une action
+                  secondaire et non comme un troisième chemin d'égale importance :
+                  la démo sert à convaincre, pas à remplacer la création de profil.
+                  Elle ne touche à rien de ce qui est déjà sur l'appareil. */}
+              {onStartDemo && (
+                <button
+                  onClick={() => { haptics.medium(); onStartDemo(); }}
+                  className="group flex w-full items-center gap-4 rounded-[2rem] border border-dashed border-stone-300 bg-white/60 px-6 py-5 text-left transition-all active:scale-95 hover:border-forest/40 hover:bg-white dark:border-white/15 dark:bg-white/5 dark:hover:border-bitter-lime/40"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-charcoal text-white transition-colors group-hover:bg-forest dark:bg-white/10 dark:text-bitter-lime">
+                    <Wand2 size={17} strokeWidth={2.2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-charcoal dark:text-white">
+                      {t('demo.start')}
+                    </span>
+                    <span className="mt-1 block text-[9px] font-medium text-stone-400 dark:text-stone-500">
+                      {t('demo.startDesc')}
+                    </span>
+                  </span>
+                  <ArrowRight size={16} className="shrink-0 text-stone-300 transition-transform group-hover:translate-x-1 dark:text-stone-600" />
                 </button>
               )}
 

@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import { confirmScreening, deleteScreening, listUpcomingScreenings } from '../services/screenings';
+import { DEMO_BLOCKED_MESSAGE, isDemoMode } from '../utils/demoMode';
 import { enablePushNotifications, isLikelyInstalledPwa, testPushNotification } from '../services/pushNotifications';
 import {
   BellRing,
@@ -251,6 +252,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, favorite
   };
 
   const openPushEducation = () => {
+    // La démo porte un identifiant de profil factice, qui suffit à afficher les
+    // séances mais pas à souscrire de vrais rappels : le service d'envoi exige
+    // une session, et l'échec serait rendu comme une panne au lieu d'une limite.
+    if (isDemoMode()) {
+      onToast?.(DEMO_BLOCKED_MESSAGE);
+      return;
+    }
     if (!profileId) {
       onToast?.('Connecte-toi pour activer les rappels de séances.');
       return;
@@ -506,9 +514,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ movies, profileId, favorite
 
         <button
           onClick={() =>
-            profileId
-              ? setComposer('programme')
-              : onToast?.('Connecte-toi pour planifier une séance et recevoir ses rappels.')
+            isDemoMode()
+              ? onToast?.(DEMO_BLOCKED_MESSAGE)
+              : profileId
+                ? setComposer('programme')
+                : onToast?.('Connecte-toi pour planifier une séance et recevoir ses rappels.')
           }
           className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-charcoal px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:scale-[1.02] active:scale-95 dark:bg-bitter-lime dark:text-charcoal"
         >
