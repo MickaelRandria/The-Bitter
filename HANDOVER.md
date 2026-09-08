@@ -77,7 +77,7 @@ appelle cette fonction plutôt que Mistral.
 |---|---|---|
 | `MISTRAL_API_KEY` | — | obligatoire |
 | `AI_DAILY_LIMIT` | `40` | appels par personne et par jour |
-| `MISTRAL_MODEL` | `mistral-small-latest` | modèle utilisé |
+| `MISTRAL_MODEL` | `ministral-14b-latest` | modèle utilisé — **ne pas remettre un modèle `small` ou `medium`, voir §6.13** |
 
 Poser un secret redéploie la fonction (le numéro de version s'incrémente).
 
@@ -95,6 +95,21 @@ Poser un secret redéploie la fonction (le numéro de version s'incrémente).
    rafale d'appels simultanés ne peut pas se glisser entre la lecture et l'écriture.
    La fonction n'est exécutable que par `service_role`. **Fermé par défaut** :
    compteur en panne ou réponse vide → refus.
+
+   Le prélèvement a lieu **avant** l'appel au modèle, ce qui est le bon ordre pour
+   l'atomicité et le mauvais quand la panne vient d'en face : pendant l'incident du
+   8 septembre, chaque échec consommait quand même une question, et les gens
+   s'entendaient dire qu'ils avaient atteint leur plafond alors qu'ils n'avaient rien
+   obtenu. `refund_ai_quota(p_user)` rend l'appel quand Mistral n'a rien facturé —
+   refus avant traitement, coupure, délai dépassé. **Pas** sur une réponse illisible :
+   celle-là a été payée, et la rembourser offrirait une boucle gratuite.
+
+   Les deux fonctions et la table vivent désormais dans
+   `supabase/migrations/20260806_add_ai_quota.sql`. Elles n'existaient auparavant que
+   dans la base de production, créées à la main : une restauration aurait coupé
+   l'assistant à 100 % sans que rien dans le dépôt ne permette de le remonter. Le
+   fichier est daté avant `20260817`, qui posait une policy sur `ai_usage` et échouait
+   donc sur toute base neuve.
 
 **Les huit actions :**
 
@@ -124,7 +139,11 @@ distinguer « connecte-toi » de « quota atteint » de « le service est tombé
 
 ### 3.4 Coût
 
-Tarif `mistral-small-latest` : 0,15 $/M jetons en entrée, 0,60 $/M en sortie.
+Les chiffres ci-dessous ont été établis au tarif de `mistral-small-latest`
+(0,15 $/M jetons en entrée, 0,60 $/M en sortie), le modèle utilisé jusqu'au
+8 septembre 2026. Depuis le passage à `ministral-14b-latest`, ils ne valent plus que
+comme **majorant** : le modèle est plus petit, donc moins cher, et il est de toute
+façon couvert par le free tier — coût réel nul tant qu'on y reste.
 
 | Fonction | Coût | Fréquence |
 |---|---|---|
@@ -423,6 +442,66 @@ qu'aucune fonctionnalité visible ne le signale (PR #77).
 
 **Avant de déployer un changement d'en-têtes : lister ce qui sort du navigateur.**
 
+### 6.13 Un alias de modèle est une dépendance que personne ne surveille
+
+L'assistant s'est arrêté net. Aucun déploiement ce jour-là, aucune ligne modifiée
+depuis le 15 août, tout le reste debout — front, CSP, CORS, session, quota, base.
+L'écran disait « L'assistant est saturé, réessaie dans un instant », et Mistral
+confirmait :
+
+```
+[ai] Mistral 429 : {"message":"Rate limit exceeded","type":"rate_limited","code":"1300"}
+```
+
+Ce message envoie chercher une saturation. Il n'y en avait aucune : l'application ne
+fait qu'un appel séquentiel par action, et il y avait ce jour-là une poignée
+d'utilisateurs. La réponse tenait dans un en-tête que rien n'obligeait à lire :
+
+```
+x-ratelimit-limit-req-minute: 0
+```
+
+**Zéro n'est pas une saturation. C'est un droit d'accès inexistant.** Mistral emploie
+le même `429`, le même corps de réponse et le même code `1300` pour « tu vas trop
+vite » et pour « ce modèle n'est pas dans ton forfait ». Seul cet en-tête sépare les
+deux, et il change tout : la première cause se règle en attendant une seconde, la
+seconde ne se lèvera jamais seule.
+
+Vérifié avec une clé de test, sur le même compte, à la même minute :
+
+| Modèle | Réponse | Plafond annoncé |
+|---|---|---|
+| `mistral-small-latest` ← celui de l'app | `429` | **0** |
+| `mistral-medium-latest` | `429` | **0** |
+| `magistral-small-latest` | `429` | **0** |
+| `ministral-14b-latest` | `200` | 30/min |
+| `ministral-8b-latest` | `200` | 188/min |
+
+La clé était valide — `GET /v1/models` répondait `200`. Le compte n'était ni bloqué,
+ni en défaut de paiement. **Mistral avait simplement sorti les modèles Small et Medium
+du free tier, et `-latest` est un alias mouvant.** Le jour où ils l'ont fait pointer
+sur une révision payante, la production est morte sans que rien, ni dans le dépôt ni
+dans les journaux, ne relie l'effet à sa cause.
+
+C'est la même famille que §6.11 : une valeur décidée ailleurs, qui survit à son propre
+changement parce que rien ici ne la surveille. Une clé en dur y survivait à sa
+révocation ; un alias y survit à sa redirection.
+
+**Trois choses en sont sorties :**
+
+1. Le défaut du code est passé à `ministral-14b-latest`. Le 8B a été écarté après essai :
+   il rend une forme JSON inventée — des objets imbriqués là où l'on attend des chaînes —
+   que `parseStarters` et `parseDiscover` réduisent à du vide. Cinq des huit actions
+   exigent du JSON structuré, ce n'est pas négociable.
+2. La fonction lit désormais `x-ratelimit-limit-req-minute`. À zéro, elle **nomme le
+   modèle fautif dans le journal et dit quoi faire**, au lieu de conseiller de
+   réessayer. Un `429` avec un plafond réel donne droit à une relance unique.
+3. Le quota du jour est remboursé quand Mistral n'a rien facturé (§3.2).
+
+**La leçon : un `-latest` n'est pas une version, c'est un abonnement à des décisions
+prises par quelqu'un d'autre.** Le prix payé ici est modeste — quelques heures et un
+modèle un cran moins fin. Sur une fonctionnalité facturée, il aurait été tout autre.
+
 ---
 
 ## 7. Frontière d'erreur
@@ -616,6 +695,7 @@ le lisent avant le premier rendu.
 | #79 | Clé TMDB sortie du code | §6.11 |
 | #81 | Partage de story cassé par la CSP | §6.12 |
 | #84 | Réveil Supabase à la racine | §6.9 |
+| — | Alias Mistral basculé hors forfait | §6.13 |
 
 ---
 
