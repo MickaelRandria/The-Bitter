@@ -126,6 +126,37 @@ const retryDelay = (response: Response): number => {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Le modèle à interroger, secret vérifié.
+ *
+ * Un identifiant de modèle ne contient ni espace ni signe égal. Quand il en
+ * contient, ce n'est pas un choix : c'est un copier-coller qui a emporté le nom
+ * de la variable avec sa valeur. Le 8 septembre 2026, le secret valait
+ * littéralement « MISTRAL_MODEL = ministral-14b-latest », et Mistral a répondu
+ * « Invalid model » sur chaque appel — l'assistant est resté mort le temps
+ * d'aller rouvrir le tableau de bord.
+ *
+ * Se rabattre sur le défaut vaut mieux que de tomber. La valeur est
+ * manifestement accidentelle, le défaut est connu bon, et le journal nomme la
+ * valeur fautive et le geste qui la corrige. Une configuration illisible ne
+ * devrait jamais coûter une fonctionnalité entière.
+ */
+const resolveModel = (): string => {
+  const configured = (Deno.env.get('MISTRAL_MODEL') ?? '').trim();
+  if (!configured) return DEFAULT_MODEL;
+
+  if (/[\s=]/.test(configured)) {
+    console.error(
+      `[ai] Le secret MISTRAL_MODEL vaut « ${configured} » : un identifiant de modèle ne ` +
+        `contient ni espace ni « = ». Valeur ignorée, repli sur ${DEFAULT_MODEL}. Dans le ` +
+        `tableau de bord, le champ Value ne prend que la valeur, sans le nom ni le « = ».`
+    );
+    return DEFAULT_MODEL;
+  }
+
+  return configured;
+};
+
 /** Le contexte du profil est bâti côté application ; on ne fait que le cadrer. */
 const persona = (firstName: string, context: string) => `Tu es le Ciné-Assistant de « The Bitter », expert cinéma passionné et légèrement piquant.
 
@@ -759,7 +790,7 @@ Deno.serve(async (req: Request) => {
   messages.push({ role: 'user', content: question });
 
   const tuning = TUNING[action];
-  const model = Deno.env.get('MISTRAL_MODEL') ?? DEFAULT_MODEL;
+  const model = resolveModel();
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), UPSTREAM_TIMEOUT_MS);
 
