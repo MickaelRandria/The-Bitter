@@ -15,6 +15,7 @@
   User,
   LogOut,
   Clapperboard,
+  Tv,
   Wand2,
   CalendarDays,
   BarChart3,
@@ -40,7 +41,12 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
-import { getMovieDetailsForAdd, getSharedMovieDetails } from './services/tmdb';
+import {
+  TmdbSeasonSummary,
+  getMovieDetailsForAdd,
+  getSeriesDetails,
+  getSharedMovieDetails,
+} from './services/tmdb';
 import { avatarSrc } from './utils/avatar';
 import {
   migrateLocalStorageToSupabase,
@@ -58,10 +64,12 @@ import {
   MovieFormData,
   MovieStatus,
   MovieWatch,
+  TvProgress,
   UserProfile,
   ViewingContext,
 } from './types';
 import { withFirstWatchContext } from './utils/cinemaSubscription';
+import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
 import {
   backfillProfileToSupabase,
   fetchRemoteMovies,
@@ -128,6 +136,7 @@ const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
+const SeriesDetailModal = lazy(() => import('./components/SeriesDetailModal'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
@@ -146,6 +155,8 @@ const BottomNav = memo(
     setIsModalOpen,
     feedTab,
     setInitialStatusForAdd,
+    setMediaTypeToLoad,
+    mediaMode,
     movieCount,
     t,
   }: {
@@ -154,6 +165,8 @@ const BottomNav = memo(
     setIsModalOpen: (o: boolean) => void;
     feedTab: FeedTab;
     setInitialStatusForAdd: (s: MovieStatus) => void;
+    setMediaTypeToLoad: (m: 'movie' | 'tv') => void;
+    mediaMode: 'movie' | 'tv';
     movieCount: number;
     t: (key: string, params?: Record<string, string | number>) => string;
   }) => {
@@ -198,9 +211,12 @@ const BottomNav = memo(
             onClick={() => {
               haptics.medium();
               setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
+              // Le « + » ajoute dans la partie où l'on se trouve : en mode
+              // Séries, il ouvre la recherche de séries, pas celle de films.
+              setMediaTypeToLoad(mediaMode);
               setIsModalOpen(true);
             }}
-            aria-label={t('nav.add')}
+            aria-label={mediaMode === 'tv' ? t('nav.addSeries') : t('nav.add')}
             className={`bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}
           >
             <Plus size={24} strokeWidth={3} />
@@ -343,6 +359,7 @@ const App: React.FC = () => {
   const LAST_SEEN_VERSION_KEY = 'the_bitter_last_seen_version';
   const HIDE_NEW_FEATURES_KEY = 'the_bitter_hide_new_features';
   const SEEN_TOOLTIPS_KEY = 'the_bitter_seen_tooltips';
+  const MEDIA_MODE_KEY = 'bitter_media_mode';
   const linkedProfileKey = (userId: string) => `bitter_linked_profile_${userId}`;
 
   const [session, setSession] = useState<any | null>(null);
@@ -404,6 +421,47 @@ const App: React.FC = () => {
   const [feedPage, setFeedPage] = useState(1);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * La « stance » : l'application est-elle en mode Films ou en mode Séries ?
+   *
+   * Un seul état, lu par toutes les vues, plutôt qu'un sélecteur par écran :
+   * basculer une fois doit reteinter le fil, la découverte, les statistiques et
+   * le bouton d'ajout. La barre de navigation, elle, ne change pas — ce sont
+   * deux parties sur le même squelette, pas deux applications.
+   *
+   * Mémorisé par appareil : quelqu'un qui suit surtout des séries retrouve sa
+   * partie au lancement suivant.
+   */
+  const [mediaMode, setMediaMode] = useState<'movie' | 'tv'>(() => {
+    try {
+      return localStorage.getItem(MEDIA_MODE_KEY) === 'tv' ? 'tv' : 'movie';
+    } catch {
+      return 'movie';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEDIA_MODE_KEY, mediaMode);
+    } catch {
+      // Navigation privée ou stockage plein : la bascule reste utilisable, elle
+      // repart simplement sur « Films » au prochain lancement.
+    }
+  }, [mediaMode]);
+
+  /** La série dont la fiche est ouverte, ou null. */
+  const [openSeries, setOpenSeries] = useState<Movie | null>(null);
+
+  /**
+   * Saison à noter, préremplie mais **pas encore dans la collection**.
+   *
+   * Distinct d'`editingMovie` à dessein : c'est lui, et lui seul, qui fait
+   * prendre à `handleSaveMovie` le chemin « modifier » plutôt que « ajouter ».
+   * Une saison notée pour la première fois doit être ajoutée ; le brouillon ne
+   * sert qu'à préremplir le formulaire.
+   */
+  const [seasonDraft, setSeasonDraft] = useState<Movie | null>(null);
+
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
   const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
@@ -454,7 +512,13 @@ const App: React.FC = () => {
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
   const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
   /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
-  const [remoteTmdbIds, setRemoteTmdbIds] = useState<Set<number>>(new Set());
+  /**
+   * Œuvres déjà présentes sur le compte, par clé composite.
+   *
+   * Un simple `Set<number>` de tmdbId confondait une série et ses saisons, qui
+   * auraient toutes compté comme « déjà synchronisée » dès que l'une l'était.
+   */
+  const [remoteWorkKeys, setRemoteWorkKeys] = useState<Set<WorkKey>>(new Set());
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
@@ -1107,7 +1171,19 @@ const App: React.FC = () => {
         data.ratings.visuals > 0 ||
         data.ratings.acting > 0 ||
         data.ratings.sound > 0);
-    const determinedStatus: MovieStatus = hasRatings ? 'watched' : data.status || 'watchlist';
+
+    /**
+     * Noter ne termine pas une série.
+     *
+     * Poser un verdict vaut « je l'ai vu » pour un film, et pour une saison :
+     * dans les deux cas on a fini ce qu'on note. Sur la ligne-série, non — une
+     * impression après trois épisodes basculerait la série entière en « vue »,
+     * alors qu'il en reste peut-être quatre saisons. C'est `tvProgress` qui dit
+     * où en est la personne, et lui seul.
+     */
+    const ratesWholeSeries = data.mediaType === 'tv' && data.seasonNumber == null;
+    const determinedStatus: MovieStatus =
+      hasRatings && !ratesWholeSeries ? 'watched' : data.status || 'watchlist';
     const newMovieId = crypto.randomUUID();
     const newMovieTimestamp = Date.now();
     let finalMovie: Movie = editingMovie
@@ -1125,7 +1201,18 @@ const App: React.FC = () => {
       const updatedMovies = editingMovie
         ? currentProfile.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
         : [finalMovie, ...currentProfile.movies];
-      const watched = updatedMovies.filter((m) => m.status === 'watched');
+      /**
+       * L'archétype ne se calcule que sur les films.
+       *
+       * Les critères agrégés ici — rythme, tension, facteur smartphone — ont été
+       * étalonnés sur des longs métrages. Une saison de huit heures n'y répond
+       * pas de la même manière, et une série pèserait autant qu'un film alors
+       * qu'elle représente dix fois la durée. Mélanger les deux déformerait le
+       * portrait sans que rien ne l'explique à l'écran.
+       */
+      const watched = updatedMovies.filter(
+        (m) => m.status === 'watched' && (m.mediaType ?? 'movie') !== 'tv'
+      );
       if (watched.length >= 10) {
         const getVibe = (m: Movie, key: 'cerebral' | 'emotion' | 'fun' | 'visual' | 'tension'): number => {
           if (m.vibe) {
@@ -1178,6 +1265,7 @@ const App: React.FC = () => {
             : t('feed.movieAdded')
     );
     setEditingMovie(null);
+    setSeasonDraft(null);
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
@@ -1207,9 +1295,7 @@ const App: React.FC = () => {
       if (cancelled || !result) return;
 
       const remote = result.movies;
-      setRemoteTmdbIds(
-        new Set(remote.map((m) => m.tmdbId).filter((id): id is number => id != null))
-      );
+      setRemoteWorkKeys(new Set(remote.filter((m) => m.tmdbId != null).map(workKey)));
 
       // Appareil vierge : aucun profil local, mais un compte qui a de l'historique.
       // On reconstruit le profil à partir du serveur, sinon se connecter depuis
@@ -1278,13 +1364,13 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, activeProfileId]);
 
-  /** Films du profil actif qui ne sont pas encore sur le compte. */
+  /** Œuvres du profil actif qui ne sont pas encore sur le compte. */
   const pendingSyncCount = useMemo(
     () =>
       (activeProfile?.movies ?? []).filter(
-        (m) => m.tmdbId != null && !remoteTmdbIds.has(m.tmdbId)
+        (m) => m.tmdbId != null && !remoteWorkKeys.has(workKey(m))
       ).length,
-    [activeProfile?.movies, remoteTmdbIds]
+    [activeProfile?.movies, remoteWorkKeys]
   );
 
   const runBackfill = async () => {
@@ -1296,9 +1382,7 @@ const App: React.FC = () => {
     // Le compte vient de gagner ces films : on rafraîchit ce qu'on croit distant.
     const refreshed = await fetchRemoteMovies(userId);
     if (refreshed) {
-      setRemoteTmdbIds(
-        new Set(refreshed.movies.map((m) => m.tmdbId).filter((id): id is number => id != null))
-      );
+      setRemoteWorkKeys(new Set(refreshed.movies.filter((m) => m.tmdbId != null).map(workKey)));
     }
     return report;
   };
@@ -1448,6 +1532,78 @@ const App: React.FC = () => {
     );
   };
 
+  /**
+   * Enregistre la progression d'une série et la propage au compte.
+   *
+   * La progression vit sur la ligne-série, jamais sur une saison : c'est une
+   * information par série, et la dupliquer sur chaque saison créerait autant de
+   * vérités concurrentes.
+   */
+  const handleUpdateTvProgress = (series: Movie, progress: TvProgress) => {
+    if (!activeProfileId) return;
+    const updated: Movie = { ...series, tvProgress: progress };
+
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id !== activeProfileId
+          ? p
+          : { ...p, movies: p.movies.map((m) => (m.id === series.id ? updated : m)) }
+      )
+    );
+    // La fiche reste ouverte : elle doit refléter ce qui vient d'être posé.
+    setOpenSeries(updated);
+    if (session?.user?.id) void syncMovieToSupabase(session.user.id, updated);
+  };
+
+  /**
+   * Ouvre la grille de notation sur une saison.
+   *
+   * Si la saison a déjà un verdict, on le rouvre pour le corriger ; sinon on
+   * prépare une nouvelle œuvre. Le `tmdbId` est celui **de la saison**, ce qui
+   * lui donne une identité propre sans entrer en conflit avec la série.
+   */
+  const handleRateSeason = (series: Movie, season: TmdbSeasonSummary) => {
+    const existing = (activeProfile?.movies ?? []).find(
+      (m) => isSeason(m) && m.seriesTmdbId === series.tmdbId && m.seasonNumber === season.seasonNumber
+    );
+
+    if (existing) {
+      setSeasonDraft(null);
+      setEditingMovie(existing);
+    } else {
+      setEditingMovie(null);
+      setSeasonDraft({
+        id: crypto.randomUUID(),
+        tmdbId: season.id,
+        seriesTmdbId: series.tmdbId,
+        seriesTitle: series.title,
+        seasonNumber: season.seasonNumber,
+        mediaType: 'tv',
+        title: t('series.seasonTitle', { series: series.title, season: season.name }),
+        director: series.director,
+        directorId: series.directorId,
+        actors: series.actors,
+        actorIds: series.actorIds,
+        year: season.airDate ? parseInt(season.airDate.split('-')[0]) : series.year,
+        releaseDate: season.airDate,
+        // La durée d'UNE saison : le temps d'un épisode multiplié par leur
+        // nombre. C'est une estimation, et les statistiques la signalent comme
+        // telle plutôt que de la présenter comme une durée relevée.
+        runtime: (series.runtime || 0) * season.episodeCount,
+        genre: series.genre,
+        ratings: { story: 0, visuals: 0, acting: 0, sound: 0 },
+        review: '',
+        dateAdded: Date.now(),
+        theme: series.theme,
+        posterUrl: season.posterUrl || series.posterUrl,
+        status: 'watched',
+      });
+    }
+
+    setOpenSeries(null);
+    setIsModalOpen(true);
+  };
+
   const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!activeProfileId) return;
     try {
@@ -1455,37 +1611,38 @@ const App: React.FC = () => {
       if (mediaType === 'movie') {
         formData = await getMovieDetailsForAdd(tmdbId);
       } else {
-        const res = await fetch(
-          `${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`
-        );
-        const data = await res.json();
-        const creator =
-          data.created_by?.[0] || data.credits?.crew?.find((p: any) => p.job === 'Director');
-        const actors = data.credits?.cast?.slice(0, 3) || [];
-        formData = {
-          title: data.name || '',
-          tmdbId: data.id,
-          director: creator?.name || 'Inconnu',
-          directorId: creator?.id,
-          actors: actors.map((p: any) => p.name).join(', '),
-          actorIds: actors.map((p: any) => ({ id: p.id, name: p.name })),
-          year: data.first_air_date ? parseInt(data.first_air_date) : new Date().getFullYear(),
-          releaseDate: data.first_air_date || '',
-          runtime: data.episode_run_time?.[0] || 0,
-          genre: GENRES[0],
-          ratings: { story: 0, visuals: 0, acting: 0, sound: 0 },
-          review: data.overview || '',
-          theme: 'black',
-          posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : '',
-          status: 'watchlist',
-          dateWatched: Date.now(),
-          tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
-          rewatch: false,
-          tags: [],
-          smartphoneFactor: 0,
-          hype: 5,
-          mediaType: 'tv',
-        };
+        // Passe par le même service que la fiche série : ce chemin construisait
+        // sa requête à la main et posait `GENRES[0]`, c'est-à-dire « Action »,
+        // sur toutes les séries — ce qui trompait ensuite la détection du profil
+        // de notation. Il perdait aussi le nombre de saisons.
+        const series = await getSeriesDetails(tmdbId);
+        if (series) {
+          formData = {
+            title: series.title,
+            tmdbId: series.tmdbId,
+            director: series.creator,
+            directorId: series.creatorId,
+            actors: series.actors,
+            actorIds: series.actorIds,
+            year: series.year,
+            releaseDate: series.firstAirDate || '',
+            runtime: series.episodeRuntime,
+            genre: series.genre,
+            ratings: { story: 0, visuals: 0, acting: 0, sound: 0 },
+            review: series.synopsis,
+            theme: 'black',
+            posterUrl: series.posterUrl || '',
+            status: 'watchlist',
+            dateWatched: Date.now(),
+            tmdbRating: series.tmdbRating,
+            rewatch: false,
+            tags: [],
+            smartphoneFactor: 0,
+            hype: 5,
+            mediaType: 'tv',
+            numberOfSeasons: series.numberOfSeasons,
+          };
+        }
       }
       if (!formData) throw new Error('fetch failed');
       handleSaveMovie({ ...formData, status: 'watchlist' });
@@ -1505,15 +1662,15 @@ const App: React.FC = () => {
     const userId = sessionRef.current?.user?.id;
     if (!userId || !movie || movie.tmdbId == null) return;
 
-    const ok = await softDeleteMovie(userId, movie.tmdbId);
+    const ok = await softDeleteMovie(userId, movie);
     if (!ok) {
       // Une synchro qui échoue en silence est ce qui avait masqué le bug d'origine.
       setToastMessage(t('sync.deleteFailed'));
       return;
     }
-    setRemoteTmdbIds((prev) => {
+    setRemoteWorkKeys((prev) => {
       const next = new Set(prev);
-      next.delete(movie.tmdbId as number);
+      next.delete(workKey(movie));
       return next;
     });
   };
@@ -1568,8 +1725,8 @@ const App: React.FC = () => {
     const userId = sessionRef.current?.user?.id;
     const restored = activeProfile?.movies.find((m) => m.id === pendingDelete.id);
     if (userId && restored?.tmdbId != null) {
-      restoreDeletedMovie(userId, restored.tmdbId);
-      setRemoteTmdbIds((prev) => new Set(prev).add(restored.tmdbId as number));
+      restoreDeletedMovie(userId, restored);
+      setRemoteWorkKeys((prev) => new Set(prev).add(workKey(restored)));
     }
 
     setPendingDelete(null);
@@ -1644,10 +1801,27 @@ const App: React.FC = () => {
     ];
   }, [activeProfile]);
 
-  const uniqueMovies = useMemo(() => {
+  /** Toutes les œuvres du profil, dédoublonnées — les deux parties confondues. */
+  const allMovies = useMemo(() => {
     if (!activeProfile) return [];
     return Array.from(new Map(activeProfile.movies.map((m) => [m.id, m])).values());
   }, [activeProfile]);
+
+  /**
+   * Ce que la partie courante donne à voir. **Le seul point de filtrage.**
+   *
+   * Tout ce qui découle de `uniqueMovies` — statistiques du fil, genres, tri,
+   * Deck — suit la bascule sans une ligne de plus. C'est ce qui permet d'avoir
+   * deux parties sans dupliquer une seule vue.
+   *
+   * En mode Séries, on liste les SÉRIES et non leurs saisons : une saison est
+   * un objet de notation, pas une entrée de bibliothèque. Elle s'atteint depuis
+   * la fiche de sa série.
+   */
+  const uniqueMovies = useMemo(() => {
+    if (mediaMode === 'tv') return allMovies.filter(isSeries);
+    return allMovies.filter((m) => (m.mediaType ?? 'movie') !== 'tv');
+  }, [allMovies, mediaMode]);
 
   // Films de la watchlist dont l'ambiance a réellement été renseignée : en dessous
   // du seuil, les moods ne peuvent rien classer et restent verrouillés.
@@ -2104,6 +2278,50 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* La bascule Films ⇄ Séries.
+              Dans l'en-tête et non dans la barre du bas : celle-ci dit OÙ l'on
+              est (fil, découverte, statistiques), celle-ci dit CE QUE l'on
+              regarde. Deux questions différentes, deux commandes séparées.
+              Absente des espaces partagés, qui ont leur propre contenu. */}
+          <div className="max-w-2xl mx-auto w-full pb-3">
+            <div
+              role="tablist"
+              aria-label={t('nav.modeMovies') + ' / ' + t('nav.modeSeries')}
+              className="relative flex bg-sand/60 dark:bg-[#1a1a1a] rounded-full p-1 w-fit"
+            >
+              {/* Le curseur glissant est purement décoratif : les deux boutons
+                  restent des cibles à part entière pour le clavier et la
+                  synthèse vocale. */}
+              <div
+                aria-hidden="true"
+                className="absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-white dark:bg-[#2a2a2a] rounded-full shadow-sm transition-transform duration-300 ease-out"
+                style={{
+                  transform: mediaMode === 'movie' ? 'translateX(0)' : 'translateX(100%)',
+                }}
+              />
+              {(['movie', 'tv'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  role="tab"
+                  aria-selected={mediaMode === mode}
+                  onClick={() => {
+                    if (mediaMode === mode) return;
+                    haptics.soft();
+                    setMediaMode(mode);
+                  }}
+                  className={`relative z-10 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${
+                    mediaMode === mode
+                      ? 'text-charcoal dark:text-white'
+                      : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'
+                  }`}
+                >
+                  {mode === 'movie' ? <Clapperboard size={13} /> : <Tv size={13} />}
+                  {mode === 'movie' ? t('nav.modeMovies') : t('nav.modeSeries')}
+                </button>
+              ))}
+            </div>
+          </div>
         </header>
       )}
 
@@ -2177,10 +2395,14 @@ const App: React.FC = () => {
               }}
               onQuickWatchlist={handleQuickWatchlist}
               userProfile={activeProfile}
-              movies={uniqueMovies}
+              /* Volontairement la collection ENTIÈRE, et non celle de la partie
+                 courante : cet écran explore films et séries, et doit pouvoir
+                 signaler « déjà chez toi » dans les deux cas. */
+              movies={allMovies}
               onToast={setToastMessage}
               spaces={mySpaces}
               onProposeToSpace={handleProposeToSpace}
+              initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' ? (
             <CalendarView
@@ -2790,6 +3012,13 @@ const App: React.FC = () => {
                           index={index}
                           onDelete={handleDeleteMovie}
                           onEdit={(m) => {
+                            // Sur une série, « ouvrir » veut dire gérer sa
+                            // progression et ses saisons — pas corriger son
+                            // titre. C'est la fiche série qui répond à ça.
+                            if (isSeries(m)) {
+                              setOpenSeries(m);
+                              return;
+                            }
                             setEditingMovie(m);
                             setIsModalOpen(true);
                           }}
@@ -2831,6 +3060,8 @@ const App: React.FC = () => {
         }}
         feedTab={feedTab}
         setInitialStatusForAdd={setInitialStatusForAdd}
+        setMediaTypeToLoad={setMediaTypeToLoad}
+        mediaMode={mediaMode}
         movieCount={activeProfile?.movies.length || 0}
         t={t}
       />
@@ -2909,12 +3140,15 @@ const App: React.FC = () => {
             onClose={() => {
               setIsModalOpen(false);
               setEditingMovie(null);
+              setSeasonDraft(null);
               setTmdbIdToLoad(null);
               setSharedMovieToRate(null);
               setSharedRatingToEdit(null);
             }}
             onSave={handleSaveMovie}
-            initialData={editingMovie}
+            /* Le brouillon de saison ne fait que préremplir : c'est
+               `editingMovie` qui décide si l'on modifie ou si l'on ajoute. */
+            initialData={editingMovie ?? seasonDraft}
             tmdbIdToLoad={tmdbIdToLoad}
             initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
@@ -2930,6 +3164,18 @@ const App: React.FC = () => {
             }
           />
         )}
+        {openSeries && (
+          <Suspense fallback={null}>
+            <SeriesDetailModal
+              series={openSeries}
+              allMovies={allMovies}
+              onClose={() => setOpenSeries(null)}
+              onRateSeason={(season) => handleRateSeason(openSeries, season)}
+              onUpdateProgress={(progress) => handleUpdateTvProgress(openSeries, progress)}
+            />
+          </Suspense>
+        )}
+
         {previewTmdbId &&
           (() => {
             const collectionMovie = uniqueMovies.find((m) => m.tmdbId === previewTmdbId);

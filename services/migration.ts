@@ -1,69 +1,21 @@
 import { supabase } from './supabase';
 import { CinemaSubscription, FavoriteCinema, UserProfile, Movie } from '../types';
+import { WORK_KEY_COLUMNS, movieToRow } from './movieSync';
 
 const PROFILES_STORAGE_KEY = 'the_bitter_profiles_v2';
 
-function movieToRow(movie: Movie, userId: string) {
-  return {
-    profile_id: userId,
-    tmdb_id: movie.tmdbId ?? null,
-    title: movie.title,
-    director: movie.director,
-    director_id: movie.directorId ?? null,
-    actors: movie.actors || null,
-    actor_ids: movie.actorIds ? JSON.stringify(movie.actorIds) : null,
-    year: movie.year,
-    release_date: movie.releaseDate ?? null,
-    runtime: movie.runtime ?? null,
-    genre: movie.genre,
-    poster_url: movie.posterUrl ?? null,
-    tmdb_rating: movie.tmdbRating ?? null,
-    status: movie.status,
-    date_watched: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
-    theme: movie.theme ?? null,
-    tags: movie.tags ?? null,
-    media_type: movie.mediaType ?? 'movie',
-    story: movie.ratings?.story ?? null,
-    visuals: movie.ratings?.visuals ?? null,
-    acting: movie.ratings?.acting ?? null,
-    sound: movie.ratings?.sound ?? null,
-    vibe_story: movie.vibe?.story ?? null,
-    vibe_emotion: movie.vibe?.emotion ?? null,
-    vibe_fun: movie.vibe?.fun ?? null,
-    vibe_visual: movie.vibe?.visual ?? null,
-    vibe_tension: movie.vibe?.tension ?? null,
-    smartphone_factor: movie.smartphoneFactor ?? null,
-    hype: movie.hype ?? null,
-    review: movie.review || null,
-    // `review` porte le synopsis TMDB, pré-rempli à la sélection du film. L'avis
-    // écrit par la personne est dans `comment`, et il n'était jamais envoyé : le
-    // fil ne pouvait donc afficher qu'un résumé là où l'on attend une opinion.
-    comment: movie.comment || null,
-    // severity_index et patience_level étaient envoyés en dur à null : chaque
-    // upsert écrasait donc en base des valeurs que l'application ne connaît même
-    // pas à ce niveau. On ne touche plus à ces colonnes.
-    adaptive_rating: movie.adaptiveRating ?? null,
-    // Absent du modèle local des anciens films : on publie par défaut, ce qui
-    // correspond au réglage choisi et à ce que la colonne vaut déjà en base.
-    shared_to_feed: movie.shareToFeed !== false,
-    // Le tableau conserve chaque séance (rewatches inclus) et son contexte.
-    // Le champ JSONB est ajouté par la migration abonnement cinéma.
-    watches: movie.watches ?? null,
-    // created_at doit être DÉTERMINISTE et TOUJOURS présent.
-    //
-    // Déterministe : `new Date()` en repli réécrivait la date de création à chaque
-    // resynchronisation. On dérive donc la valeur des seules données du film.
-    //
-    // Toujours présent : rendre la clé conditionnelle produit, dans un upsert
-    // groupé, des objets aux clés différentes, ce que PostgREST rejette en bloc
-    // (PGRST102). Un seul film sans dateAdded ferait échouer tout le lot.
-    //
-    // `dateAdded` est requis par le type Movie et posé à la création : le repli
-    // n'est là que pour garantir l'uniformité des clés.
-    created_at: new Date(movie.dateAdded || movie.dateWatched || 0).toISOString(),
-    rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
-  };
-}
+/**
+ * `movieToRow` vivait ici en double de celui de services/movieSync.ts, et les
+ * deux avaient divergé — notamment sur `actor_ids`, encodé en chaîne ici et
+ * passé en tableau natif là-bas, ce que la colonne jsonb attend réellement
+ * (`parseActorIds` accepte encore les deux formes, par sécurité pour les
+ * anciennes lignes). Un seul constructeur désormais : les colonnes de saison ne
+ * peuvent plus être écrites par un chemin et oubliées par l'autre.
+ *
+ * severity_index et patience_level ne sont volontairement pas envoyés : chaque
+ * upsert écrasait en base des valeurs que l'application ne connaît pas à ce
+ * niveau.
+ */
 
 export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   success: boolean;
@@ -117,7 +69,7 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
       const { error } = await supabase
         .from('user_movies')
         .upsert(withTmdbId.map((m) => movieToRow(m, userId)), {
-          onConflict: 'profile_id,tmdb_id',
+          onConflict: WORK_KEY_COLUMNS,
           ignoreDuplicates: false,
         });
       if (error) throw error;
@@ -162,7 +114,7 @@ export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?
   if (withTmdbId.length === 0) return 0;
   const { error } = await supabase
     .from('user_movies')
-    .upsert(withTmdbId.map((m) => movieToRow(m, userId)), { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false });
+    .upsert(withTmdbId.map((m) => movieToRow(m, userId)), { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false });
   if (error) { console.error('[Resync] erreur upsert:', error); return 0; }
   console.log(`[Resync] ✓ ${withTmdbId.length} film(s) synchronisés pour userId=${userId}`);
   return withTmdbId.length;
@@ -183,7 +135,7 @@ export async function syncMovieToSupabase(userId: string, movie: Movie): Promise
     .from('user_movies')
     .upsert(
       { ...movieToRow(movie, userId), deleted_at: null },
-      { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false }
+      { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
     );
 }
 
@@ -205,7 +157,7 @@ export async function syncMoviesToSupabase(userId: string, movies: Movie[]): Pro
     .from('user_movies')
     .upsert(
       withTmdbId.map((movie) => ({ ...movieToRow(movie, userId), deleted_at: null })),
-      { onConflict: 'profile_id,tmdb_id', ignoreDuplicates: false }
+      { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
     );
 
   if (error && import.meta.env.DEV) {

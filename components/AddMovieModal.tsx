@@ -253,7 +253,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           const adaptiveProfileId = initialData.adaptiveRating.profile.id;
           // Only restore if it's a real profile (not legacy)
           const isLegacyProfile = adaptiveProfileId === 'standard_legacy';
-          const restoredProfile = isLegacyProfile ? detectRatingProfile(initialData.genre) : (adaptiveProfileId as RatingProfileId);
+          const restoredProfile = isLegacyProfile ? detectRatingProfile(initialData.genre, initialData.mediaType) : (adaptiveProfileId as RatingProfileId);
           setProfileId(restoredProfile);
           setProfileManuallySet(!isLegacyProfile);
           const values: Record<string, number> = {};
@@ -269,7 +269,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
           }
         } else {
-          const detected = detectRatingProfile(initialData.genre);
+          const detected = detectRatingProfile(initialData.genre, initialData.mediaType);
           setProfileId(detected);
           setProfileManuallySet(false);
           // Seed values from existing qualityMetrics/ratings
@@ -292,12 +292,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSelectedDate(new Date().toISOString().split('T')[0]);
         setEmotionalImprints([]);
       } else {
+        // Ajout à vide : la recherche s'ouvre dans la partie d'où l'on vient.
+        // C'était figé sur « movie », donc le « + » du mode Séries proposait
+        // quand même des films.
+        const freshType: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
         skipSearchRef.current = false;
-        setFormData({ ...INITIAL_FORM_STATE });
+        setFormData({ ...INITIAL_FORM_STATE, mediaType: freshType });
         setMode(initialStatus);
         setSearchResults([]);
         setShowResults(false);
-        setSearchType('movie');
+        setSearchType(freshType);
         setSelectedDate(new Date().toISOString().split('T')[0]);
         setProfileId('standard');
         setProfileManuallySet(false);
@@ -401,9 +405,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   // Auto-detect profile from genre unless user manually overrode it
   useEffect(() => {
     if (profileManuallySet) return;
-    const detected = detectRatingProfile(formData.genre);
+    const detected = detectRatingProfile(formData.genre, formData.mediaType);
     setProfileId((prev) => (prev === detected ? prev : detected));
-  }, [formData.genre, profileManuallySet]);
+  }, [formData.genre, formData.mediaType, profileManuallySet]);
 
   useEffect(() => {
     if (!isOpen) return;

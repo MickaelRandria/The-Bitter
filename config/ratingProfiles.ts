@@ -14,6 +14,7 @@ export type RatingProfileId =
   | 'crime'
   | 'adventure'
   | 'historical'
+  | 'series'
   | 'custom';
 
 /** Available weight levels for a custom profile. */
@@ -317,6 +318,33 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       },
     ],
   },
+  /**
+   * Le profil d'une SAISON, pas d'une série entière.
+   *
+   * Il reprend la forme commune — quatre critères de base plus un spécifique —
+   * ce qui lui évite tout code de notation dédié. Le critère propre est le
+   * rythme : c'est ce qui distingue vraiment une saison d'un film, où la
+   * question du remplissage ne se pose pas de la même manière.
+   *
+   * Scénario et interprétation pèsent plus lourd que sur le profil standard :
+   * sur huit à dix heures, c'est l'écriture et les personnages qui tiennent, et
+   * c'est aussi ce dont on parle en sortant d'une saison.
+   */
+  series: {
+    id: 'series',
+    label: 'Série',
+    criteria: [
+      ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 1.4, sound: 1.0 }),
+      {
+        key: 'pacing',
+        label: 'Rythme',
+        description:
+          'La saison utilise bien ses épisodes, ou tu as senti du remplissage ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
   custom: {
     id: 'custom',
     label: 'Profil perso',
@@ -368,6 +396,7 @@ export const PROFILE_OPTIONS: { id: RatingProfileId; label: string }[] = [
   { id: 'music', label: 'Musical / Musique' },
   { id: 'historical', label: 'Historique / Guerre' },
   { id: 'documentary', label: 'Documentaire' },
+  { id: 'series', label: 'Série' },
   { id: 'custom', label: 'Profil perso' },
 ];
 
@@ -389,17 +418,39 @@ const TMDB_GENRE_TO_PROFILE: { match: RegExp; profile: RatingProfileId }[] = [
   { match: /music|musical|musique/i, profile: 'music' },
 ];
 
-export function detectRatingProfile(genres: string | string[] | undefined | null): RatingProfileId {
-  if (!genres) return 'standard';
-  const list = Array.isArray(genres)
-    ? genres
-    : String(genres)
-        .split(/[,/]/)
-        .map((s) => s.trim());
-  for (const rule of TMDB_GENRE_TO_PROFILE) {
-    if (list.some((g) => rule.match.test(g))) return rule.profile;
-  }
-  return 'standard';
+/**
+ * Genres qui restent prioritaires sur le profil « Série ».
+ *
+ * Un documentaire ou une série d'animation se jugent d'abord sur ce qu'ils
+ * sont : ce qu'on y apprend, la qualité de l'animation. Pour tout le reste —
+ * drame, comédie, thriller… — la question du rythme sur huit épisodes est plus
+ * utile que le critère de genre, et c'est le profil Série qui gagne.
+ */
+const GENRES_OVER_SERIES: RatingProfileId[] = ['documentary', 'animation'];
+
+/**
+ * @param mediaType Sert à orienter vers le profil Série. Absent = un film,
+ *   c'est-à-dire le comportement historique, inchangé.
+ */
+export function detectRatingProfile(
+  genres: string | string[] | undefined | null,
+  mediaType?: 'movie' | 'tv'
+): RatingProfileId {
+  const fromGenres = ((): RatingProfileId => {
+    if (!genres) return 'standard';
+    const list = Array.isArray(genres)
+      ? genres
+      : String(genres)
+          .split(/[,/]/)
+          .map((s) => s.trim());
+    for (const rule of TMDB_GENRE_TO_PROFILE) {
+      if (list.some((g) => rule.match.test(g))) return rule.profile;
+    }
+    return 'standard';
+  })();
+
+  if (mediaType !== 'tv') return fromGenres;
+  return GENRES_OVER_SERIES.includes(fromGenres) ? fromGenres : 'series';
 }
 
 export function getRatingProfile(id: RatingProfileId): RatingProfileDefinition {

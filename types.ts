@@ -233,6 +233,38 @@ export interface AdaptiveRatingData {
   imprints?: EmotionalImprint[];
 }
 
+/**
+ * Où en est l'utilisateur dans une série.
+ *
+ * Volontairement distinct de `MovieStatus` : « à jour » n'est pas « série
+ * terminée ». Quelqu'un peut avoir tout regardé aujourd'hui et découvrir un
+ * nouvel épisode la semaine suivante. Confondre les deux obligerait à
+ * redescendre une série de `watched` à `watchlist` à chaque diffusion.
+ */
+export type TvWatchState = 'planned' | 'watching' | 'paused' | 'dropped' | 'completed';
+
+export interface TvProgress {
+  state: TvWatchState;
+  /** Marque-page : « j'en suis à la saison 2, épisode 4 ». */
+  lastSeason?: number;
+  lastEpisode?: number;
+  /** Saisons déclarées vues en bloc, sans détail d'épisodes. */
+  seasonsWatched?: number[];
+  updatedAt: number;
+}
+
+/**
+ * Un film, une série, ou **une saison**.
+ *
+ * Une saison est un `Movie` comme un autre : `mediaType: 'tv'` et un
+ * `seasonNumber`. Elle hérite ainsi de la notation Bitter/Bitter+, des cartes,
+ * de la synchronisation et des sauvegardes sans code dédié. La série est la
+ * ligne au-dessus, sans `seasonNumber`, qui porte la progression.
+ *
+ * `tmdbId` d'une saison est l'identifiant TMDB DE LA SAISON, pas celui de la
+ * série : c'est `seriesTmdbId` qui fait le lien. Deux saisons d'une même série
+ * ont donc deux `tmdbId` différents.
+ */
 export interface Movie {
   id: string;
   tmdbId?: number;
@@ -265,6 +297,13 @@ export interface Movie {
   // Nouveaux champs pour Séries TV
   mediaType?: 'movie' | 'tv';
   numberOfSeasons?: number;
+  /** Absent = l'œuvre entière : un film, ou la ligne-série. */
+  seasonNumber?: number;
+  /** Identifiant TMDB de la série parente. Porté par les lignes-saisons. */
+  seriesTmdbId?: number;
+  seriesTitle?: string;
+  /** Porté par la ligne-série uniquement, jamais par une saison. */
+  tvProgress?: TvProgress;
   // Système rewatch
   watch_count?: number;
   watches?: MovieWatch[];

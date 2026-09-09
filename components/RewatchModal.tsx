@@ -115,7 +115,10 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
   const previousAdaptive = lastWatch?.adaptiveRating ?? movie.adaptiveRating;
   const previousProfileId = previousAdaptive?.profile.id;
   const previousIsLegacy = !previousAdaptive || previousProfileId === 'standard_legacy';
-  const detectedProfile = useMemo(() => detectRatingProfile(movie.genre), [movie.genre]);
+  const detectedProfile = useMemo(
+    () => detectRatingProfile(movie.genre, movie.mediaType),
+    [movie.genre, movie.mediaType]
+  );
   const initialProfile: RatingProfileId =
     !previousIsLegacy && previousProfileId
       ? (previousProfileId as RatingProfileId)

@@ -1,4 +1,5 @@
 import { Movie } from '../types';
+import { isSeason, isSeries } from './workKey';
 
 /**
  * Statistiques partagées entre les écrans.
@@ -8,9 +9,35 @@ import { Movie } from '../types';
  * mêmes films.
  */
 
-/** Durée totale de visionnage, en heures arrondies. */
+/**
+ * Durée totale de visionnage, en heures arrondies.
+ *
+ * Les lignes-séries sont **écartées** : leur `runtime` est celui d'un seul
+ * épisode, et les compter reviendrait soit à ajouter huit minutes pour une
+ * saison entière, soit — si on les additionnait aux saisons — à compter deux
+ * fois le même temps passé. Ce sont les saisons qui portent la durée, estimée à
+ * partir du nombre d'épisodes.
+ */
 export const totalWatchHours = (movies: Movie[]): number =>
-  Math.round(movies.reduce((acc, m) => acc + (m.runtime || 0), 0) / 60);
+  Math.round(
+    movies.filter((m) => !isSeries(m)).reduce((acc, m) => acc + (m.runtime || 0), 0) / 60
+  );
+
+/**
+ * La durée affichée repose-t-elle en partie sur une estimation ?
+ *
+ * Une saison n'a pas de durée relevée : on multiplie la durée d'un épisode par
+ * leur nombre. C'est une approximation raisonnable, mais l'écran doit le dire
+ * plutôt que de présenter le total comme un chiffre mesuré.
+ */
+export const hasEstimatedRuntime = (movies: Movie[]): boolean => movies.some(isSeason);
+
+/** Séries suivies : les lignes-séries, quel que soit leur état d'avancement. */
+export const countSeries = (movies: Movie[]): number => movies.filter(isSeries).length;
+
+/** Saisons terminées, d'après la progression déclarée sur chaque série. */
+export const countSeasonsCompleted = (movies: Movie[]): number =>
+  movies.filter(isSeries).reduce((acc, s) => acc + (s.tvProgress?.seasonsWatched?.length ?? 0), 0);
 
 /**
  * Genre favori = le genre le plus vu (et non le mieux noté).
