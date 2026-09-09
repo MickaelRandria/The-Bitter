@@ -56,6 +56,12 @@ interface DiscoverViewProps {
   spaces?: SharedSpace[];
   suggestedTmdbIds?: Set<number>;
   onProposeToSpace?: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
+  /**
+   * La partie active de l'application. Cet écran garde son propre sélecteur —
+   * on explore volontiers des séries depuis la partie Films — mais il s'ouvre
+   * là où l'on était, plutôt que de repartir sur « Films » à chaque visite.
+   */
+  initialMediaType?: MediaType;
 }
 
 interface TMDBItem {
@@ -120,6 +126,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   spaces = [],
   suggestedTmdbIds,
   onProposeToSpace,
+  initialMediaType = 'movie',
 }) => {
   const { t } = useLanguage();
   const [items, setItems] = useState<TMDBItem[]>([]);
@@ -132,7 +139,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [streamingFilter, setStreamingFilter] = useState<
     'all' | 'netflix' | 'prime' | 'disney' | 'canal' | 'cinema'
   >('all');
-  const [mediaType, setMediaType] = useState<MediaType>('movie');
+  const [mediaType, setMediaType] = useState<MediaType>(initialMediaType);
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);

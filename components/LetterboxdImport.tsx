@@ -6,6 +6,7 @@ import {
   Settings, ArrowRight, FileText, Layers,
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { WORK_KEY_COLUMNS } from '../services/movieSync';
 import { searchMovieForImport } from '../services/tmdb';
 import { Movie, MovieFormData } from '../types';
 import { useDialog } from '../utils/useDialog';
@@ -118,6 +119,10 @@ function buildSupabaseRow(
     theme: 'black',
     tags: [],
     media_type: 'movie',
+    // Letterboxd n'exporte que des films. `season_number` est posé
+    // explicitement parce qu'il fait partie de la clé d'unicité : l'omettre
+    // laisserait l'upsert viser une autre ligne que celle voulue.
+    season_number: null,
     story: rating,
     visuals: rating,
     acting: rating,
@@ -304,7 +309,7 @@ function LetterboxdImport({ userId, onImportMovies, onClose }: Props) {
         const CHUNK = 50;
         for (let i = 0; i < supabaseRows.length; i += CHUNK) {
           await supabase.from('user_movies').upsert(supabaseRows.slice(i, i + CHUNK), {
-            onConflict: 'profile_id,tmdb_id',
+            onConflict: WORK_KEY_COLUMNS,
             ignoreDuplicates: false,
           });
         }

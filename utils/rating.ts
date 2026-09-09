@@ -21,8 +21,11 @@ export function getWeightLabel(weight: number): WeightLabel {
   return 'Standard';
 }
 
-export function detectRatingProfile(genres: string | string[] | undefined | null): RatingProfileId {
-  return detectFromGenres(genres);
+export function detectRatingProfile(
+  genres: string | string[] | undefined | null,
+  mediaType?: 'movie' | 'tv'
+): RatingProfileId {
+  return detectFromGenres(genres, mediaType);
 }
 
 export function buildCriteriaForProfile(
@@ -162,4 +165,51 @@ export function getDisplayWeightedRating(movie: Movie): number {
   if (movie.adaptiveRating) return movie.adaptiveRating.weightedRating;
   const r = movie.ratings;
   return Math.round(((r.story + r.visuals + r.acting + r.sound) / 4) * 10) / 10;
+}
+
+/**
+ * Un verdict a-t-il été posé sur cette œuvre ?
+ *
+ * `getDisplayWeightedRating` rend 0 aussi bien pour « pas encore noté » que pour
+ * « noté zéro partout ». La distinction est sans conséquence sur un film — on
+ * regarde son statut — mais elle change la note d'une série : une saison non
+ * notée doit être **exclue** de la moyenne, jamais comptée comme un zéro.
+ *
+ * La présence d'`adaptiveRating` tranche le cas d'un vrai zéro : passer par la
+ * grille Bitter+ laisse une trace même si tous les curseurs sont au minimum.
+ * Pour l'ancienne notation, un tout-à-zéro reste indistinguable d'une absence ;
+ * c'est une ambiguïté héritée, pas une régression.
+ */
+export function hasVerdict(movie: Movie): boolean {
+  if (movie.adaptiveRating) return true;
+  const r = movie.ratings;
+  return r.story > 0 || r.visuals > 0 || r.acting > 0 || r.sound > 0;
+}
+
+export interface SeriesRating {
+  /** Moyenne non pondérée des saisons notées. */
+  average: number;
+  /** Combien de saisons ont réellement un verdict — sert au libellé. */
+  ratedSeasons: number;
+}
+
+/**
+ * Note d'une série : la moyenne **non pondérée** de ses saisons notées.
+ *
+ * Non pondérée volontairement : une saison de vingt épisodes ne doit pas
+ * écraser une saison courte. Pondérer par la durée serait un autre choix, qu'il
+ * faudrait alors expliquer à l'écran plutôt que d'appliquer en silence.
+ *
+ * Rend `null` quand aucune saison n'est notée — l'appelant affiche alors le
+ * verdict global historique s'il en existe un, et surtout pas un zéro.
+ */
+export function getSeriesRating(seasons: Movie[]): SeriesRating | null {
+  const rated = seasons.filter(hasVerdict);
+  if (rated.length === 0) return null;
+
+  const total = rated.reduce((sum, season) => sum + getDisplayWeightedRating(season), 0);
+  return {
+    average: Math.round((total / rated.length) * 10) / 10,
+    ratedSeasons: rated.length,
+  };
 }

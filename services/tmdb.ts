@@ -96,6 +96,25 @@ export const searchPerson = async (query: string): Promise<number | null> => {
   }
 };
 
+/**
+ * Traduit la liste de genres TMDB vers l'un des genres de l'application.
+ *
+ * Extrait de `getMovieDetailsForAdd`, où il vivait en ligne : l'ajout rapide
+ * d'une série ne l'appelait pas et posait `GENRES[0]`, c'est-à-dire « Action »,
+ * sur **toutes** les séries. Le profil de notation, qui se déduit du genre, se
+ * trompait donc systématiquement. Un seul endroit pour cette traduction évite
+ * que le prochain parcours d'ajout refasse la même chose.
+ */
+export const mapTmdbGenre = (tmdbGenres?: { name: string }[]): string => {
+  const first = tmdbGenres?.[0]?.name;
+  if (!first) return GENRES[0];
+  return (
+    GENRES.find((g) => g.toLowerCase() === first.toLowerCase()) ||
+    GENRES.find((g) => first.includes(g)) ||
+    GENRES[0]
+  );
+};
+
 export const getMovieDetailsForAdd = async (tmdbId: number): Promise<MovieFormData | null> => {
   const key = `movieDetails:${tmdbId}`;
   const cached = getCachedData<MovieFormData>(key);
@@ -109,14 +128,7 @@ export const getMovieDetailsForAdd = async (tmdbId: number): Promise<MovieFormDa
     const directorObj = data.credits?.crew?.find((p: any) => p.job === 'Director');
     const actorItems = data.credits?.cast?.slice(0, 3) || [];
 
-    let genre = GENRES[0];
-    if (data.genres && data.genres.length > 0) {
-      const tmdbGenre = data.genres[0].name;
-      const match =
-        GENRES.find((g) => g.toLowerCase() === tmdbGenre.toLowerCase()) ||
-        GENRES.find((g) => tmdbGenre.includes(g));
-      if (match) genre = match;
-    }
+    const genre = mapTmdbGenre(data.genres);
 
     const result: MovieFormData = {
       title: data.title,
@@ -147,6 +159,100 @@ export const getMovieDetailsForAdd = async (tmdbId: number): Promise<MovieFormDa
     return result;
   } catch (error) {
     if (import.meta.env.DEV) console.error('Error fetching movie details:', error);
+    return null;
+  }
+};
+
+/** Une saison telle que TMDB la décrit sur la fiche série. */
+export interface TmdbSeasonSummary {
+  /** Identifiant TMDB **de la saison**, distinct de celui de la série. */
+  id: number;
+  seasonNumber: number;
+  name: string;
+  episodeCount: number;
+  airDate?: string;
+  posterUrl?: string;
+}
+
+export interface TmdbSeriesDetails {
+  tmdbId: number;
+  title: string;
+  creator: string;
+  creatorId?: number;
+  actors: string;
+  actorIds: { id: number; name: string }[];
+  year: number;
+  firstAirDate?: string;
+  /** Durée d'UN épisode. La durée d'une saison s'en déduit. */
+  episodeRuntime: number;
+  genre: string;
+  genres: string[];
+  synopsis: string;
+  posterUrl?: string;
+  tmdbRating: number;
+  numberOfSeasons: number;
+  /** Diffusion en cours, terminée, annulée — ce que TMDB en sait. */
+  productionStatus?: string;
+  seasons: TmdbSeasonSummary[];
+}
+
+/**
+ * Fiche d'une série, saisons comprises.
+ *
+ * Les **épisodes ne sont pas chargés** : une série longue en compte plusieurs
+ * centaines, et les télécharger à l'ouverture de la fiche coûterait cher pour
+ * une information que la V1 n'affiche pas. `/tv/{id}` rend déjà la liste des
+ * saisons, ce qui suffit à la progression et aux verdicts de saison.
+ *
+ * Les saisons 0 (épisodes spéciaux) sont conservées : les écarter ici
+ * empêcherait de les noter plus tard, alors que TMDB les expose comme les
+ * autres. C'est à l'affichage de décider de les ranger à part.
+ */
+export const getSeriesDetails = async (tmdbId: number): Promise<TmdbSeriesDetails | null> => {
+  const key = `seriesDetails:${tmdbId}`;
+  const cached = getCachedData<TmdbSeriesDetails>(key);
+  if (cached) return cached;
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    const creator = data.created_by?.[0] || data.credits?.crew?.find((p: any) => p.job === 'Director');
+    const actorItems = data.credits?.cast?.slice(0, 3) || [];
+
+    const result: TmdbSeriesDetails = {
+      tmdbId: data.id,
+      title: data.name || '',
+      creator: creator?.name || 'Inconnu',
+      creatorId: creator?.id,
+      actors: actorItems.map((p: any) => p.name).join(', '),
+      actorIds: actorItems.map((p: any) => ({ id: p.id, name: p.name })),
+      year: data.first_air_date ? parseInt(data.first_air_date.split('-')[0]) : new Date().getFullYear(),
+      firstAirDate: data.first_air_date || undefined,
+      episodeRuntime: data.episode_run_time?.[0] || 0,
+      genre: mapTmdbGenre(data.genres),
+      genres: (data.genres || []).map((g: any) => g.name),
+      synopsis: data.overview || '',
+      posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : undefined,
+      tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
+      numberOfSeasons: data.number_of_seasons ?? 0,
+      productionStatus: data.status || undefined,
+      seasons: (data.seasons || []).map((s: any): TmdbSeasonSummary => ({
+        id: s.id,
+        seasonNumber: s.season_number,
+        name: s.name,
+        episodeCount: s.episode_count ?? 0,
+        airDate: s.air_date || undefined,
+        posterUrl: s.poster_path ? `${TMDB_IMAGE_URL}${s.poster_path}` : undefined,
+      })),
+    };
+
+    setCachedData(key, result);
+    return result;
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching series details:', error);
     return null;
   }
 };

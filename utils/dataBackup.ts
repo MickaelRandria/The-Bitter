@@ -1,7 +1,16 @@
 import { UserProfile } from '../types';
 
 export const BACKUP_SCHEMA = 'the-bitter-backup';
-export const BACKUP_VERSION = 1;
+
+/**
+ * Version 2 : les séries y sont représentées par une ligne-série et ses
+ * saisons, avec progression. Les sauvegardes de version 1 restent importables —
+ * elles ne contiennent que des films et des séries sans saison, ce que le
+ * modèle actuel sait toujours lire. Refuser une ancienne sauvegarde reviendrait
+ * à perdre l'historique de quelqu'un pour une raison de forme.
+ */
+export const BACKUP_VERSION = 2;
+const SUPPORTED_VERSIONS = [1, 2];
 
 /** Préférences locales qui influencent directement l'expérience sans contenir de session ni de secret. */
 const PREFERENCE_KEYS = [
@@ -14,6 +23,9 @@ const PREFERENCE_KEYS = [
   'the_bitter_seen_tooltips',
   'the_bitter_guide_seen',
   'bitter-recent-searches',
+  // La partie (Films ou Séries) où l'on se trouvait : une préférence d'usage,
+  // au même titre que le thème ou la langue.
+  'bitter_media_mode',
 ] as const;
 
 type PreferenceKey = (typeof PREFERENCE_KEYS)[number];
@@ -21,7 +33,8 @@ type BackupPreferences = Record<PreferenceKey, string | null>;
 
 export interface TheBitterBackup {
   schema: typeof BACKUP_SCHEMA;
-  version: typeof BACKUP_VERSION;
+  /** Celle du fichier lu, pas forcément la version courante. */
+  version: number;
   exportedAt: string;
   profile: UserProfile;
   preferences: BackupPreferences;
@@ -36,6 +49,39 @@ const isRating = (value: unknown): boolean =>
     (key) => typeof value[key] === 'number' && Number.isFinite(value[key])
   );
 
+const isOptionalNumber = (value: unknown): boolean =>
+  value === undefined || (typeof value === 'number' && Number.isFinite(value));
+
+/**
+ * Progression d'une série. Facultative : un film n'en a pas, et une série
+ * importée d'une sauvegarde version 1 non plus.
+ */
+const isTvProgress = (value: unknown): boolean => {
+  if (value === undefined) return true;
+  if (!isRecord(value)) return false;
+  const states = ['planned', 'watching', 'paused', 'dropped', 'completed'];
+  return (
+    typeof value.state === 'string' &&
+    states.includes(value.state) &&
+    isOptionalNumber(value.lastSeason) &&
+    isOptionalNumber(value.lastEpisode) &&
+    (value.seasonsWatched === undefined ||
+      (Array.isArray(value.seasonsWatched) &&
+        value.seasonsWatched.every((n) => typeof n === 'number'))) &&
+    typeof value.updatedAt === 'number'
+  );
+};
+
+/**
+ * Une œuvre : film, série ou saison.
+ *
+ * Les champs TV sont tous facultatifs — c'est ce qui laisse passer les
+ * sauvegardes antérieures aux séries sans traitement particulier. Le validateur
+ * ne cherche pas à vérifier la cohérence entre `seasonNumber` et
+ * `seriesTmdbId` : une sauvegarde n'est pas l'endroit où arbitrer cela, et
+ * rejeter tout un fichier pour une incohérence de ce genre coûterait plus cher
+ * que de l'importer tel quel.
+ */
 const isMovie = (value: unknown): boolean =>
   isRecord(value) &&
   typeof value.id === 'string' &&
@@ -45,7 +91,13 @@ const isMovie = (value: unknown): boolean =>
   typeof value.genre === 'string' &&
   (value.status === 'watched' || value.status === 'watchlist') &&
   typeof value.dateAdded === 'number' &&
-  isRating(value.ratings);
+  isRating(value.ratings) &&
+  (value.mediaType === undefined || value.mediaType === 'movie' || value.mediaType === 'tv') &&
+  isOptionalNumber(value.seasonNumber) &&
+  isOptionalNumber(value.seriesTmdbId) &&
+  isOptionalNumber(value.numberOfSeasons) &&
+  (value.seriesTitle === undefined || typeof value.seriesTitle === 'string') &&
+  isTvProgress(value.tvProgress);
 
 /**
  * Crée une sauvegarde portable et complète du profil actif. Les identifiants de
@@ -68,7 +120,12 @@ export const createBackup = (profile: UserProfile): TheBitterBackup => {
 };
 
 export const parseBackup = (value: unknown): TheBitterBackup | null => {
-  if (!isRecord(value) || value.schema !== BACKUP_SCHEMA || value.version !== BACKUP_VERSION) {
+  if (
+    !isRecord(value) ||
+    value.schema !== BACKUP_SCHEMA ||
+    typeof value.version !== 'number' ||
+    !SUPPORTED_VERSIONS.includes(value.version)
+  ) {
     return null;
   }
 
@@ -95,7 +152,9 @@ export const parseBackup = (value: unknown): TheBitterBackup | null => {
 
   return {
     schema: BACKUP_SCHEMA,
-    version: BACKUP_VERSION,
+    // La version lue est conservée : l'appelant sait ainsi qu'il a affaire à
+    // une sauvegarde antérieure aux séries, plutôt que de la croire à jour.
+    version: value.version,
     exportedAt,
     profile: profile as unknown as UserProfile,
     preferences: completePreferences,

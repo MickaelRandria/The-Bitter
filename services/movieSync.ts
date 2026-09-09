@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import { ActorInfo, AdaptiveRatingData, Movie, MovieStatus, MovieWatch } from '../types';
+import { ActorInfo, AdaptiveRatingData, Movie, MovieStatus, MovieWatch, TvProgress } from '../types';
+import { WorkIdentity, WorkKey, workKey } from '../utils/workKey';
 
 /**
  * Synchronisation du profil perso avec Supabase.
@@ -56,8 +57,20 @@ const MOVIE_COLUMNS = `
   runtime, genre, poster_url, tmdb_rating, status, date_watched, theme, tags,
   media_type, story, visuals, acting, sound, vibe_story, vibe_emotion, vibe_fun,
   vibe_visual, vibe_tension, smartphone_factor, hype, review, adaptive_rating,
-  watches, created_at, rated_at
+  watches, created_at, rated_at,
+  season_number, series_tmdb_id, series_title, number_of_seasons, tv_progress
 `;
+
+/**
+ * Colonnes de la clé d'unicité, telles que PostgREST doit les nommer.
+ *
+ * Elles correspondent à la contrainte `user_movies_work_key`. PostgREST traduit
+ * cette chaîne en `ON CONFLICT (…)`, qui exige un index unique portant
+ * exactement ces colonnes : la constante existe pour qu'un seul endroit ait à
+ * changer le jour où la clé évolue, plutôt que quatre appels dispersés dans
+ * deux fichiers.
+ */
+export const WORK_KEY_COLUMNS = 'profile_id,media_type,tmdb_id,season_number';
 
 interface UserMovieRow {
   id: string;
@@ -94,6 +107,11 @@ interface UserMovieRow {
   watches: unknown;
   created_at: string | null;
   rated_at: string | null;
+  season_number: number | null;
+  series_tmdb_id: number | null;
+  series_title: string | null;
+  number_of_seasons: number | null;
+  tv_progress: unknown;
 }
 
 const toTimestamp = (value: string | null): number | undefined => {
@@ -188,6 +206,11 @@ export const rowToMovie = (row: UserMovieRow): Movie => {
     adaptiveRating: parseJsonColumn<AdaptiveRatingData>(row.adaptive_rating),
     watches,
     watch_count: watches?.length,
+    seasonNumber: row.season_number ?? undefined,
+    seriesTmdbId: row.series_tmdb_id ?? undefined,
+    seriesTitle: row.series_title ?? undefined,
+    numberOfSeasons: row.number_of_seasons ?? undefined,
+    tvProgress: parseJsonColumn<TvProgress>(row.tv_progress),
   };
 };
 
@@ -219,26 +242,53 @@ export const fetchRemoteMovies = async (
 };
 
 /**
- * Marque un film comme supprimé côté compte.
+ * Restreint une requête à UNE œuvre précise.
+ *
+ * Le filtre portait sur le seul `tmdb_id`. Sur une série, cela visait d'un coup
+ * la ligne-série et toutes ses saisons : supprimer la saison 2 aurait effacé la
+ * série entière. Les trois colonnes de la clé sont donc toutes exigées, y
+ * compris `season_number` qui doit être testé comme nul et non ignoré.
+ */
+interface WorkScopedQuery<T> {
+  eq(column: string, value: unknown): T;
+  is(column: string, value: null): T;
+}
+
+const scopeToWork = <T extends WorkScopedQuery<T>>(
+  query: T,
+  userId: string,
+  work: WorkIdentity
+): T => {
+  const scoped = query
+    .eq('profile_id', userId)
+    .eq('tmdb_id', work.tmdbId)
+    .eq('media_type', work.mediaType ?? 'movie');
+  return work.seasonNumber == null
+    ? scoped.is('season_number', null)
+    : scoped.eq('season_number', work.seasonNumber);
+};
+
+/**
+ * Marque une œuvre comme supprimée côté compte.
  *
  * UPDATE et non DELETE : la ligne subsiste comme pierre tombale pour que les
  * autres appareils, dont le cache local est peut-être antérieur, ne fassent pas
- * réapparaître le film à la prochaine remontée d'historique.
+ * réapparaître l'œuvre à la prochaine remontée d'historique.
  *
  * Sans tmdbId, il n'existe aucune clé stable entre local et serveur : on ne peut
  * rien marquer, et on le signale à l'appelant plutôt que d'échouer en silence.
  */
 export const softDeleteMovie = async (
   userId: string,
-  tmdbId: number | undefined
+  work: WorkIdentity | undefined
 ): Promise<boolean> => {
-  if (!supabase || tmdbId == null) return false;
+  if (!supabase || work?.tmdbId == null) return false;
 
-  const { error } = await supabase
-    .from('user_movies')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('profile_id', userId)
-    .eq('tmdb_id', tmdbId);
+  const { error } = await scopeToWork(
+    supabase.from('user_movies').update({ deleted_at: new Date().toISOString() }),
+    userId,
+    work
+  );
 
   if (error) {
     // Toujours journalisé, pas seulement en développement : une synchro qui échoue
@@ -257,15 +307,15 @@ export const softDeleteMovie = async (
  */
 export const restoreDeletedMovie = async (
   userId: string,
-  tmdbId: number | undefined
+  work: WorkIdentity | undefined
 ): Promise<boolean> => {
-  if (!supabase || tmdbId == null) return false;
+  if (!supabase || work?.tmdbId == null) return false;
 
-  const { error } = await supabase
-    .from('user_movies')
-    .update({ deleted_at: null })
-    .eq('profile_id', userId)
-    .eq('tmdb_id', tmdbId);
+  const { error } = await scopeToWork(
+    supabase.from('user_movies').update({ deleted_at: null }),
+    userId,
+    work
+  );
 
   if (error) {
     console.error('[Sync] Restauration échouée :', error);
@@ -275,18 +325,18 @@ export const restoreDeletedMovie = async (
 };
 
 /**
- * Identifiants TMDB déjà supprimés sur ce compte.
+ * Œuvres déjà supprimées sur ce compte, par clé composite.
  *
  * Sert au backfill pour ne pas ressusciter ce que l'utilisateur a supprimé
  * ailleurs. Renvoie un ensemble vide en cas d'échec : mieux vaut un backfill
  * complet qu'un backfill bloqué, la resynchronisation restant rejouable.
  */
-export const getDeletedTmdbIds = async (userId: string): Promise<Set<number>> => {
+export const getDeletedWorkKeys = async (userId: string): Promise<Set<WorkKey>> => {
   if (!supabase) return new Set();
 
   const { data, error } = await supabase
     .from('user_movies')
-    .select('tmdb_id')
+    .select('tmdb_id, media_type, season_number')
     .eq('profile_id', userId)
     .not('deleted_at', 'is', null);
 
@@ -295,10 +345,17 @@ export const getDeletedTmdbIds = async (userId: string): Promise<Set<number>> =>
     return new Set();
   }
 
+  const rows = data as { tmdb_id: number | null; media_type: string | null; season_number: number | null }[];
   return new Set(
-    (data as { tmdb_id: number | null }[])
-      .map((row) => row.tmdb_id)
-      .filter((id): id is number => id != null)
+    rows
+      .filter((row) => row.tmdb_id != null)
+      .map((row) =>
+        workKey({
+          tmdbId: row.tmdb_id as number,
+          mediaType: row.media_type === 'tv' ? 'tv' : 'movie',
+          seasonNumber: row.season_number ?? undefined,
+        })
+      )
   );
 };
 
@@ -314,8 +371,17 @@ export interface BackfillReport {
   fatalError?: string;
 }
 
-/** Ligne envoyée à user_movies. Doit rester alignée sur movieToRow. */
-const movieToRow = (movie: Movie, userId: string) => ({
+/**
+ * Ligne envoyée à `user_movies`. **L'unique constructeur** — services/migration.ts
+ * l'importe au lieu d'en tenir un second.
+ *
+ * Il en existait effectivement deux, et ils avaient divergé : l'un écrivait
+ * `comment` et `shared_to_feed`, l'autre non ; l'un encodait `actor_ids` avec
+ * `JSON.stringify`, l'autre passait le tableau natif. Ajouter les colonnes de
+ * saison à un seul des deux aurait fait disparaître la progression selon le
+ * chemin d'écriture emprunté.
+ */
+export const movieToRow = (movie: Movie, userId: string) => ({
   profile_id: userId,
   tmdb_id: movie.tmdbId ?? null,
   title: movie.title,
@@ -348,13 +414,28 @@ const movieToRow = (movie: Movie, userId: string) => ({
   smartphone_factor: movie.smartphoneFactor ?? null,
   hype: movie.hype ?? null,
   review: movie.review || null,
+  // `review` porte le synopsis TMDB, pré-rempli à la sélection du film. L'avis
+  // écrit par la personne est dans `comment`, et il n'était jamais envoyé par ce
+  // chemin : le fil ne pouvait donc afficher qu'un résumé là où l'on attend une
+  // opinion.
+  comment: movie.comment || null,
   adaptive_rating: movie.adaptiveRating ?? null,
+  // Absent du modèle local des anciens films : on publie par défaut, ce qui
+  // correspond au réglage choisi et à ce que la colonne vaut déjà en base.
+  shared_to_feed: movie.shareToFeed !== false,
   watches: movie.watches ?? null,
   // Déterministe et toujours présent : voir la note détaillée dans
   // services/migration.ts. `new Date()` en repli réécrirait la date de création à
   // chaque resynchronisation, et une clé conditionnelle casserait l'upsert groupé.
   created_at: new Date(movie.dateAdded || movie.dateWatched || 0).toISOString(),
   rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
+  // `season_number` participe à la clé d'unicité : il doit être explicitement
+  // nul pour un film, jamais absent, sinon l'upsert viserait une autre ligne.
+  season_number: movie.seasonNumber ?? null,
+  series_tmdb_id: movie.seriesTmdbId ?? null,
+  series_title: movie.seriesTitle ?? null,
+  number_of_seasons: movie.numberOfSeasons ?? null,
+  tv_progress: movie.tvProgress ?? null,
 });
 
 /**
@@ -382,10 +463,10 @@ export const backfillProfileToSupabase = async (
   // sur un vieil appareil dont le cache est antérieur. « Tout réunir » ne doit pas
   // ressusciter ce film. Ce comportement est propre au backfill : un réajout
   // délibéré via l'écran d'ajout passe par un autre chemin et lève la suppression.
-  const deletedTmdbIds = await getDeletedTmdbIds(userId);
+  const deletedKeys = await getDeletedWorkKeys(userId);
 
   const withTmdbId = movies.filter((movie) => movie.tmdbId != null);
-  const syncable = withTmdbId.filter((movie) => !deletedTmdbIds.has(movie.tmdbId as number));
+  const syncable = withTmdbId.filter((movie) => !deletedKeys.has(workKey(movie)));
   const skippedDeleted = withTmdbId.length - syncable.length;
 
   if (syncable.length === 0) return { pushed: 0, failed: [], skippedDeleted };
@@ -393,7 +474,7 @@ export const backfillProfileToSupabase = async (
   const batch = await supabase
     .from('user_movies')
     .upsert(syncable.map((movie) => movieToRow(movie, userId)), {
-      onConflict: 'profile_id,tmdb_id',
+      onConflict: WORK_KEY_COLUMNS,
       ignoreDuplicates: false,
     });
 
@@ -409,7 +490,7 @@ export const backfillProfileToSupabase = async (
       const { error } = await supabase
         .from('user_movies')
         .upsert(movieToRow(movie, userId), {
-          onConflict: 'profile_id,tmdb_id',
+          onConflict: WORK_KEY_COLUMNS,
           ignoreDuplicates: false,
         });
 
@@ -430,16 +511,21 @@ export const backfillProfileToSupabase = async (
 /**
  * Fusionne l'historique serveur et l'historique local.
  *
- * Le serveur fait foi, mais on ne jette jamais un film local absent du serveur :
- * il vient probablement d'être ajouté hors ligne, ou n'a pas encore été poussé.
- * Le dédoublonnage se fait sur `tmdbId`, seule clé stable entre les deux mondes.
+ * Le serveur fait foi, mais on ne jette jamais une œuvre locale absente du
+ * serveur : elle vient probablement d'être ajoutée hors ligne, ou n'a pas encore
+ * été poussée.
+ *
+ * Le dédoublonnage se fait sur la clé composite et non sur le seul `tmdbId` :
+ * deux saisons d'une même série ont chacune leur identifiant TMDB, mais un film
+ * et une série peuvent partager le leur. Indexer sur le nombre seul faisait donc
+ * disparaître l'un des deux à chaque fusion.
  */
 export const mergeRemoteAndLocal = (remote: Movie[], local: Movie[]): Movie[] => {
-  const byTmdbId = new Map<number, Movie>();
+  const byKey = new Map<WorkKey, Movie>();
   const withoutTmdbId: Movie[] = [];
 
   remote.forEach((movie) => {
-    if (movie.tmdbId != null) byTmdbId.set(movie.tmdbId, movie);
+    if (movie.tmdbId != null) byKey.set(workKey(movie), movie);
     else withoutTmdbId.push(movie);
   });
 
@@ -448,10 +534,11 @@ export const mergeRemoteAndLocal = (remote: Movie[], local: Movie[]): Movie[] =>
       withoutTmdbId.push(movie);
       return;
     }
-    if (!byTmdbId.has(movie.tmdbId)) byTmdbId.set(movie.tmdbId, movie);
+    const key = workKey(movie);
+    if (!byKey.has(key)) byKey.set(key, movie);
   });
 
-  return [...byTmdbId.values(), ...withoutTmdbId].sort(
+  return [...byKey.values(), ...withoutTmdbId].sort(
     (a, b) => (b.dateAdded ?? 0) - (a.dateAdded ?? 0)
   );
 };
