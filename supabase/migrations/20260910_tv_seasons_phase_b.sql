@@ -15,11 +15,17 @@
 -- Condition à vérifier avant de jouer ceci : plus aucun appelant n'utilise
 -- `onConflict: 'profile_id,tmdb_id'`.
 --
---   grep -rn "profile_id,tmdb_id" services/
+--   grep -rn "profile_id,tmdb_id" --include="*.ts" --include="*.tsx" . \
+--     --exclude-dir=node_modules --exclude-dir=dist
 --
--- doit ne rien rendre. Sinon, l'écriture concernée tombera en erreur 42P10 dès
--- le retrait, silencieusement — c'est exactement le mode de panne que la
--- découpe en deux phases sert à éviter.
+-- doit ne rien rendre. **Tout le dépôt, pas seulement `services/`** : la
+-- première version de cette note ne visait que le dossier des services, et le
+-- dernier appelant restant était dans `components/LetterboxdImport.tsx`.
+--
+-- Sinon, l'écriture concernée tombera en erreur 42P10 dès le retrait,
+-- silencieusement — et un `catch` générique l'avalera comme un refus RLS.
+-- C'est exactement le mode de panne que la découpe en deux phases sert à
+-- éviter.
 
 alter table public.user_movies
   drop constraint if exists user_movies_profile_id_tmdb_id_key;
