@@ -8,6 +8,9 @@ export interface TvEpisode {
   name: string;
   airDate?: string;
   runtime?: number;
+  /** L'image de l'épisode (`still_path`), en 16/9. Absente sur les inédits. */
+  still?: string;
+  overview?: string;
 }
 
 async function request(path: string, language: string) {
@@ -22,7 +25,16 @@ export async function getSeasonEpisodes(id: number, season: number, language = '
   const cached = getCachedData<TvEpisode[]>(key);
   if (cached) return cached;
   const data = await request(`tv/${id}/season/${season}`, language);
-  const episodes = (data.episodes ?? []).map((e: any) => ({ id: e.id, seasonNumber: e.season_number, episodeNumber: e.episode_number, name: e.name, airDate: e.air_date || undefined, runtime: e.runtime || undefined }));
+  const episodes = (data.episodes ?? []).map((e: any) => ({
+    id: e.id,
+    seasonNumber: e.season_number,
+    episodeNumber: e.episode_number,
+    name: e.name,
+    airDate: e.air_date || undefined,
+    runtime: e.runtime || undefined,
+    still: e.still_path ? `${TMDB_IMAGE_URL}${e.still_path}` : undefined,
+    overview: e.overview || undefined,
+  }));
   setCachedData(key, episodes);
   return episodes;
 }
