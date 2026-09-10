@@ -11,6 +11,14 @@ export interface TvEpisode {
   /** L'image de l'épisode (`still_path`), en 16/9. Absente sur les inédits. */
   still?: string;
   overview?: string;
+  /**
+   * La note TMDB, celle de tout le monde. À ne pas confondre avec la sienne.
+   *
+   * TMDB rend `0` pour un épisode que personne n'a noté — ce n'est pas un zéro,
+   * c'est une absence. On l'écarte ici plutôt que d'afficher « 0.0 » sous
+   * chaque inédit.
+   */
+  voteAverage?: number;
 }
 
 async function request(path: string, language: string) {
@@ -34,6 +42,7 @@ export async function getSeasonEpisodes(id: number, season: number, language = '
     runtime: e.runtime || undefined,
     still: e.still_path ? `${TMDB_IMAGE_URL}${e.still_path}` : undefined,
     overview: e.overview || undefined,
+    voteAverage: e.vote_average > 0 ? e.vote_average : undefined,
   }));
   setCachedData(key, episodes);
   return episodes;
