@@ -167,6 +167,28 @@ test('backup round trip preserves episode zero, optional dates and the rating gr
   assert.equal(restored.adaptiveRating.criteria[0].key, 'scenario');
 });
 
+test('an overall rating survives a backup without inventing a grid', () => {
+  // Le mode « note globale » ne pose qu'un chiffre : aucune grille à conserver,
+  // et le validateur ne doit pas en exiger une.
+  const parsed = parseBackup(backup({ ...entry, rating: 7.5, ratingMode: 'global' }));
+  assert.ok(parsed);
+  const restored = parsed.profile.movies[0].tvProgress.episodes['1:1'];
+  assert.equal(restored.rating, 7.5);
+  assert.equal(restored.ratingMode, 'global');
+  assert.equal(restored.adaptiveRating, undefined);
+});
+
+test('the three rating modes land on the same scale, so the average means something', () => {
+  // Une note globale, une note Bitter et une note Bitter+ se moyennent entre
+  // elles : c'est la raison d'être de l'échelle commune.
+  const entries = [
+    { ...entry, rating: 6, ratingMode: 'global' },
+    { ...entry, episodeNumber: 2, rating: 8, ratingMode: 'bitter' },
+    { ...entry, episodeNumber: 3, rating: 10, ratingMode: 'bitter_plus' },
+  ];
+  assert.deepEqual(seasonScores(undefined, entries, 1).episodes, { average: 8, count: 3 });
+});
+
 test('malformed episode entries do not enter the local library through backup', () => {
   const invalids = [
     { ...entry, rating: 11 },

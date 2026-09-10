@@ -183,17 +183,24 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
 
       {!episodes.length && <p className="text-[11px] text-stone-400">{t('tv.noEpisodes')}</p>}
 
-      <ul className="space-y-2">
+      <ul className="space-y-2.5">
         {episodes.map((episode) => {
           const entry = entryFor(episode);
           const visible = entry.watched || revealed.includes(episode.id);
+          const rated = entry.rating != null;
           return (
             <li
               key={episode.id}
-              className="rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-[#161616] overflow-hidden"
+              /* Trois états se distinguent d'un coup d'œil : rien, vu, noté.
+                 Le liseré vert dit « tu as posé un avis » sans rien lire. */
+              className={`rounded-2xl border overflow-hidden transition-colors ${
+                rated
+                  ? 'border-forest/40 dark:border-bitter-lime/30 bg-white dark:bg-[#181818]'
+                  : 'border-stone-200 dark:border-white/10 bg-white dark:bg-[#161616]'
+              }`}
             >
               <div className="flex gap-3 p-2.5">
-                <div className="relative w-24 aspect-video shrink-0 rounded-xl overflow-hidden bg-stone-200 dark:bg-[#252525]">
+                <div className="relative w-[5.5rem] aspect-video shrink-0 rounded-xl overflow-hidden bg-stone-200 dark:bg-[#252525]">
                   {episode.still ? (
                     <img
                       src={resizeTmdbImage(episode.still, 'w342')}
@@ -205,18 +212,27 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
                       }`}
                     />
                   ) : (
-                    <div className="w-full h-full grid place-items-center text-stone-300 dark:text-stone-700 text-[10px] font-black">
+                    <div className="w-full h-full grid place-items-center text-stone-300 dark:text-stone-700 text-lg font-black tabular-nums">
                       {episode.episodeNumber}
                     </div>
                   )}
+
                   {!visible && (
                     <button
                       onClick={() => setRevealed((prev) => [...prev, episode.id])}
                       aria-label={t('tv.revealTitle')}
-                      className="absolute inset-0 grid place-items-center bg-black/25 text-white active:scale-95 transition-transform"
+                      className="absolute inset-0 grid place-items-center bg-black/30 text-white active:scale-95 transition-transform"
                     >
                       <Eye size={16} />
                     </button>
+                  )}
+
+                  {/* La note se lit sur l'image : c'est ce qu'on parcourt en
+                      remontant une saison déjà vue. */}
+                  {rated && (
+                    <span className="absolute bottom-1 right-1 rounded-lg bg-charcoal/90 dark:bg-black/80 px-1.5 py-0.5 text-[11px] font-black text-bitter-lime tabular-nums backdrop-blur-sm">
+                      {entry.rating!.toFixed(1)}
+                    </span>
                   )}
                 </div>
 
@@ -261,6 +277,8 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
                       <Check size={14} strokeWidth={3} />
                     </button>
 
+                    {/* Un épisode vu mais pas encore noté est ce qui attend un
+                        geste : son bouton est plein. Les autres restent sobres. */}
                     <button
                       aria-label={t('tv.rateEpisode', { number: episode.episodeNumber })}
                       onClick={() => {
@@ -268,14 +286,16 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
                         setEditing(episode);
                       }}
                       className={`h-9 flex-1 min-w-0 rounded-xl px-3 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                        entry.rating != null
-                          ? 'bg-sand/70 dark:bg-[#252525] text-charcoal dark:text-white'
-                          : 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                        rated
+                          ? 'bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white'
+                          : entry.watched
+                            ? 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal shadow-sm'
+                            : 'border border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-500'
                       }`}
                     >
-                      {entry.rating != null ? (
+                      {rated ? (
                         <>
-                          <Star size={11} strokeWidth={3} /> {entry.rating.toFixed(1)}
+                          <Star size={11} strokeWidth={3} /> {t('tv.editRating')}
                         </>
                       ) : (
                         t('tv.rate')
@@ -286,8 +306,8 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
               </div>
 
               {entry.review && visible && (
-                <p className="px-2.5 pb-2.5 -mt-0.5 text-[11px] italic leading-snug text-stone-500 dark:text-stone-400">
-                  « {entry.review} »
+                <p className="px-3 pb-3 text-[11px] italic leading-snug text-stone-500 dark:text-stone-400">
+                  « {entry.review} »
                 </p>
               )}
             </li>

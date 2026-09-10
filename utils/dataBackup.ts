@@ -78,7 +78,10 @@ const isEpisodeEntry = (e: unknown): boolean =>
   typeof e.updatedAt === 'number' &&
   Number.isFinite(e.updatedAt) &&
   (e.rating === undefined || isScore(e.rating)) &&
-  (e.ratingMode === undefined || e.ratingMode === 'bitter' || e.ratingMode === 'bitter_plus') &&
+  (e.ratingMode === undefined ||
+    e.ratingMode === 'global' ||
+    e.ratingMode === 'bitter' ||
+    e.ratingMode === 'bitter_plus') &&
   (e.adaptiveRating === undefined ||
     (isRecord(e.adaptiveRating) &&
       isScore(e.adaptiveRating.weightedRating) &&
