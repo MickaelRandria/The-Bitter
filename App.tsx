@@ -1791,18 +1791,6 @@ const App: React.FC = () => {
     setRewatchMovie(null);
   };
 
-  const watchlistGenres = useMemo(() => {
-    if (!activeProfile) return [];
-    return [
-      ...new Set(
-        activeProfile.movies
-          .filter((m) => (m.status || 'watched') === 'watchlist')
-          .map((m) => m.genre)
-          .filter(Boolean)
-      ),
-    ];
-  }, [activeProfile]);
-
   /** Toutes les œuvres du profil, dédoublonnées — les deux parties confondues. */
   const allMovies = useMemo(() => {
     if (!activeProfile) return [];
@@ -1825,6 +1813,18 @@ const App: React.FC = () => {
     return allMovies.filter((m) => (m.mediaType ?? 'movie') !== 'tv');
   }, [allMovies, mediaMode]);
 
+  /**
+   * Les films, quelle que soit la partie ouverte.
+   *
+   * Le cinéma ne connaît que des films : une séance, un abonnement, un historique
+   * UGC. Ces écrans ne suivent donc pas la bascule — ils n'ont simplement jamais
+   * à voir une série.
+   */
+  const cinemaMovies = useMemo(
+    () => allMovies.filter((m) => (m.mediaType ?? 'movie') !== 'tv'),
+    [allMovies]
+  );
+
   // Films de la watchlist dont l'ambiance a réellement été renseignée : en dessous
   // du seuil, les moods ne peuvent rien classer et restent verrouillés.
   const watchlistVibeCount = useMemo(
@@ -1837,6 +1837,20 @@ const App: React.FC = () => {
       ...new Set(
         uniqueMovies
           .filter((m) => (m.status || 'watched') === 'watched')
+          .map((m) => m.genre)
+          .filter(Boolean)
+      ),
+    ];
+  }, [uniqueMovies]);
+
+  /* Les genres proposés au filtre viennent de la partie courante. Ils lisaient la
+     collection entière : la liste des films offrait alors des genres qu'aucun film
+     ne porte, et un filtre qui ne rend rien passe pour une panne. */
+  const watchlistGenres = useMemo(() => {
+    return [
+      ...new Set(
+        uniqueMovies
+          .filter((m) => (m.status || 'watched') === 'watchlist')
           .map((m) => m.genre)
           .filter(Boolean)
       ),
@@ -2010,7 +2024,9 @@ const App: React.FC = () => {
 
   const handleTonightPick = () => {
     if (!activeProfile) return;
-    const watchlist = activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist');
+    // La roulette tire dans la partie courante. Elle lisait la collection
+    // entière : en Films, elle pouvait proposer une série pour ce soir.
+    const watchlist = uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist');
     if (watchlist.length === 0) return;
     haptics.medium();
     setIsPickAnimating(true);
@@ -2023,7 +2039,7 @@ const App: React.FC = () => {
       if (++count >= maxCycles) {
         clearInterval(interval);
         // 🎯 Le pick final utilise l'algorithme intelligent
-        const smartPick = getSmartTonightPick(watchlist, activeProfile.movies, selectedMood);
+        const smartPick = getSmartTonightPick(watchlist, uniqueMovies, selectedMood);
         setTonightPick(smartPick);
         setTimeout(() => setIsPickAnimating(false), 300);
       }
@@ -2250,7 +2266,9 @@ const App: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <ThemeToggle />
-              <NotificationCenter movies={activeProfile?.movies || []} />
+              {/* Les notifications suivent la partie ouverte : leurs libellés
+                  parlent de films, et une série n'a rien à y faire. */}
+              <NotificationCenter movies={uniqueMovies} />
               {/* Le feedback vit dans les paramètres du profil : le header n'a de
                   place que pour les actions vraiment fréquentes. */}
               <button
@@ -2440,7 +2458,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
-              {!activeProfile || activeProfile.movies.length === 0 ? (
+              {!activeProfile || uniqueMovies.length === 0 ? (
                 <div
                   data-tour="feed-empty"
                   className="flex flex-col items-center justify-center py-12 text-center"
@@ -2645,7 +2663,7 @@ const App: React.FC = () => {
                   </div>
                   {feedTab === 'queue' &&
                     activeProfile &&
-                    activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist')
+                    uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist')
                       .length === 0 && (
                       <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
                         <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors">
@@ -2667,7 +2685,7 @@ const App: React.FC = () => {
                     )}
                   {feedTab === 'queue' &&
                     activeProfile &&
-                    activeProfile.movies.filter((m) => (m.status || 'watched') === 'watchlist')
+                    uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist')
                       .length > 0 && (
                       <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
                         <button
@@ -3077,7 +3095,7 @@ const App: React.FC = () => {
         setInitialStatusForAdd={setInitialStatusForAdd}
         setMediaTypeToLoad={setMediaTypeToLoad}
         mediaMode={mediaMode}
-        movieCount={activeProfile?.movies.length || 0}
+        movieCount={uniqueMovies.length}
         t={t}
       />
 
@@ -3485,7 +3503,7 @@ const App: React.FC = () => {
 
         {showCinemaImport && activeProfile?.cinemaSubscription && (
           <CinemaHistoryImportModal
-            movies={activeProfile.movies}
+            movies={cinemaMovies}
             subscription={activeProfile.cinemaSubscription}
             onConfirm={handleApplyCinemaHistory}
             onClose={() => setShowCinemaImport(false)}
@@ -3507,7 +3525,7 @@ const App: React.FC = () => {
 
         {showCinemaDetails && activeProfile?.cinemaSubscription && (
           <CinemaSubscriptionDetailsModal
-            movies={activeProfile.movies}
+            movies={cinemaMovies}
             subscription={activeProfile.cinemaSubscription}
             onClose={() => setShowCinemaDetails(false)}
             onManage={() => {

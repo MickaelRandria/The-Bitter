@@ -256,6 +256,16 @@ export interface TvProgress {
 }
 
 /**
+ * Comment un épisode a été noté.
+ *
+ * `global` ne pose qu'un chiffre et n'a pas de grille : c'est le geste de
+ * quelqu'un qui enchaîne les épisodes. `bitter` détaille en quatre critères,
+ * `bitter_plus` les pondère selon un profil. Les trois rendent une note sur la
+ * même échelle — sans quoi une moyenne d'épisodes ne voudrait rien dire.
+ */
+export type TvRatingMode = 'global' | 'bitter' | 'bitter_plus';
+
+/**
  * Un épisode vu, noté, ou les deux.
  *
  * Un épisode se note avec **la même grille qu'un film** : Bitter (quatre
@@ -280,8 +290,8 @@ export interface TvEpisodeEntry {
    * Absente sur les notes posées avant la grille complète.
    */
   adaptiveRating?: AdaptiveRatingData;
-  /** Quelle grille rouvrir. Absent = note héritée, saisie au nombre. */
-  ratingMode?: 'bitter' | 'bitter_plus';
+  /** Quelle grille rouvrir. Absent = note héritée, antérieure aux trois modes. */
+  ratingMode?: TvRatingMode;
   review?: string;
   runtime?: number;
   updatedAt: number;
