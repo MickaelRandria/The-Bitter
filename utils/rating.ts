@@ -3,8 +3,11 @@ import {
   AdaptiveRatingData,
   Movie,
   RatingCriteria,
+  TvEpisodeEntry,
+  TvProgress,
   WeightLabel,
 } from '../types';
+import { episodeAverage } from './tvProgress';
 import {
   ADAPTIVE_RATING_VERSION,
   AnyProfileId,
@@ -198,6 +201,45 @@ export function hasVerdict(movie: Movie): boolean {
   return r.story > 0 || r.visuals > 0 || r.acting > 0 || r.sound > 0;
 }
 
+/**
+ * Les deux notes d'une saison, et celle qui la représente.
+ *
+ * POURQUOI DEUX NOTES ET NON UNE
+ * Elles ne répondent pas à la même question. La moyenne des épisodes dit ce que
+ * la saison a valu **épisode après épisode** ; le verdict global dit ce qu'il en
+ * reste une fois la saison finie. Les deux divergent souvent, et l'écart est
+ * justement ce qu'on vient lire : une saison de dix épisodes tièdes qui décolle
+ * à la fin laisse un meilleur souvenir que sa moyenne, une saison régulière mais
+ * sans mémoire laisse l'inverse. Les fondre en un chiffre effacerait cet écart.
+ *
+ * `overall` est celle qui représente la saison partout ailleurs. Le verdict
+ * global gagne quand il existe : quelqu'un l'a posé, alors que la moyenne n'est
+ * qu'un calcul. Sans verdict, la moyenne prend le relais plutôt que de laisser
+ * une saison regardée et notée épisode par épisode compter pour rien.
+ */
+export interface SeasonScores {
+  episodes: { average: number; count: number } | null;
+  global: number | null;
+  overall: number | null;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export function seasonScores(
+  seasonMovie: Movie | undefined,
+  entries: TvEpisodeEntry[],
+  seasonNumber: number
+): SeasonScores {
+  const episodes = episodeAverage(entries, seasonNumber);
+  const global = seasonMovie && hasVerdict(seasonMovie) ? getDisplayWeightedRating(seasonMovie) : null;
+  const episodeScore = episodes ? { average: round1(episodes.average), count: episodes.count } : null;
+  return {
+    episodes: episodeScore,
+    global: global == null ? null : round1(global),
+    overall: global != null ? round1(global) : episodeScore?.average ?? null,
+  };
+}
+
 export interface SeriesRating {
   /** Moyenne non pondérée des saisons notées. */
   average: number;
@@ -212,16 +254,31 @@ export interface SeriesRating {
  * écraser une saison courte. Pondérer par la durée serait un autre choix, qu'il
  * faudrait alors expliquer à l'écran plutôt que d'appliquer en silence.
  *
+ * Une saison compte dès qu'elle a une note, qu'elle vienne d'un verdict global
+ * ou de ses seuls épisodes (voir `seasonScores`). Les deux entrent dans la
+ * moyenne au même titre : ce sont deux façons de juger une saison, pas deux
+ * qualités de jugement.
+ *
  * Rend `null` quand aucune saison n'est notée — l'appelant affiche alors le
  * verdict global historique s'il en existe un, et surtout pas un zéro.
  */
-export function getSeriesRating(seasons: Movie[]): SeriesRating | null {
-  const rated = seasons.filter(hasVerdict);
-  if (rated.length === 0) return null;
+export function getSeriesRating(seasons: Movie[], progress?: TvProgress): SeriesRating | null {
+  const byNumber = new Map(seasons.map((s) => [s.seasonNumber as number, s]));
+  const entries = Object.values(progress?.episodes ?? {});
 
-  const total = rated.reduce((sum, season) => sum + getDisplayWeightedRating(season), 0);
+  // Une saison peut n'exister que dans les épisodes : on l'a notée épisode par
+  // épisode sans jamais poser de verdict global. L'ignorer reviendrait à dire
+  // que la série n'est pas notée alors qu'on vient d'en juger vingt épisodes.
+  const numbers = new Set<number>([...byNumber.keys(), ...entries.map((e) => e.seasonNumber)]);
+
+  const scores = [...numbers]
+    .map((n) => seasonScores(byNumber.get(n), entries, n).overall)
+    .filter((score): score is number => score != null);
+
+  if (scores.length === 0) return null;
+
   return {
-    average: Math.round((total / rated.length) * 10) / 10,
-    ratedSeasons: rated.length,
+    average: round1(scores.reduce((sum, score) => sum + score, 0) / scores.length),
+    ratedSeasons: scores.length,
   };
 }

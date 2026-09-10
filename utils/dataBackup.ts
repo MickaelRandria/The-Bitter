@@ -56,6 +56,40 @@ const isOptionalNumber = (value: unknown): boolean =>
  * Progression d'une série. Facultative : un film n'en a pas, et une série
  * importée d'une sauvegarde version 1 non plus.
  */
+const isScore = (value: unknown): boolean =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10;
+
+/**
+ * Un épisode noté.
+ *
+ * La grille (`adaptiveRating`) n'est vérifiée que dans sa forme : une note
+ * pondérée et une liste de critères. C'est ce que l'affichage parcourt, et donc
+ * ce qui le ferait tomber si c'était autre chose. En contrôler le détail
+ * refuserait des sauvegardes dont les profils ont changé depuis — exactement
+ * les plus anciennes, celles qu'on cherche justement à pouvoir réimporter.
+ */
+const isEpisodeEntry = (e: unknown): boolean =>
+  isRecord(e) &&
+  Number.isInteger(e.seasonNumber) &&
+  Number(e.seasonNumber) >= 0 &&
+  Number.isInteger(e.episodeNumber) &&
+  Number(e.episodeNumber) > 0 &&
+  typeof e.watched === 'boolean' &&
+  typeof e.updatedAt === 'number' &&
+  Number.isFinite(e.updatedAt) &&
+  (e.rating === undefined || isScore(e.rating)) &&
+  (e.ratingMode === undefined || e.ratingMode === 'bitter' || e.ratingMode === 'bitter_plus') &&
+  (e.adaptiveRating === undefined ||
+    (isRecord(e.adaptiveRating) &&
+      isScore(e.adaptiveRating.weightedRating) &&
+      Array.isArray(e.adaptiveRating.criteria) &&
+      e.adaptiveRating.criteria.every((c) => isRecord(c) && typeof c.key === 'string' && isScore(c.value)))) &&
+  (e.review === undefined || typeof e.review === 'string') &&
+  (e.watchedAt === undefined ||
+    (typeof e.watchedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.watchedAt))) &&
+  (e.runtime === undefined ||
+    (typeof e.runtime === 'number' && Number.isFinite(e.runtime) && e.runtime >= 0));
+
 const isTvProgress = (value: unknown): boolean => {
   if (value === undefined) return true;
   if (!isRecord(value)) return false;
@@ -65,15 +99,8 @@ const isTvProgress = (value: unknown): boolean => {
     states.includes(value.state) &&
     isOptionalNumber(value.lastSeason) &&
     isOptionalNumber(value.lastEpisode) &&
-    (value.episodes === undefined || (isRecord(value.episodes) && Object.values(value.episodes).every(e =>
-      isRecord(e) && Number.isInteger(e.seasonNumber) && Number(e.seasonNumber) >= 0 &&
-      Number.isInteger(e.episodeNumber) && Number(e.episodeNumber) > 0 &&
-      typeof e.watched === 'boolean' && typeof e.updatedAt === 'number' && Number.isFinite(e.updatedAt) &&
-      (e.rating === undefined || (typeof e.rating === 'number' && Number.isFinite(e.rating) && e.rating >= 0 && e.rating <= 10)) &&
-      (e.review === undefined || typeof e.review === 'string') &&
-      (e.watchedAt === undefined || (typeof e.watchedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.watchedAt))) &&
-      (e.runtime === undefined || (typeof e.runtime === 'number' && Number.isFinite(e.runtime) && e.runtime >= 0))
-    ))) &&
+    (value.episodes === undefined ||
+      (isRecord(value.episodes) && Object.values(value.episodes).every(isEpisodeEntry))) &&
     (value.seasonsWatched === undefined ||
       (Array.isArray(value.seasonsWatched) &&
         value.seasonsWatched.every((n) => typeof n === 'number'))) &&

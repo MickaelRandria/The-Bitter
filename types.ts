@@ -255,12 +255,33 @@ export interface TvProgress {
   updatedAt: number;
 }
 
+/**
+ * Un épisode vu, noté, ou les deux.
+ *
+ * Un épisode se note avec **la même grille qu'un film** : Bitter (quatre
+ * critères, moyenne simple) ou Bitter+ (profil, pondérations, critère
+ * spécifique). Un simple nombre de 0 à 10 aurait été plus court à écrire, mais
+ * il aurait fait cohabiter deux échelles dans la même application : la note
+ * d'un épisode n'aurait pas voulu dire la même chose que celle d'un film.
+ */
 export interface TvEpisodeEntry {
   seasonNumber: number;
   episodeNumber: number;
   watched: boolean;
   watchedAt?: string;
+  /**
+   * La note affichée : moyenne simple en Bitter, moyenne pondérée en Bitter+.
+   * Redondante avec `adaptiveRating.weightedRating`, et c'est voulu — tout
+   * l'affichage lit ce champ sans avoir à connaître la grille.
+   */
   rating?: number;
+  /**
+   * La grille qui a produit `rating`, conservée pour pouvoir la rouvrir.
+   * Absente sur les notes posées avant la grille complète.
+   */
+  adaptiveRating?: AdaptiveRatingData;
+  /** Quelle grille rouvrir. Absent = note héritée, saisie au nombre. */
+  ratingMode?: 'bitter' | 'bitter_plus';
   review?: string;
   runtime?: number;
   updatedAt: number;

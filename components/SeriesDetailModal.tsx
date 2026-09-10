@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Loader2, Pause, Play, Star, X } from 'lucide-react';
-import { Movie, TvProgress, TvWatchState } from '../types';
+import { Movie, TvEpisodeEntry, TvProgress, TvWatchState } from '../types';
 import { TmdbSeasonSummary, TmdbSeriesDetails, getSeriesDetails } from '../services/tmdb';
-import { getDisplayWeightedRating, getSeriesRating, hasVerdict } from '../utils/rating';
+import { getDisplayWeightedRating, getSeriesRating, hasVerdict, seasonScores } from '../utils/rating';
 import { seasonsOf } from '../utils/workKey';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
@@ -74,8 +74,8 @@ const SeriesDetailModal: React.FC<Props> = ({
   }, [allMovies, series.tmdbId]);
 
   const seriesRating = useMemo(
-    () => getSeriesRating([...ratedByNumber.values()]),
-    [ratedByNumber]
+    () => getSeriesRating([...ratedByNumber.values()], progress),
+    [ratedByNumber, progress]
   );
 
   /**
@@ -165,6 +165,14 @@ const SeriesDetailModal: React.FC<Props> = ({
                 {tmdb.seasons.map((season) => {
                   const mine = ratedByNumber.get(season.seasonNumber);
                   const watched = progress?.seasonsWatched?.includes(season.seasonNumber) ?? false;
+                  /* La moyenne des épisodes se lit saison repliée : sans elle, une
+                     saison notée épisode par épisode paraîtrait vierge tant qu'on
+                     ne l'a pas dépliée. */
+                  const episodesAverage = seasonScores(
+                    mine,
+                    Object.values<TvEpisodeEntry>(progress?.episodes ?? {}),
+                    season.seasonNumber
+                  ).episodes?.average;
                   return (
                     <li
                       key={season.id}
@@ -203,6 +211,8 @@ const SeriesDetailModal: React.FC<Props> = ({
                           </span>
                           <span className="block text-[10px] text-stone-400 dark:text-stone-600">
                             {t('series.episodeCount', { count: season.episodeCount })}
+                            {episodesAverage != null &&
+                              ` · ${t('tv.averageShort', { rating: episodesAverage.toFixed(1) })}`}
                           </span>
                         </span>
                         <ChevronDown
@@ -232,7 +242,19 @@ const SeriesDetailModal: React.FC<Props> = ({
                         )}
                       </button>
                       </div>
-                      {expandedSeason === season.seasonNumber && <div key={season.seasonNumber}><SeasonEpisodes series={series} season={season.seasonNumber} onUpdate={onUpdateProgress} /></div>}
+                      {expandedSeason === season.seasonNumber && (
+                        <SeasonEpisodes
+                          key={season.seasonNumber}
+                          series={series}
+                          season={season.seasonNumber}
+                          seasonMovie={mine}
+                          onUpdate={onUpdateProgress}
+                          onRateSeason={() => {
+                            haptics.soft();
+                            onRateSeason(season);
+                          }}
+                        />
+                      )}
                     </li>
                   );
                 })}

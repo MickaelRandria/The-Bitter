@@ -2410,7 +2410,15 @@ const App: React.FC = () => {
               initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
-            <TvCalendar movies={allMovies.filter(m => m.mediaType === 'tv')} onOpen={setOpenSeries} />
+            <TvCalendar
+              movies={allMovies.filter((m) => m.mediaType === 'tv')}
+              onOpen={setOpenSeries}
+              onPreview={(id) => {
+                setPreviewTmdbId(id);
+                setPreviewMediaType('tv');
+              }}
+              onAdd={(id) => handleQuickWatchlist(id, 'tv')}
+            />
           ) : viewMode === 'Calendar' ? (
             <CalendarView
               movies={uniqueMovies}
