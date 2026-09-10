@@ -38,6 +38,16 @@ import TheatreReleasesSection from './TheatreReleasesSection';
 import FriendsFeed from './FriendsFeed';
 import TvUpcoming from './TvUpcoming';
 import { toTvGenreIds } from '../services/tv';
+import {
+  DISCOVERY_REGIONS,
+  SERIES_TYPES,
+  WORLD,
+  getDiscoveryRegion,
+  originCountriesOf,
+  regionLabel,
+  setDiscoveryRegion,
+  watchRegionOf,
+} from '../utils/discoveryRegion';
 import { workKey } from '../utils/workKey';
 import { SharedSpace } from '../services/supabase';
 
@@ -129,7 +139,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   onProposeToSpace,
   initialMediaType = 'movie',
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,6 +153,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   >('all');
   const mediaType = initialMediaType;
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
+  const [region, setRegion] = useState<string>(getDiscoveryRegion);
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [quickAddingId, setQuickAddingId] = useState<number | null>(null);
@@ -263,7 +275,17 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           twoMonthsAgo.setMonth(today.getMonth() - 2);
           url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&${dateFieldGte}=${twoMonthsAgo.toISOString().split('T')[0]}&${dateFieldLte}=${today.toISOString().split('T')[0]}&with_release_type=2|3&sort_by=popularity.desc&page=1`;
         } else {
-          url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=FR&watch_region=FR`;
+          url = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&language=fr-FR&region=${watchRegionOf(region)}&watch_region=${watchRegionOf(region)}`;
+          /* Le tri par popularité de TMDB est mondial. Sans ces deux filtres,
+             l'onglet Séries ouvrait sur de la télé-réalité danoise et le journal
+             télévisé allemand. Les films n'en ont pas besoin : leur popularité
+             mondiale est déjà celle qu'on connaît ici — vérifié, le filtre ne
+             changeait qu'un titre sur dix. */
+          if (mediaType === 'tv') {
+            url += `&with_type=${encodeURIComponent(SERIES_TYPES)}`;
+            const origins = originCountriesOf(region);
+            if (origins) url += `&with_origin_country=${encodeURIComponent(origins)}`;
+          }
           if (dateRange)
             url += `&${dateFieldGte}=${dateRange.gte}&${dateFieldLte}=${dateRange.lte}`;
           if (streamingFilter !== 'all' && streamingFilter !== 'cinema')
@@ -315,7 +337,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       isSearchActive ? 500 : 200
     );
     return () => clearTimeout(timer);
-  }, [searchQuery, searchMode, activeVibe, sortBy, streamingFilter, mediaType, timePeriod]);
+  }, [searchQuery, searchMode, activeVibe, sortBy, streamingFilter, mediaType, timePeriod, region]);
 
   const handleDeepSearch = async () => {
     if (!isSearchActive) return;
@@ -577,6 +599,42 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       {/* FILTERS */}
       {filtersOpen && !aiResult && (
         <div className="space-y-8 rounded-[2rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616] sm:p-5">
+          {/* D'où l'on regarde. Côté films, la popularité mondiale de TMDB est
+              déjà celle qu'on connaît ici : le réglage n'y changerait rien et n'a
+              pas à encombrer l'écran. */}
+          {mediaType === 'tv' && (
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 px-1 text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
+                <Globe size={12} /> {t('discover.region')}
+              </h3>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                {[...DISCOVERY_REGIONS, WORLD].map((code) => {
+                  const isActive = region === code;
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => {
+                        haptics.soft();
+                        setRegion(code);
+                        setDiscoveryRegion(code);
+                      }}
+                      className={`shrink-0 rounded-2xl border px-4 py-3 text-xs font-bold transition-all ${
+                        isActive
+                          ? 'border-charcoal bg-charcoal text-white shadow-lg dark:border-forest/50 dark:bg-[#202020]'
+                          : 'border-sand bg-white text-stone-600 shadow-sm dark:border-white/5 dark:bg-[#202020] dark:text-stone-500'
+                      }`}
+                    >
+                      {code === WORLD ? t('discover.regionWorld') : regionLabel(code, locale)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 px-1 text-[11px] font-medium leading-snug text-stone-400 dark:text-stone-600">
+                {t(region === WORLD ? 'discover.regionWorldHint' : 'discover.regionHint')}
+              </p>
+            </div>
+          )}
+
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700 mb-4 px-1 flex items-center gap-2">
               <Clock size={12} /> {t('feed.period')}

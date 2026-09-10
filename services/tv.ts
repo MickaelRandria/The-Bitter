@@ -1,5 +1,6 @@
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { getCachedData, setCachedData } from '../utils/cache';
+import { SERIES_TYPES, getDiscoveryRegion, originCountriesOf } from '../utils/discoveryRegion';
 
 export interface TvEpisode {
   id: number;
@@ -90,7 +91,14 @@ export interface TvRelease {
 
 export async function getTvUpcoming(followedIds: number[] = [], language = 'fr-FR', followedOnly = false): Promise<TvRelease[]> {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
-  const cacheKey = `tvUpcoming:${today}:${language}:${followedOnly}:${[...followedIds].sort().join(',')}`;
+  /* Les sorties à venir souffraient du même biais que l'Explorer : la popularité
+     mondiale de TMDB y remontait des séries coréennes et turques dont rien
+     n'arrive jusqu'ici. Le pays choisi entre donc dans la clé de cache — en
+     changer doit rendre une autre liste, pas celle d'avant. */
+  const region = getDiscoveryRegion();
+  const origins = originCountriesOf(region);
+  const scope = origins ? `&with_type=${encodeURIComponent(SERIES_TYPES)}&with_origin_country=${encodeURIComponent(origins)}` : '';
+  const cacheKey = `tvUpcoming:${today}:${language}:${region}:${followedOnly}:${[...followedIds].sort().join(',')}`;
   const cached = getCachedData<TvRelease[]>(cacheKey);
   if (cached) return cached;
   const until = new Date(); until.setDate(until.getDate() + 90);
@@ -98,8 +106,8 @@ export async function getTvUpcoming(followedIds: number[] = [], language = 'fr-F
   const ids = new Set(followedIds);
   if (!followedOnly) {
     const pages = await Promise.all([
-      request(`discover/tv?first_air_date.gte=${today}&first_air_date.lte=${end}&sort_by=popularity.desc&include_adult=false`, language),
-      request(`discover/tv?air_date.gte=${today}&air_date.lte=${end}&sort_by=popularity.desc&include_adult=false`, language),
+      request(`discover/tv?first_air_date.gte=${today}&first_air_date.lte=${end}&sort_by=popularity.desc&include_adult=false${scope}`, language),
+      request(`discover/tv?air_date.gte=${today}&air_date.lte=${end}&sort_by=popularity.desc&include_adult=false${scope}`, language),
     ]);
     for (const page of pages) for (const item of (page.results ?? []).slice(0, 12)) ids.add(item.id);
   }
