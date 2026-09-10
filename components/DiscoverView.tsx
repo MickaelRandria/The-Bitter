@@ -21,9 +21,7 @@ import {
   Sparkles,
   ExternalLink,
   Globe,
-  Film,
   Ticket,
-  Tv,
   Clock,
   History,
   Layers,
@@ -38,6 +36,9 @@ import StreamingBadge from './StreamingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
 import TheatreReleasesSection from './TheatreReleasesSection';
 import FriendsFeed from './FriendsFeed';
+import TvUpcoming from './TvUpcoming';
+import { toTvGenreIds } from '../services/tv';
+import { workKey } from '../utils/workKey';
 import { SharedSpace } from '../services/supabase';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
@@ -139,7 +140,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [streamingFilter, setStreamingFilter] = useState<
     'all' | 'netflix' | 'prime' | 'disney' | 'canal' | 'cinema'
   >('all');
-  const [mediaType, setMediaType] = useState<MediaType>(initialMediaType);
+  const mediaType = initialMediaType;
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all_time');
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
@@ -164,30 +165,29 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
   /** Mes films vus, indexés par TMDB : le détail compare critère par critère. */
   const myMovieByTmdb = useMemo(() => {
-    const map = new Map<number, Movie>();
+    const map = new Map<string, Movie>();
     for (const m of movies || []) {
-      if (m.status === 'watched' && m.tmdbId != null) map.set(m.tmdbId, m);
+      if (m.status === 'watched' && m.tmdbId != null) map.set(workKey(m), m);
     }
     return map;
   }, [movies]);
 
   /** Mes notes par identifiant TMDB, pour situer les verdicts du fil face aux miens. */
   const myRatingByTmdb = useMemo(() => {
-    const map = new Map<number, number>();
+    const map = new Map<string, number>();
     for (const m of movies || []) {
       if (m.status !== 'watched' || m.tmdbId == null) continue;
       const weighted = m.adaptiveRating?.weightedRating;
       const value = Number.isFinite(weighted)
         ? (weighted as number)
         : (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-      map.set(m.tmdbId, value);
+      map.set(workKey(m), value);
     }
     return map;
   }, [movies]);
 
   const isSearchActive = searchMode === 'title' && searchQuery.length > 0;
   const activeFilterCount = [
-    mediaType !== 'movie',
     timePeriod !== 'all_time',
     streamingFilter !== 'all',
     sortBy !== 'popularity',
@@ -198,7 +198,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     const watched = new Set<number>();
     const watchlist = new Set<number>();
     (movies || []).forEach((m) => {
-      if (m.tmdbId == null) return;
+      if (m.tmdbId == null || m.seasonNumber != null) return;
       if (m.status === 'watched') watched.add(m.tmdbId);
       else if (m.status === 'watchlist') watchlist.add(m.tmdbId);
     });
@@ -270,7 +270,15 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             url += `&with_watch_providers=${streamingFilter}`;
           if (activeVibe) {
             const vibe = VIBES.find((v) => v.id === activeVibe);
-            if (vibe) url += `&with_genres=${vibe.genres.join(',')}`;
+            if (vibe) {
+              /* Le vocabulaire de genres des séries est bien plus grossier : une
+                 fois les identifiants rabattus, exiger leur intersection ne rend
+                 presque rien. Les films gardent le cumul, les séries prennent
+                 l'union. */
+              const genres = mediaType === 'tv' ? toTvGenreIds(vibe.genres) : vibe.genres;
+              if (genres.length)
+                url += `&with_genres=${genres.join(mediaType === 'tv' ? '|' : ',')}`;
+            }
           }
           const sortParam =
             sortBy === 'popularity'
@@ -338,7 +346,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
   const resetFilters = () => {
     haptics.soft();
-    setMediaType('movie');
     setTimePeriod('all_time');
     setStreamingFilter('all');
     setSortBy('popularity');
@@ -365,7 +372,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               key === 'foryou'
                 ? 'releases.forYou'
                 : key === 'theatre'
-                  ? 'releases.inTheatres'
+                  ? (mediaType === 'tv' ? 'tv.upcoming' : 'releases.inTheatres')
                   : 'feed.tab'
             )}
           </button>
@@ -374,14 +381,18 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {surface === 'feed' ? (
         <FriendsFeed
+          key={mediaType}
+          mediaType={mediaType}
           myRatingByTmdb={myRatingByTmdb}
           myMovieByTmdb={myMovieByTmdb}
           knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
-          onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
+          onSelectMovie={(tmdbId) => onPreview(tmdbId, mediaType)}
           onQuickWatchlist={(tmdbId) => {
-            onQuickWatchlist?.(tmdbId, 'movie');
+            onQuickWatchlist?.(tmdbId, mediaType);
           }}
         />
+      ) : surface === 'theatre' && mediaType === 'tv' ? (
+        <TvUpcoming followedIds={(movies ?? []).filter(m => m.seasonNumber == null && m.tmdbId != null).map(m => m.tmdbId!)} onPreview={id => onPreview(id, 'tv')} onAdd={onQuickWatchlist ? id => onQuickWatchlist(id, 'tv') : undefined} />
       ) : surface === 'theatre' ? (
         <TheatreReleasesSection
           knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
@@ -421,6 +432,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {searchMode === 'mood' && (
       <MoodSearch
+        mediaType={mediaType}
         favoriteGenres={userProfile?.favoriteGenres}
         activeSummary={moodSummary}
         onResults={(results, summary) => {
@@ -438,29 +450,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {searchMode === 'title' && (
       <>
-      {filtersOpen && (
-      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors animate-[fadeIn_0.2s_ease-out]">
-        <button
-          onClick={() => {
-            haptics.soft();
-            setMediaType('movie');
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
-        >
-          <Film size={14} /> {t('addMovie.movies').toUpperCase()}
-        </button>
-        <button
-          onClick={() => {
-            haptics.soft();
-            setMediaType('tv');
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mediaType === 'tv' ? 'bg-charcoal dark:bg-[#202020] text-white shadow-md' : 'text-stone-400 dark:text-stone-600 hover:text-stone-500'}`}
-        >
-          <Tv size={14} /> {t('addMovie.series').toUpperCase()}
-        </button>
-      </div>
-      )}
-
       {/* SEARCH BAR */}
       <div className="space-y-3">
         <div className="relative group">
@@ -470,7 +459,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           <input
             data-tour="discover-search"
             type="text"
-            placeholder={t('discover.search')}
+            placeholder={t(mediaType === 'tv' ? 'addMovie.seriesName' : 'discover.search')}
             className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-14 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

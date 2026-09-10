@@ -18,13 +18,15 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
 import { Movie } from '../types';
+import { workKey } from '../utils/workKey';
 import RatingDetailSheet from './RatingDetailSheet';
 
 interface Props {
+  mediaType?: 'movie' | 'tv';
   /** Mes films vus, pour situer mon verdict à côté du sien. */
-  myRatingByTmdb: Map<number, number>;
+  myRatingByTmdb: Map<string, number>;
   /** Mes films complets, pour comparer critère par critère dans le détail. */
-  myMovieByTmdb: Map<number, Movie>;
+  myMovieByTmdb: Map<string, Movie>;
   /** Ce que j'ai déjà, vu ou en envie : le raccourci n'a pas à le reproposer. */
   knownTmdbIds: Set<number>;
   onSelectMovie: (tmdbId: number) => void;
@@ -55,6 +57,7 @@ const scoreTone = (score: number) => {
  * combien il en reste.
  */
 const FriendsFeed: React.FC<Props> = ({
+  mediaType = 'movie',
   myRatingByTmdb,
   myMovieByTmdb,
   knownTmdbIds,
@@ -71,7 +74,7 @@ const FriendsFeed: React.FC<Props> = ({
   const load = async () => {
     setLoading(true);
     setError(null);
-    const result = await getFriendsActivity(50);
+    const result = await getFriendsActivity(50, mediaType as 'movie' | 'tv');
     if (result.error) setError(result.error);
     setItems(result.data);
     setLoading(false);
@@ -154,7 +157,7 @@ const FriendsFeed: React.FC<Props> = ({
           <Users size={22} />
         </div>
         <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 max-w-[260px] mx-auto leading-relaxed">
-          {t('feed.empty')}
+          {t(mediaType === 'tv' ? 'tv.feedEmpty' : 'feed.empty')}
         </p>
       </div>
     );
@@ -194,7 +197,7 @@ const FriendsFeed: React.FC<Props> = ({
           */}
           <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 pb-1">
             {entries.map((item) => {
-              const mine = item.tmdbId != null ? myRatingByTmdb.get(item.tmdbId) : undefined;
+              const mine = item.tmdbId != null ? myRatingByTmdb.get(workKey({ tmdbId: item.tmdbId, mediaType: item.mediaType, seasonNumber: item.seasonNumber })) : undefined;
               const gap = mine != null ? item.rating - mine : null;
               const detailOpen = openDetail === item.movieId;
 
@@ -207,7 +210,7 @@ const FriendsFeed: React.FC<Props> = ({
                     onClick={() => {
                       if (item.tmdbId == null) return;
                       haptics.soft();
-                      onSelectMovie(item.tmdbId);
+                      onSelectMovie(item.seriesTmdbId ?? item.tmdbId);
                     }}
                     className="absolute inset-0 w-full h-full"
                     aria-label={item.title}
@@ -276,11 +279,9 @@ const FriendsFeed: React.FC<Props> = ({
                       </p>
                     </div>
 
-                    {item.review && (
-                      <p className="text-[11px] font-medium text-white/90 leading-snug line-clamp-2">
-                        « {item.review} »
-                      </p>
-                    )}
+                    {item.review && (mediaType === 'tv' ? <details className="pointer-events-auto text-[11px] text-white/90" onClick={e => e.stopPropagation()}><summary className="cursor-pointer py-2">{t('tv.spoilerReview')}</summary><p>{item.review}</p></details> : (
+                      <p className="text-[11px] font-medium text-white/90 leading-snug line-clamp-2">« {item.review} »</p>
+                    ))}
 
                     <div className="flex items-center justify-between gap-2 pointer-events-auto">
                       {gap != null ? (
@@ -306,11 +307,11 @@ const FriendsFeed: React.FC<Props> = ({
                         <span />
                       )}
 
-                      {item.tmdbId != null && !knownTmdbIds.has(item.tmdbId) && (
+                      {item.tmdbId != null && !knownTmdbIds.has(item.seriesTmdbId ?? item.tmdbId) && (
                         <button
                           onClick={() => {
                             haptics.medium();
-                            onQuickWatchlist(item.tmdbId as number);
+                            onQuickWatchlist(item.seriesTmdbId ?? item.tmdbId as number);
                           }}
                           aria-label={t('feed.addToWatchlist')}
                           className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur flex items-center justify-center text-white active:scale-90 transition-transform shrink-0"
@@ -338,7 +339,7 @@ const FriendsFeed: React.FC<Props> = ({
           return (
             <RatingDetailSheet
               item={item}
-              mine={item.tmdbId != null ? myMovieByTmdb.get(item.tmdbId) : undefined}
+              mine={item.tmdbId != null ? myMovieByTmdb.get(workKey({ tmdbId: item.tmdbId, mediaType: item.mediaType, seasonNumber: item.seasonNumber })) : undefined}
               onClose={() => setOpenDetail(null)}
               onQuickWatchlist={onQuickWatchlist}
             />

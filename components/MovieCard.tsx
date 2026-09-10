@@ -235,6 +235,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
           onTouchEnd={handleTouchEnd}
           onClick={() => {
             if (!isSwiping && swipeX === 0 && !showDeleteConfirm) {
+              if (isTv && movie.seasonNumber == null) { onEdit(movie); return; }
               setIsExpanded(!isExpanded);
             } else if (showDeleteConfirm || swipeX !== 0) {
               handleCancelSwipe();
@@ -560,7 +561,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                     }}
                     className="flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-forest text-white active:scale-95 transition-all shadow-lg shadow-forest/20"
                   >
-                    <Play size={14} fill="currentColor" /> J'ai vu ça
+                    <Play size={14} fill="currentColor" /> {isTv ? t('tv.manage') : "J'ai vu ça"}
                   </button>
                 )}
 
@@ -571,7 +572,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                   }}
                   className="flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white dark:bg-[#202020] text-charcoal dark:text-white active:scale-95 transition-all shadow-lg border dark:border-white/5"
                 >
-                  <Pencil size={14} /> Éditer
+                  <Pencil size={14} /> {isTv ? t('tv.manage') : 'Éditer'}
                 </button>
 
                 <button
