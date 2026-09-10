@@ -29,19 +29,21 @@ const Score: React.FC<{ label: string; value: number | null; hint?: string; onCl
 }) => {
   const body = (
     <>
-      <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-500">
+      <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-zinc-500">
         {label}
       </span>
       {value != null ? (
         <>
-          <span className="block text-xl font-black text-charcoal dark:text-white tabular-nums leading-tight">
+          <span className="mt-0.5 block text-xl font-semibold leading-tight tabular-nums text-charcoal dark:text-zinc-100">
             {value.toFixed(1)}
-            <span className="text-[11px] text-stone-400">/10</span>
+            <span className="text-[11px] font-medium text-stone-400 dark:text-zinc-500">/10</span>
           </span>
-          {hint && <span className="block text-[9px] font-bold text-stone-400">{hint}</span>}
+          {hint && (
+            <span className="block text-[10px] font-medium text-stone-400 dark:text-zinc-500">{hint}</span>
+          )}
         </>
       ) : (
-        <span className="block text-[11px] font-black text-forest dark:text-bitter-lime leading-tight mt-1">
+        <span className="mt-1 block text-[11px] font-semibold leading-tight text-forest dark:text-bitter-lime">
           {cta}
         </span>
       )}
@@ -161,7 +163,7 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
     <div className="mt-3 border-t border-stone-200 dark:border-white/10 pt-3">
       {/* Les deux notes de la saison, côte à côte : ce qu'ont valu les épisodes,
           et ce qu'il en reste. L'écart entre les deux est ce qu'on vient lire. */}
-      <div className="flex items-start gap-3 rounded-2xl bg-white dark:bg-[#161616] border border-sand dark:border-white/10 px-3 py-2.5 mb-3">
+      <div className="-mx-3 mb-3 flex items-start gap-3 rounded-2xl border border-stone-200/80 bg-white px-3.5 py-3 dark:border-white/[0.06] dark:bg-white/[0.03]">
         <Score
           label={t('tv.episodesAverageLabel')}
           value={scores.episodes?.average ?? null}
@@ -172,7 +174,7 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
           }
           cta={t('tv.noEpisodeRated')}
         />
-        <div className="w-px self-stretch bg-sand dark:bg-white/10" />
+        <div className="w-px self-stretch bg-stone-200/80 dark:bg-white/[0.06]" />
         <Score
           label={t('tv.seasonGlobalLabel')}
           value={scores.global}
@@ -183,7 +185,10 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
 
       {!episodes.length && <p className="text-[11px] text-stone-400">{t('tv.noEpisodes')}</p>}
 
-      <ul className="space-y-2.5">
+      {/* La liste reprend la largeur mangée par la carte de saison : sur un
+          téléphone, ces 24 pixels sont la différence entre un titre lisible et
+          un titre coupé au troisième mot. */}
+      <ul className="-mx-3 space-y-3">
         {episodes.map((episode) => {
           const entry = entryFor(episode);
           const visible = entry.watched || revealed.includes(episode.id);
@@ -191,123 +196,116 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
           return (
             <li
               key={episode.id}
-              /* Trois états se distinguent d'un coup d'œil : rien, vu, noté.
-                 Le liseré vert dit « tu as posé un avis » sans rien lire. */
-              className={`rounded-2xl border overflow-hidden transition-colors ${
-                rated
-                  ? 'border-forest/40 dark:border-bitter-lime/30 bg-white dark:bg-[#181818]'
-                  : 'border-stone-200 dark:border-white/10 bg-white dark:bg-[#161616]'
-              }`}
+              className="rounded-2xl border border-stone-200/80 bg-white p-3 transition-colors dark:border-white/[0.06] dark:bg-white/[0.03]"
             >
-              <div className="flex gap-3 p-2.5">
-                <div className="relative w-[5.5rem] aspect-video shrink-0 rounded-xl overflow-hidden bg-stone-200 dark:bg-[#252525]">
+              <div className="flex items-center gap-3">
+                <div className="relative aspect-video w-[88px] shrink-0 overflow-hidden rounded-lg bg-stone-200 sm:w-[112px] dark:bg-white/5">
                   {episode.still ? (
                     <img
                       src={resizeTmdbImage(episode.still, 'w342')}
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className={`w-full h-full object-cover transition-all duration-300 ${
-                        visible ? '' : 'blur-md scale-110'
+                      className={`h-full w-full object-cover transition-all duration-300 ${
+                        visible ? '' : 'scale-110 blur-md'
                       }`}
                     />
                   ) : (
-                    <div className="w-full h-full grid place-items-center text-stone-300 dark:text-stone-700 text-lg font-black tabular-nums">
+                    <div className="grid h-full w-full place-items-center text-base font-semibold tabular-nums text-stone-300 dark:text-zinc-700">
                       {episode.episodeNumber}
                     </div>
+                  )}
+
+                  {/* La note de tout le monde, posée sur l'image. La sienne vit à
+                      droite, avec les gestes : les deux ne se confondent pas. */}
+                  {episode.voteAverage != null && visible && (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-200 backdrop-blur-md">
+                      {episode.voteAverage.toFixed(1)}
+                    </span>
                   )}
 
                   {!visible && (
                     <button
                       onClick={() => setRevealed((prev) => [...prev, episode.id])}
                       aria-label={t('tv.revealTitle')}
-                      className="absolute inset-0 grid place-items-center bg-black/30 text-white active:scale-95 transition-transform"
+                      className="absolute inset-0 grid place-items-center bg-black/30 text-white transition-transform active:scale-95"
                     >
                       <Eye size={16} />
                     </button>
                   )}
+                </div>
 
-                  {/* La note se lit sur l'image : c'est ce qu'on parcourt en
-                      remontant une saison déjà vue. */}
-                  {rated && (
-                    <span className="absolute bottom-1 right-1 rounded-lg bg-charcoal/90 dark:bg-black/80 px-1.5 py-0.5 text-[11px] font-black text-bitter-lime tabular-nums backdrop-blur-sm">
-                      {entry.rating!.toFixed(1)}
-                    </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-zinc-500">
+                    {t('tv.episode', { number: episode.episodeNumber })}
+                    {episode.runtime ? ` • ${episode.runtime} min` : ''}
+                  </p>
+                  <p
+                    className={`text-sm font-semibold leading-snug text-charcoal line-clamp-2 dark:text-zinc-100 ${
+                      visible ? '' : 'select-none blur-[5px]'
+                    }`}
+                    aria-hidden={!visible}
+                  >
+                    {episode.name}
+                  </p>
+                  {/* Le résumé d'un épisode non vu est le pire des spoilers : il
+                      ne s'affiche qu'une fois l'épisode découvert. */}
+                  {visible && episode.overview && (
+                    <p className="mt-0.5 hidden text-xs leading-snug text-stone-500 line-clamp-1 sm:block dark:text-zinc-400">
+                      {episode.overview}
+                    </p>
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-600">
-                      {t('tv.episode', { number: episode.episodeNumber })}
-                      {episode.runtime ? ` · ${episode.runtime} min` : ''}
-                    </p>
-                    <p
-                      className={`text-[13px] font-bold leading-tight text-charcoal dark:text-white line-clamp-2 ${
-                        visible ? '' : 'select-none blur-[5px]'
-                      }`}
-                      aria-hidden={!visible}
-                    >
-                      {episode.name}
-                    </p>
-                  </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Sa note : un badge quand elle existe, une étoile éteinte
+                      sinon. Le même bouton dans les deux cas — noter et corriger
+                      sont le même geste, pas deux commandes à distinguer. */}
+                  <button
+                    aria-label={t('tv.rateEpisode', { number: episode.episodeNumber })}
+                    onClick={() => {
+                      haptics.soft();
+                      setEditing(episode);
+                    }}
+                    className={`flex items-center gap-1 rounded-md transition-colors active:scale-95 ${
+                      rated
+                        ? 'bg-forest/10 px-2 py-1 text-xs font-semibold text-forest dark:bg-bitter-lime/10 dark:text-bitter-lime'
+                        : 'p-1.5 text-stone-300 hover:text-stone-500 dark:text-zinc-600 dark:hover:text-zinc-300'
+                    }`}
+                  >
+                    <Star size={rated ? 12 : 17} strokeWidth={rated ? 3 : 2} />
+                    {rated && <span className="tabular-nums">{entry.rating!.toFixed(1)}</span>}
+                  </button>
 
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      aria-label={t(entry.watched ? 'tv.markUnseen' : 'tv.markSeen', {
-                        episode: episode.episodeNumber,
-                      })}
-                      aria-pressed={entry.watched}
-                      onClick={() => {
-                        haptics.soft();
-                        saveEpisode({
-                          ...entry,
-                          runtime: episode.runtime,
-                          watched: !entry.watched,
-                          watchedAt: entry.watched ? undefined : localDate(),
-                          updatedAt: Date.now(),
-                        });
-                      }}
-                      className={`h-9 w-9 shrink-0 rounded-xl grid place-items-center border transition-all active:scale-90 ${
-                        entry.watched
-                          ? 'bg-forest border-forest text-white'
-                          : 'border-stone-300 dark:border-white/20 text-transparent'
-                      }`}
-                    >
-                      <Check size={14} strokeWidth={3} />
-                    </button>
-
-                    {/* Un épisode vu mais pas encore noté est ce qui attend un
-                        geste : son bouton est plein. Les autres restent sobres. */}
-                    <button
-                      aria-label={t('tv.rateEpisode', { number: episode.episodeNumber })}
-                      onClick={() => {
-                        haptics.soft();
-                        setEditing(episode);
-                      }}
-                      className={`h-9 flex-1 min-w-0 rounded-xl px-3 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                        rated
-                          ? 'bg-stone-100 dark:bg-[#252525] text-charcoal dark:text-white'
-                          : entry.watched
-                            ? 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal shadow-sm'
-                            : 'border border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-500'
-                      }`}
-                    >
-                      {rated ? (
-                        <>
-                          <Star size={11} strokeWidth={3} /> {t('tv.editRating')}
-                        </>
-                      ) : (
-                        t('tv.rate')
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    aria-label={t(entry.watched ? 'tv.markUnseen' : 'tv.markSeen', {
+                      episode: episode.episodeNumber,
+                    })}
+                    aria-pressed={entry.watched}
+                    onClick={() => {
+                      haptics.soft();
+                      saveEpisode({
+                        ...entry,
+                        runtime: episode.runtime,
+                        watched: !entry.watched,
+                        watchedAt: entry.watched ? undefined : localDate(),
+                        updatedAt: Date.now(),
+                      });
+                    }}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all active:scale-90 ${
+                      entry.watched
+                        ? 'border-forest/30 bg-forest/15 text-forest dark:border-bitter-lime/30 dark:bg-bitter-lime/15 dark:text-bitter-lime'
+                        : 'border-stone-300 text-transparent hover:border-stone-400 hover:text-stone-400 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-500'
+                    }`}
+                  >
+                    <Check size={14} strokeWidth={2.5} />
+                  </button>
                 </div>
               </div>
 
               {entry.review && visible && (
-                <p className="px-3 pb-3 text-[11px] italic leading-snug text-stone-500 dark:text-stone-400">
-                  « {entry.review} »
+                <p className="mt-2.5 border-t border-stone-100 pt-2.5 text-xs italic leading-snug text-stone-500 dark:border-white/[0.06] dark:text-zinc-400">
+                  «&nbsp;{entry.review}&nbsp;»
                 </p>
               )}
             </li>
