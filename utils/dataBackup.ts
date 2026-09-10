@@ -65,6 +65,15 @@ const isTvProgress = (value: unknown): boolean => {
     states.includes(value.state) &&
     isOptionalNumber(value.lastSeason) &&
     isOptionalNumber(value.lastEpisode) &&
+    (value.episodes === undefined || (isRecord(value.episodes) && Object.values(value.episodes).every(e =>
+      isRecord(e) && Number.isInteger(e.seasonNumber) && Number(e.seasonNumber) >= 0 &&
+      Number.isInteger(e.episodeNumber) && Number(e.episodeNumber) > 0 &&
+      typeof e.watched === 'boolean' && typeof e.updatedAt === 'number' && Number.isFinite(e.updatedAt) &&
+      (e.rating === undefined || (typeof e.rating === 'number' && Number.isFinite(e.rating) && e.rating >= 0 && e.rating <= 10)) &&
+      (e.review === undefined || typeof e.review === 'string') &&
+      (e.watchedAt === undefined || (typeof e.watchedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.watchedAt))) &&
+      (e.runtime === undefined || (typeof e.runtime === 'number' && Number.isFinite(e.runtime) && e.runtime >= 0))
+    ))) &&
     (value.seasonsWatched === undefined ||
       (Array.isArray(value.seasonsWatched) &&
         value.seasonsWatched.every((n) => typeof n === 'number'))) &&

@@ -965,6 +965,9 @@ export function subscribeToSpace(
 }
 
 export interface FriendActivity {
+  mediaType: 'movie' | 'tv';
+  seriesTmdbId?: number;
+  seasonNumber?: number;
   movieId: string;
   profileId: string;
   firstName: string;
@@ -991,11 +994,11 @@ export interface FriendActivity {
  * l'activité de plusieurs personnes se fait mal côté navigateur, et la restriction
  * aux co-membres doit s'appliquer avant la lecture, pas après.
  */
-export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendActivity>> {
+export async function getFriendsActivity(limit = 50, mediaType: 'movie' | 'tv' = 'movie'): Promise<SpaceRead<FriendActivity>> {
   if (!supabase) return { data: [], error: 'Sauvegarde en ligne indisponible' };
 
   const { data, error, timedOut } = await withTimeout(
-    Promise.resolve(supabase.rpc('get_friends_activity', { _limit: limit })).then((r: any) => ({
+    Promise.resolve(supabase.rpc('get_friends_activity_by_media', { _limit: limit, _media_type: mediaType })).then((r: any) => ({
       ...r,
       timedOut: false,
     })),
@@ -1007,6 +1010,9 @@ export async function getFriendsActivity(limit = 50): Promise<SpaceRead<FriendAc
 
   return {
     data: (data || []).map((row: any) => ({
+      mediaType: row.media_type === 'tv' ? 'tv' : 'movie',
+      seriesTmdbId: row.series_tmdb_id ?? undefined,
+      seasonNumber: row.season_number ?? undefined,
       movieId: row.movie_id,
       profileId: row.profile_id,
       firstName: row.first_name,

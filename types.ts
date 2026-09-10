@@ -245,11 +245,24 @@ export type TvWatchState = 'planned' | 'watching' | 'paused' | 'dropped' | 'comp
 
 export interface TvProgress {
   state: TvWatchState;
+  /** Episode entries are independent of the season verdict. Dates are optional. */
+  episodes?: Record<string, TvEpisodeEntry>;
   /** Marque-page : « j'en suis à la saison 2, épisode 4 ». */
   lastSeason?: number;
   lastEpisode?: number;
   /** Saisons déclarées vues en bloc, sans détail d'épisodes. */
   seasonsWatched?: number[];
+  updatedAt: number;
+}
+
+export interface TvEpisodeEntry {
+  seasonNumber: number;
+  episodeNumber: number;
+  watched: boolean;
+  watchedAt?: string;
+  rating?: number;
+  review?: string;
+  runtime?: number;
   updatedAt: number;
 }
 

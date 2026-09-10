@@ -1,4 +1,5 @@
 import { UserProfile, Movie } from '../types';
+import { toTvGenreIds } from './tv';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_GENRE_MAP } from '../constants';
 import { supabase } from './supabase';
 import { currentCriterionLabel } from '../config/ratingProfiles';
@@ -466,8 +467,17 @@ export const buildDiscoverUrl = (filters: DiscoverFilters): string => {
     'vote_count.gte': filters.sortBy === 'vote_average.desc' ? '200' : '50',
   });
 
-  if (filters.withGenres.length) params.set('with_genres', filters.withGenres.join(','));
-  if (filters.withoutGenres.length) params.set('without_genres', filters.withoutGenres.join(','));
+  /* Le relais ne connaît que la liste blanche des genres de films. Envoyés tels
+     quels à `discover/tv`, ils ne filtrent pas : ils vident la réponse. La
+     traduction se fait ici, au dernier moment, pour qu'aucun appelant ne puisse
+     l'oublier. */
+  const withGenres =
+    filters.mediaType === 'tv' ? toTvGenreIds(filters.withGenres) : filters.withGenres;
+  const withoutGenres =
+    filters.mediaType === 'tv' ? toTvGenreIds(filters.withoutGenres) : filters.withoutGenres;
+  if (withGenres.length)
+    params.set('with_genres', withGenres.join(filters.mediaType === 'tv' ? '|' : ','));
+  if (withoutGenres.length) params.set('without_genres', withoutGenres.join(','));
   if (filters.runtimeLte != null) params.set('with_runtime.lte', String(filters.runtimeLte));
   if (filters.runtimeGte != null) params.set('with_runtime.gte', String(filters.runtimeGte));
   if (filters.yearGte != null) params.set(`${dateField}.gte`, `${filters.yearGte}-01-01`);

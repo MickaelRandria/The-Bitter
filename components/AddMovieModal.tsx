@@ -67,6 +67,7 @@ interface AddMovieModalProps {
   onClose: () => void;
   onSave: (movie: MovieFormData, viewingContext?: ViewingContext) => void;
   initialData: Movie | null;
+  initialDataIsDraft?: boolean;
   tmdbIdToLoad?: number | null;
   initialStatus?: MovieStatus;
   sharedSpace?: SharedSpace | null;
@@ -192,6 +193,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   onClose,
   onSave,
   initialData,
+  initialDataIsDraft = false,
   tmdbIdToLoad,
   initialStatus = 'watched',
   sharedSpace,
@@ -228,7 +230,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isEditMode = !!initialData;
+  const isEditMode = !!initialData && !initialDataIsDraft;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
   const skipSearchRef = useRef(false);
@@ -274,7 +276,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           setProfileManuallySet(false);
           // Seed values from existing qualityMetrics/ratings
           const qm = initialData.qualityMetrics;
-          setCriteriaValues({
+          setCriteriaValues(initialDataIsDraft ? {} : {
             scenario: qm?.scenario ?? initialData.ratings.story,
             image: qm?.visual ?? initialData.ratings.visuals,
             interpretation: qm?.acting ?? initialData.ratings.acting,
@@ -545,7 +547,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     // à la réouverture bloquerait les films dont la grille a changé de profil
     // depuis — c'est-à-dire précisément les plus anciens, ceux qui attendent un
     // avis depuis le plus longtemps.
-    const alreadyRated = !!initialData && initialData.status !== 'watchlist';
+    const alreadyRated = !!initialData && !initialDataIsDraft && initialData.status !== 'watchlist';
     if (!alreadyRated && !source.every((c) => criteriaValues[c.key] != null)) return [];
 
     return source.map((c) => ({ label: c.label, value: c.value }));

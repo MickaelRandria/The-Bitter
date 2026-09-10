@@ -130,6 +130,7 @@ import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
 const DiscoverView = lazy(() => import('./components/DiscoverView'));
 const CalendarView = lazy(() => import('./components/CalendarView'));
+const TvCalendar = lazy(() => import('./components/TvCalendar'));
 const MovieDeck = lazy(() => import('./components/MovieDeck'));
 const AddMovieModal = lazy(() => import('./components/AddMovieModal'));
 const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
@@ -188,7 +189,7 @@ const BottomNav = memo(
               haptics.soft();
               setViewMode('Feed');
             }}
-            aria-label={t('nav.feed')}
+            aria-label={t(mediaMode === 'tv' ? 'tv.mySeries' : 'nav.feed')}
             aria-current={viewMode === 'Feed' ? 'page' : undefined}
             className={navItemClass(viewMode === 'Feed')}
           >
@@ -451,6 +452,7 @@ const App: React.FC = () => {
 
   /** La série dont la fiche est ouverte, ou null. */
   const [openSeries, setOpenSeries] = useState<Movie | null>(null);
+  const [seasonToResume, setSeasonToResume] = useState<{ seriesId: string; number: number } | null>(null);
 
   /**
    * Saison à noter, préremplie mais **pas encore dans la collection**.
@@ -1563,6 +1565,7 @@ const App: React.FC = () => {
    * lui donne une identité propre sans entrer en conflit avec la série.
    */
   const handleRateSeason = (series: Movie, season: TmdbSeasonSummary) => {
+    setSeasonToResume({ seriesId: series.id, number: season.seasonNumber });
     const existing = (activeProfile?.movies ?? []).find(
       (m) => isSeason(m) && m.seriesTmdbId === series.tmdbId && m.seasonNumber === season.seasonNumber
     );
@@ -1600,7 +1603,6 @@ const App: React.FC = () => {
       });
     }
 
-    setOpenSeries(null);
     setIsModalOpen(true);
   };
 
@@ -2384,6 +2386,7 @@ const App: React.FC = () => {
             />
           ) : viewMode === 'Discover' ? (
             <DiscoverView
+              key={mediaMode}
               onSelectMovie={(id, type) => {
                 setTmdbIdToLoad(id);
                 setMediaTypeToLoad(type);
@@ -2395,15 +2398,19 @@ const App: React.FC = () => {
               }}
               onQuickWatchlist={handleQuickWatchlist}
               userProfile={activeProfile}
-              /* Volontairement la collection ENTIÈRE, et non celle de la partie
-                 courante : cet écran explore films et séries, et doit pouvoir
-                 signaler « déjà chez toi » dans les deux cas. */
-              movies={allMovies}
+              /* Cet écran ne montre plus qu'une moitié du catalogue à la fois :
+                 l'onglet Films n'y propose que des films, l'onglet Séries que des
+                 séries. Lui passer la collection entière n'aurait servi qu'à lui
+                 faire signaler « déjà chez toi » sur des œuvres qu'il n'affiche
+                 pas. */
+              movies={allMovies.filter((m) => (m.mediaType ?? 'movie') === mediaMode)}
               onToast={setToastMessage}
               spaces={mySpaces}
               onProposeToSpace={handleProposeToSpace}
               initialMediaType={mediaMode}
             />
+          ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
+            <TvCalendar movies={allMovies.filter(m => m.mediaType === 'tv')} onOpen={setOpenSeries} />
           ) : viewMode === 'Calendar' ? (
             <CalendarView
               movies={uniqueMovies}
@@ -2475,10 +2482,10 @@ const App: React.FC = () => {
                   >
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-                        {t('nav.feed')}
+                        {t(mediaMode === 'tv' ? 'tv.mySeries' : 'nav.feed')}
                       </p>
                       <h1 className="mt-1 text-3xl font-black tracking-tight text-charcoal dark:text-white">
-                        {uniqueMovies.length} {t('feed.filmsLabel')}
+                        {uniqueMovies.length} {t(mediaMode === 'tv' ? (uniqueMovies.length === 1 ? 'tv.seriesSingular' : 'tv.seriesLabel') : 'feed.filmsLabel')}
                       </h1>
                       <p className="mt-1 text-[11px] font-bold text-stone-400 dark:text-stone-500">
                         {feedStats?.watchedCount ?? 0} {t('feed.watched').toLowerCase()} · {feedStats?.queueCount ?? queueStats?.count ?? 0} {t('feed.toWatch').toLowerCase()}
@@ -2529,7 +2536,7 @@ const App: React.FC = () => {
                                   {feedStats.watchedCount}
                                 </p>
                                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                                  {t('feed.filmsLabel')}
+                                  {t(mediaMode === 'tv' ? 'tv.seriesLabel' : 'feed.filmsLabel')}
                                 </p>
                               </div>
                               <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
@@ -2558,7 +2565,7 @@ const App: React.FC = () => {
                                   {queueStats.count}
                                 </p>
                                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
-                                  {t('feed.filmsLabel')}
+                                  {t(mediaMode === 'tv' ? 'tv.seriesLabel' : 'feed.filmsLabel')}
                                 </p>
                               </div>
                               <div className="w-px h-8 bg-stone-200 dark:bg-white/10" />
@@ -2778,7 +2785,7 @@ const App: React.FC = () => {
                   <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
                     <div className="flex items-center justify-between">
                       <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                        {feedTab === 'history' ? t('feed.filmsWatched') : t('feed.toWatchLabel')} (
+                        {feedTab === 'history' ? t(mediaMode === 'tv' ? 'tv.mySeries' : 'feed.filmsWatched') : t('feed.toWatchLabel')} (
                         {filteredAndSortedMovies.length})
                       </h2>
                     </div>
@@ -2791,7 +2798,7 @@ const App: React.FC = () => {
                         <input
                           ref={searchInputRef}
                           type="search"
-                          placeholder={t('feed.search')}
+                          placeholder={t(mediaMode === 'tv' ? 'tv.search' : 'feed.search')}
                           className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-transparent focus:border-stone-200 dark:focus:border-white/10 py-3 pl-9 pr-8 rounded-full font-medium text-xs outline-none transition-all text-charcoal dark:text-white"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -3022,7 +3029,7 @@ const App: React.FC = () => {
                             setEditingMovie(m);
                             setIsModalOpen(true);
                           }}
-                          onMarkAsWatched={handleMarkAsWatched}
+                          onMarkAsWatched={(movie) => isSeries(movie) ? setOpenSeries(movie) : handleMarkAsWatched(movie)}
                           onViewDetails={(id, type) => {
                             setPreviewTmdbId(id);
                             setPreviewMediaType(type);
@@ -3149,6 +3156,7 @@ const App: React.FC = () => {
             /* Le brouillon de saison ne fait que préremplir : c'est
                `editingMovie` qui décide si l'on modifie ou si l'on ajoute. */
             initialData={editingMovie ?? seasonDraft}
+            initialDataIsDraft={!!seasonDraft && !editingMovie}
             tmdbIdToLoad={tmdbIdToLoad}
             initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
@@ -3164,10 +3172,11 @@ const App: React.FC = () => {
             }
           />
         )}
-        {openSeries && (
+        {openSeries && !isModalOpen && (
           <Suspense fallback={null}>
             <SeriesDetailModal
               series={openSeries}
+              initialSeason={seasonToResume?.seriesId === openSeries.id ? seasonToResume.number : undefined}
               allMovies={allMovies}
               onClose={() => setOpenSeries(null)}
               onRateSeason={(season) => handleRateSeason(openSeries, season)}

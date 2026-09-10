@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Pause, Play, Star, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Pause, Play, Star, X } from 'lucide-react';
 import { Movie, TvProgress, TvWatchState } from '../types';
 import { TmdbSeasonSummary, TmdbSeriesDetails, getSeriesDetails } from '../services/tmdb';
 import { getDisplayWeightedRating, getSeriesRating, hasVerdict } from '../utils/rating';
@@ -8,8 +8,10 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import SeasonEpisodes from './SeasonEpisodes';
 
 interface Props {
+  initialSeason?: number;
   /** La ligne-série : l'œuvre entière, sans `seasonNumber`. */
   series: Movie;
   /** Toutes les œuvres du profil — les saisons en sont extraites ici. */
@@ -30,14 +32,11 @@ const STATE_ORDER: TvWatchState[] = ['planned', 'watching', 'paused', 'dropped',
  * c'est ce qu'on vient chercher quand on rouvre une série en cours, alors qu'un
  * verdict se consulte rarement deux fois.
  *
- * **Les épisodes ne sont pas chargés.** La progression est un marque-page
- * (« j'en suis à S2E4 »), pas une liste de cases à cocher : une série longue
- * représente plusieurs centaines d'épisodes, dont le détail coûterait cher à
- * télécharger et ferait gonfler le profil stocké localement. Le modèle les
- * accueille déjà (`lastSeason`/`lastEpisode`) le jour où on les affichera.
+ * Les épisodes de la saison ouverte sont chargés à la demande.
  */
 const SeriesDetailModal: React.FC<Props> = ({
   series,
+  initialSeason,
   allMovies,
   onClose,
   onRateSeason,
@@ -48,8 +47,9 @@ const SeriesDetailModal: React.FC<Props> = ({
 
   const [tmdb, setTmdb] = useState<TmdbSeriesDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedSeason, setExpandedSeason] = useState<number | null>(initialSeason ?? series.tvProgress?.lastSeason ?? 1);
 
-  const progress = series.tvProgress;
+  const progress: TvProgress | undefined = series.tvProgress;
   const [draftSeason, setDraftSeason] = useState(progress?.lastSeason ?? 1);
   const [draftEpisode, setDraftEpisode] = useState(progress?.lastEpisode ?? 1);
 
@@ -103,7 +103,11 @@ const SeriesDetailModal: React.FC<Props> = ({
     const next = already.includes(seasonNumber)
       ? already.filter((n) => n !== seasonNumber)
       : [...already, seasonNumber].sort((a, b) => a - b);
-    commitProgress({ seasonsWatched: next });
+    const watched = next.includes(seasonNumber);
+    const episodes = Object.fromEntries(Object.entries(progress?.episodes ?? {}).map(([key, entry]) => [key,
+      entry.seasonNumber === seasonNumber ? { ...entry, watched, watchedAt: watched ? entry.watchedAt : undefined, updatedAt: Date.now() } : entry,
+    ]));
+    commitProgress({ seasonsWatched: next, episodes });
   };
 
   const state: TvWatchState = progress?.state ?? 'planned';
@@ -140,6 +144,101 @@ const SeriesDetailModal: React.FC<Props> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-5 space-y-6">
+          {/* 3 — Les saisons. */}
+          <section>
+            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
+              {t('series.seasons')}
+            </p>
+
+            {loading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="animate-spin text-stone-300" size={22} />
+              </div>
+            ) : !tmdb || tmdb.seasons.length === 0 ? (
+              /* Une panne TMDB ne doit pas vider l'écran : la progression et les
+                 verdicts déjà enregistrés restent lisibles au-dessus. */
+              <p className="text-[11px] text-stone-400 dark:text-stone-600">
+                {t('series.seasonsUnavailable')}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {tmdb.seasons.map((season) => {
+                  const mine = ratedByNumber.get(season.seasonNumber);
+                  const watched = progress?.seasonsWatched?.includes(season.seasonNumber) ?? false;
+                  return (
+                    <li
+                      key={season.id}
+                      className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl px-3 py-2.5"
+                    >
+                      <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => markSeasonWatched(season.seasonNumber)}
+                        aria-pressed={watched}
+                        aria-label={t('series.markSeasonWatched', { name: season.name })}
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border transition-all ${
+                          watched
+                            ? 'bg-forest border-forest text-white'
+                            : 'border-sand dark:border-white/15 text-transparent'
+                        }`}
+                      >
+                        <Check size={14} strokeWidth={3} />
+                      </button>
+
+                      {/* Le chevron dit seul que la ligne s'ouvre : répéter
+                          « Épisodes » après « 8 épisode(s) » n'ajoutait rien. Le
+                          libellé complet reste pour les lecteurs d'écran. */}
+                      <button
+                        className="flex-1 min-w-0 text-left py-3 flex items-center gap-2"
+                        aria-expanded={expandedSeason === season.seasonNumber}
+                        aria-label={t('tv.showEpisodes', { name: season.name })}
+                        onClick={() =>
+                          setExpandedSeason(
+                            expandedSeason === season.seasonNumber ? null : season.seasonNumber
+                          )
+                        }
+                      >
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[13px] font-bold text-charcoal dark:text-white truncate">
+                            {season.name}
+                          </span>
+                          <span className="block text-[10px] text-stone-400 dark:text-stone-600">
+                            {t('series.episodeCount', { count: season.episodeCount })}
+                          </span>
+                        </span>
+                        <ChevronDown
+                          size={14}
+                          className={`shrink-0 text-stone-400 transition-transform ${expandedSeason === season.seasonNumber ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          haptics.soft();
+                          onRateSeason(season);
+                        }}
+                        className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                          mine && hasVerdict(mine)
+                            ? 'bg-sand/70 dark:bg-[#252525] text-charcoal dark:text-white'
+                            : 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                        }`}
+                      >
+                        {mine && hasVerdict(mine) ? (
+                          <>
+                            <Star size={11} strokeWidth={3} />
+                            {getDisplayWeightedRating(mine).toFixed(1)}
+                          </>
+                        ) : (
+                          t('series.rateSeason')
+                        )}
+                      </button>
+                      </div>
+                      {expandedSeason === season.seasonNumber && <div key={season.seasonNumber}><SeasonEpisodes series={series} season={season.seasonNumber} onUpdate={onUpdateProgress} /></div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
           {/* 1 — Où j'en suis. En premier : c'est ce qu'on vient chercher. */}
           <section>
             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
@@ -194,7 +293,7 @@ const SeriesDetailModal: React.FC<Props> = ({
               </label>
               <button
                 onClick={() =>
-                  commitProgress({ lastSeason: draftSeason, lastEpisode: draftEpisode })
+                  commitProgress({ lastSeason: Math.max(0, Math.floor(draftSeason)), lastEpisode: Math.max(1, Math.floor(draftEpisode)) })
                 }
                 className="px-4 py-2 rounded-xl bg-forest text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform"
               >
@@ -247,80 +346,7 @@ const SeriesDetailModal: React.FC<Props> = ({
             )}
           </section>
 
-          {/* 3 — Les saisons. */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
-              {t('series.seasons')}
-            </p>
 
-            {loading ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="animate-spin text-stone-300" size={22} />
-              </div>
-            ) : !tmdb || tmdb.seasons.length === 0 ? (
-              /* Une panne TMDB ne doit pas vider l'écran : la progression et les
-                 verdicts déjà enregistrés restent lisibles au-dessus. */
-              <p className="text-[11px] text-stone-400 dark:text-stone-600">
-                {t('series.seasonsUnavailable')}
-              </p>
-            ) : (
-              <ul className="space-y-1.5">
-                {tmdb.seasons.map((season) => {
-                  const mine = ratedByNumber.get(season.seasonNumber);
-                  const watched = progress?.seasonsWatched?.includes(season.seasonNumber) ?? false;
-                  return (
-                    <li
-                      key={season.id}
-                      className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl px-3 py-2.5 flex items-center gap-3"
-                    >
-                      <button
-                        onClick={() => markSeasonWatched(season.seasonNumber)}
-                        aria-pressed={watched}
-                        aria-label={t('series.markSeasonWatched', { name: season.name })}
-                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border transition-all ${
-                          watched
-                            ? 'bg-forest border-forest text-white'
-                            : 'border-sand dark:border-white/15 text-transparent'
-                        }`}
-                      >
-                        <Check size={14} strokeWidth={3} />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-bold text-charcoal dark:text-white truncate">
-                          {season.name}
-                        </p>
-                        <p className="text-[10px] text-stone-400 dark:text-stone-600">
-                          {t('series.episodeCount', { count: season.episodeCount })}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          haptics.soft();
-                          onRateSeason(season);
-                        }}
-                        className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                          mine && hasVerdict(mine)
-                            ? 'bg-sand/70 dark:bg-[#252525] text-charcoal dark:text-white'
-                            : 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
-                        }`}
-                      >
-                        {mine && hasVerdict(mine) ? (
-                          <>
-                            <Star size={11} strokeWidth={3} />
-                            {getDisplayWeightedRating(mine).toFixed(1)}
-                          </>
-                        ) : (
-                          t('series.rateSeason')
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
     </div>

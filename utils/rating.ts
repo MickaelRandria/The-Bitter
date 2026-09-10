@@ -177,11 +177,23 @@ export function getDisplayWeightedRating(movie: Movie): number {
  *
  * La présence d'`adaptiveRating` tranche le cas d'un vrai zéro : passer par la
  * grille Bitter+ laisse une trace même si tous les curseurs sont au minimum.
- * Pour l'ancienne notation, un tout-à-zéro reste indistinguable d'une absence ;
- * c'est une ambiguïté héritée, pas une régression.
+ * Pour l'ancienne notation, un tout-à-zéro reste indistinguable d'une absence
+ * sur un film ; c'est une ambiguïté héritée, pas une régression.
+ *
+ * Une **saison** tranche autrement : elle n'entre dans la collection que parce
+ * qu'on est allé la noter, et une date de visionnage confirme le geste. Un zéro
+ * partout y est donc un verdict et non un silence — l'exclure de la moyenne de
+ * la série la relèverait au lieu de la refléter.
  */
 export function hasVerdict(movie: Movie): boolean {
   if (movie.adaptiveRating) return true;
+  if (
+    movie.mediaType === 'tv' &&
+    movie.seasonNumber != null &&
+    movie.status === 'watched' &&
+    movie.dateWatched != null
+  )
+    return true;
   const r = movie.ratings;
   return r.story > 0 || r.visuals > 0 || r.acting > 0 || r.sound > 0;
 }

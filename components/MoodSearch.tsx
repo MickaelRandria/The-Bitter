@@ -5,6 +5,7 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
+  mediaType?: 'movie' | 'tv';
   favoriteGenres?: string[];
   /** Les films trouvés, plus le résumé de ce qui a été compris. */
   onResults: (items: any[], summary: string) => void;
@@ -25,7 +26,7 @@ interface Props {
  * Rien ne peut donc être inventé — le pire cas est un contresens, et il se voit
  * aussitôt puisque l'écran affiche ce qui a été compris.
  */
-const MoodSearch: React.FC<Props> = ({ favoriteGenres, onResults, onClear, activeSummary }) => {
+const MoodSearch: React.FC<Props> = ({ favoriteGenres, onResults, onClear, activeSummary, mediaType = 'movie' }) => {
   const { t } = useLanguage();
   const [phrase, setPhrase] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,7 @@ const MoodSearch: React.FC<Props> = ({ favoriteGenres, onResults, onClear, activ
     setLoading(true);
     try {
       const filters = await interpretDiscoverQuery(wanted, favoriteGenres);
-      const response = await fetch(buildDiscoverUrl(filters));
+      const response = await fetch(buildDiscoverUrl({ ...filters, mediaType: mediaType as 'movie' | 'tv' }));
       const data = await response.json();
       const items = (data.results || []).filter((m: any) => m.poster_path);
 
