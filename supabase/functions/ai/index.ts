@@ -16,14 +16,38 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
-/** Alias de version : Mistral fait pointer `-latest` sur la révision courante. */
-const DEFAULT_MODEL = 'mistral-small-latest';
+/**
+ * Modèle par défaut.
+ *
+ * `-latest` est un alias mouvant : Mistral le fait pointer sur la révision
+ * courante, sans prévenir et sans que rien ne bouge ici. Le 8 septembre 2026,
+ * `mistral-small-latest` a basculé sur une révision réservée aux forfaits
+ * payants : plafond ramené à zéro requête par minute, `429` sur chaque appel,
+ * production morte sans qu'une ligne de code n'ait changé. Voir §6.13.
+ *
+ * Les Ministral restent accessibles sans forfait. Le 14B plutôt que le 8B parce
+ * que cinq des huit actions exigent du JSON structuré, et que le 8B en rend une
+ * forme inventée — des objets imbriqués là où l'on attend des chaînes — que
+ * `parseStarters` et `parseDiscover` réduisent alors à du vide. Le 14B tient le
+ * schéma ; il suit la consigne un cran moins finement, ce qui est le prix payé.
+ */
+const DEFAULT_MODEL = 'ministral-14b-latest';
 
 /** Au-delà, l'appel est refusé pour la journée (UTC). */
 const DEFAULT_DAILY_LIMIT = 40;
 
 /** Mistral n'est pas toujours rapide ; l'utilisateur, lui, n'attendra pas plus. */
 const UPSTREAM_TIMEOUT_MS = 45_000;
+
+/**
+ * Une seule seconde chance, et seulement pour une limite de débit réelle.
+ *
+ * Deux appels séparés d'une seconde suffisent à franchir la plupart des
+ * limites par minute. Au-delà d'un essai on ne rattrape plus rien : on ne fait
+ * qu'ajouter de l'attente devant quelqu'un qui regarde un écran, et pousser
+ * un service déjà saturé.
+ */
+const RETRY_DELAY_MS = 1_200;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -75,6 +99,63 @@ const fail = (status: number, code: string, message: string) => json({ code, mes
 
 const clamp = (value: unknown, max: number): string =>
   typeof value === 'string' ? value.slice(0, max) : '';
+
+/**
+ * Le plafond de débit que Mistral annonce pour ce modèle, quand il l'annonce.
+ *
+ * Zéro n'est pas une saturation : c'est un droit d'accès inexistant. Mistral
+ * emploie le même `429` pour « tu vas trop vite » et pour « ce modèle n'est pas
+ * dans ton forfait », avec le même corps de réponse — seul cet en-tête sépare
+ * les deux. La distinction vaut des heures de recherche : la première se règle
+ * en attendant une seconde, la seconde ne se réglera jamais toute seule.
+ */
+const rateLimitCeiling = (response: Response): number | null => {
+  const raw = response.headers.get('x-ratelimit-limit-req-minute');
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+};
+
+/** Le délai demandé par Mistral s'il en donne un, borné pour ne pas figer l'écran. */
+const retryDelay = (response: Response): number => {
+  const seconds = Number(response.headers.get('retry-after'));
+  return Number.isFinite(seconds) && seconds > 0
+    ? Math.min(seconds * 1_000, 5_000)
+    : RETRY_DELAY_MS;
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Le modèle à interroger, secret vérifié.
+ *
+ * Un identifiant de modèle ne contient ni espace ni signe égal. Quand il en
+ * contient, ce n'est pas un choix : c'est un copier-coller qui a emporté le nom
+ * de la variable avec sa valeur. Le 8 septembre 2026, le secret valait
+ * littéralement « MISTRAL_MODEL = ministral-14b-latest », et Mistral a répondu
+ * « Invalid model » sur chaque appel — l'assistant est resté mort le temps
+ * d'aller rouvrir le tableau de bord.
+ *
+ * Se rabattre sur le défaut vaut mieux que de tomber. La valeur est
+ * manifestement accidentelle, le défaut est connu bon, et le journal nomme la
+ * valeur fautive et le geste qui la corrige. Une configuration illisible ne
+ * devrait jamais coûter une fonctionnalité entière.
+ */
+const resolveModel = (): string => {
+  const configured = (Deno.env.get('MISTRAL_MODEL') ?? '').trim();
+  if (!configured) return DEFAULT_MODEL;
+
+  if (/[\s=]/.test(configured)) {
+    console.error(
+      `[ai] Le secret MISTRAL_MODEL vaut « ${configured} » : un identifiant de modèle ne ` +
+        `contient ni espace ni « = ». Valeur ignorée, repli sur ${DEFAULT_MODEL}. Dans le ` +
+        `tableau de bord, le champ Value ne prend que la valeur, sans le nom ni le « = ».`
+    );
+    return DEFAULT_MODEL;
+  }
+
+  return configured;
+};
 
 /** Le contexte du profil est bâti côté application ; on ne fait que le cadrer. */
 const persona = (firstName: string, context: string) => `Tu es le Ciné-Assistant de « The Bitter », expert cinéma passionné et légèrement piquant.
@@ -623,6 +704,34 @@ Deno.serve(async (req: Request) => {
   const limit = Number(Deno.env.get('AI_DAILY_LIMIT') ?? DEFAULT_DAILY_LIMIT);
   const asService = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  /**
+   * Rend l'appel au compteur quand la panne vient d'en face.
+   *
+   * Le quota est prélevé AVANT d'appeler Mistral, et c'est délibéré : le
+   * prélèvement et la vérification tiennent dans une seule instruction SQL,
+   * donc une rafale d'appels simultanés ne peut pas se glisser entre la lecture
+   * et l'écriture. Mais cet ordre a un prix, qu'une panne d'amont a révélé :
+   * pendant les heures où Mistral refusait tout, chaque échec consommait quand
+   * même une des quarante questions du jour. Les gens payaient un quota pour
+   * des réponses qu'ils n'ont jamais eues, puis s'entendaient dire qu'ils
+   * avaient atteint leur plafond — un message faux, qui les envoyait chercher
+   * la panne exactement là où elle n'était pas.
+   *
+   * On ne rembourse que ce que Mistral n'a pas facturé : un refus avant
+   * traitement, une coupure, un délai dépassé. Une réponse illisible reste à la
+   * charge de l'appelant, sans quoi une sortie mal formée offrirait une boucle
+   * gratuite — et le plafond ne bornerait plus rien.
+   *
+   * L'échec du remboursement est journalisé, jamais remonté : mieux vaut un
+   * compteur trop généreux d'une unité qu'une erreur affichée à quelqu'un qui
+   * n'a rien demandé. Il tolère l'absence de la fonction en base, pour que ce
+   * fichier reste déployable avant la migration qui l'ajoute.
+   */
+  const refundQuota = async () => {
+    const { error } = await asService.rpc('refund_ai_quota', { p_user: user.id });
+    if (error) console.error('[ai] refund_ai_quota :', error.message);
+  };
+
   const { data: quota, error: quotaError } = await asService.rpc('consume_ai_quota', {
     p_user: user.id,
     p_limit: limit,
@@ -681,30 +790,57 @@ Deno.serve(async (req: Request) => {
   messages.push({ role: 'user', content: question });
 
   const tuning = TUNING[action];
+  const model = resolveModel();
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), UPSTREAM_TIMEOUT_MS);
 
-  try {
-    const upstream = await fetch(MISTRAL_URL, {
+  // Nommé `requestBody` et non `payload` : la réponse de Mistral porte déjà ce
+  // nom quelques lignes plus bas, et deux `payload` dans la même fonction est
+  // le genre de collision qu'on ne voit qu'après l'avoir payée.
+  const requestBody = JSON.stringify({
+    model,
+    messages,
+    temperature: tuning.temperature,
+    max_tokens: tuning.maxTokens,
+    ...(tuning.json ? { response_format: { type: 'json_object' } } : {}),
+  });
+
+  const send = () =>
+    fetch(MISTRAL_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({
-        model: Deno.env.get('MISTRAL_MODEL') ?? DEFAULT_MODEL,
-        messages,
-        temperature: tuning.temperature,
-        max_tokens: tuning.maxTokens,
-        ...(tuning.json ? { response_format: { type: 'json_object' } } : {}),
-      }),
+      body: requestBody,
       signal: abort.signal,
     });
 
+  try {
+    let upstream = await send();
+
+    /**
+     * Une seule relance, et seulement pour une vraie limite de débit.
+     *
+     * Le plafond annoncé décide : au-dessus de zéro, la limite est passagère et
+     * attendre une seconde la fait tomber. À zéro, le modèle n'est pas dans le
+     * forfait, et réessayer ne ferait que doubler l'attente avant le même refus.
+     * L'`AbortController` couvre les deux tentatives, donc le délai global reste
+     * celui qu'on a promis à l'écran.
+     */
+    if (upstream.status === 429 && rateLimitCeiling(upstream) !== 0) {
+      await wait(retryDelay(upstream));
+      upstream = await send();
+    }
+
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '');
-      console.error(`[ai] Mistral ${upstream.status} : ${detail.slice(0, 400)}`);
+      console.error(`[ai] Mistral ${upstream.status} (${model}) : ${detail.slice(0, 400)}`);
+
+      // Rien n'a été facturé en face : la question n'a pas à coûter une place
+      // dans le quota du jour.
+      await refundQuota();
 
       // 401 côté Mistral veut dire que la clé est mauvaise ou révoquée. C'est un
       // problème de configuration, pas une panne : le distinguer évite de
@@ -712,9 +848,27 @@ Deno.serve(async (req: Request) => {
       if (upstream.status === 401 || upstream.status === 403) {
         return fail(503, 'misconfigured', "La clé de l'assistant a été refusée.");
       }
+
       if (upstream.status === 429) {
+        /**
+         * Un plafond annoncé à zéro n'est pas une saturation.
+         *
+         * C'est la panne du 8 septembre 2026, et elle a coûté cher à
+         * diagnostiquer : le message rendu disait « réessaie dans un instant »
+         * pour une cause qui n'allait jamais se lever seule. Le journal nomme
+         * donc le modèle et le geste qui répare, faute de quoi la prochaine
+         * bascule d'alias se cherchera aussi longtemps que celle-ci.
+         */
+        if (rateLimitCeiling(upstream) === 0) {
+          console.error(
+            `[ai] Le modèle « ${model} » est hors forfait : Mistral annonce un plafond ` +
+              `de 0 requête/minute. Poser le secret MISTRAL_MODEL sur un modèle accessible.`
+          );
+          return fail(503, 'misconfigured', "L'assistant n'est pas disponible sur ce forfait.");
+        }
         return fail(429, 'quota', "L'assistant est saturé, réessaie dans un instant.");
       }
+
       return fail(502, 'upstream', "L'assistant n'a pas répondu.");
     }
 
@@ -766,6 +920,8 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     const aborted = error instanceof DOMException && error.name === 'AbortError';
     console.error('[ai] Appel Mistral échoué :', aborted ? 'délai dépassé' : String(error));
+    // Coupure ou délai dépassé : là non plus, rien n'a été rendu.
+    await refundQuota();
     return aborted
       ? fail(504, 'timeout', "L'assistant met trop de temps à répondre.")
       : fail(502, 'upstream', "L'assistant est injoignable.");

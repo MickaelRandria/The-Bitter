@@ -1,7 +1,19 @@
 # Passation — The Bitter
 
-État au 13 août 2026, version **v0.91**. Ce document couvre les derniers chantiers
-et surtout les pièges déjà payés : ils ne se devinent pas en lisant le code.
+État au **28 août 2026**. Ce document couvre les derniers chantiers et surtout les
+pièges déjà payés : ils ne se devinent pas en lisant le code.
+
+Les sections 1 à 10 décrivent l'état au 13 août (v0.91) et restent valables, aux deux
+corrections signalées près (§3.1 et §6.9). Le **§11 rattrape les onze livraisons du 17
+au 25 août**, absentes de tout le reste du document. Le **§12** explique comment
+remonter un poste de travail à partir du dépôt seul.
+
+Deux avertissements avant de lire :
+
+- Le changelog utilisateur (`constants/changelog.ts`) est resté à **v0.91 du 12 août**.
+  Aucune des onze livraisons du §11 n'y est annoncée.
+- **Aucun des chantiers ouverts du §8 n'a été refermé** entre le 15 et le 28 août.
+  Tout ce qui a été livré depuis est nouveau. Vérifié dans le code, pas supposé.
 
 ---
 
@@ -45,8 +57,12 @@ JavaScript téléchargé par le navigateur : Vite la remplace par sa valeur au m
 du build. Pour une clé facturée à l'usage, cela revient à publier un moyen de
 paiement.
 
-Vérifié sur le bundle de production : la clé TMDB de secours de `constants.ts:36`
-s'y trouve en clair.
+Vérifié sur le bundle de production : la clé TMDB de secours qui figurait alors dans
+`constants.ts` s'y trouvait en clair.
+
+**Ce repli a été supprimé le 18 août** (§11, PR #79) : `VITE_TMDB_API_KEY` est
+désormais l'unique source. La démonstration ci-dessus n'a pas été appliquée à temps,
+et elle a fini par coûter une panne de production — voir §6.11.
 
 La clé Mistral vit donc dans les secrets d'une Edge Function, et l'application
 appelle cette fonction plutôt que Mistral.
@@ -61,7 +77,7 @@ appelle cette fonction plutôt que Mistral.
 |---|---|---|
 | `MISTRAL_API_KEY` | — | obligatoire |
 | `AI_DAILY_LIMIT` | `40` | appels par personne et par jour |
-| `MISTRAL_MODEL` | `mistral-small-latest` | modèle utilisé |
+| `MISTRAL_MODEL` | `ministral-14b-latest` | modèle utilisé — **ne pas remettre un modèle `small` ou `medium`, voir §6.13** |
 
 Poser un secret redéploie la fonction (le numéro de version s'incrémente).
 
@@ -79,6 +95,21 @@ Poser un secret redéploie la fonction (le numéro de version s'incrémente).
    rafale d'appels simultanés ne peut pas se glisser entre la lecture et l'écriture.
    La fonction n'est exécutable que par `service_role`. **Fermé par défaut** :
    compteur en panne ou réponse vide → refus.
+
+   Le prélèvement a lieu **avant** l'appel au modèle, ce qui est le bon ordre pour
+   l'atomicité et le mauvais quand la panne vient d'en face : pendant l'incident du
+   8 septembre, chaque échec consommait quand même une question, et les gens
+   s'entendaient dire qu'ils avaient atteint leur plafond alors qu'ils n'avaient rien
+   obtenu. `refund_ai_quota(p_user)` rend l'appel quand Mistral n'a rien facturé —
+   refus avant traitement, coupure, délai dépassé. **Pas** sur une réponse illisible :
+   celle-là a été payée, et la rembourser offrirait une boucle gratuite.
+
+   Les deux fonctions et la table vivent désormais dans
+   `supabase/migrations/20260806_add_ai_quota.sql`. Elles n'existaient auparavant que
+   dans la base de production, créées à la main : une restauration aurait coupé
+   l'assistant à 100 % sans que rien dans le dépôt ne permette de le remonter. Le
+   fichier est daté avant `20260817`, qui posait une policy sur `ai_usage` et échouait
+   donc sur toute base neuve.
 
 **Les huit actions :**
 
@@ -108,7 +139,11 @@ distinguer « connecte-toi » de « quota atteint » de « le service est tombé
 
 ### 3.4 Coût
 
-Tarif `mistral-small-latest` : 0,15 $/M jetons en entrée, 0,60 $/M en sortie.
+Les chiffres ci-dessous ont été établis au tarif de `mistral-small-latest`
+(0,15 $/M jetons en entrée, 0,60 $/M en sortie), le modèle utilisé jusqu'au
+8 septembre 2026. Depuis le passage à `ministral-14b-latest`, ils ne valent plus que
+comme **majorant** : le modèle est plus petit, donc moins cher, et il est de toute
+façon couvert par le free tier — coût réel nul tant qu'on y reste.
 
 | Fonction | Coût | Fréquence |
 |---|---|---|
@@ -342,6 +377,131 @@ pris et **toute requête suivante attend derrière lui**. D'où des écrans qui 
 dans le vide que seul un redémarrage débloquait. `stopAutoRefresh` avant la veille,
 `startAutoRefresh` + `realtime.connect()` au réveil.
 
+**Corrigé à la racine le 24 août (PR #84).** La parade existait mais n'était montée que
+sur `FriendsFeed` et `SharedSpaceView` ; partout ailleurs — dont la fiche film — le
+client restait verrouillé. `SupabaseClient._getAccessToken()` appelle `auth.getSession()`,
+qui prend le verrou : c'est le chemin de **toutes** les requêtes, PostgREST comme
+`functions.invoke`. `useSupabaseWake` se pose donc **une seule fois, à la racine**, dans
+`App.tsx`. Ne pas la remonter dans un composant : c'est un état global, pas un état de vue.
+
+Les séances UGC ont rendu le cas quotidien : toucher un horaire ouvre la billetterie
+dans un autre onglet, donc met la PWA en arrière-plan à chaque réservation.
+
+### 6.10 Déployer en ligne de commande depuis un dossier non versionné efface le travail
+
+**Deux jours de travail ont été perdus ainsi, les 13-15 août** (restaurés par la PR #75).
+
+La production était déployée par `vercel --prod` depuis le dossier de travail, qui
+n'était pas un dépôt git. Tant que personne ne fusionnait rien, l'illusion tenait : le
+site servait bien ce qui venait d'être déployé. **La fusion des PR #73 et #74 le 15 août
+a rebâti la production depuis GitHub**, effaçant tout ce qui n'avait jamais été commité —
+refonte de l'accueil, section ADN et son radar, calendrier, chaîne de notifications push.
+
+Le back-end n'avait pas régressé : migrations appliquées, fonctions actives. **Seul le
+front-end a disparu**, ce qui rend le diagnostic trompeur — la base répond, donc on
+cherche ailleurs.
+
+**Règle : la production se reconstruit depuis `main`.** Un déploiement CLI est au mieux
+temporaire, au pire un travail condamné à la prochaine fusion. Committer d'abord.
+`.vercel` a rejoint `.gitignore` à cette occasion.
+
+### 6.11 Une clé en dur survit à sa propre révocation
+
+`constants.ts` portait une valeur de repli pour la clé TMDB. Elle a été régénérée côté
+TMDB — et **le bundle déployé a continué de présenter l'ancienne** : la production a
+répondu `401` sur chaque appel TMDB, donc plus de recherche, plus de fiches, plus de
+planification. Le repli, censé protéger d'une variable manquante, a masqué la panne
+qu'il aurait fallu voir.
+
+Plus de repli : `VITE_TMDB_API_KEY` est la seule source. **Une variable absente se voit
+au build, pas six mois plus tard.**
+
+### 6.12 La CSP ne s'applique qu'en production — et un `fetch()` sur `data:` en dépend
+
+Le partage de story renvoyait « Impossible de générer la story : Load failed ». L'image
+était pourtant dessinée : `toDataURL()` réussissait, c'est la ligne suivante qui tombait.
+
+```js
+const response = await fetch(imageDataUrl);   // data:image/png;base64,...
+```
+
+**Un `fetch()` vers une URL `data:` reste une requête**, donc soumis à `connect-src`. La
+CSP de `vercel.json` énumère Supabase, TMDB, PostHog, Formspree, Google — sans `data:`.
+Safari remontait le refus en `TypeError « Load failed »`, affiché tel quel à l'utilisateur.
+
+**Ce défaut est invisible en développement** : `vite.config.ts` sert une CSP permissive
+(`default-src *`). Le seul environnement où la vraie politique s'applique est celui où
+personne ne teste avant de déployer. Le partage d'images était cassé depuis le
+déploiement des en-têtes de sécurité, le 17 août — trois fonctionnalités d'un coup, la
+même construction étant recopiée à trois endroits.
+
+Même famille, même jour : PostHog charge son enregistreur depuis des sous-domaines
+variables et crée des workers en `blob:`. Restreint au seul `eu.i.posthog.com`, **la
+mesure d'audience se serait tue en silence** après acceptation du consentement, sans
+qu'aucune fonctionnalité visible ne le signale (PR #77).
+
+**Avant de déployer un changement d'en-têtes : lister ce qui sort du navigateur.**
+
+### 6.13 Un alias de modèle est une dépendance que personne ne surveille
+
+L'assistant s'est arrêté net. Aucun déploiement ce jour-là, aucune ligne modifiée
+depuis le 15 août, tout le reste debout — front, CSP, CORS, session, quota, base.
+L'écran disait « L'assistant est saturé, réessaie dans un instant », et Mistral
+confirmait :
+
+```
+[ai] Mistral 429 : {"message":"Rate limit exceeded","type":"rate_limited","code":"1300"}
+```
+
+Ce message envoie chercher une saturation. Il n'y en avait aucune : l'application ne
+fait qu'un appel séquentiel par action, et il y avait ce jour-là une poignée
+d'utilisateurs. La réponse tenait dans un en-tête que rien n'obligeait à lire :
+
+```
+x-ratelimit-limit-req-minute: 0
+```
+
+**Zéro n'est pas une saturation. C'est un droit d'accès inexistant.** Mistral emploie
+le même `429`, le même corps de réponse et le même code `1300` pour « tu vas trop
+vite » et pour « ce modèle n'est pas dans ton forfait ». Seul cet en-tête sépare les
+deux, et il change tout : la première cause se règle en attendant une seconde, la
+seconde ne se lèvera jamais seule.
+
+Vérifié avec une clé de test, sur le même compte, à la même minute :
+
+| Modèle | Réponse | Plafond annoncé |
+|---|---|---|
+| `mistral-small-latest` ← celui de l'app | `429` | **0** |
+| `mistral-medium-latest` | `429` | **0** |
+| `magistral-small-latest` | `429` | **0** |
+| `ministral-14b-latest` | `200` | 30/min |
+| `ministral-8b-latest` | `200` | 188/min |
+
+La clé était valide — `GET /v1/models` répondait `200`. Le compte n'était ni bloqué,
+ni en défaut de paiement. **Mistral avait simplement sorti les modèles Small et Medium
+du free tier, et `-latest` est un alias mouvant.** Le jour où ils l'ont fait pointer
+sur une révision payante, la production est morte sans que rien, ni dans le dépôt ni
+dans les journaux, ne relie l'effet à sa cause.
+
+C'est la même famille que §6.11 : une valeur décidée ailleurs, qui survit à son propre
+changement parce que rien ici ne la surveille. Une clé en dur y survivait à sa
+révocation ; un alias y survit à sa redirection.
+
+**Trois choses en sont sorties :**
+
+1. Le défaut du code est passé à `ministral-14b-latest`. Le 8B a été écarté après essai :
+   il rend une forme JSON inventée — des objets imbriqués là où l'on attend des chaînes —
+   que `parseStarters` et `parseDiscover` réduisent à du vide. Cinq des huit actions
+   exigent du JSON structuré, ce n'est pas négociable.
+2. La fonction lit désormais `x-ratelimit-limit-req-minute`. À zéro, elle **nomme le
+   modèle fautif dans le journal et dit quoi faire**, au lieu de conseiller de
+   réessayer. Un `429` avec un plafond réel donne droit à une relance unique.
+3. Le quota du jour est remboursé quand Mistral n'a rien facturé (§3.2).
+
+**La leçon : un `-latest` n'est pas une version, c'est un abonnement à des décisions
+prises par quelqu'un d'autre.** Le prix payé ici est modeste — quelques heures et un
+modèle un cran moins fin. Sur une fonctionnalité facturée, il aurait été tout autre.
+
 ---
 
 ## 7. Frontière d'erreur
@@ -361,15 +521,37 @@ effaçait tout, sans message ni issue.
 
 ## 8. Chantiers ouverts
 
+Relevé le **28 août 2026**. Rien n'a été refermé depuis le 13 août : les onze livraisons
+du §11 sont toutes des nouveautés. Les lignes marquées *(vérifié le 28/08)* ont été
+recontrôlées dans le code à cette date ; les autres sont reconduites telles quelles.
+
 | Sujet | État |
 |---|---|
-| `App.tsx:868` — `SIGNED_OUT` met `activeProfileId` à `null` sans rouvrir l'écran d'accueil → **écran vide** | connu, non corrigé, ~30 min |
+| `App.tsx:1057` — `SIGNED_OUT` met `activeProfileId` à `null` sans rouvrir l'écran d'accueil → **écran vide** | **toujours présent** *(vérifié le 28/08)*, ~30 min. La référence `App.tsx:868` du 13 août a dérivé : le fichier a grossi de 190 lignes |
+| `public/.well-known/assetlinks.json` contient encore `REMPLACER_PAR_L_EMPREINTE_SHA256_DE_LA_CLE_DE_SIGNATURE` | **bloque la sortie Android** *(vérifié le 28/08)*. Sans lui, Chrome garde sa barre d'adresse au-dessus du TWA et Play le voit. Procédure dans `TWA-ANDROID.md` |
+| Licences des styles DiceBear (CC0 contre CC BY 4.0) | **toujours non vérifiées** *(vérifié le 28/08 : aucune mention de licence ni d'attribution DiceBear dans le code, les traductions ou le HTML)*. L'attribution TMDB a été faite le 18 août ; celle-ci relève de la même exigence des stores |
+| `constants/changelog.ts` arrêté à v0.91 (12 août) | *(vérifié le 28/08)* onze livraisons sont en production sans être annoncées à qui que ce soit |
 | Déclenchement automatique des amorces sur les films déjà notés | jamais confirmé ; un bouton de repli « Propose-moi une amorce » existe |
 | Nouveau flux « Je l'ai vu, je note » | livré, **non recetté** |
 | Portrait et argumentaire | livrés, recette partielle |
-| Licences des styles DiceBear (CC0 contre CC BY 4.0) | **non vérifiées** |
+| Séances UGC, programme, thème sombre, tablette, mode démo (§11) | livrés et déployés, **recette réelle non faite** |
 | `De la Comédie-Française` a `date_watched` nul | antérieur au correctif ; les prochains sont datés |
 | Chat dans les espaces | reporté par le propriétaire ; le socle temps réel est prêt |
+
+### Branches non fusionnées — état au 28 août
+
+| Branche | État |
+|---|---|
+| `mode-demo` | **PR #86 ouverte** depuis le 25 août. C'est le travail en cours |
+| `responsive-tablette` | poussée, non fusionnée, **aucune PR ouverte** |
+| `agent/data-backup-import` | 1er août — **160 commits de retard** sur `main` |
+| `agent/pwa-onboarding-icons` | 1er août — **159 commits de retard** |
+| `agent/stories-analytics-v088` | 3 août — **166 commits de retard** |
+
+Les trois branches `agent/*` sont antérieures à toute la refonte d'août, y compris à la
+restauration du §6.10. **Les rebaser coûterait plus cher que de refaire le travail** à
+partir du code actuel. Décider de leur sort — reprendre l'idée, ou supprimer la branche —
+plutôt que de les laisser donner l'illusion d'un travail disponible.
 
 ---
 
@@ -398,3 +580,160 @@ Relevés en base le 12 août 2026 — ils expliquent la plupart des choix ci-des
 | Tags posés | **0** — la fonction est morte, rien ne les consomme |
 | Espaces | 1 (« Ciné pote »), 3 membres actifs, 5 films, 1 vu |
 | Notes dans les espaces | 1 |
+
+---
+
+## 11. Livré du 17 au 25 août — ce que les §1 à 10 ne couvrent pas
+
+Onze PR fusionnées dans `main`, 23 commits, aucune annoncée au changelog. Les corps de
+commit sont détaillés et font foi : `git log --merges bb685de..main`.
+
+### 11.1 Conformité stores et vie privée — PR #76, #78, #80
+
+Trois obligations manquaient pour soumettre l'application.
+
+**Suppression de compte** (App Store 5.1.1(v) et droit à l'effacement). Une Edge Function
+efface l'identité Auth et toutes les données serveur. Le point délicat n'était pas la
+suppression mais **sa cascade** : `shared_spaces.created_by` est en `CASCADE`, donc
+effacer le profil du créateur d'un espace aurait emporté les films et les votes de tous
+les autres membres. L'espace est désormais **transmis à son plus ancien membre encore
+actif**, et n'est détruit que si son créateur en était le dernier. `profiles` n'ayant
+aucune clé étrangère vers `auth.users`, les deux suppressions sont explicites,
+**l'identité en dernier** pour qu'un échec laisse un compte encore capable de relancer
+l'opération. `ai_usage` ne porte pas de clé étrangère : purgé à part.
+
+**Politique de confidentialité** servie à `/confidentialite` : données collectées, bases
+légales, sous-traitants réels, durées, droits et recours. L'éditeur et l'adresse de
+contact ont été renseignés le 18 août (PR #78).
+
+**Attribution TMDB.** Leurs conditions imposent le logo et la mention « ce produit
+utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB » dès lors qu'on affiche
+leurs fiches, affiches ou castings. L'application en affichait partout, **avec zéro
+attribution**. Apple (règle 5.2) et Google exigent le respect des conditions des tiers :
+la clé d'API exposée ne bloque rien, l'attribution manquante si. Le logo est l'asset
+officiel, pas une reproduction ; il apparaît dans le profil sous « Sources ».
+
+*Reste ouvert dans la même famille : les licences DiceBear (§8).*
+
+### 11.2 Séances UGC et planification depuis le vrai programme — PR #82, #85
+
+Découvrir un film et le réserver étaient deux parcours séparés.
+
+`cinema-directory` gagne une action **`showtimes`** : UGC décrit chaque séance en
+attributs `data-*` sur son bouton de réservation — **la partie la plus stable de la
+page, on ne lit qu'elle**. Le rapprochement est une **égalité stricte après
+normalisation**, sur UN titre demandé dans la grille d'un cinéma : pas de réconciliation
+massive entre catalogues, donc pas de faux appariement à grande échelle. Un faux positif
+ouvrirait le mauvais lien de réservation.
+
+**Le fuseau n'est pas cosmétique** : UGC affiche « 21:00 » heure de Paris, l'Edge
+Function tourne en UTC. Le décalage réel du jour concerné est calculé, avec une seconde
+passe pour les nuits de changement d'heure. Cache de 3 h par couple (cinéma, jour), sur
+la forme déjà analysée ; les séances passées sont filtrées à la lecture.
+
+Une action **`programme`** rend ensuite la grille entière groupée par film — la fonction
+la lisait déjà et jetait les trente autres films. Trois choix sur quatre sont souvent
+déjà faits : cinéma favori pré-rempli, jour par défaut = **le premier qui a encore des
+séances à vendre**, et beaucoup de films n'ont qu'un horaire.
+
+Ce dernier point n'est pas cosmétique non plus : **à 22 h, « aujourd'hui » n'a plus une
+seule séance** et ouvrir sur le jour courant montrerait un écran vide. Les sept jours
+sont décrits, **les vides grisés plutôt que cachés** : UGC ne publie la semaine suivante
+qu'au basculement du mercredi, et un jour sans séance doit se lire « rien de prévu », pas
+« c'est cassé ».
+
+### 11.3 Thème sombre de la fiche film — PR #83
+
+`MovieDetailModal` était **le seul écran à ne pas porter `dark:bg-[#0c0c0c]`** à côté de
+son `bg-cream`. Le panneau restait crème pendant que ses enfants basculaient en texte
+clair : gris pâle sur crème, illisible. Passe complète, 30 éléments, en suivant les
+conventions déjà en place (`dark:bg-[#161616]` pour une carte, `dark:border-white/10`,
+`dark:bg-bitter-lime dark:text-charcoal` pour un bouton primaire). Deux cas qui ne se
+voient qu'à l'écran : le dégradé de l'affiche finissait en `to-cream` en dur, et la barre
+d'actions du bas était crème sur crème.
+
+### 11.4 Tablette portrait — branche `responsive-tablette`, non fusionnée
+
+L'application était conçue pour un seul appareil : **185 préfixes `sm:`, trois `md:`, un
+`lg:`**. Sur un iPad de 820 px, le Feed restait bridé à 448 px pendant qu'Analytics
+s'étalait sur 772 px, avec des carrés `aspect-square` de 480 px de côté pour une icône de
+40 px et deux mots.
+
+**Le principe : on n'élargit pas les tuiles, on en met plus par rangée.** C'est ce qui
+protège les images — élargir une carte du Feed flouterait son affiche (le fond est un
+`w780`, une carte de plus de ~440 px le dépasse sur écran Retina).
+
+Le palier s'appelle **`tab` et vaut 720 px, pas le `md` par défaut** : l'iPad mini en
+portrait fait 744 px et serait resté au rendu téléphone avec `md` (768 px) ; 720 passe
+au-dessus de la plus large fenêtre Split View, qui doit elle rester en rendu téléphone.
+Il est déclaré en **redéfinissant `theme.screens` en entier, pas via `extend`** :
+Tailwind range les écrans étendus à la fin de la liste, un `tab:` ajouté ainsi serait
+sorti après `xl:` et aurait gagné la cascade sur les grands écrans.
+
+### 11.5 Mode démo — branche `mode-demo`, PR #86 ouverte
+
+Un profil vide ne démontre rien : l'ADN, le fil d'amis et la rentabilité de l'abonnement
+ont besoin de dizaines de films pour dire quelque chose. `?demo=true` (ou `?guest=true`,
+ou le bouton discret de l'accueil) ouvre le profil d'Alex : 31 films sur dix mois, 6 en
+attente, un abonnement UGC rentabilisé, trois amis qui postent.
+
+**Rien n'est écrit.** Le mode démo n'ouvre aucune session, donc toutes les
+synchronisations — déjà gardées par `session?.user?.id` — sont mortes d'elles-mêmes. Les
+trois effets qui persistent les profils sont neutralisés : ce qu'on note pendant une
+démonstration vit en mémoire et disparaît au rechargement. Une seule clé est posée,
+`the_bitter_demo_mode`, et elle ne contient qu'un drapeau.
+
+Le drapeau est **calculé au chargement du module et non dans un effet** : les services
+le lisent avant le premier rendu.
+
+### 11.6 Corrections d'infrastructure
+
+| PR | Sujet | Où c'est expliqué |
+|---|---|---|
+| #75 | Restauration du travail des 13-15 août | §6.10 — le piège le plus cher du mois |
+| #77 | CSP PostHog et workers `blob:` | §6.12 |
+| #79 | Clé TMDB sortie du code | §6.11 |
+| #81 | Partage de story cassé par la CSP | §6.12 |
+| #84 | Réveil Supabase à la racine | §6.9 |
+| — | Alias Mistral basculé hors forfait | §6.13 |
+
+---
+
+## 12. Remonter un poste de travail
+
+Le dépôt contient **tout le code** : branches, historique, migrations, Edge Functions,
+documentation. Il ne contient volontairement **ni les secrets, ni le lien Vercel, ni les
+dépendances**.
+
+```bash
+git clone https://github.com/MickaelRandria/The-Bitter.git
+cd The-Bitter
+npm install
+vercel link            # projet the-bitter-r1ta
+vercel env pull .env   # les 6 variables VITE_* — modèle dans .env.example
+npm run lint           # tsc --noEmit
+npm run dev
+```
+
+**Sans `.env`, l'application démarre mais tout le code Supabase disparaît du build** :
+plus d'authentification, plus d'espaces, plus d'IA — et aucun message pour le dire. Un
+écran qui « marche » sans `.env` ne prouve rien du tout. C'est le premier piège d'un
+poste neuf.
+
+Le reste tient en quatre points :
+
+- **Choisir un chemin sans espace ni parenthèse** (`C:\dev\the-bitter`). Un chemin du
+  type `Downloads\The-Bitter-main (8)` doit être échappé par chaque outil qui le
+  manipule et rend toute configuration illisible.
+- **Vérifier `git config user.name`** : des commits ont été signés du nom de la machine
+  (`DESKTOP-XXXX\utilisateur`) au lieu de celui de l'auteur.
+- **Ne pas recopier `node_modules`** d'une machine à l'autre : binaires natifs. `npm
+  install` — Node 22.x, la même majeure, pour que `package-lock.json` résolve à
+  l'identique.
+- **Recette sur téléphone** : une adresse IP en clair n'est pas un contexte sécurisé, donc
+  pas de service worker ni de PWA, et le pare-feu Windows bloque le port de Vite par
+  défaut. Deux faux bugs classiques qui font perdre une soirée.
+
+Enfin, le §9 s'applique dès le premier commit : `git status --short` avant de committer,
+`npx tsc --noEmit` puis `npm run build` avant toute PR, et **vérification en production
+après déploiement** (§6.7), pas seulement le statut CI.
