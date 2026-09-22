@@ -1,5 +1,45 @@
 import { useEffect, useRef } from 'react';
 
+/**
+ * Verrou de défilement de la page, partagé par toutes les modales.
+ *
+ * Sans lui, la page continue de défiler derrière la modale : on perd sa place,
+ * et sur mobile le geste destiné au contenu de la modale emporte l'arrière-plan.
+ * Un compteur gère les modales empilées — la première pose le verrou, la
+ * dernière le retire.
+ *
+ * `position: fixed` plutôt qu'un simple `overflow: hidden` : iOS ignore le second
+ * sur le body. La position de lecture est mémorisée puis rendue à la fermeture,
+ * sinon fermer une modale renverrait en haut de la collection.
+ */
+let lockCount = 0;
+let savedScrollY = 0;
+
+const lockScroll = () => {
+  if (lockCount++ > 0) return;
+  savedScrollY = window.scrollY;
+  const { style } = document.body;
+  style.position = 'fixed';
+  style.top = `-${savedScrollY}px`;
+  style.left = '0';
+  style.right = '0';
+  style.width = '100%';
+  style.overflowY = 'scroll';
+};
+
+const unlockScroll = () => {
+  if (--lockCount > 0) return;
+  lockCount = 0;
+  const { style } = document.body;
+  style.position = '';
+  style.top = '';
+  style.left = '';
+  style.right = '';
+  style.width = '';
+  style.overflowY = '';
+  window.scrollTo(0, savedScrollY);
+};
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -17,6 +57,11 @@ export function useDialog(onClose?: () => void, label?: string) {
   // une ref pour que l'effet ne se relance pas (sinon le focus repart au début).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  useEffect(() => {
+    lockScroll();
+    return unlockScroll;
+  }, []);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;

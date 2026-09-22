@@ -143,7 +143,7 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({
     return (
       <div className="bg-charcoal/90 backdrop-blur-md text-white px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out]">
         <Ticket size={10} className="text-bitter-lime" />
-        <span className="text-[9px] font-black uppercase tracking-wide">{badge.label}</span>
+        <span className="text-[9px] font-black uppercase tracking-wide leading-none">{badge.label}</span>
       </div>
     );
   }
@@ -152,7 +152,7 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({
     <div
       className={`px-2.5 py-1 rounded-lg shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out] ${badge.className}`}
     >
-      <span className="text-[9px] font-black uppercase tracking-wide">{badge.label}</span>
+      <span className="text-[9px] font-black uppercase tracking-wide leading-none">{badge.label}</span>
     </div>
   );
 };
