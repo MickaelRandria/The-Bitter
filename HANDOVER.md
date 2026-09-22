@@ -160,8 +160,14 @@ Règles publiques : `/conditions`. Code : `services/moderation.ts`,
 - **Bloquer** : `user_blocks`. Réciproque dans le fil **côté serveur**
   (`private.friends_activity_by_media`) ; côté app, les avis d'une personne
   bloquée sont masqués dans les espaces. Annulable dans Profil → Confidentialité.
-- **Traiter les signalements** — il n'y a pas d'alerte automatique, il faut
-  regarder. Dans le SQL Editor de Supabase :
+- **Alerte** : chaque signalement déclenche (trigger `content_reports_alert` →
+  pg_net → Edge Function `report-alert`) une notification push vers les appareils
+  des profils listés dans `moderators`. Même jeton de worker et mêmes clés VAPID
+  que les rappels, fonction distincte pour ne pas les risquer. Le texte signalé
+  n'est jamais dans la notification ; 10 alertes par heure au plus. Ajouter un
+  modérateur : `insert into moderators(profile_id) values ('<uuid>');` — il doit
+  avoir activé les rappels sur son téléphone.
+- **Traiter les signalements** — dans le SQL Editor de Supabase :
 
   ```sql
   select r.created_at, r.reason, r.content_type, r.content_snapshot, r.details,
