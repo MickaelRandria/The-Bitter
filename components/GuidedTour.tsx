@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Check, Sparkles, X, MousePointerClick } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles, X, MousePointerClick } from 'lucide-react';
 import type { TourStep } from '../constants/tour';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -214,6 +214,29 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
   const viewport = useViewport();
   const { rect, placement, missing } = useSpotlight(step.target, cardHeightRef);
 
+  /**
+   * Reste-t-il du texte sous le bord de la zone lisible ?
+   *
+   * La zone défile sans barre visible (`no-scrollbar`) : sur un petit écran, la
+   * dernière puce était coupée net et rien ne disait qu'on pouvait lire la suite.
+   * Un dégradé apparaît alors en bas, et disparaît une fois le texte parcouru.
+   */
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [hasMore, setHasMore] = useState(false);
+  useEffect(() => {
+    const node = bodyRef.current;
+    if (!node) return;
+    const measure = () => setHasMore(node.scrollHeight - node.scrollTop - node.clientHeight > 4);
+    measure();
+    node.addEventListener('scroll', measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => {
+      node.removeEventListener('scroll', measure);
+      observer.disconnect();
+    };
+  }, [step.id, rect, placement]);
+
   // Étape dont la cible n'existe pas sur cet écran : on l'enjambe plutôt que
   // d'expliquer un élément que l'utilisateur ne voit nulle part.
   const onSkipStepRef = useRef(onNext);
@@ -387,7 +410,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
           <X size={12} strokeWidth={2.5} />
         </button>
 
-        <div className="relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-5">
+        <div ref={bodyRef} className="relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-5">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#D9FF00]/30 bg-[#D9FF00]/10 text-[#D9FF00] text-[9px] font-black uppercase tracking-widest mb-3">
             <Sparkles size={10} />
             {stepIndex + 1} / {totalSteps}
@@ -420,6 +443,16 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
             </div>
           )}
         </div>
+
+        {/* Il reste à lire : le dégradé le montre sans voler de place au texte. */}
+        {hasMore && (
+          <div className="relative shrink-0 h-0">
+            <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#0c0c0c] to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-1 flex justify-center pointer-events-none">
+              <ChevronDown size={14} className="text-white/40 animate-bounce" />
+            </div>
+          </div>
+        )}
 
         <div className="relative shrink-0 px-5 pb-4 pt-1">
           <div className="flex items-center gap-1 mb-3">
