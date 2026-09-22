@@ -787,12 +787,15 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isModalOpen || activeTour !== null || pendingTour !== null) return;
     if (editingMovie || initialStatusForAdd !== 'watched') return;
+    // Le parcours parle de films et pointe la recherche de film : sur l'ajout
+    // d'une série, il décrivait un écran qui n'était pas celui qu'on voyait.
+    if (mediaTypeToLoad === 'tv') return;
     if (seenTooltips.includes(RATING_TOUR_SEEN_ID)) return;
 
     // La modale est chargée en lazy : on la laisse se monter avant de proposer.
     const timer = setTimeout(() => setPendingTour('rating'), 500);
     return () => clearTimeout(timer);
-  }, [isModalOpen, activeTour, pendingTour, editingMovie, initialStatusForAdd, seenTooltips]);
+  }, [isModalOpen, activeTour, pendingTour, editingMovie, initialStatusForAdd, mediaTypeToLoad, seenTooltips]);
 
   const acceptTour = () => {
     const variant = pendingTour;

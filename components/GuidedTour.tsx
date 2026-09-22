@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Check, Sparkles, X, MousePointerClick } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles, X, MousePointerClick } from 'lucide-react';
 import type { TourStep } from '../constants/tour';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -18,6 +18,40 @@ const FIND_TIMEOUT_MS = 3000;
 const ACTION_SETTLE_MS = 380;
 
 type Placement = 'above' | 'below' | 'center';
+
+/**
+ * Hauteur réellement visible, et marge basse occupée par la barre système.
+ *
+ * `window.innerHeight` ne suffit pas : avec `viewport-fit=cover`, il compte la
+ * bande qui passe SOUS la barre de navigation Android, et il ne bouge pas quand
+ * le clavier s'ouvre. La carte se retrouvait alors coupée, boutons compris —
+ * on ne pouvait plus avancer dans le tuto.
+ */
+const useViewport = () => {
+  const read = () => {
+    const styles = getComputedStyle(document.documentElement);
+    const inset = parseFloat(styles.getPropertyValue('--sab')) || 0;
+    const top = parseFloat(styles.getPropertyValue('--sat')) || 0;
+    return { height: window.visualViewport?.height ?? window.innerHeight, insetBottom: inset, insetTop: top };
+  };
+  const [viewport, setViewport] = useState(read);
+
+  useEffect(() => {
+    const onChange = () => setViewport(read());
+    window.addEventListener('resize', onChange);
+    window.addEventListener('orientationchange', onChange);
+    window.visualViewport?.addEventListener('resize', onChange);
+    window.visualViewport?.addEventListener('scroll', onChange);
+    return () => {
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('orientationchange', onChange);
+      window.visualViewport?.removeEventListener('resize', onChange);
+      window.visualViewport?.removeEventListener('scroll', onChange);
+    };
+  }, []);
+
+  return viewport;
+};
 
 interface Rect {
   top: number;
@@ -77,10 +111,13 @@ const scrollIntoBand = (el: HTMLElement, bandTop: number, bandBottom: number) =>
 const useSpotlight = (target: string | null, cardHeightRef: React.RefObject<number>) => {
   const [rect, setRect] = useState<Rect | null>(null);
   const [placement, setPlacement] = useState<Placement>('center');
+  /** Vrai quand la cible n'a jamais été trouvée dans le temps imparti. */
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     setRect(null);
     setPlacement('center');
+    setMissing(false);
     if (!target) return;
 
     let raf = 0;
@@ -91,8 +128,13 @@ const useSpotlight = (target: string | null, cardHeightRef: React.RefObject<numb
     const tick = () => {
       const el = document.querySelector<HTMLElement>(`[data-tour="${target}"]`);
 
-      if (!el) {
+      // Une cible présente mais de taille nulle (section repliée, grille non
+      // rendue) ne se voit pas : la traiter comme absente évite un spotlight
+      // invisible et une carte qui décrit du vide.
+      const visible = el && el.getBoundingClientRect().height > 1;
+      if (!visible) {
         if (performance.now() - start < FIND_TIMEOUT_MS) raf = requestAnimationFrame(tick);
+        else setMissing(true);
         return;
       }
 
@@ -130,7 +172,7 @@ const useSpotlight = (target: string | null, cardHeightRef: React.RefObject<numb
     return () => cancelAnimationFrame(raf);
   }, [target, cardHeightRef]);
 
-  return { rect, placement };
+  return { rect, placement, missing };
 };
 
 /** Indices des points de progression, extrait pour garder le JSX lisible. */
@@ -169,7 +211,41 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
     cardHeightRef.current = cardRef.current?.offsetHeight ?? 0;
   });
 
-  const { rect, placement } = useSpotlight(step.target, cardHeightRef);
+  const viewport = useViewport();
+  const { rect, placement, missing } = useSpotlight(step.target, cardHeightRef);
+
+  /**
+   * Reste-t-il du texte sous le bord de la zone lisible ?
+   *
+   * La zone défile sans barre visible (`no-scrollbar`) : sur un petit écran, la
+   * dernière puce était coupée net et rien ne disait qu'on pouvait lire la suite.
+   * Un dégradé apparaît alors en bas, et disparaît une fois le texte parcouru.
+   */
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [hasMore, setHasMore] = useState(false);
+  useEffect(() => {
+    const node = bodyRef.current;
+    if (!node) return;
+    const measure = () => setHasMore(node.scrollHeight - node.scrollTop - node.clientHeight > 4);
+    measure();
+    node.addEventListener('scroll', measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => {
+      node.removeEventListener('scroll', measure);
+      observer.disconnect();
+    };
+  }, [step.id, rect, placement]);
+
+  // Étape dont la cible n'existe pas sur cet écran : on l'enjambe plutôt que
+  // d'expliquer un élément que l'utilisateur ne voit nulle part.
+  const onSkipStepRef = useRef(onNext);
+  onSkipStepRef.current = onNext;
+  useEffect(() => {
+    if (!missing) return;
+    const timer = window.setTimeout(() => onSkipStepRef.current(), 200);
+    return () => window.clearTimeout(timer);
+  }, [missing, step.id]);
 
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === totalSteps - 1;
@@ -219,15 +295,22 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
   // conteneur en hauteur automatique, un `max-height: 100%` interne ne contraint
   // rien et la carte débordait sur la cible.
   const cardStyle: React.CSSProperties = (() => {
+    // Bas et haut utilisables : jamais sous la barre de navigation ni sous l'encoche.
+    const floor = viewport.height - viewport.insetBottom - CARD_GAP;
+    const ceiling = viewport.insetTop + CARD_GAP;
     if (!hole || placement === 'center') {
-      return { top: '50%', transform: 'translateY(-50%)', maxHeight: 'calc(100dvh - 3rem)' };
+      return {
+        top: Math.max(ceiling, (viewport.height - viewport.insetBottom + viewport.insetTop) / 2 - 1),
+        transform: 'translateY(-50%)',
+        maxHeight: Math.max(160, floor - ceiling),
+      };
     }
     if (placement === 'below') {
-      const top = hole.top + hole.height + CARD_GAP;
-      return { top, maxHeight: Math.max(120, window.innerHeight - top - CARD_GAP) };
+      const top = Math.min(hole.top + hole.height + CARD_GAP, floor - 160);
+      return { top: Math.max(ceiling, top), maxHeight: Math.max(160, floor - Math.max(ceiling, top)) };
     }
-    const bottom = window.innerHeight - hole.top + CARD_GAP;
-    return { bottom, maxHeight: Math.max(120, hole.top - CARD_GAP * 2) };
+    const bottom = Math.max(viewport.height - hole.top + CARD_GAP, viewport.insetBottom + CARD_GAP);
+    return { bottom, maxHeight: Math.max(160, viewport.height - bottom - ceiling) };
   })();
 
   const handleNext = () => {
@@ -327,7 +410,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
           <X size={12} strokeWidth={2.5} />
         </button>
 
-        <div className="relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-5">
+        <div ref={bodyRef} className="relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-5">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#D9FF00]/30 bg-[#D9FF00]/10 text-[#D9FF00] text-[9px] font-black uppercase tracking-widest mb-3">
             <Sparkles size={10} />
             {stepIndex + 1} / {totalSteps}
@@ -360,6 +443,16 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
             </div>
           )}
         </div>
+
+        {/* Il reste à lire : le dégradé le montre sans voler de place au texte. */}
+        {hasMore && (
+          <div className="relative shrink-0 h-0">
+            <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#0c0c0c] to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-1 flex justify-center pointer-events-none">
+              <ChevronDown size={14} className="text-white/40 animate-bounce" />
+            </div>
+          </div>
+        )}
 
         <div className="relative shrink-0 px-5 pb-4 pt-1">
           <div className="flex items-center gap-1 mb-3">
