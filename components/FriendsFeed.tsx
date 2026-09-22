@@ -10,6 +10,7 @@ import {
   TrendingUp,
   TrendingDown,
   X,
+  Flag,
 } from 'lucide-react';
 import { FriendActivity, getFriendsActivity } from '../services/supabase';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -20,6 +21,8 @@ import { useResumeRefresh } from '../utils/useResumeRefresh';
 import { Movie } from '../types';
 import { workKey } from '../utils/workKey';
 import RatingDetailSheet from './RatingDetailSheet';
+import ReportSheet from './ReportSheet';
+import { ReportTarget, useBlockedUsers } from '../services/moderation';
 
 interface Props {
   mediaType?: 'movie' | 'tv';
@@ -70,6 +73,10 @@ const FriendsFeed: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   /** Note dépliée : on montre comment elle a été obtenue, pas seulement son résultat. */
   const [openDetail, setOpenDetail] = useState<string | null>(null);
+  const [reporting, setReporting] = useState<ReportTarget | null>(null);
+  // Le serveur exclut déjà les personnes bloquées ; ce filtre couvre l'instant
+  // qui suit un blocage, avant le prochain rechargement du fil.
+  const blocked = useBlockedUsers();
 
   const load = async () => {
     setLoading(true);
@@ -94,13 +101,14 @@ const FriendsFeed: React.FC<Props> = ({
   const byDay = useMemo(() => {
     const groups = new Map<string, FriendActivity[]>();
     for (const item of items) {
+      if (blocked.has(item.profileId)) continue;
       const day = (item.watchedAt || '').slice(0, 10);
       const list = groups.get(day) ?? [];
       list.push(item);
       groups.set(day, list);
     }
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [items]);
+  }, [items, blocked]);
 
   const formatDay = (iso: string) => {
     const date = new Date(iso);
@@ -251,6 +259,22 @@ const FriendsFeed: React.FC<Props> = ({
                     <span className="text-xs font-black text-white truncate drop-shadow">
                       {item.firstName}
                     </span>
+                    <button
+                      onClick={() => {
+                        haptics.soft();
+                        setReporting({
+                          contentType: 'feed_item',
+                          contentId: item.movieId,
+                          reportedUserId: item.profileId,
+                          reportedName: item.firstName,
+                          snapshot: item.review,
+                        });
+                      }}
+                      aria-label={t('moderation.report')}
+                      className="pointer-events-auto w-7 h-7 -m-1 rounded-full flex items-center justify-center text-white/60 hover:text-white active:scale-90 transition-transform shrink-0"
+                    >
+                      <Flag size={12} />
+                    </button>
                   </div>
 
                   <button
@@ -345,6 +369,8 @@ const FriendsFeed: React.FC<Props> = ({
             />
           );
         })()}
+
+      {reporting && <ReportSheet target={reporting} onClose={() => setReporting(null)} />}
     </div>
   );
 };

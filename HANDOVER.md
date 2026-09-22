@@ -147,6 +147,35 @@ requête OMDb par semaine, quel que soit le nombre de personnes qui l'affichent.
 - `imdbRating` n'est **jamais** écrit dans `user_movies` : App le recalcule depuis
   le cache (`imdbPending`), la synchro n'en sait rien.
 
+### 3.6 Modération : signaler, bloquer
+
+Exigée par Google Play (contenu publié par les utilisateurs : avis, fil, espaces).
+Règles publiques : `/conditions`. Code : `services/moderation.ts`,
+`components/ReportSheet.tsx`, `components/BlockedPeopleSection.tsx`.
+
+- **Signaler** : drapeau sur chaque carte du fil, chaque avis d'un espace, et
+  « Signaler · Bloquer » dans le profil d'un membre. Écrit dans `content_reports`,
+  avec une copie du texte (`content_snapshot`). Aucun client ne lit les
+  signalements des autres ; un doublon est absorbé par un index unique.
+- **Bloquer** : `user_blocks`. Réciproque dans le fil **côté serveur**
+  (`private.friends_activity_by_media`) ; côté app, les avis d'une personne
+  bloquée sont masqués dans les espaces. Annulable dans Profil → Confidentialité.
+- **Traiter les signalements** — il n'y a pas d'alerte automatique, il faut
+  regarder. Dans le SQL Editor de Supabase :
+
+  ```sql
+  select r.created_at, r.reason, r.content_type, r.content_snapshot, r.details,
+         p.first_name as auteur, r.id
+  from content_reports r left join profiles p on p.id = r.reported_user_id
+  where r.status = 'open' order by r.created_at desc;
+
+  -- une fois traité :
+  update content_reports set status = 'resolved', reviewed_at = now() where id = '…';
+  ```
+
+  Retirer un avis : vider `review` dans `user_movies` ou `movie_ratings`. Bannir :
+  supprimer l'utilisateur dans Authentication → Users.
+
 ---
 
 ## 4. Les fonctions IA livrées

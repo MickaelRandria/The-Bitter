@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { avatarSrc } from '../utils/avatar';
 import AvatarPickerModal from './AvatarPickerModal';
+import BlockedPeopleSection from './BlockedPeopleSection';
 import {
   X,
   LogOut,
@@ -870,6 +871,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </a>
 
+              <a
+                href="/conditions"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => haptics.soft()}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                  <ShieldCheck size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('legal.terms')}
+                </span>
+              </a>
+
+              {session && <BlockedPeopleSection />}
+
               <div className="p-4">
                 <div className="flex items-center gap-4 mb-3">
                   <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white shrink-0">
@@ -950,6 +968,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   {t('tmdb.attribution')}
                 </p>
               </a>
+              {/* Fun Emoji est sous CC BY 4.0 : la mention de l'auteur est une
+                  condition de la licence, pas une politesse. */}
+              <p className="px-4 pb-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
+                {t('credits.ratings')}
+              </p>
+              <p className="px-4 pb-2 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
+                {t('credits.avatars')}
+              </p>
             </div>
 
             {session && (

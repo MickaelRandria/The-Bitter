@@ -1103,7 +1103,12 @@ const App: React.FC = () => {
       }
 
       if (event === 'SIGNED_OUT') {
+        // Session expirée ou fermée depuis un autre appareil : sans l'écran
+        // d'accueil, l'app restait sur une interface sans profil, donc vide.
         setActiveProfileId(null);
+        setActiveSharedSpace(null);
+        setShowWelcome(true);
+        setViewMode('Feed');
       }
 
       if (event === 'PASSWORD_RECOVERY') {

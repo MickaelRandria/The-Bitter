@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass } from 'lucide-react';
+import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass, Flag } from 'lucide-react';
 import { SpaceMember, MemberFilm, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -7,11 +7,14 @@ import { avatarSrc } from '../utils/avatar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
+import ReportSheet from './ReportSheet';
 
 interface Props {
   member: SpaceMember;
   /** Collection de celui qui regarde, pour la comparaison. */
   myMovies: Movie[];
+  /** Pour ne pas proposer de se signaler soi-même. */
+  currentUserId?: string;
   onClose: () => void;
 }
 
@@ -52,9 +55,11 @@ const myCriteriaOf = (movie: Movie) => {
   };
 };
 
-export default function MemberProfileModal({ member, myMovies, onClose }: Props) {
+export default function MemberProfileModal({ member, myMovies, currentUserId, onClose }: Props) {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
+  const [reporting, setReporting] = useState(false);
+  const canReport = Boolean(currentUserId) && member.profile_id !== currentUserId;
   const [films, setFilms] = useState<MemberFilm[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -667,8 +672,38 @@ export default function MemberProfileModal({ member, myMovies, onClose }: Props)
               </div>
             )}
           </div>
+
+          {canReport && (
+            <button
+              onClick={() => {
+                haptics.soft();
+                setReporting(true);
+              }}
+              className="w-full py-3 rounded-2xl border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            >
+              <Flag size={12} />
+              {t('moderation.report')} · {t('moderation.block', { name: member.profile?.first_name || t('shared.member') })}
+            </button>
+          )}
         </div>
       </div>
+
+      {reporting && (
+        <ReportSheet
+          target={{
+            contentType: 'profile',
+            contentId: member.profile_id,
+            reportedUserId: member.profile_id,
+            reportedName: member.profile?.first_name || t('shared.member'),
+            snapshot: [member.profile?.first_name, member.profile?.bio].filter(Boolean).join(' — ') || null,
+          }}
+          onClose={() => setReporting(false)}
+          onBlocked={() => {
+            setReporting(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }

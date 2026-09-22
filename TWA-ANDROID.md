@@ -1,3 +1,34 @@
+# Publier sur Google Play (TWA)
+
+## 0. Générer le paquet Android
+
+La configuration est prête dans `android/twa-manifest.json` (identifiant
+`watch.thebitter.app`, couleurs, icônes, notifications activées). Depuis le
+dossier `android/` :
+
+```
+npm i -g @bubblewrap/cli
+bubblewrap build
+```
+
+Au premier lancement, Bubblewrap propose de télécharger lui-même le JDK et le SDK
+Android : accepter. Il demande ensuite de **créer la clé de signature**
+(`android.keystore`, alias `thebitter`) et deux mots de passe.
+
+> **La clé et ses mots de passe se sauvegardent hors de l'ordinateur** (gestionnaire
+> de mots de passe + une copie du fichier). Perdue, plus aucune mise à jour n'est
+> possible sans passer par le support Google ; divulguée, n'importe qui peut signer
+> une fausse version. Elle est exclue de git par `.gitignore`.
+
+Le build produit `app-release-bundle.aab` : c'est ce fichier qu'on envoie dans la
+console Play. Pour chaque nouvelle version, augmenter `appVersionCode` (entier,
++1) et `appVersionName` dans `twa-manifest.json`, puis `bubblewrap update` et
+`bubblewrap build`. Le contenu de l'app, lui, se met à jour sans republier : c'est
+le site qui s'affiche.
+
+Accepter **la signature d'application par Google Play** à l'envoi du premier
+`.aab` : Google conserve la clé de publication, la vôtre ne sert plus qu'à envoyer.
+
 # Association du domaine pour le TWA Android
 
 `assetlinks.json` est ce qui permet à l'application Android (Trusted Web Activity)
