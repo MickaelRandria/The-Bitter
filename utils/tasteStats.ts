@@ -1,5 +1,6 @@
 import { Movie } from '../types';
 import { currentCriterionLabel } from '../config/ratingProfiles';
+import { getPublicRating, PublicRating } from './publicRating';
 
 /** Une observation chiffrée, prête à être mise en mots. */
 export interface CriterionStat {
@@ -135,10 +136,13 @@ export const computeTasteStats = (movies: Movie[]): TasteStats => {
   // L'écart avec TMDB est une mesure de sévérité que rien d'autre ne donne :
   // une moyenne de 6 ne dit pas si l'on est dur, elle dit qu'on a vu des films
   // moyens. La comparaison au public, elle, tranche.
-  const rated = watched.filter((m) => Number(m.tmdbRating) > 0);
+  // Note du public : IMDb d'abord, TMDB à défaut (utils/publicRating).
+  const rated = watched
+    .map((m) => ({ m, publicRating: getPublicRating(m) }))
+    .filter((entry): entry is { m: Movie; publicRating: PublicRating } => entry.publicRating !== null);
   const vsTmdb =
     rated.length >= 5
-      ? round(mean(rated.map((m) => scoreOf(m) - Number(m.tmdbRating))), 2)
+      ? round(mean(rated.map(({ m, publicRating }) => scoreOf(m) - publicRating.value)), 2)
       : null;
 
   const genreTotals = new Map<string, number[]>();
@@ -202,7 +206,7 @@ export const describeStats = (stats: TasteStats): string => {
 
   if (stats.vsTmdb != null) {
     const verb = stats.vsTmdb >= 0 ? 'au-dessus' : 'en dessous';
-    lines.push(`Écart avec la note TMDB : ${Math.abs(stats.vsTmdb)} point ${verb} du public`);
+    lines.push(`Écart avec la note du public (IMDb) : ${Math.abs(stats.vsTmdb)} point ${verb} du public`);
   }
 
   lines.push(

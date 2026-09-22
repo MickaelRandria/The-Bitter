@@ -121,6 +121,32 @@ Tarif `mistral-small-latest` : 0,15 $/M jetons en entrée, 0,60 $/M en sortie.
 À 100 utilisateurs actifs : **environ 0,70 € par mois**. La consommation n'est pas
 un sujet ; le **rythme** en est un — aucune fonction ne doit se déclencher à la frappe.
 
+### 3.5 Notes IMDb : l'Edge Function `imdb-ratings`
+
+La note du public affichée partout est **IMDb d'abord, TMDB à défaut**
+(`utils/publicRating.ts`, seul point de décision ; la source voyage avec la valeur,
+un badge « IMDb » ne porte jamais une note TMDB). Les saisons gardent TMDB : IMDb
+ne note pas une saison.
+
+La clé OMDb gratuite plafonne à **1 000 requêtes par jour pour toute l'app**. Elle
+vit donc dans les secrets de `supabase/functions/imdb-ratings/`, jamais en `VITE_`,
+et la table `imdb_ratings` sert de cache **partagé** : une œuvre coûte au plus une
+requête OMDb par semaine, quel que soit le nombre de personnes qui l'affichent.
+
+| Nom | Défaut | Rôle |
+|---|---|---|
+| `OMDB_API_KEY` | — | obligatoire pour compléter le cache |
+| `TMDB_API_KEY` | — | retrouve l'identifiant IMDb quand l'app ne l'envoie pas (rattrapage de la collection) |
+| `OMDB_DAILY_LIMIT` | `950` | plafond journalier, un peu sous celui d'OMDb |
+
+- Tout appelant lit le cache ; **seul un compte connecté dépense le quota**.
+- `consume_omdb_quota(p_limit)` réserve une requête dans un seul `insert … on
+  conflict … where calls < limit` ; exécutable par `service_role` uniquement.
+- Priorité `low` (Discover, deck, recos, filmographie) : s'arrête à 60 % du plafond,
+  pour laisser la collection et les fiches passer.
+- `imdbRating` n'est **jamais** écrit dans `user_movies` : App le recalcule depuis
+  le cache (`imdbPending`), la synchro n'en sait rien.
+
 ---
 
 ## 4. Les fonctions IA livrées

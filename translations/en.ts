@@ -1254,7 +1254,7 @@ export const en: Record<string, string> = {
   'story.globalVerdict': 'Global Verdict',
   'story.smartphoneFactor': 'Smartphone Factor',
   'story.outOf10': 'Out of 10',
-  'story.avgTmdb': 'tmdb avg.',
+  'story.avgTmdb': 'imdb avg.',
   'story.putDownPhone': 'Put down your phone.',
   'story.certifiedAnalysis': 'Certified Analysis',
 
@@ -1282,7 +1282,7 @@ export const en: Record<string, string> = {
   'recap.bestAspect': 'BEST ASPECT',
   'recap.bestAspectCaption': '{value} OUT OF 10',
   'recap.vsPublic': 'VS THE PUBLIC',
-  'recap.vsPublicCaption': 'TMDB AVERAGE {value}',
+  'recap.vsPublicCaption': '{source} AVERAGE {value}',
   'recap.genre': 'TOP GENRE',
   'recap.genreCaptionFilm': '{count} FILM',
   'recap.genreCaptionFilms': '{count} FILMS',

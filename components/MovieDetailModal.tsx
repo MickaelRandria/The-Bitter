@@ -19,6 +19,9 @@ import { FavoriteCinema, MovieStatus } from '../types';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 import MovieShowtimes from './MovieShowtimes';
+import { fetchImdbRatings, imdbKey, ImdbRating, readImdbId } from '../services/imdb';
+import { formatVotes, pickPublicRating } from '../utils/publicRating';
+import { ImdbMark } from './PublicRatingBadge';
 
 interface MovieDetailModalProps {
   tmdbId: number;
@@ -106,17 +109,25 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   const [reviewFilter, setReviewFilter] = useState<'good' | 'bad' | 'matching'>('good');
   const [expandedReview, setExpandedReview] = useState<TMDBReview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imdb, setImdb] = useState<ImdbRating | null>(null);
 
   useEffect(() => {
     if (isOpen && tmdbId) {
       const fetchDetails = async () => {
         setLoading(true);
+        setImdb(null);
         try {
           const res = await fetch(
-            `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos,reviews`
+            `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR&append_to_response=credits,watch/providers,videos,reviews,external_ids`
           );
           const data = await res.json();
           setMovie(data);
+          // En parallèle du reste : la note IMDb ne doit pas retarder la fiche.
+          // Une saison n'a pas de fiche ici, seulement des films et des séries.
+          const imdbMedia = mediaType === 'tv' ? 'tv' : 'movie';
+          fetchImdbRatings([{ mediaType: imdbMedia, tmdbId, imdbId: readImdbId(data) }], 'high').then(
+            (ratings) => setImdb(ratings.get(imdbKey(imdbMedia, tmdbId)) ?? null)
+          );
           if (collectionMovieId && onUpdateTmdbRating && data.vote_average) {
             const freshRating = Number(data.vote_average.toFixed(1));
             if (collectionTmdbRating !== freshRating) {
@@ -291,6 +302,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
     runtime = movie.episode_run_time[0];
   }
 
+  const publicRating = pickPublicRating(imdb?.rating, movie?.vote_average, imdb?.votes);
+
   // Les deux orthographes possibles côté UGC, dédoublonnées.
   const showtimeTitles = [...new Set([title, movie?.original_title].filter(Boolean) as string[])];
 
@@ -410,10 +423,24 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                     </span>
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1 bg-charcoal text-white px-2 py-0.5 rounded-md text-[10px] font-black">
-                      <Star size={8} fill="currentColor" className="text-bitter-lime" />
-                      {movie.vote_average.toFixed(1)}
-                    </div>
+                    {publicRating?.source === 'imdb' ? (
+                      <div className="flex items-center gap-1 bg-charcoal text-white px-1.5 py-0.5 rounded-md text-[10px] font-black">
+                        <ImdbMark className="text-[8px] py-[2px]" />
+                        {publicRating.value.toFixed(1)}
+                        {publicRating.votes ? (
+                          <span className="font-bold text-white/50">({formatVotes(publicRating.votes)})</span>
+                        ) : null}
+                      </div>
+                    ) : publicRating ? (
+                      <div
+                        className="flex items-center gap-1 bg-charcoal text-white px-2 py-0.5 rounded-md text-[10px] font-black"
+                        title="Note TMDB"
+                      >
+                        <Star size={8} fill="currentColor" className="text-bitter-lime" />
+                        {publicRating.value.toFixed(1)}
+                        <span className="text-[8px] font-bold text-white/50">TMDB</span>
+                      </div>
+                    ) : null}
                     {movie.genres && movie.genres.length > 0 && (
                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-forest dark:text-lime-500 border border-forest/20 dark:border-lime-500/20 bg-forest/5">
                         {movie.genres[0].name}

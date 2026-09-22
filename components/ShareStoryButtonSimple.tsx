@@ -6,6 +6,7 @@ import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rat
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { dataUrlToBlob } from '../utils/dataUrl';
+import { getPublicRating } from '../utils/publicRating';
 
 type StoryFormat = 'classic' | 'editorial';
 
@@ -265,7 +266,8 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     const hasSpecific = displayCriteria.some((c) => c.isSpecific);
     const specsGap = displayCriteria.length >= 5 ? 56 : 60;
     const specsBlockHeight = displayCriteria.length * specsGap + (hasSpecific ? 26 : 0);
-    const tmdbOffset = movie.tmdbRating && movie.tmdbRating > 0 ? 70 : 0;
+    const publicRating = getPublicRating(movie);
+    const tmdbOffset = publicRating ? 70 : 0;
     // 200 px pour : genre badge (85) + label verdict + profil (62) + marges (~53)
     const totalBlockHeight = lines.length * (fontSize + 10) + 200 + specsBlockHeight + tmdbOffset;
 
@@ -344,20 +346,20 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     ctx.fillText(globalRating, MARGIN_X - 5, noteY);
     ctx.shadowBlur = 0; // On désactive l'ombre pour la suite
 
-    // 8b. NOTE TMDB (petite, sous la note globale)
-    if (movie.tmdbRating && movie.tmdbRating > 0) {
+    // 8b. NOTE DU PUBLIC (petite, sous la note globale) : IMDb, TMDB \u00e0 d\u00e9faut
+    if (publicRating) {
       const tmdbY = noteY + noteSize + 15;
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.font = '700 20px "Inter", sans-serif';
       ctx.textAlign = 'left';
       ctx.letterSpacing = '2px';
-      ctx.fillText('MOY. TMDB', MARGIN_X, tmdbY);
+      ctx.fillText(publicRating.source === 'imdb' ? 'MOY. IMDB' : 'MOY. TMDB', MARGIN_X, tmdbY);
       ctx.letterSpacing = '0px';
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
       ctx.font = '800 34px "Inter", sans-serif';
-      ctx.fillText(`\u2605 ${movie.tmdbRating.toFixed(1)}`, MARGIN_X, tmdbY + 26);
+      ctx.fillText(`\u2605 ${publicRating.value.toFixed(1)}`, MARGIN_X, tmdbY + 26);
     }
 
     // 9. CRITÈRES ADAPTATIFS (JAUGES À DROITE)

@@ -5,6 +5,8 @@ import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../u
 import MovieRatingToggle from './MovieRatingToggle';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
 import { haptics } from '../utils/haptics';
+import { getPublicRating } from '../utils/publicRating';
+import { ImdbMark } from './PublicRatingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface MovieCardProps {
@@ -117,6 +119,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const isLegacyOnly = !adaptive;
     const displayRating = adaptive?.weightedRating ?? getMovieDisplayRating(movie);
     const globalRating = displayRating.toFixed(1);
+    const publicRating = getPublicRating(movie);
     const displayRatings = getDisplayRatings(movie);
     const profileLabel = adaptive?.profile.label;
     const hasRewatches = (movie.watch_count ?? 1) > 1;
@@ -280,16 +283,20 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 <div
                   className={`flex items-center gap-3 px-4 py-2 rounded-full border border-white/10 transition-all duration-200 ${hasPoster ? 'bg-black/80 backdrop-blur-md shadow-lg shadow-black/20' : 'bg-stone-50 dark:bg-[#161616] border-stone-100 dark:border-white/5'}`}
                 >
-                  {movie.tmdbRating && (
+                  {publicRating && (
                     <>
                       <div className="flex items-center gap-1.5">
-                        <span
-                          className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300 dark:text-stone-700'}`}
-                        >
-                          TMDB
-                        </span>
+                        {publicRating.source === 'imdb' ? (
+                          <ImdbMark className="text-[8px] py-[2px]" />
+                        ) : (
+                          <span
+                            className={`text-[8px] font-black uppercase tracking-tighter ${hasPoster ? 'text-white/40' : 'text-stone-300 dark:text-stone-700'}`}
+                          >
+                            TMDB
+                          </span>
+                        )}
                         <span className="text-xs font-black text-white dark:text-stone-100">
-                          {movie.tmdbRating}
+                          {publicRating.value.toFixed(1)}
                         </span>
                       </div>
                       <div

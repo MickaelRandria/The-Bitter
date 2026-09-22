@@ -330,6 +330,15 @@ export interface Movie {
   posterUrl?: string;
   status: MovieStatus;
   tmdbRating?: number;
+  /**
+   * Note IMDb, prioritaire sur `tmdbRating` à l'affichage (voir utils/publicRating).
+   * Jamais écrite dans `user_movies` : elle vient du cache partagé `imdb_ratings`
+   * et se recalcule sur chaque appareil, la synchro n'a donc rien à en savoir.
+   */
+  imdbRating?: number;
+  imdbVotes?: number;
+  /** Dernière consultation du cache IMDb, qu'une note ait été trouvée ou non. */
+  imdbCheckedAt?: number;
   rewatch?: boolean;
   tags?: string[];
   smartphoneFactor?: number;

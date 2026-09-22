@@ -5,6 +5,9 @@ import { getDirectorMovies, searchPerson } from '../services/tmdb';
 import { TMDBSearchResult } from '../types';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import { useImdbRatings } from '../services/imdb';
+import { formatVotes, pickFromLookup } from '../utils/publicRating';
+import { ImdbMark } from './PublicRatingBadge';
 
 interface DirectorMoviesModalProps {
   directorName: string;
@@ -23,6 +26,13 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
   const [movies, setMovies] = useState<TMDBSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const imdbRatings = useImdbRatings(
+    movies.map((m) => ({ mediaType: 'movie' as const, tmdbId: m.id })),
+    'low'
+  );
+
+  const publicRatingOf = (movie: TMDBSearchResult) =>
+    pickFromLookup(imdbRatings, 'movie', movie.id, movie.vote_average);
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -129,13 +139,19 @@ const DirectorMoviesModal: React.FC<DirectorMoviesModalProps> = ({
 
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10">
-                      <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+                      {publicRatingOf(movie)?.source === 'imdb' ? (
+                        <ImdbMark className="text-[9px] py-[2px]" />
+                      ) : (
+                        <Star size={12} fill="#D9FF00" className="text-bitter-lime" />
+                      )}
                       <span className="text-sm font-black text-white">
-                        {movie.vote_average ? movie.vote_average.toFixed(1) : '-'}
+                        {publicRatingOf(movie)?.value.toFixed(1) ?? '-'}
                       </span>
                     </div>
                     <span className="text-[8px] font-black uppercase tracking-widest text-stone-600">
-                      {movie.vote_count} votes
+                      {publicRatingOf(movie)?.source === 'imdb' && publicRatingOf(movie)?.votes
+                        ? `${formatVotes(publicRatingOf(movie)!.votes!)} votes IMDb`
+                        : `${movie.vote_count} votes`}
                     </span>
                   </div>
                 </div>

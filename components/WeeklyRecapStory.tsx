@@ -8,6 +8,7 @@ import { resizeTmdbImage, TmdbImageSize } from '../utils/tmdbImage';
 import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { shareImage } from '../utils/shareImage';
+import { aggregateSourceLabel, getPublicRating, PublicRating } from '../utils/publicRating';
 
 /*
  * Bilan de la semaine — story 1080x1920, grille bento en 3 blocs.
@@ -160,18 +161,23 @@ const buildStatOptions = (
     });
   }
 
-  // Écart avec le public : seulement sur les films qui ont une note TMDB.
-  const rated = movies.filter((movie) => typeof movie.tmdbRating === 'number' && movie.tmdbRating > 0);
+  // Écart avec le public : seulement sur les films qui ont une note publique (IMDb, TMDB à défaut).
+  const rated = movies
+    .map((movie) => ({ movie, publicRating: getPublicRating(movie) }))
+    .filter((entry): entry is { movie: Movie; publicRating: PublicRating } => entry.publicRating !== null);
   if (rated.length > 0) {
-    const mine = rated.reduce((acc, movie) => acc + getDisplayWeightedRating(movie), 0) / rated.length;
-    const theirs = rated.reduce((acc, movie) => acc + (movie.tmdbRating ?? 0), 0) / rated.length;
+    const mine = rated.reduce((acc, { movie }) => acc + getDisplayWeightedRating(movie), 0) / rated.length;
+    const theirs = rated.reduce((acc, { publicRating }) => acc + publicRating.value, 0) / rated.length;
     const delta = mine - theirs;
     options.push({
       id: 'vsPublic',
       topLabel,
       value: `${delta >= 0 ? '+' : '-'}${Math.abs(delta).toFixed(1)}`,
       name: t('recap.vsPublic'),
-      caption: t('recap.vsPublicCaption', { value: theirs.toFixed(1) }),
+      caption: t('recap.vsPublicCaption', {
+        value: theirs.toFixed(1),
+        source: aggregateSourceLabel(rated.map((entry) => entry.publicRating)).toUpperCase(),
+      }),
     });
   }
 
