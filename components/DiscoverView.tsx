@@ -50,6 +50,9 @@ import {
 } from '../utils/discoveryRegion';
 import { workKey } from '../utils/workKey';
 import { SharedSpace } from '../services/supabase';
+import { useImdbRatings } from '../services/imdb';
+import { pickFromLookup } from '../utils/publicRating';
+import PublicRatingBadge from './PublicRatingBadge';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
@@ -142,6 +145,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const [items, setItems] = useState<TMDBItem[]>([]);
+  // Priorité basse : ne consomme qu'une part du quota OMDb, la collection passe avant.
+  const imdbMedia = initialMediaType === 'tv' ? 'tv' : 'movie';
+  const imdbRatings = useImdbRatings(
+    items.map((item) => ({ mediaType: imdbMedia, tmdbId: item.id })),
+    'low'
+  );
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('title');
@@ -805,11 +814,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                         hideCinemaBadge={streamingFilter === 'cinema'}
                       />
                     </div>
-                    {/* TMDB rating */}
-                    {item.vote_average > 0 && (
-                      <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-[10px] font-black text-white z-10">
-                        <Star size={10} fill="currentColor" /> {item.vote_average.toFixed(1)}
-                      </div>
+                    {/* Note du public : IMDb, TMDB à défaut */}
+                    {pickFromLookup(imdbRatings, imdbMedia, item.id, item.vote_average) && (
+                      <PublicRatingBadge
+                        rating={pickFromLookup(imdbRatings, imdbMedia, item.id, item.vote_average)}
+                        className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg text-white z-10"
+                      />
                     )}
                     {/* Collection badge */}
                     {isWatched && (

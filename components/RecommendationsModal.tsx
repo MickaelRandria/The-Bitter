@@ -7,6 +7,9 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { useImdbRatings } from '../services/imdb';
+import { pickFromLookup } from '../utils/publicRating';
+import PublicRatingBadge from './PublicRatingBadge';
 
 const MIN_MOVIES_FOR_AI = 10;
 
@@ -36,6 +39,10 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(sourceMovie);
   const [pickerSearch, setPickerSearch] = useState('');
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const imdbRatings = useImdbRatings(
+    recommendations.map((m) => ({ mediaType: 'movie' as const, tmdbId: Number(m.id) })),
+    'low'
+  );
   const [loading, setLoading] = useState(false);
   const [addingId, setAddingId] = useState<number | null>(null);
   /** La justification de chaque film, quand elle vient du modèle. Vide en repli. */
@@ -509,11 +516,10 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                           )}
                         </button>
                       </div>
-                      {(movie.vote_average ?? 0) > 0 && (
-                        <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm text-white px-1.5 py-0.5 rounded-md text-[9px] font-bold">
-                          {movie.vote_average.toFixed(1)}
-                        </div>
-                      )}
+                      <PublicRatingBadge
+                        rating={pickFromLookup(imdbRatings, 'movie', Number(movie.id), movie.vote_average)}
+                        className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm text-white px-1.5 py-0.5 rounded-md"
+                      />
                     </div>
                     <h4 className="font-black text-[10px] text-charcoal dark:text-white leading-tight uppercase tracking-tight line-clamp-2 mb-0.5">
                       {movie.title}

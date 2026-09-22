@@ -49,6 +49,9 @@ import { avatarSrc } from '../utils/avatar';
 import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
+import PublicRatingBadge from './PublicRatingBadge';
+import { ImdbLookup, useImdbRatings } from '../services/imdb';
+import { pickFromLookup, pickPublicRating } from '../utils/publicRating';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -82,6 +85,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [movies, setMovies] = useState<SharedMovie[]>([]);
   const [members, setMembers] = useState<SpaceMember[]>([]);
   const [votes, setVotes] = useState<MovieVote[]>([]);
+  // Notes IMDb des films de l'espace. Les saisons, qu'IMDb ne note pas, gardent TMDB.
+  const imdbRatings = useImdbRatings(
+    movies
+      .filter((m) => m.tmdb_id && (m as { season_number?: number | null }).season_number == null)
+      .map((m): ImdbLookup => ({ mediaType: m.media_type === 'tv' ? 'tv' : 'movie', tmdbId: m.tmdb_id! })),
+    'high'
+  );
   const [loading, setLoading] = useState(true);
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
   const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
@@ -499,6 +509,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
   };
+
+  const publicRatingOf = (movie: SharedMovie) =>
+    movie.tmdb_id && (movie as { season_number?: number | null }).season_number == null
+      ? pickFromLookup(imdbRatings, movie.media_type === 'tv' ? 'tv' : 'movie', movie.tmdb_id, asNumber(movie.tmdb_rating))
+      : pickPublicRating(null, asNumber(movie.tmdb_rating));
 
   const calculateCriteriaAverages = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
@@ -1058,7 +1073,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     <div className="border-t border-sand dark:border-white/5 p-6 bg-stone-50/50 dark:bg-[#1a1a1a]/50 animate-[fadeIn_0.3s_ease-out] space-y-6">
                       {activeTab === 'feed' ? (
                         <>
-                          {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || movie.tmdb_rating) && (
+                          {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
                             <div className="space-y-2">
                               {movie.synopsis && (
                                 <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
@@ -1068,8 +1083,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 {movie.genres && movie.genres.length > 0 && (
                                   <span>{movie.genres.join(', ')}</span>
                                 )}
-                                {movie.tmdb_rating && (
-                                  <span className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg">⭐ {asNumber(movie.tmdb_rating).toFixed(1)} TMDB</span>
+                                {publicRatingOf(movie) && (
+                                  <PublicRatingBadge
+                                    rating={publicRatingOf(movie)}
+                                    className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
+                                  />
                                 )}
                               </div>
                               {movie.actors && (

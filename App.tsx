@@ -113,6 +113,9 @@ import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
 import { notifySplashReady } from './utils/splash';
 import { useSupabaseWake } from './utils/useResumeRefresh';
+import { fetchImdbRatings, ImdbLookup, imdbKey } from './services/imdb';
+import { imdbLookupFor } from './utils/publicRating';
+
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
@@ -125,6 +128,9 @@ const CinemaSubscriptionDetailsModal = lazy(
 );
 const FavoriteCinemaModal = lazy(() => import('./components/FavoriteCinemaModal'));
 import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
+
+/** Une note IMDb bouge peu : une vérification par semaine suffit, le serveur fait de même. */
+const IMDB_RECHECK_MS = 7 * 24 * 60 * 60 * 1_000;
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -630,6 +636,61 @@ const App: React.FC = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
     }
   }, [profiles]);
+
+  /**
+   * Œuvres du profil actif dont la note IMDb manque ou date de plus d'une semaine.
+   *
+   * Une chaîne plutôt qu'un tableau : l'effet ci-dessous ne doit repartir que si
+   * la liste change vraiment, pas à chaque note modifiée ailleurs dans le profil.
+   */
+  const imdbPending = useMemo(() => {
+    const now = Date.now();
+    return (activeProfile?.movies ?? [])
+      .filter((m) => !m.imdbCheckedAt || now - m.imdbCheckedAt > IMDB_RECHECK_MS)
+      .map(imdbLookupFor)
+      .filter((lookup): lookup is ImdbLookup => lookup !== null)
+      .map((lookup) => imdbKey(lookup.mediaType, lookup.tmdbId))
+      .sort()
+      .join(',');
+  }, [activeProfile?.movies]);
+
+  // Notes IMDb de la collection : lues dans le cache partagé, complétées par
+  // l'Edge Function. Seul l'état local change, rien ne part vers `user_movies`.
+  useEffect(() => {
+    if (!imdbPending || !activeProfileId) return;
+    const lookups: ImdbLookup[] = imdbPending.split(',').map((key) => {
+      const [mediaType, tmdbId] = key.split(':');
+      return { mediaType: mediaType === 'tv' ? 'tv' : 'movie', tmdbId: Number(tmdbId) };
+    });
+    let cancelled = false;
+    fetchImdbRatings(lookups, 'high').then((ratings) => {
+      if (cancelled || ratings.size === 0) return;
+      const checkedAt = Date.now();
+      setProfiles((prev) =>
+        prev.map((p) =>
+          p.id !== activeProfileId
+            ? p
+            : {
+                ...p,
+                movies: p.movies.map((m) => {
+                  const lookup = imdbLookupFor(m);
+                  const found = lookup && ratings.get(imdbKey(lookup.mediaType, lookup.tmdbId));
+                  if (!found) return m;
+                  return {
+                    ...m,
+                    imdbRating: found.rating ?? undefined,
+                    imdbVotes: found.votes ?? undefined,
+                    imdbCheckedAt: checkedAt,
+                  };
+                }),
+              }
+        )
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imdbPending, activeProfileId]);
 
   useEffect(() => {
     localStorage.setItem(SEEN_TOOLTIPS_KEY, JSON.stringify(seenTooltips));

@@ -46,6 +46,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import CinemaSubscriptionCard from './CinemaSubscriptionCard';
 import TastePortrait from './TastePortrait';
 import AdnRadialChart from './AdnRadialChart';
+import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -1098,8 +1099,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     const totalHours = totalWatchHours(watched);
 
     // --- SÉVÉRITÉ ---
-    const moviesWithTmdb = watched.filter((m) => m.tmdbRating && m.tmdbRating > 0);
-    const tmdbSum = moviesWithTmdb.reduce((acc, m) => acc + (m.tmdbRating || 0), 0);
+    // Note du public : IMDb d'abord, TMDB à défaut (utils/publicRating).
+    const moviesWithTmdb = watched.flatMap((m) => {
+      const publicRating = getPublicRating(m);
+      return publicRating ? [{ ...m, publicRating }] : [];
+    });
+    const publicSourceLabel = aggregateSourceLabel(moviesWithTmdb.map((m) => m.publicRating));
+    const tmdbSum = moviesWithTmdb.reduce((acc, m) => acc + m.publicRating.value, 0);
     const tmdbAvg =
       moviesWithTmdb.length > 0 ? Number((tmdbSum / moviesWithTmdb.length).toFixed(1)) : 0;
     const userGlobalAvg = ratingAverages.global;
@@ -1140,7 +1146,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     const moviesWithDelta = moviesWithTmdb.map((m) => {
       const userAvg =
         (m.ratings.story + m.ratings.visuals + m.ratings.acting + m.ratings.sound) / 4;
-      return { ...m, userVsTmdb: Number((userAvg - (m.tmdbRating ?? 0)).toFixed(1)) };
+      return { ...m, userVsTmdb: Number((userAvg - m.publicRating.value).toFixed(1)) };
     });
     const biggestSurprise =
       moviesWithDelta.length > 0
@@ -1381,6 +1387,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       ComparisonIcon,
       delta,
       tmdbAvg,
+      publicSourceLabel,
       userGlobalAvg,
       genreRatingsSorted,
       criteriaScores,
@@ -1475,6 +1482,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     ComparisonIcon,
     delta,
     tmdbAvg,
+    publicSourceLabel,
     userGlobalAvg,
     genreRatingsSorted,
     dominantCriterion,
@@ -1734,7 +1742,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-1">
-                  {t('analytics.world')}
+                  {t('analytics.world')} · {publicSourceLabel}
                 </p>
                 {tmdbAvg > 0 ? (
                   <p className="text-4xl font-black text-stone-300 dark:text-stone-600 tracking-tighter">
@@ -2125,8 +2133,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       </p>
                       <div className="mt-2 inline-flex items-center gap-1 bg-forest/10 dark:bg-lime-500/10 text-forest dark:text-lime-400 px-2 py-0.5 rounded-full">
                         <span className="text-[9px] font-black">
-                          +{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '-'} vs
-                          TMDB
+                          +{biggestSurprise.userVsTmdb > 0 ? biggestSurprise.userVsTmdb : '-'} vs{' '}
+                          {ratingSourceLabel(biggestSurprise.publicRating.source)}
                         </span>
                       </div>
                     </div>
@@ -2165,7 +2173,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       <div className="mt-2 inline-flex items-center gap-1 bg-orange-400/10 text-orange-400 px-2 py-0.5 rounded-full">
                         <span className="text-[9px] font-black">
                           {biggestDisappointment.userVsTmdb > 0 ? '+' : ''}
-                          {biggestDisappointment.userVsTmdb} vs TMDB
+                          {biggestDisappointment.userVsTmdb} vs{' '}
+                          {ratingSourceLabel(biggestDisappointment.publicRating.source)}
                         </span>
                       </div>
                     </div>

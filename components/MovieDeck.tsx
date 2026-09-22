@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Check, Loader2, FastForward, PenTool, Star, Film } from 'lucide-react';
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL, TMDB_GENRE_MAP } from '../constants';
 import { haptics } from '../utils/haptics';
+import { useImdbRatings } from '../services/imdb';
+import { pickFromLookup } from '../utils/publicRating';
+import { ImdbMark } from './PublicRatingBadge';
 
 interface TMDBMovie {
   id: number;
@@ -28,6 +31,11 @@ const MovieDeck: React.FC<MovieDeckProps> = ({
 }) => {
   const [movies, setMovies] = useState<TMDBMovie[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // La carte affichée et la suivante seulement : le deck ne montre qu'un film à la fois.
+  const imdbRatings = useImdbRatings(
+    movies.slice(currentIndex, currentIndex + 2).map((m) => ({ mediaType: 'movie' as const, tmdbId: m.id })),
+    'low'
+  );
   const [loading, setLoading] = useState(true);
 
   // Auto-advance déclenché depuis App.tsx après sauvegarde d'une note
@@ -113,6 +121,7 @@ const MovieDeck: React.FC<MovieDeckProps> = ({
     );
 
   const movie = movies[currentIndex];
+  const publicRating = pickFromLookup(imdbRatings, 'movie', movie.id, movie.vote_average);
 
   return (
     <div className="relative w-full max-w-sm mx-auto h-[75vh] flex flex-col items-center justify-center px-4">
@@ -137,8 +146,14 @@ const MovieDeck: React.FC<MovieDeckProps> = ({
               Spécial {favoriteGenres[0] || 'Culte'}
             </span>
             <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-xl text-white px-2.5 py-1.5 rounded-xl border border-white/10">
-              <Star size={10} fill="currentColor" className="text-tz-yellow" />
-              <span className="text-[10px] font-bold">{movie.vote_average.toFixed(1)}</span>
+              {publicRating?.source === 'imdb' ? (
+                <ImdbMark className="text-[8px] py-[2px]" />
+              ) : (
+                <Star size={10} fill="currentColor" className="text-tz-yellow" />
+              )}
+              <span className="text-[10px] font-bold">
+                {(publicRating?.value ?? movie.vote_average).toFixed(1)}
+              </span>
             </div>
           </div>
 
