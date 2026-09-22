@@ -487,6 +487,16 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                 <p className="text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center">
                   {t('accountSync.anonymousHint')}
                 </p>
+                {/* Créer un compte ouvre le partage avec d'autres membres : c'est
+                    à ce moment que les règles de contenu s'appliquent. */}
+                <a
+                  href="/conditions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-[10px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center underline underline-offset-2"
+                >
+                  {t('legal.acceptTerms')}
+                </a>
               </div>
             </div>
           )}

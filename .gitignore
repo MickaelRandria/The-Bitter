@@ -33,3 +33,11 @@ dist-ssr
 
 # Supabase CLI (scratch local)
 supabase/.temp
+
+# Android (TWA) : la clé de signature ne quitte JAMAIS la machine du propriétaire.
+# La perdre, c'est ne plus pouvoir publier de mise à jour ; la divulguer, c'est
+# permettre à n'importe qui de publier une fausse version de l'app.
+android/*
+!android/twa-manifest.json
+*.keystore
+*.jks

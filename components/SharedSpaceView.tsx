@@ -21,6 +21,7 @@ import {
   BarChart3,
   ChevronRight,
   Settings,
+  Flag,
 } from 'lucide-react';
 import {
   SharedSpace,
@@ -50,6 +51,8 @@ import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
 import PublicRatingBadge from './PublicRatingBadge';
+import ReportSheet from './ReportSheet';
+import { ReportTarget, useBlockedUsers } from '../services/moderation';
 import { ImdbLookup, useImdbRatings } from '../services/imdb';
 import { pickFromLookup, pickPublicRating } from '../utils/publicRating';
 
@@ -103,6 +106,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   } | null>(null);
 
   const [selectedMember, setSelectedMember] = useState<SpaceMember | null>(null);
+  const [reporting, setReporting] = useState<ReportTarget | null>(null);
+  const blocked = useBlockedUsers();
 
   /**
    * Ce qui manquait à tout l'écran : de quoi dire que ça a raté.
@@ -1180,16 +1185,41 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                           {rating.profile?.first_name || t('shared.member')}
                                         </span>
                                       </div>
-                                      <div className="flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm">
-                                        <Star size={12} fill="currentColor" />
-                                        <span className="text-xs font-black">{avg}</span>
+                                      <div className="flex items-center gap-2">
+                                        {!isMe && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              haptics.soft();
+                                              setReporting({
+                                                contentType: 'review',
+                                                contentId: rating.id,
+                                                reportedUserId: rating.profile_id,
+                                                reportedName: rating.profile?.first_name || t('shared.member'),
+                                                snapshot: rating.review,
+                                              });
+                                            }}
+                                            aria-label={t('moderation.report')}
+                                            className="p-1.5 rounded-lg text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400"
+                                          >
+                                            <Flag size={12} />
+                                          </button>
+                                        )}
+                                        <div className="flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm">
+                                          <Star size={12} fill="currentColor" />
+                                          <span className="text-xs font-black">{avg}</span>
+                                        </div>
                                       </div>
                                     </div>
-                                    {rating.review && (
+                                    {rating.review && blocked.has(rating.profile_id) ? (
+                                      <p className="text-[11px] text-stone-400 dark:text-stone-500 italic">
+                                        {t('moderation.hiddenReview')}
+                                      </p>
+                                    ) : rating.review ? (
                                       <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
                                         "{rating.review}"
                                       </p>
-                                    )}
+                                    ) : null}
                                   </div>
                                 );
                               })}
@@ -1332,9 +1362,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         <MemberProfileModal
           member={selectedMember}
           myMovies={myMovies}
+          currentUserId={currentUserId}
           onClose={() => setSelectedMember(null)}
         />
       )}
+
+      {reporting && <ReportSheet target={reporting} onClose={() => setReporting(null)} />}
 
       {showSettings && (
         <SpaceSettingsModal

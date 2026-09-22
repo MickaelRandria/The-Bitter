@@ -1,0 +1,39 @@
+{
+  "packageId": "watch.thebitter.app",
+  "host": "thebitter.watch",
+  "name": "The Bitter",
+  "launcherName": "Bitter",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#1c1917",
+  "themeColorDark": "#1c1917",
+  "navigationColor": "#0c0c0c",
+  "navigationColorDark": "#0c0c0c",
+  "navigationDividerColor": "#0c0c0c",
+  "navigationDividerColorDark": "#0c0c0c",
+  "backgroundColor": "#0c0c0c",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://thebitter.watch/favicon_io/android-chrome-512x512.png",
+  "maskableIconUrl": "https://thebitter.watch/favicon_io/android-chrome-512x512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "thebitter"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://thebitter.watch/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://thebitter.watch/",
+  "minSdkVersion": 21
+}
