@@ -2,18 +2,20 @@
 
 ## 0. Générer le paquet Android
 
-La configuration est prête dans `android/twa-manifest.json` (identifiant
-`watch.thebitter.app`, couleurs, icônes, notifications activées). Depuis le
-dossier `android/` :
+Les valeurs à donner sont dans `android/twa-manifest.json`. Depuis le dossier
+`android/` :
 
 ```
 npm i -g @bubblewrap/cli
+bubblewrap init --manifest https://thebitter.watch/manifest.webmanifest
 bubblewrap build
 ```
 
 Au premier lancement, Bubblewrap propose de télécharger lui-même le JDK et le SDK
-Android : accepter. Il demande ensuite de **créer la clé de signature**
-(`android.keystore`, alias `thebitter`) et deux mots de passe.
+Android : accepter. `init` pose ensuite ses questions ; répondre avec les valeurs
+de `twa-manifest.json` — surtout **Application ID `watch.thebitter.app`**, qui ne
+pourra plus jamais changer. Il crée enfin la **clé de signature**
+(`android.keystore`, alias `thebitter`) et demande deux mots de passe.
 
 > **La clé et ses mots de passe se sauvegardent hors de l'ordinateur** (gestionnaire
 > de mots de passe + une copie du fichier). Perdue, plus aucune mise à jour n'est
