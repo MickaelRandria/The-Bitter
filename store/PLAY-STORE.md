@@ -93,7 +93,7 @@ https://thebitter.watch/confidentialite
 Choisis **« Tout ou partie des fonctionnalités sont soumises à des restrictions »**
 et colle :
 ```
-L'application s'utilise entièrement sans compte : touchez « Commencer », créez un profil local, puis ajoutez et notez des films.
+L'application s'utilise entièrement sans compte : touchez « Créer un profil », créez un profil local, puis ajoutez et notez des films.
 
 Les fonctions sociales (espaces partagés, fil d'activité, synchronisation) nécessitent un compte. La connexion se fait par un code à 6 chiffres envoyé par e-mail, sans mot de passe : saisissez n'importe quelle adresse que vous consultez, le code arrive en moins d'une minute.
 
