@@ -25,6 +25,9 @@ import {
   Smartphone,
   Compass,
   Settings,
+  LogIn,
+  Sun,
+  Moon,
   MessageSquareText,
   Ticket,
   CloudUpload,
@@ -50,6 +53,7 @@ import {
 } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { useTheme } from '../contexts/ThemeContext';
 import { ConsentChoice, readConsent, saveConsent } from '../utils/consent';
 import { initAnalytics, stopAnalytics } from '../utils/analytics';
 
@@ -158,6 +162,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const canUseSpaces = !!session?.user?.email;
   const { t, language, setLanguage } = useLanguage();
   const dialog = useDialog(onClose, t('profileModal.title'));
+  const { theme, toggleTheme } = useTheme();
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
   const cinemaBrand = cinemaSubscription?.active
     ? getCinemaProviderBrand(cinemaSubscription.provider)
@@ -323,7 +328,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: ARCHETYPE */}
+                    {/* SECTION 2: ARCHETYPE */}
           {profile.role && archetypeIcon && archetypeDesc && (
             <div className="bg-white dark:bg-[#1a1a1a] rounded-[2rem] p-6 shadow-sm border border-sand dark:border-white/5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-forest/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
@@ -350,6 +355,28 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           )}
 
+                    {/* Sans compte, rien n'indiquait comment se connecter : la seule porte
+              s'appelait « Sauvegarder mes films en ligne », ce qui décrit un effet
+              et pas le geste. Le bouton ne s'affiche que tant qu'il sert. */}
+          {onOpenAccountSync && (!isSignedIn || isAnonymousAccount) && (
+            <button
+              onClick={() => { haptics.medium(); onOpenAccountSync(); }}
+              className="w-full flex items-center gap-4 p-5 rounded-[1.8rem] bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal shadow-lg active:scale-[0.98] transition-all"
+            >
+              <div className="w-10 h-10 rounded-full bg-white/15 dark:bg-charcoal/10 flex items-center justify-center shrink-0">
+                <LogIn size={18} />
+              </div>
+              <div className="text-left min-w-0">
+                <span className="block text-xs font-black uppercase tracking-wide">
+                  {isAnonymousAccount ? t('profileModal.secureAccountCta') : t('profileModal.signInCta')}
+                </span>
+                <span className="block text-[10px] font-medium opacity-70 mt-0.5">
+                  {isAnonymousAccount ? t('profileModal.secureAccountDesc') : t('profileModal.signInDesc')}
+                </span>
+              </div>
+            </button>
+          )}
+
           {/* SECTION 3: STATS GRID */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white dark:bg-[#1a1a1a] p-4 rounded-[1.8rem] border border-sand dark:border-white/5 shadow-sm">
@@ -372,7 +399,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 4: CALIBRATION */}
+                    {/* SECTION 4: CALIBRATION */}
           <div data-tour="profile-calibration">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1">
@@ -396,7 +423,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
-                    {profile.severityIndex}/10
+                    {profile.severityIndex ?? 5}/10
                   </span>
                 </div>
                 <div className="h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
@@ -418,7 +445,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <span className="text-[9px] font-black uppercase tracking-widest">{t('profileModal.rhythm')}</span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
-                    {profile.patienceLevel}/10
+                    {profile.patienceLevel ?? 5}/10
                   </span>
                 </div>
                 <div className="h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
@@ -444,373 +471,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     {g}
                   </span>
                 ))}
+    
               </div>
             )}
-          </div>
 
-          {/* SECTION 5: LANGUAGE */}
-          <div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1 mb-4">
-              {t('profileModal.language')}
-            </h3>
-            <div className="flex bg-stone-100 dark:bg-[#1a1a1a] p-1.5 rounded-2xl border border-stone-200/50 dark:border-white/5">
-              <button
-                onClick={() => { haptics.soft(); setLanguage('fr'); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'fr' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
-              >
-                <span className="text-base leading-none">🇫🇷</span> Français
-              </button>
-              <button
-                onClick={() => { haptics.soft(); setLanguage('en'); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'en' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
-              >
-                <span className="text-base leading-none">🇬🇧</span> English
-              </button>
-            </div>
-          </div>
-
-          {/* SECTION 6: NOTIFICATIONS (accordéon) */}
-          <div
-            data-tour="profile-notifications"
-            className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden"
-          >
-            {/* Le bouton « notif test » est un frère du bouton d'accordéon :
-                un <button> dans un <button> est du HTML invalide et casse le clavier */}
-            <div className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5">
-              <button
-                onClick={() => setNotifOpen(o => !o)}
-                aria-expanded={notifOpen}
-                className="flex items-center gap-3 flex-1 text-left"
-              >
-                <Bell size={15} className="text-stone-400 dark:text-stone-500" />
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.notifications')}
-                </span>
-              </button>
-              <div className="flex items-center gap-2">
-                {/* Outil de debug : pas dans la build de production */}
-                {import.meta.env.DEV && (
-                  <button
-                    onClick={handleTestNotif}
-                    className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
-                  >
-                    <Send size={11} />
-                    {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
-                  </button>
-                )}
-                <button
-                  onClick={() => setNotifOpen(o => !o)}
-                  aria-expanded={notifOpen}
-                  aria-label={t('profileModal.notifications')}
-                  className="p-0.5"
-                >
-                  <ChevronDown size={14} className={`text-stone-400 transition-transform duration-200 ${notifOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-            </div>
-
-            {notifOpen && (
-              <div className="px-3 pb-3 space-y-1.5 border-t border-stone-100 dark:border-white/5 pt-2">
-                {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
-                  <div
-                    key={key}
-                    className="px-3 py-2.5 rounded-xl flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-sm leading-none">{emoji}</span>
-                      <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
-                        {t(translationKey)}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleToggleNotif(key)}
-                      className={`w-10 h-6 rounded-full transition-colors shrink-0 relative ${
-                        notifPrefs[key] ? 'bg-forest dark:bg-lime-500' : 'bg-stone-200 dark:bg-stone-700'
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
-                          notifPrefs[key] ? 'left-[18px]' : 'left-0.5'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                ))}
-                {'Notification' in window && Notification.permission === 'denied' && (
-                  <p className="pt-1 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
-                    <BellOff size={11} /> {t('profileModal.notifBlocked')}
-                  </p>
-                )}
-                {'Notification' in window && Notification.permission === 'default' && (
-                  <button
-                    onClick={() => Notification.requestPermission()}
-                    className="pt-1 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
-                  >
-                    <Bell size={11} /> {t('profileModal.allowNotif')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 7 : PARAMÈTRES (repliable) */}
-          <div className="pt-4 border-t border-sand dark:border-white/5">
-            <button
-              onClick={() => { haptics.soft(); setSettingsOpen((o) => !o); }}
-              aria-expanded={settingsOpen}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Settings size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.settings')}
-                </span>
-              </div>
-              <ChevronDown
-                size={16}
-                className={`text-stone-400 dark:text-stone-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            <div className={`space-y-1 ${settingsOpen ? 'pt-1 animate-[fadeIn_0.25s_ease-out]' : 'hidden'}`}>
-
-            {onSendFeedback && (
-              <button
-                onClick={() => { haptics.soft(); onSendFeedback(); }}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-colors group ${cinemaBrand ? cinemaBrand.choiceClass : 'border-transparent hover:bg-stone-50 dark:hover:bg-[#161616]'}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                    <MessageSquareText size={14} />
-                  </div>
-                  <div className="text-left">
-                    <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                      {t('nav.feedback')}
-                    </span>
-                    <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
-                      {t('profileModal.feedbackDesc')}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            )}
-
-            {/* Un espace partagé s'appuie sur auth.uid() : il faut un compte, et un
-                compte sans email ne convient pas non plus, puisqu'il disparaît avec le
-                stockage de l'appareil et se présente aux autres membres sous un nom de
-                repli. Le bouton reste néanmoins visible et explique ce qui manque : le
-                masquer, comme avant, revenait à supprimer la fonctionnalité sans le dire
-                à tous ceux qui n'ont pas encore de compte. */}
-            <button
-              onClick={() => {
-                haptics.medium();
-                if (canUseSpaces) onOpenSpaces();
-                else onOpenAccountSync?.();
-              }}
-              className="w-full flex items-center justify-between p-4 rounded-2xl bg-forest/5 dark:bg-lime-400/5 hover:bg-forest/10 dark:hover:bg-lime-400/10 border border-forest/20 dark:border-lime-400/20 transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-forest/10 dark:bg-lime-400/10 flex items-center justify-center text-forest dark:text-lime-400 group-hover:scale-110 transition-transform">
-                  <Users size={14} />
-                </div>
-                <div className="text-left">
-                  <span className="text-xs font-black uppercase tracking-wide text-forest dark:text-lime-400 block">
-                    {t('profileModal.spaces')}
-                  </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                    {canUseSpaces ? t('profileModal.spacesDesc') : t('profileModal.spacesNeedAccount')}
-                  </span>
-                </div>
-              </div>
-              <ChevronDown size={14} className="text-forest dark:text-lime-400 -rotate-90" />
-            </button>
-
-            <button
-              onClick={() => { haptics.soft(); onSwitchProfile(); }}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Repeat size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.switchProfile')}
-                </span>
-              </div>
-            </button>
-
-            {onOpenAccountSync && (
-              <button
-                onClick={() => { haptics.soft(); onOpenAccountSync(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
-                    <CloudUpload size={14} />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white truncate">
-                      {t('accountSync.entry')}
-                    </span>
-                    {/* L'état du compte doit se lire ici, sans ouvrir la fenêtre :
-                        ne pas savoir si on est connecté fait créer des comptes en
-                        double et croit-on sauvegarder alors qu'il n'en est rien. */}
-                    <span
-                      className={`block text-[9px] font-bold mt-0.5 truncate ${
-                        isAnonymousAccount
-                          ? 'text-orange-400'
-                          : 'text-stone-400 dark:text-stone-500'
-                      }`}
-                    >
-                      {isAnonymousAccount
-                        ? t('accountSync.entryAnonymous')
-                        : accountEmail
-                          ? accountEmail
-                          : t('accountSync.entryOffline')}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  {pendingSyncCount > 0 && isSignedIn && (
-                    <span className="min-w-[1.5rem] h-6 px-2 rounded-full bg-forest dark:bg-bitter-lime text-white dark:text-charcoal text-[10px] font-black flex items-center justify-center">
-                      {pendingSyncCount}
-                    </span>
-                  )}
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isAnonymousAccount
-                        ? 'bg-orange-400'
-                        : isSignedIn
-                          ? 'bg-forest dark:bg-bitter-lime'
-                          : 'bg-stone-300 dark:bg-stone-600'
-                    }`}
-                  />
-                </div>
-              </button>
-            )}
-
-            {onManageCinemaSubscription && (
-              <button
-                onClick={() => { haptics.soft(); onManageCinemaSubscription(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  {cinemaSubscription?.active ? (
-                    <CinemaSubscriptionArtwork provider={cinemaSubscription.provider} size="compact" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
-                      <Ticket size={14} />
-                    </div>
-                  )}
-                  <div className="text-left min-w-0">
-                    <span className={`block text-xs font-black uppercase tracking-wide truncate ${cinemaBrand ? cinemaBrand.titleClass : 'text-charcoal dark:text-white'}`}>
-                      {cinemaSubscription?.active
-                        ? cinemaSubscription.name
-                        : t('cinemaSub.profile.title')}
-                    </span>
-                    <span className={`block text-[9px] font-bold mt-0.5 truncate ${cinemaBrand ? cinemaBrand.mutedTextClass : 'text-stone-400 dark:text-stone-500'}`}>
-                      {cinemaSubscription?.active
-                        ? `${formatCurrency(cinemaSubscription.monthlyPrice, language)} ${t('cinemaSub.perMonth')}`
-                        : t('cinemaSub.profile.sub')}
-                    </span>
-                  </div>
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 ${cinemaBrand ? cinemaBrand.actionTextClass : 'text-forest dark:text-lime-500'}`}>
-                  {cinemaSubscription?.active
-                    ? t('cinemaSub.profile.edit')
-                    : t('cinemaSub.profile.configure')}
-                </span>
-              </button>
-            )}
-
-            {onManageFavoriteCinema && (
-              <button
-                onClick={() => { haptics.soft(); onManageFavoriteCinema(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
-                    <MapPin size={14} />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <span className="block text-xs font-black uppercase tracking-wide truncate text-charcoal dark:text-white">
-                      {t('favoriteCinema.profile.title')}
-                    </span>
-                    <span className="block text-[9px] font-bold mt-0.5 truncate text-stone-400 dark:text-stone-500">
-                      {favoriteCinema ? favoriteCinema.name : t('favoriteCinema.profile.sub')}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 text-forest dark:text-lime-500">
-                  {favoriteCinema ? t('cinemaSub.profile.edit') : t('cinemaSub.profile.configure')}
-                </span>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                haptics.soft();
-                setShowHowItWorks(true);
-              }}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Smartphone size={14} />
-                </div>
-                <div className="text-left">
-                  <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                    {t('howItWorks.title')}
-                  </span>
-                  <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
-                    {t('howItWorks.subtitle')}
-                  </span>
-                </div>
-              </div>
-            </button>
-
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-            <button
-              onClick={() => { haptics.soft(); importInputRef.current?.click(); }}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Upload size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.import')}
-                </span>
-              </div>
-            </button>
-
-            <button
-              data-tour="profile-export"
-              onClick={handleExport}
-              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
-                  <Download size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('profileModal.export')}
-                </span>
-              </div>
-            </button>
-
+            {/* Le tuto explique la notation : sa place est sous le calibrage,
+                pas dans un tiroir de réglages. */}
             {onReplayTour && (
               <button
                 onClick={() => { haptics.soft(); onReplayTour(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+                className="mt-4 w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
@@ -822,181 +492,578 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </button>
             )}
+          </div>
 
-            {onLetterboxdImport && (
-              <button
-                onClick={() => { haptics.soft(); onLetterboxdImport(); }}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#00d735]/10 hover:bg-[#00d735]/20 border border-[#00d735]/30 transition-colors group"
-              >
-                <img
-                  src="/icons/letterboxd.jpeg"
-                  alt="Letterboxd"
-                  className="w-8 h-8 rounded-lg shrink-0 group-hover:scale-105 transition-transform shadow-sm"
-                />
-                <div className="text-left">
-                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
-                    Importer depuis Letterboxd
-                  </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                    Importe ton watched.csv
-                  </span>
-                </div>
-              </button>
-            )}
-
-            {/* Confidentialité : la politique, le choix sur la mesure d'audience,
-                et la suppression définitive exigée par l'App Store. */}
-            <div className="mt-4 pt-4 border-t border-sand dark:border-white/5">
-              <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-                {t('profileModal.privacy')}
-              </p>
-
-              <a
-                href="/confidentialite"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => haptics.soft()}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-              >
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
-                  <ShieldCheck size={14} />
-                </div>
-                <div className="text-left">
-                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
-                    {t('profileModal.privacyPolicy')}
-                  </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                    {t('profileModal.privacyPolicyDesc')}
-                  </span>
-                </div>
-              </a>
-
-              <a
-                href="/conditions"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => haptics.soft()}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
-              >
-                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
-                  <ShieldCheck size={14} />
-                </div>
-                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                  {t('legal.terms')}
+          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+            <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.sectionSpaces')}
+            </p>
+{/* Un espace partagé s'appuie sur auth.uid() : il faut un compte, et un
+              compte sans email ne convient pas non plus, puisqu'il disparaît avec le
+              stockage de l'appareil et se présente aux autres membres sous un nom de
+              repli. Le bouton reste néanmoins visible et explique ce qui manque : le
+              masquer, comme avant, revenait à supprimer la fonctionnalité sans le dire
+              à tous ceux qui n'ont pas encore de compte. */}
+          <button
+            onClick={() => {
+              haptics.medium();
+              if (canUseSpaces) onOpenSpaces();
+              else onOpenAccountSync?.();
+            }}
+            className="w-full flex items-center justify-between p-4 rounded-2xl bg-forest/5 dark:bg-lime-400/5 hover:bg-forest/10 dark:hover:bg-lime-400/10 border border-forest/20 dark:border-lime-400/20 transition-colors group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full bg-forest/10 dark:bg-lime-400/10 flex items-center justify-center text-forest dark:text-lime-400 group-hover:scale-110 transition-transform">
+                <Users size={14} />
+              </div>
+              <div className="text-left">
+                <span className="text-xs font-black uppercase tracking-wide text-forest dark:text-lime-400 block">
+                  {t('profileModal.spaces')}
                 </span>
-              </a>
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                  {canUseSpaces ? t('profileModal.spacesDesc') : t('profileModal.spacesNeedAccount')}
+                </span>
+              </div>
+            </div>
+            <ChevronDown size={14} className="text-forest dark:text-lime-400 -rotate-90" />
+          </button>
+            {session && <BlockedPeopleSection />}
+          </div>
 
-              {session && <BlockedPeopleSection />}
-
-              <div className="p-4">
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white shrink-0">
-                    <ScanEye size={14} />
+          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+            <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.sectionCinema')}
+            </p>
+{onManageCinemaSubscription && (
+            <button
+              onClick={() => { haptics.soft(); onManageCinemaSubscription(); }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                {cinemaSubscription?.active ? (
+                  <CinemaSubscriptionArtwork provider={cinemaSubscription.provider} size="compact" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                    <Ticket size={14} />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
-                    {t('profileModal.analytics')}
+                )}
+                <div className="text-left min-w-0">
+                  <span className={`block text-xs font-black uppercase tracking-wide truncate ${cinemaBrand ? cinemaBrand.titleClass : 'text-charcoal dark:text-white'}`}>
+                    {cinemaSubscription?.active
+                      ? cinemaSubscription.name
+                      : t('cinemaSub.profile.title')}
                   </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => applyConsent('denied')}
-                    aria-pressed={consent === 'denied'}
-                    className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                      consent === 'denied'
-                        ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
-                        : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    {t('profileModal.analyticsOff')}
-                  </button>
-                  <button
-                    onClick={() => applyConsent('granted')}
-                    aria-pressed={consent === 'granted'}
-                    className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                      consent === 'granted'
-                        ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
-                        : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    {t('profileModal.analyticsOn')}
-                  </button>
+                  <span className={`block text-[9px] font-bold mt-0.5 truncate ${cinemaBrand ? cinemaBrand.mutedTextClass : 'text-stone-400 dark:text-stone-500'}`}>
+                    {cinemaSubscription?.active
+                      ? `${formatCurrency(cinemaSubscription.monthlyPrice, language)} ${t('cinemaSub.perMonth')}`
+                      : t('cinemaSub.profile.sub')}
+                  </span>
                 </div>
               </div>
-
-              {onDeleteAccount && session && (
+              <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 ${cinemaBrand ? cinemaBrand.actionTextClass : 'text-forest dark:text-lime-500'}`}>
+                {cinemaSubscription?.active
+                  ? t('cinemaSub.profile.edit')
+                  : t('cinemaSub.profile.configure')}
+              </span>
+            </button>
+          )}
+{onManageFavoriteCinema && (
+            <button
+              onClick={() => { haptics.soft(); onManageFavoriteCinema(); }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                  <MapPin size={14} />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="block text-xs font-black uppercase tracking-wide truncate text-charcoal dark:text-white">
+                    {t('favoriteCinema.profile.title')}
+                  </span>
+                  <span className="block text-[9px] font-bold mt-0.5 truncate text-stone-400 dark:text-stone-500">
+                    {favoriteCinema ? favoriteCinema.name : t('favoriteCinema.profile.sub')}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 text-forest dark:text-lime-500">
+                {favoriteCinema ? t('cinemaSub.profile.edit') : t('cinemaSub.profile.configure')}
+              </span>
+            </button>
+          )}
+<div
+          data-tour="profile-notifications"
+          className="bg-stone-50 dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 overflow-hidden"
+        >
+          {/* Le bouton « notif test » est un frère du bouton d'accordéon :
+              un <button> dans un <button> est du HTML invalide et casse le clavier */}
+          <div className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-stone-100 dark:hover:bg-white/5">
+            <button
+              onClick={() => setNotifOpen(o => !o)}
+              aria-expanded={notifOpen}
+              className="flex items-center gap-3 flex-1 text-left"
+            >
+              <Bell size={15} className="text-stone-400 dark:text-stone-500" />
+              <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('profileModal.notifications')}
+              </span>
+            </button>
+            <div className="flex items-center gap-2">
+              {/* Outil de debug : pas dans la build de production */}
+              {import.meta.env.DEV && (
                 <button
-                  onClick={() => { haptics.medium(); onDeleteAccount(); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group"
+                  onClick={handleTestNotif}
+                  className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1"
                 >
-                  <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shrink-0">
-                    <Trash2 size={14} />
-                  </div>
-                  <div className="text-left">
-                    <span className="text-xs font-black uppercase tracking-wide text-red-500 block">
-                      {t('profileModal.deleteAccount')}
+                  <Send size={11} />
+                  {testSent ? t('profileModal.sent') : t('profileModal.testNotif')}
+                </button>
+              )}
+              <button
+                onClick={() => setNotifOpen(o => !o)}
+                aria-expanded={notifOpen}
+                aria-label={t('profileModal.notifications')}
+                className="p-0.5"
+              >
+                <ChevronDown size={14} className={`text-stone-400 transition-transform duration-200 ${notifOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {notifOpen && (
+            <div className="px-3 pb-3 space-y-1.5 border-t border-stone-100 dark:border-white/5 pt-2">
+              {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
+                <div
+                  key={key}
+                  className="px-3 py-2.5 rounded-xl flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm leading-none">{emoji}</span>
+                    <span className="text-xs font-semibold text-charcoal dark:text-stone-300">
+                      {t(translationKey)}
                     </span>
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                      {t('profileModal.deleteAccountDesc')}
-                    </span>
                   </div>
+                  <button
+                    onClick={() => handleToggleNotif(key)}
+                    className={`w-10 h-6 rounded-full transition-colors shrink-0 relative ${
+                      notifPrefs[key] ? 'bg-forest dark:bg-lime-500' : 'bg-stone-200 dark:bg-stone-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                        notifPrefs[key] ? 'left-[18px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+              {'Notification' in window && Notification.permission === 'denied' && (
+                <p className="pt-1 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
+                  <BellOff size={11} /> {t('profileModal.notifBlocked')}
+                </p>
+              )}
+              {'Notification' in window && Notification.permission === 'default' && (
+                <button
+                  onClick={() => Notification.requestPermission()}
+                  className="pt-1 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
+                >
+                  <Bell size={11} /> {t('profileModal.allowNotif')}
                 </button>
               )}
             </div>
+          )}
+        </div>
+          </div>
 
-            {/* Attribution TMDB. Leurs conditions d'utilisation imposent le logo et
-                cette mention des lors qu'on affiche leurs fiches, affiches ou castings. */}
-            <div className="mt-4 pt-4 border-t border-sand dark:border-white/5">
-              <p className="px-4 mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-                {t('profileModal.credits')}
-              </p>
-              <a
-                href="https://www.themoviedb.org"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => haptics.soft()}
-                className="block px-4 pb-2 group"
-              >
-                <img
-                  src="/icons/tmdb.svg"
-                  alt="The Movie Database"
-                  className="h-3 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
-                />
-                <p className="mt-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
-                  {t('tmdb.dataSource')}
-                </p>
-                <p className="mt-1 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
-                  {t('tmdb.attribution')}
-                </p>
-              </a>
-              {/* Fun Emoji est sous CC BY 4.0 : la mention de l'auteur est une
-                  condition de la licence, pas une politesse. */}
-              <p className="px-4 pb-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
-                {t('credits.ratings')}
-              </p>
-              <p className="px-4 pb-2 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
-                {t('credits.avatars')}
-              </p>
-            </div>
-
-            {session && (
+          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+            <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.sectionApp')}
+            </p>
+<div>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 ml-1 mb-4">
+            {t('profileModal.language')}
+          </h3>
+          <div className="flex bg-stone-100 dark:bg-[#1a1a1a] p-1.5 rounded-2xl border border-stone-200/50 dark:border-white/5">
+            <button
+              onClick={() => { haptics.soft(); setLanguage('fr'); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'fr' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+            >
+              <span className="text-base leading-none">🇫🇷</span> Français
+            </button>
+            <button
+              onClick={() => { haptics.soft(); setLanguage('en'); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${language === 'en' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+            >
+              <span className="text-base leading-none">🇬🇧</span> English
+            </button>
+          </div>
+        </div>
+          {/* Le thème vivait dans l'en-tête, où il occupait une place quotidienne
+              pour un réglage qu'on change deux fois par an. */}
+          <div className="px-4 pt-2">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 mb-4">
+                {t('profileModal.theme')}
+              </h3>
+            <div className="flex bg-stone-100 dark:bg-[#1a1a1a] p-1.5 rounded-2xl border border-stone-200/50 dark:border-white/5">
               <button
-                onClick={() => { haptics.medium(); onSignOut(); }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group mt-2"
+                onClick={() => { if (theme !== 'light') { haptics.soft(); toggleTheme(); } }}
+                aria-pressed={theme === 'light'}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${theme === 'light' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform">
-                    <LogOut size={14} />
-                  </div>
-                  <span className="text-xs font-black uppercase tracking-wide text-red-500">
-                    {t('profileModal.signOut')}
+                <Sun size={13} /> {t('profileModal.themeLight')}
+              </button>
+              <button
+                onClick={() => { if (theme !== 'dark') { haptics.soft(); toggleTheme(); } }}
+                aria-pressed={theme === 'dark'}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${theme === 'dark' ? 'bg-white dark:bg-[#252525] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <Moon size={13} /> {t('profileModal.themeDark')}
+              </button>
+            </div>
+          </div>
+<button
+            onClick={() => {
+              haptics.soft();
+              setShowHowItWorks(true);
+            }}
+            className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                <Smartphone size={14} />
+              </div>
+              <div className="text-left">
+                <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('howItWorks.title')}
+                </span>
+                <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
+                  {t('howItWorks.subtitle')}
+                </span>
+              </div>
+            </div>
+          </button>
+{onSendFeedback && (
+            <button
+              onClick={() => { haptics.soft(); onSendFeedback(); }}
+              className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-colors group ${cinemaBrand ? cinemaBrand.choiceClass : 'border-transparent hover:bg-stone-50 dark:hover:bg-[#161616]'}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                  <MessageSquareText size={14} />
+                </div>
+                <div className="text-left">
+                  <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('nav.feedback')}
+                  </span>
+                  <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
+                    {t('profileModal.feedbackDesc')}
+                  </span>
+                </div>
+              </div>
+            </button>
+          )}
+          </div>
+
+          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+            <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.sectionData')}
+            </p>
+{onLetterboxdImport && (
+            <button
+              onClick={() => { haptics.soft(); onLetterboxdImport(); }}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#00d735]/10 hover:bg-[#00d735]/20 border border-[#00d735]/30 transition-colors group"
+            >
+              <img
+                src="/icons/letterboxd.jpeg"
+                alt="Letterboxd"
+                className="w-8 h-8 rounded-lg shrink-0 group-hover:scale-105 transition-transform shadow-sm"
+              />
+              <div className="text-left">
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
+                  Importer depuis Letterboxd
+                </span>
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                  Importe ton watched.csv
+                </span>
+              </div>
+            </button>
+          )}
+<input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
+          <button
+            onClick={() => { haptics.soft(); importInputRef.current?.click(); }}
+            className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                <Upload size={14} />
+              </div>
+              <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('profileModal.import')}
+              </span>
+            </div>
+          </button>
+<button
+            data-tour="profile-export"
+            onClick={handleExport}
+            className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                <Download size={14} />
+              </div>
+              <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('profileModal.export')}
+              </span>
+            </div>
+          </button>
+          <a
+            href="/suppression"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => haptics.soft()}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+          >
+            <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+              <Trash2 size={14} />
+            </div>
+            <div className="text-left">
+              <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('profileModal.deleteSomeData')}
+              </span>
+              <span className="block text-[9px] font-bold text-stone-400 dark:text-stone-500 mt-0.5">
+                {t('profileModal.deleteSomeDataDesc')}
+              </span>
+            </div>
+          </a>
+          </div>
+
+          <div className="pt-4 border-t border-sand dark:border-white/5 space-y-1">
+            <p className="px-4 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.sectionAccount')}
+            </p>
+{onOpenAccountSync && (
+            <button
+              onClick={() => { haptics.soft(); onOpenAccountSync(); }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                  <CloudUpload size={14} />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white truncate">
+                    {isSignedIn ? t('accountSync.entry') : t('profileModal.signInCta')}
+                  </span>
+                  {/* L'état du compte doit se lire ici, sans ouvrir la fenêtre :
+                      ne pas savoir si on est connecté fait créer des comptes en
+                      double et croit-on sauvegarder alors qu'il n'en est rien. */}
+                  <span
+                    className={`block text-[9px] font-bold mt-0.5 truncate ${
+                      isAnonymousAccount
+                        ? 'text-orange-400'
+                        : 'text-stone-400 dark:text-stone-500'
+                    }`}
+                  >
+                    {isAnonymousAccount
+                      ? t('accountSync.entryAnonymous')
+                      : accountEmail
+                        ? accountEmail
+                        : t('accountSync.entryOffline')}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                {pendingSyncCount > 0 && isSignedIn && (
+                  <span className="min-w-[1.5rem] h-6 px-2 rounded-full bg-forest dark:bg-bitter-lime text-white dark:text-charcoal text-[10px] font-black flex items-center justify-center">
+                    {pendingSyncCount}
+                  </span>
+                )}
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isAnonymousAccount
+                      ? 'bg-orange-400'
+                      : isSignedIn
+                        ? 'bg-forest dark:bg-bitter-lime'
+                        : 'bg-stone-300 dark:bg-stone-600'
+                  }`}
+                />
+              </div>
+            </button>
+          )}
+<button
+            onClick={() => { haptics.soft(); onSwitchProfile(); }}
+            className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                <Repeat size={14} />
+              </div>
+              <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('profileModal.switchProfile')}
+              </span>
+            </div>
+          </button>
+{session && (
+            <button
+              onClick={() => { haptics.medium(); onSignOut(); }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group mt-2"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform">
+                  <LogOut size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-red-500">
+                  {t('profileModal.signOut')}
+                </span>
+              </div>
+            </button>
+          )}
+{onDeleteAccount && session && (
+              <button
+                onClick={() => { haptics.medium(); onDeleteAccount(); }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shrink-0">
+                  <Trash2 size={14} />
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-black uppercase tracking-wide text-red-500 block">
+                    {t('profileModal.deleteAccount')}
+                  </span>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                    {t('profileModal.deleteAccountDesc')}
                   </span>
                 </div>
               </button>
             )}
+          </div>
+
+          <div className="pt-4 border-t border-sand dark:border-white/5">
+            <button
+              onClick={() => { haptics.soft(); setSettingsOpen((o) => !o); }}
+              aria-expanded={settingsOpen}
+              className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                  <Settings size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('profileModal.legal')}
+                </span>
+              </div>
+              <ChevronDown size={16} className={`text-stone-400 dark:text-stone-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`space-y-1 ${settingsOpen ? 'pt-1 animate-[fadeIn_0.25s_ease-out]' : 'hidden'}`}>
+<a
+              href="/confidentialite"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => haptics.soft()}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                <ShieldCheck size={14} />
+              </div>
+              <div className="text-left">
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
+                  {t('profileModal.privacyPolicy')}
+                </span>
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                  {t('profileModal.privacyPolicyDesc')}
+                </span>
+              </div>
+            </a>
+<a
+              href="/conditions"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => haptics.soft()}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+            >
+              <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                <ShieldCheck size={14} />
+              </div>
+              <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                {t('legal.terms')}
+              </span>
+            </a>
+<div className="p-4">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white shrink-0">
+                  <ScanEye size={14} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('profileModal.analytics')}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => applyConsent('denied')}
+                  aria-pressed={consent === 'denied'}
+                  className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                    consent === 'denied'
+                      ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                      : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {t('profileModal.analyticsOff')}
+                </button>
+                <button
+                  onClick={() => applyConsent('granted')}
+                  aria-pressed={consent === 'granted'}
+                  className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                    consent === 'granted'
+                      ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                      : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {t('profileModal.analyticsOn')}
+                </button>
+              </div>
+            </div>
+{/* Attribution TMDB. Leurs conditions d'utilisation imposent le logo et
+              cette mention des lors qu'on affiche leurs fiches, affiches ou castings. */}
+          <div className="mt-4 pt-4 border-t border-sand dark:border-white/5">
+            <p className="px-4 mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
+              {t('profileModal.credits')}
+            </p>
+            <a
+              href="https://www.themoviedb.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => haptics.soft()}
+              className="block px-4 pb-2 group"
+            >
+              <img
+                src="/icons/tmdb.svg"
+                alt="The Movie Database"
+                className="h-3 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+              <p className="mt-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
+                {t('tmdb.dataSource')}
+              </p>
+              <p className="mt-1 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
+                {t('tmdb.attribution')}
+              </p>
+            </a>
+            {/* Fun Emoji est sous CC BY 4.0 : la mention de l'auteur est une
+                condition de la licence, pas une politesse. */}
+            <p className="px-4 pb-2 text-[10px] leading-relaxed text-stone-400 dark:text-stone-500 font-medium">
+              {t('credits.ratings')}
+            </p>
+            <p className="px-4 pb-2 text-[9px] leading-relaxed text-stone-300 dark:text-stone-600 font-medium">
+              {t('credits.avatars')}
+            </p>
+          </div>
             </div>
           </div>
         </div>
-
         {/* Footer */}
         <div className="p-4 bg-stone-50 dark:bg-[#0a0a0a] text-center border-t border-sand dark:border-white/5">
           <p className="text-[8px] font-black text-stone-300 dark:text-stone-700 uppercase tracking-[0.3em]">
