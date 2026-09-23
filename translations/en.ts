@@ -1433,4 +1433,8 @@ export const en: Record<string, string> = {
   'legal.acceptTerms': 'By continuing, you accept the terms of use.',
   'credits.ratings': 'IMDb ratings via OMDb (omdbapi.com). The Bitter is not affiliated with IMDb.',
   'credits.avatars': 'Avatars generated with DiceBear: “Fun Emoji” by Davis Uche (CC BY 4.0), “Bottts” and “Open Peeps” by Pablo Stanley, “Notionists” by Zoish, “Pixel Art” and “Thumbs” by DiceBear (CC0).',
+  'auth.passwordMode': 'I have a password',
+  'auth.passwordBack': 'Back to the email code',
+  'auth.passwordCta': 'Sign in',
+  'auth.passwordFailed': 'Wrong address or password.',
 };

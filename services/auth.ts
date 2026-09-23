@@ -33,6 +33,26 @@ const notConfigured: AuthOutcome = { ok: false, reason: 'not-configured' };
  * inconnue puisse aussi créer son compte, mais un email déjà présent dans
  * auth.users est toujours reconnu comme tel : il n'y a pas de doublon possible.
  */
+/**
+ * Connexion par mot de passe.
+ *
+ * L'app ne crée jamais de mot de passe : ce chemin existe pour les comptes à qui
+ * l'on en a posé un côté serveur, à commencer par le compte de démonstration
+ * remis aux testeurs de Google Play, qui ne peuvent pas recevoir le code envoyé
+ * par email. Un compte ordinaire n'en a pas, et garde la connexion par code.
+ */
+export const signInWithPassword = async (email: string, password: string): Promise<AuthOutcome> => {
+  if (!supabase) return notConfigured;
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+
+  if (error) return { ok: false, reason: 'failed', message: error.message };
+  return { ok: true };
+};
+
 export const sendMagicLink = async (email: string): Promise<AuthOutcome> => {
   if (!supabase) return notConfigured;
 
