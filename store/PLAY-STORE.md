@@ -121,7 +121,7 @@ Questions générales :
 - Moyen de demander la suppression des données : **Oui**
 - URL de suppression du compte :
   ```
-  https://thebitter.watch/confidentialite#suppression
+  https://thebitter.watch/suppression
   ```
 
 Données **collectées** (aucune n'est « partagée » au sens de Google : Supabase,
