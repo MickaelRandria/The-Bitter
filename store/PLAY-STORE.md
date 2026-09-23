@@ -1,8 +1,7 @@
 # Console Google Play : les réponses à copier-coller
 
-Les fichiers graphiques sont dans ce dossier : `icon-512.png` (icône, 512×512) et
-`feature-graphic-1024x500.png` (bannière). Il manque seulement les captures
-d'écran, à faire depuis ton téléphone (voir §2).
+Tous les visuels sont prêts dans ce dossier : `icon-512.png` (icône),
+`feature-graphic-1024x500.png` (bannière) et `screenshots/` (les quatre captures).
 
 ---
 
@@ -69,16 +68,28 @@ Fiches et affiches fournies par TMDB. Ce produit utilise l'API TMDB mais n'est n
 
 ## 2. Captures d'écran
 
-Au moins **2**, jusqu'à 8, au format téléphone portrait (idéalement 1080×1920).
-Depuis ton téléphone, dans l'app installée, prends dans cet ordre :
+**Prêtes dans `store/screenshots/`**, au format exigé (1080 × 1920, 9:16) :
 
-1. La collection (les cartes avec les notes IMDb)
-2. La notation d'un film (la grille de critères)
-3. Les statistiques / ADN cinéma
-4. Un espace partagé
-5. Le calendrier des séances ou des séries
+| Fichier | Écran | Titre affiché |
+|---|---|---|
+| `1-collection.png` | Collection | Ta collection, film par film |
+| `2-gouts.png` | Sévérité et palmarès | Plus sévère que le public ? |
+| `3-explorer.png` | Explorer | Trouve quoi regarder ce soir |
+| `4-calendrier.png` | Calendrier | N'oublie plus aucune séance |
 
-Évite les écrans qui montrent les noms ou avis de tes amis : ce sont leurs données.
+Prises sur l'app réelle avec le compte de démonstration, en thème sombre, sans
+bulle d'aide ni barre d'état du téléphone. Quatre captures en 1080 px : c'est le
+minimum pour que l'app puisse être mise en avant par Google.
+
+**Pour les refaire** (après un changement d'interface) : les scripts de capture
+vivent dans le dossier de travail de la session, et le principe tient en trois
+points — navigateur en 405 × 720 à densité 8/3 pour tomber juste sur 1080 × 1920,
+thème sombre forcé via `localStorage`, et suppression des bulles d'aide
+(`div.fixed.z-50`) avant le déclenchement.
+
+**Règle à ne pas oublier** : ces images doivent montrer l'app telle qu'elle est.
+Un habillage (fond, titre, cadre) est autorisé ; une interface redessinée par une
+IA ne l'est pas, et vaut un refus pour métadonnées trompeuses.
 
 ---
 
