@@ -20,8 +20,8 @@
     "path": "./android.keystore",
     "alias": "thebitter"
   },
-  "appVersionName": "2",
-  "appVersionCode": 2,
+  "appVersionName": "1.0.0",
+  "appVersionCode": 4,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://thebitter.watch/manifest.webmanifest",
@@ -34,7 +34,7 @@
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://thebitter.watch/",
-  "minSdkVersion": 21,
+  "minSdkVersion": 24,
   "orientation": "portrait",
   "fingerprints": [],
   "additionalTrustedOrigins": [],
@@ -43,5 +43,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "2"
+  "appVersion": "1.0.0"
 }
