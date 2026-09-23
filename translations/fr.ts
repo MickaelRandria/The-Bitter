@@ -1455,4 +1455,8 @@ export const fr: Record<string, string> = {
   'profileModal.deleteSomeData': 'Supprimer une partie de mes données',
   'profileModal.deleteSomeDataDesc': 'Ce qui s’efface, et ce qui reste',
   'profileModal.theme': 'Thème',
+  'profileModal.signInCta': 'Se connecter ou créer un compte',
+  'profileModal.signInDesc': 'Pour retrouver tes films sur un autre appareil et partager',
+  'profileModal.secureAccountCta': 'Sécuriser mon compte',
+  'profileModal.secureAccountDesc': 'Ajoute ton email : sans lui, tes films vivent sur ce seul appareil',
 };

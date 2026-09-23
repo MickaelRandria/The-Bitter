@@ -1449,4 +1449,8 @@ export const en: Record<string, string> = {
   'profileModal.deleteSomeData': 'Delete some of my data',
   'profileModal.deleteSomeDataDesc': 'What is erased, and what remains',
   'profileModal.theme': 'Theme',
+  'profileModal.signInCta': 'Sign in or create an account',
+  'profileModal.signInDesc': 'To find your films on another device and share them',
+  'profileModal.secureAccountCta': 'Secure my account',
+  'profileModal.secureAccountDesc': 'Add your email: without it, your films live on this device only',
 };

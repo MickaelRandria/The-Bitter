@@ -25,6 +25,7 @@ import {
   Smartphone,
   Compass,
   Settings,
+  LogIn,
   Sun,
   Moon,
   MessageSquareText,
@@ -354,7 +355,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           )}
 
-                    {/* SECTION 3: STATS GRID */}
+                    {/* Sans compte, rien n'indiquait comment se connecter : la seule porte
+              s'appelait « Sauvegarder mes films en ligne », ce qui décrit un effet
+              et pas le geste. Le bouton ne s'affiche que tant qu'il sert. */}
+          {onOpenAccountSync && (!isSignedIn || isAnonymousAccount) && (
+            <button
+              onClick={() => { haptics.medium(); onOpenAccountSync(); }}
+              className="w-full flex items-center gap-4 p-5 rounded-[1.8rem] bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal shadow-lg active:scale-[0.98] transition-all"
+            >
+              <div className="w-10 h-10 rounded-full bg-white/15 dark:bg-charcoal/10 flex items-center justify-center shrink-0">
+                <LogIn size={18} />
+              </div>
+              <div className="text-left min-w-0">
+                <span className="block text-xs font-black uppercase tracking-wide">
+                  {isAnonymousAccount ? t('profileModal.secureAccountCta') : t('profileModal.signInCta')}
+                </span>
+                <span className="block text-[10px] font-medium opacity-70 mt-0.5">
+                  {isAnonymousAccount ? t('profileModal.secureAccountDesc') : t('profileModal.signInDesc')}
+                </span>
+              </div>
+            </button>
+          )}
+
+          {/* SECTION 3: STATS GRID */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white dark:bg-[#1a1a1a] p-4 rounded-[1.8rem] border border-sand dark:border-white/5 shadow-sm">
               <div className="flex items-center gap-2 mb-2 text-stone-400 dark:text-stone-500">
@@ -400,7 +423,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
-                    {profile.severityIndex}/10
+                    {profile.severityIndex ?? 5}/10
                   </span>
                 </div>
                 <div className="h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
@@ -422,7 +445,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <span className="text-[9px] font-black uppercase tracking-widest">{t('profileModal.rhythm')}</span>
                   </div>
                   <span className="text-[9px] font-bold text-charcoal dark:text-white">
-                    {profile.patienceLevel}/10
+                    {profile.patienceLevel ?? 5}/10
                   </span>
                 </div>
                 <div className="h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
@@ -834,7 +857,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
                 <div className="text-left min-w-0">
                   <span className="block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white truncate">
-                    {t('accountSync.entry')}
+                    {isSignedIn ? t('accountSync.entry') : t('profileModal.signInCta')}
                   </span>
                   {/* L'état du compte doit se lire ici, sans ouvrir la fenêtre :
                       ne pas savoir si on est connecté fait créer des comptes en
