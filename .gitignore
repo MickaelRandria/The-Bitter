@@ -41,3 +41,6 @@ android/*
 !android/twa-manifest.json
 *.keystore
 *.jks
+
+# APK téléchargés depuis la console Play, pour relever une empreinte.
+*.apk
