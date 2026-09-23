@@ -4,6 +4,7 @@ import { BackfillReport } from '../services/movieSync';
 import {
   attachEmail,
   sendMagicLink,
+  signInWithPassword,
   startAnonymousSession,
   verifyEmailCode,
 } from '../services/auth';
@@ -61,6 +62,9 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
    */
   const [justSignedIn, setJustSignedIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Chemin réservé aux comptes munis d'un mot de passe (démonstration, examen Play). */
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [password, setPassword] = useState('');
   const [report, setReport] = useState<BackfillReport | null>(null);
 
   const emailValid = /\S+@\S+\.\S+/.test(email.trim());
@@ -71,6 +75,19 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
    * de bloquer le bouton sur une longueur devinée.
    */
   const codeValid = /^\d{6,10}$/.test(code.trim()) || code.trim().includes('://');
+
+  const signInPassword = async () => {
+    if (!emailValid || password.length < 6 || busy) return;
+    setBusy(true);
+    setError(null);
+    const outcome = await signInWithPassword(email, password);
+    setBusy(false);
+    if (!outcome.ok) {
+      setError(t('auth.passwordFailed'));
+      return;
+    }
+    setJustSignedIn(true);
+  };
 
   const requestLink = async () => {
     if (!emailValid || busy) return;
@@ -472,9 +489,49 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
                 {t('accountSync.sendLink')}
               </button>
 
+              {passwordMode && (
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 mb-2 block ml-1">
+                    {t('auth.password')}
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    className={inputClass}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void signInPassword();
+                    }}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    onClick={signInPassword}
+                    disabled={!emailValid || password.length < 6 || busy}
+                    className={`${primaryClass} mt-3`}
+                  >
+                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    {t('auth.passwordCta')}
+                  </button>
+                </div>
+              )}
+
               <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed text-center">
                 {t('accountSync.noPassword')}
               </p>
+
+              {/* Discret à dessein : aucun compte ordinaire n'a de mot de passe.
+                  Ce chemin sert aux comptes de démonstration, qui ne peuvent pas
+                  aller chercher le code dans une boîte mail. */}
+              <button
+                onClick={() => {
+                  setPasswordMode((on) => !on);
+                  setError(null);
+                }}
+                className="block mx-auto text-[10px] font-medium text-stone-400 dark:text-stone-600 underline underline-offset-2"
+              >
+                {passwordMode ? t('auth.passwordBack') : t('auth.passwordMode')}
+              </button>
 
               <div className="pt-2 border-t border-sand dark:border-white/5 space-y-2">
                 <button

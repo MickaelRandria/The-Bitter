@@ -1439,4 +1439,8 @@ export const fr: Record<string, string> = {
   'legal.acceptTerms': 'En continuant, tu acceptes les conditions d’utilisation.',
   'credits.ratings': 'Notes IMDb obtenues via OMDb (omdbapi.com). The Bitter n’est pas affilié à IMDb.',
   'credits.avatars': 'Avatars générés avec DiceBear : « Fun Emoji » par Davis Uche (CC BY 4.0), « Bottts » et « Open Peeps » par Pablo Stanley, « Notionists » par Zoish, « Pixel Art » et « Thumbs » par DiceBear (CC0).',
+  'auth.passwordMode': 'J’ai un mot de passe',
+  'auth.passwordBack': 'Revenir au code par email',
+  'auth.passwordCta': 'Se connecter',
+  'auth.passwordFailed': 'Adresse ou mot de passe incorrect.',
 };
