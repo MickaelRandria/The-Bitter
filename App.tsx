@@ -103,7 +103,6 @@ import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
 import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
-import ThemeToggle from './components/ThemeToggle';
 import NotificationCenter from './components/NotificationCenter';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
@@ -2334,7 +2333,6 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <ThemeToggle />
               {/* Les notifications suivent la partie ouverte : leurs libellés
                   parlent de films, et une série n'a rien à y faire. */}
               <NotificationCenter movies={uniqueMovies} />
