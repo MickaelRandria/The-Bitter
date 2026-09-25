@@ -76,7 +76,10 @@ const fetchLink = async (token: string): Promise<LinkPreview | null> => {
     },
     body: JSON.stringify({ p_token: token }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.warn('[share] get_share_link a répondu', res.status, (await res.text()).slice(0, 200));
+    return null;
+  }
   const data = await res.json();
   return data && typeof data === 'object' ? (data as LinkPreview) : null;
 };
@@ -218,12 +221,16 @@ export default async function handler(req: Request): Promise<Response> {
   // Derrière la réécriture `/i/:token`, Vercel transmet l'adresse d'origine :
   // le jeton est alors dans le chemin, pas dans la requête.
   const token = url.searchParams.get('token') || url.pathname.match(/\/i\/([A-Za-z0-9_-]{22})\/?$/)?.[1] || '';
-  if (!/^[A-Za-z0-9_-]{22}$/.test(token)) return notFound();
+  if (!/^[A-Za-z0-9_-]{22}$/.test(token)) {
+    console.warn('[share] jeton illisible', url.pathname, url.search);
+    return notFound();
+  }
 
   let link: LinkPreview | null = null;
   try {
     link = await fetchLink(token);
-  } catch {
+  } catch (error) {
+    console.warn('[share] lecture du lien impossible', String(error));
     link = null;
   }
   if (!link) return notFound();
