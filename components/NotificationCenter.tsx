@@ -15,7 +15,7 @@ import {
   markNotificationsRead,
   subscribeToNotifications,
 } from '../services/social';
-import { socialMessage, formatSlot } from '../supabase/functions/notify/messages.ts';
+import { socialMessage, formatSlot, listNames } from '../supabase/functions/notify/messages.ts';
 import { acceptSlot } from '../services/plans';
 import { enablePushNotifications, hasPushSubscription, isPushSupported } from '../services/pushNotifications';
 import { avatarSrc } from '../utils/avatar';
@@ -32,6 +32,8 @@ interface NotificationCenterProps {
   /** Ouvre l'espace d'une notification ; `rate` ouvre la notation du film. */
   onOpenSpace?: (spaceId: string, sharedMovieId: string | null, rate: boolean) => void;
   onToast?: (message: string) => void;
+  /** « Voir avec… » sur un film de la liste : envie commune, sortie, streaming. */
+  onWatchWith?: (tmdbId: number, mediaType: 'movie' | 'tv', preselect?: string[]) => void;
 }
 
 const typeIcon: Record<AppNotification['type'], string> = {
@@ -51,7 +53,7 @@ const ago = (iso: string): string => {
   return days === 1 ? 'hier' : `il y a ${days} j`;
 };
 
-const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId, openSignal, onOpenSpace, onToast }) => {
+const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId, openSignal, onOpenSpace, onToast, onWatchWith }) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -265,11 +267,25 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
                   const offersSlots = (pendingInvite || pendingPlan) && openSlots.length > 0;
                   // Quelqu'un vient de dire oui : c'est le moment de proposer une date.
                   const canPlan = n.kind === 'watch_accepted' && !!n.space_id && !!n.shared_movie_id && !planned;
+                  // Un film de ma liste : envie commune, sortie en salle, arrivée en streaming.
+                  const wishTmdb = ['common_wish', 'release_today', 'now_streaming'].includes(n.kind)
+                    ? n.payload?.tmdb_id
+                    : undefined;
+                  const watchWith = () => {
+                    if (!wishTmdb || !onWatchWith) return;
+                    markSocialRead(n);
+                    setOpen(false);
+                    onWatchWith(
+                      wishTmdb,
+                      n.payload?.media_type === 'tv' ? 'tv' : 'movie',
+                      n.kind === 'common_wish' && n.actor_id ? [n.actor_id] : undefined
+                    );
+                  };
                   const interactive = pendingInvite || pendingVerdict || pendingPlan;
                   return (
                     <div
                       key={n.id}
-                      onClick={() => !interactive && openNotification(n)}
+                      onClick={() => (wishTmdb ? watchWith() : !interactive && openNotification(n))}
                       className={`flex gap-3 px-4 py-3 transition-colors ${
                         interactive ? '' : 'cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800'
                       } ${unread ? 'bg-lime-50 dark:bg-stone-800/60' : ''}`}
@@ -326,6 +342,27 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
                                 </button>
                               )}
                             </div>
+                          </div>
+                        )}
+                        {wishTmdb && onWatchWith && (
+                          <div className="mt-2 flex items-center gap-3">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                watchWith();
+                              }}
+                              className="text-[11px] font-black uppercase tracking-wider text-forest dark:text-lime-400"
+                            >
+                              {n.kind === 'common_wish' && n.actor?.first_name
+                                ? t('wish.watchWithNames', { names: n.actor.first_name })
+                                : n.payload?.also?.length
+                                  ? t('wish.watchWithNames', { names: listNames(n.payload.also) })
+                                  : t('social.watchWith')}
+                            </button>
+                            {/* TMDB tient ses données de streaming de JustWatch, qui demande d'être cité. */}
+                            {n.kind === 'now_streaming' && (
+                              <span className="text-[10px] text-stone-400">{t('wish.justwatch')}</span>
+                            )}
                           </div>
                         )}
                         {canPlan && (

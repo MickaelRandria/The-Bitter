@@ -32,6 +32,10 @@ interface Props {
   onDone?: (message: string) => void;
   /** Pour proposer les vraies séances du film en même temps que l'invitation. */
   favoriteCinema?: FavoriteCinema;
+  /** Personnes déjà cochées : celles qui attendent aussi le film. */
+  preselect?: string[];
+  /** Ouvre d'emblée la proposition de date : l'envie est déjà partagée, reste le quand. */
+  openDates?: boolean;
 }
 
 /**
@@ -44,11 +48,11 @@ interface Props {
  * « Quelqu'un d'autre » fabrique un lien pour qui n'a pas l'app : il part par le
  * partage du téléphone, dans la conversation de la personne qui invite.
  */
-const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone, favoriteCinema }) => {
+const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone, favoriteCinema, preselect, openDates }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose);
   const [companions, setCompanions] = useState<Companion[] | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(preselect ?? []);
   const [sending, setSending] = useState(false);
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +62,7 @@ const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone, favorit
   const [pushError, setPushError] = useState<string | null>(null);
   /** Séance jointe à l'invitation, facultative : « on se fait Dune samedi 20 h 30 ? » */
   const [slots, setSlots] = useState<SlotDraft[]>([]);
-  const [datesOpen, setDatesOpen] = useState(false);
+  const [datesOpen, setDatesOpen] = useState(!!openDates);
 
   useEffect(() => {
     let alive = true;

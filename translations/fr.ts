@@ -1539,4 +1539,7 @@ export const fr: Record<string, string> = {
   'plan.pending': 'Séance proposée ({count} créneau(x))',
   'plan.blindHint': 'Vous y étiez ensemble : note-le pour découvrir les notes des autres.',
   'plan.hiddenScore': 'Note cachée jusqu’à ce que tu aies noté',
+  'wish.also': '{names} aussi',
+  'wish.watchWithNames': 'Voir avec {names}',
+  'wish.justwatch': 'Source : JustWatch',
 };
