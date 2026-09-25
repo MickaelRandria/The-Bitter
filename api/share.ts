@@ -13,11 +13,16 @@
  */
 export const config = { runtime: 'edge' };
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://tnvnmsevddvcklkitnpa.supabase.co';
-// Clé publique par nature : elle est déjà dans le JavaScript de l'app.
-const SUPABASE_ANON_KEY =
-  process.env.VITE_SUPABASE_ANON_KEY ||
+// Valeurs publiques par nature : elles sont déjà dans le JavaScript de l'app. Les
+// variables d'environnement passent d'abord, nettoyées : un retour à la ligne
+// collé dans le tableau de bord Vercel rend l'en-tête HTTP invalide, et le
+// `fetch` de l'environnement edge ne dit alors rien d'autre que « internal error ».
+const FALLBACK_URL = 'https://tnvnmsevddvcklkitnpa.supabase.co';
+const FALLBACK_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRudm5tc2V2ZGR2Y2tsa2l0bnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MDgwMTMsImV4cCI6MjA4NTk4NDAxM30.cQi9F7ECVNOk8h8JYoCWATqV3XUwjL4qE_8FQeisHXk';
+const clean = (value: string | undefined) => (value || '').replace(/\s+/g, '');
+const SUPABASE_URL = clean(process.env.VITE_SUPABASE_URL).replace(/\/+$/, '') || FALLBACK_URL;
+const SUPABASE_ANON_KEY = clean(process.env.VITE_SUPABASE_ANON_KEY) || FALLBACK_KEY;
 const SITE = 'https://thebitter.watch';
 
 interface LinkPreview {
@@ -66,16 +71,23 @@ const formatRelease = (date: string | null) => {
   return null;
 };
 
-const fetchLink = async (token: string): Promise<LinkPreview | null> => {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_share_link`, {
+const callGetShareLink = (base: string, key: string, token: string) =>
+  fetch(`${base}/rest/v1/rpc/get_share_link`, {
     method: 'POST',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
+    // `apikey` seul : il suffit à PostgREST, et vaut pour l'ancienne clé JWT comme
+    // pour la nouvelle clé publique, qu'on ne peut pas envoyer en `Bearer`.
+    headers: { apikey: key, 'Content-Type': 'application/json' },
     body: JSON.stringify({ p_token: token }),
   });
+
+const fetchLink = async (token: string): Promise<LinkPreview | null> => {
+  let res: Response;
+  try {
+    res = await callGetShareLink(SUPABASE_URL, SUPABASE_ANON_KEY, token);
+  } catch (error) {
+    console.warn('[share] appel refusé avec la configuration, repli', String(error));
+    res = await callGetShareLink(FALLBACK_URL, FALLBACK_KEY, token);
+  }
   if (!res.ok) {
     console.warn('[share] get_share_link a répondu', res.status, (await res.text()).slice(0, 200));
     return null;
@@ -151,7 +163,7 @@ const SCRIPT = `
   if(loggedIn){ $('open').hidden = false; }
 
   var rpc = function(fn, body){
-    return fetch(API + '/rest/v1/rpc/' + fn, { method:'POST', headers:{ apikey:KEY, Authorization:'Bearer '+KEY, 'Content-Type':'application/json' }, body: JSON.stringify(body) })
+    return fetch(API + '/rest/v1/rpc/' + fn, { method:'POST', headers:{ apikey:KEY, 'Content-Type':'application/json' }, body: JSON.stringify(body) })
       .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error((j && j.message) || 'erreur'); return j; }); });
   };
   var fmt = function(n){ if(n===null||n===undefined) return '–'; var v=Math.round(Number(n)*10)/10; return (v%1===0?String(v):v.toFixed(1)).replace('.',','); };
@@ -213,7 +225,7 @@ const SCRIPT = `
 const notFound = () =>
   new Response(
     `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lien introuvable · The Bitter</title><meta name="robots" content="noindex"><style>${STYLE}</style></head><body><main class="wrap"><a class="brand" href="/">The Bitter</a><div class="card"><p class="q">Ce lien n’existe pas, ou plus.</p><p style="color:var(--ink-2);margin:0 0 1rem">Il a peut-être été mal copié. Demande à la personne de te le renvoyer.</p><a class="btn ghost" href="/">Découvrir The Bitter</a></div></main></body></html>`,
-    { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, s-maxage=60' } }
+    { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }
   );
 
 export default async function handler(req: Request): Promise<Response> {
