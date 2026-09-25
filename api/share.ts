@@ -80,21 +80,38 @@ const callGetShareLink = (base: string, key: string, token: string) =>
     body: JSON.stringify({ p_token: token }),
   });
 
-const fetchLink = async (token: string): Promise<LinkPreview | null> => {
-  let res: Response;
+interface Found {
+  link: LinkPreview;
+  /** Le projet qui a répondu : la page y enverra aussi la réponse de l'invité. */
+  base: string;
+  key: string;
+}
+
+const readFrom = async (base: string, key: string, token: string): Promise<Found | null> => {
   try {
-    res = await callGetShareLink(SUPABASE_URL, SUPABASE_ANON_KEY, token);
+    const res = await callGetShareLink(base, key, token);
+    if (!res.ok) {
+      console.warn('[share] get_share_link a répondu', base, res.status, (await res.text()).slice(0, 200));
+      return null;
+    }
+    const data = await res.json();
+    return data && typeof data === 'object' ? { link: data as LinkPreview, base, key } : null;
   } catch (error) {
-    console.warn('[share] appel refusé avec la configuration, repli', String(error));
-    res = await callGetShareLink(FALLBACK_URL, FALLBACK_KEY, token);
-  }
-  if (!res.ok) {
-    console.warn('[share] get_share_link a répondu', res.status, (await res.text()).slice(0, 200));
+    console.warn('[share] appel impossible', base, String(error));
     return null;
   }
-  const data = await res.json();
-  return data && typeof data === 'object' ? (data as LinkPreview) : null;
 };
+
+/**
+ * La configuration du déploiement d'abord, le projet de production ensuite.
+ *
+ * Les prévisualisations Vercel pointent vers un autre projet Supabase que la
+ * production : un lien créé en prod doit pourtant s'y ouvrir. Et la page doit
+ * écrire dans le projet où elle a lu, sinon la réponse part dans le vide.
+ */
+const fetchLink = async (token: string): Promise<Found | null> =>
+  (await readFrom(SUPABASE_URL, SUPABASE_ANON_KEY, token)) ??
+  (SUPABASE_URL !== FALLBACK_URL ? await readFrom(FALLBACK_URL, FALLBACK_KEY, token) : null);
 
 const STYLE = `
 :root{--cream:#FDFCF8;--charcoal:#1A1A1A;--forest:#3E5238;--lime:#D9FF00;
@@ -238,14 +255,9 @@ export default async function handler(req: Request): Promise<Response> {
     return notFound();
   }
 
-  let link: LinkPreview | null = null;
-  try {
-    link = await fetchLink(token);
-  } catch (error) {
-    console.warn('[share] lecture du lien impossible', String(error));
-    link = null;
-  }
-  if (!link) return notFound();
+  const found = await fetchLink(token);
+  if (!found) return notFound();
+  const { link } = found;
 
   const inviter = link.inviter || 'Quelqu’un';
   const isVerdict = link.kind === 'verdict';
@@ -337,7 +349,7 @@ export default async function handler(req: Request): Promise<Response> {
       <a class="btn ghost" href="/">Découvrir The Bitter</a>
     </div>`;
 
-  const state = JSON.stringify({ token, inviter, api: SUPABASE_URL, key: SUPABASE_ANON_KEY }).replace(/</g, '\\u003c');
+  const state = JSON.stringify({ token, inviter, api: found.base, key: found.key }).replace(/</g, '\\u003c');
 
   const html = `<!doctype html>
 <html lang="fr">
