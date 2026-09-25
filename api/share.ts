@@ -215,7 +215,9 @@ const notFound = () =>
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const token = url.searchParams.get('token') || '';
+  // Derrière la réécriture `/i/:token`, Vercel transmet l'adresse d'origine :
+  // le jeton est alors dans le chemin, pas dans la requête.
+  const token = url.searchParams.get('token') || url.pathname.match(/\/i\/([A-Za-z0-9_-]{22})\/?$/)?.[1] || '';
   if (!/^[A-Za-z0-9_-]{22}$/.test(token)) return notFound();
 
   let link: LinkPreview | null = null;
