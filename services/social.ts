@@ -343,6 +343,33 @@ export async function answerWatchInvite(sharedMovieId: string, userId: string, i
   return { data: true };
 }
 
+export interface CommonWish {
+  media_type: 'movie' | 'tv';
+  tmdb_id: number;
+  profile_id: string;
+  first_name: string;
+  avatar_url: string | null;
+}
+
+/** Clé d'un film dans la table des envies communes. */
+export const wishKey = (mediaType: string | undefined, tmdbId: number | undefined) => `${mediaType === 'tv' ? 'tv' : 'movie'}:${tmdbId}`;
+
+/** Pour chaque film de ma liste, les proches qui l'ont aussi dans la leur. */
+export async function getCommonWishes(): Promise<Map<string, CommonWish[]>> {
+  const map = new Map<string, CommonWish[]>();
+  if (!supabase) return map;
+  const { data, error } = await supabase.rpc('get_common_wishes');
+  if (error) {
+    console.warn('[Social] Envies communes illisibles', error);
+    return map;
+  }
+  for (const row of (data || []) as CommonWish[]) {
+    const key = wishKey(row.media_type, row.tmdb_id);
+    map.set(key, [...(map.get(key) ?? []), row]);
+  }
+  return map;
+}
+
 // ─── Boîte de notifications ─────────────────────────────────────────────────
 
 export async function getNotifications(limit = 40): Promise<SocialResult<SocialNotification[]>> {

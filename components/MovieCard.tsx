@@ -24,6 +24,8 @@ interface MovieCardProps {
    * noté. Absent sans compte : le geste passe par le serveur.
    */
   onShare?: (movie: Movie, kind: 'watch' | 'verdict') => void;
+  /** Proches qui ont aussi ce film dans leur liste « à voir ». */
+  alsoWants?: { profile_id: string; first_name: string }[];
 }
 
 const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
@@ -110,6 +112,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onRewatch,
     onToggleDisplayMode,
     onShare,
+    alsoWants,
   }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -383,6 +386,13 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 {movie.director}
               </span>
             </div>
+            {/* Envie commune : le premier pas vers « on y va ensemble ». */}
+            {isWatchlist && alsoWants && alsoWants.length > 0 && (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-lime-400 text-charcoal px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+                <Users size={11} />
+                {t('wish.also', { names: alsoWants.map((w) => w.first_name).join(', ') })}
+              </p>
+            )}
             {!isWatchlist && !isLegacyOnly && (
               <div
                 className={`mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${hasPoster ? 'bg-white/10 text-white/70' : 'bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400'}`}
@@ -555,7 +565,11 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                     className="col-span-2 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-lime-400 text-charcoal active:scale-95 transition-all shadow-lg shadow-lime-400/20"
                   >
                     {isWatchlist ? <Users size={14} /> : <MessageCircle size={14} />}
-                    {isWatchlist ? t('social.watchWith') : t('social.askVerdict')}
+                    {isWatchlist
+                      ? alsoWants?.length
+                        ? t('wish.watchWithNames', { names: alsoWants.map((w) => w.first_name).join(', ') })
+                        : t('social.watchWith')
+                      : t('social.askVerdict')}
                   </button>
                 )}
 

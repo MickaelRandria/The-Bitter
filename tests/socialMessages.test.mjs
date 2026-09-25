@@ -85,3 +85,18 @@ test('séance : la date se lit à l’heure de Paris, et la bonne phrase selon l
   assert.match(agreed.body, /dimanche 4 octobre, 16 h 00 avec Léa\. Pense à réserver ta place\./);
   assert.equal(socialMessage({ kind: 'plan_rate', actor: 'Léa', title: 'Dune' }).body, 'Note-le pour découvrir la note de Léa.');
 });
+
+test('le film que tu attends : envie commune, sortie et streaming', () => {
+  const { listNames } = load('../supabase/functions/notify/messages.ts');
+  assert.equal(listNames(['Léa', 'Tom', 'Sam']), 'Léa, Tom et Sam');
+  assert.equal(socialMessage({ kind: 'common_wish', actor: 'Léa', title: 'Dune' }).title, 'Léa veut aussi voir Dune');
+  assert.deepEqual(socialMessage({ kind: 'release_today', title: 'Dune', payload: { also: ['Léa', 'Tom'] } }), {
+    title: 'Dune sort aujourd’hui en salle',
+    body: 'Léa et Tom veulent aussi le voir. On y va ensemble ?',
+  });
+  assert.equal(socialMessage({ kind: 'release_today', title: 'Dune', payload: { also: [] } }).body, 'Il était dans ta liste. C’est le moment.');
+  assert.deepEqual(socialMessage({ kind: 'now_streaming', title: 'Alien', payload: { providers: ['Canal+'], also: ['Léa'] } }), {
+    title: 'Alien est maintenant sur Canal+',
+    body: 'Léa veut aussi le voir. Soirée ciné à la maison ?',
+  });
+});

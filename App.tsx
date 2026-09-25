@@ -118,6 +118,9 @@ import {
   getInvitePreview,
   claimInvite,
   loadSpaceAndMovie,
+  CommonWish,
+  getCommonWishes,
+  wishKey,
 } from './services/social';
 import { formatRating } from './supabase/functions/notify/messages.ts';
 import { ContextualTooltip } from './components/ContextualTooltip';
@@ -534,7 +537,14 @@ const App: React.FC = () => {
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
   /** Feuille « Voir avec… » / « Demander son avis ». */
-  const [shareSheet, setShareSheet] = useState<{ kind: ShareKind; movie: Movie | MovieFormData } | null>(null);
+  const [shareSheet, setShareSheet] = useState<{
+    kind: ShareKind;
+    movie: Movie | MovieFormData;
+    preselect?: string[];
+    openDates?: boolean;
+  } | null>(null);
+  /** Pour chaque film de ma liste, les proches qui l'attendent aussi. */
+  const [commonWishes, setCommonWishes] = useState<Map<string, CommonWish[]>>(new Map());
   /** La question posée juste après un ajout ou une note, sous forme de barre. */
   const [socialNudge, setSocialNudge] = useState<{ kind: ShareKind; movie: Movie } | null>(null);
   const dismissSocialNudge = useCallback(() => setSocialNudge(null), []);
@@ -1282,6 +1292,24 @@ const App: React.FC = () => {
       setSharedRatingToEdit(null);
       setIsModalOpen(true);
     }
+  };
+
+  /**
+   * « Voir avec… » ouvert par une envie commune, une sortie ou une arrivée en
+   * streaming : les proches qui attendent le film sont déjà cochés, et la date
+   * est la question suivante. L'envie est partagée, reste le quand.
+   */
+  const openWatchWith = async (tmdbId: number, mediaType: 'movie' | 'tv', preselect?: string[]) => {
+    const known = uniqueMovies.find(
+      (m) => m.tmdbId === tmdbId && m.seasonNumber == null && (m.mediaType ?? 'movie') === mediaType
+    );
+    const movie = known ?? (mediaType === 'movie' ? await getMovieDetailsForAdd(tmdbId) : null);
+    if (!movie) {
+      setToastMessage(t('social.failed'));
+      return;
+    }
+    const others = preselect ?? commonWishes.get(wishKey(mediaType, tmdbId))?.map((w) => w.profile_id) ?? [];
+    setShareSheet({ kind: 'watch', movie: known ?? { ...movie, mediaType }, preselect: others, openDates: true });
   };
 
   /** « Voir avec… » depuis les sorties : la fiche de la collection si le film y est, TMDB sinon. */
@@ -2091,6 +2119,26 @@ const App: React.FC = () => {
     return allMovies.filter((m) => (m.mediaType ?? 'movie') !== 'tv');
   }, [allMovies, mediaMode]);
 
+  // Envies communes : relues quand la liste « à voir » change, pas à chaque rendu.
+  const watchlistKey = useMemo(
+    () =>
+      uniqueMovies
+        .filter((m) => m.status === 'watchlist' && m.tmdbId && m.seasonNumber == null)
+        .map((m) => wishKey(m.mediaType, m.tmdbId))
+        .sort()
+        .join('|'),
+    [uniqueMovies]
+  );
+  useEffect(() => {
+    if (!session?.user?.id || bootstrapping) {
+      setCommonWishes(new Map());
+      return;
+    }
+    // Laisse la synchronisation écrire le film ajouté avant de relire.
+    const timer = setTimeout(() => getCommonWishes().then(setCommonWishes), 2500);
+    return () => clearTimeout(timer);
+  }, [session?.user?.id, bootstrapping, watchlistKey]);
+
   /**
    * Les films, quelle que soit la partie ouverte.
    *
@@ -2564,6 +2612,7 @@ const App: React.FC = () => {
                 openSignal={notifOpenSignal}
                 onOpenSpace={openSpaceFromNotification}
                 onToast={setToastMessage}
+                onWatchWith={openWatchWith}
               />
               {/* Le feedback vit dans les paramètres du profil : le header n'a de
                   place que pour les actions vraiment fréquentes. */}
@@ -3365,8 +3414,19 @@ const App: React.FC = () => {
                           onRewatch={(m) => setRewatchMovie(m)}
                           onToggleDisplayMode={handleToggleMovieDisplayMode}
                           onShare={
-                            session?.user?.id ? (m, kind) => setShareSheet({ kind, movie: m }) : undefined
+                            session?.user?.id
+                              ? (m, kind) => {
+                                  const also = commonWishes.get(wishKey(m.mediaType, m.tmdbId));
+                                  setShareSheet({
+                                    kind,
+                                    movie: m,
+                                    preselect: kind === 'watch' ? also?.map((w) => w.profile_id) : undefined,
+                                    openDates: kind === 'watch' && !!also?.length,
+                                  });
+                                }
+                              : undefined
                           }
+                          alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
                         />
                       ))}
                       {visibleMovies.length < filteredAndSortedMovies.length && (
@@ -3440,6 +3500,8 @@ const App: React.FC = () => {
           onClose={() => setShareSheet(null)}
           onDone={setToastMessage}
           favoriteCinema={activeProfile?.favoriteCinema}
+          preselect={shareSheet.preselect}
+          openDates={shareSheet.openDates}
         />
       )}
 

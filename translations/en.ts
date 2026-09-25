@@ -1533,4 +1533,7 @@ export const en: Record<string, string> = {
   'plan.pending': 'Screening suggested ({count} slot(s))',
   'plan.blindHint': 'You went together: rate it to see the others’ scores.',
   'plan.hiddenScore': 'Score hidden until you rate it',
+  'wish.also': '{names} too',
+  'wish.watchWithNames': 'Watch with {names}',
+  'wish.justwatch': 'Source: JustWatch',
 };

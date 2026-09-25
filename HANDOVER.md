@@ -372,6 +372,30 @@ Après « ça me dit », « on y va quand ? ». Migrations `20260926_seance_a_de
   barre oblique inverse. `tests/sharePage.test.mjs` rejoue le script servi.
 - **Piège** : dans une regex Postgres, une répétition est bornée à 255
   (`{1,300}` est refusé à la création de la fonction).
+- **Piège** : `api/share.ts` ne peut rien importer hors d'`api/` (build Vercel en
+  échec, « referencing unsupported modules ») : le formateur de dates y est
+  recopié, `tests/sharePage.test.mjs` vérifie qu'il écrit comme les notifications.
+
+### 5.3 Le film que tu attends est là (27 septembre 2026)
+
+Migration `20260927_film_attendu`, Edge Function `availability`.
+
+- **Envie commune** : trigger `user_movies_common_wish` sur `user_movies` (insertion
+  ou changement de statut) → `common_wish` pour les deux, une fois par paire et
+  par film (index unique : la resynchronisation complète au démarrage rejoue le
+  trigger sans rien dupliquer). `get_common_wishes()` alimente la pastille
+  « Léa aussi » des cartes et coche Léa d'avance dans « Voir avec… ».
+- **Sortie et streaming** : cron `bitter-film-attendu` (7 h UTC) → `availability`
+  → TMDB `release_dates` + `watch/providers` pour chaque film d'une liste.
+  Date de sortie **française** (type 3, sinon 2), jamais la date « principale ».
+  Streaming : abonnements en France seulement (`flatrate`). `tmdb_availability`
+  garde l'état de la veille ; le premier passage n'est qu'un état de départ.
+- **Crédit** : les données de streaming sont de JustWatch, cité dans la cloche.
+- **Limite connue** : aucun compte n'a ses plateformes enregistrées côté serveur
+  (`profiles.streaming_platforms` vide au 26/09) : la notification dit « sur
+  Netflix », pas « dans ton abonnement ».
+- `availability_candidates` et `record_availability` sont dans `public` (l'API
+  REST ne sert que ce schéma) mais exécutables par `service_role` seulement.
 
 ---
 

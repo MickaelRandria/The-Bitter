@@ -19,7 +19,10 @@ export type SocialKind =
   | 'plan_proposed'
   | 'plan_agreed'
   | 'plan_cancelled'
-  | 'plan_rate';
+  | 'plan_rate'
+  | 'common_wish'
+  | 'release_today'
+  | 'now_streaming';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -34,6 +37,13 @@ export interface PlanPayload {
   slots?: PlanSlot[];
   chosen_slot_id?: string | null;
   status?: string;
+  /** Film de la liste personnelle (envie commune, sortie, streaming). */
+  tmdb_id?: number;
+  media_type?: 'movie' | 'tv';
+  /** Nouvelles plateformes d'abonnement, pour `now_streaming`. */
+  providers?: string[];
+  /** Prénoms des proches qui attendent aussi le film. */
+  also?: string[];
 }
 
 export interface SocialMessageInput {
@@ -105,6 +115,13 @@ const chosenSlot = (payload?: PlanPayload | null): PlanSlot | null => {
   return slots.find((s) => s.id && s.id === payload?.chosen_slot_id) ?? (slots.length === 1 ? slots[0] : null);
 };
 
+/** « Léa », « Léa et Tom », « Léa, Tom et Sam ». */
+export const listNames = (names: string[]): string => {
+  const clean = names.map((n) => n.trim()).filter(Boolean);
+  if (clean.length <= 1) return clean[0] ?? '';
+  return `${clean.slice(0, -1).join(', ')} et ${clean[clean.length - 1]}`;
+};
+
 const name = (value: string | null | undefined, fallback: string) => {
   const trimmed = (value ?? '').trim();
   return trimmed || fallback;
@@ -170,6 +187,27 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
       return { title: `Séance annulée : ${title}`, body: chosen ? `${actor} a annulé ${chosen}.` : `${actor} a annulé la séance.` };
     case 'plan_rate':
       return { title: `Vous avez vu ${title} ?`, body: `Note-le pour découvrir la note de ${actor}.` };
+    case 'common_wish':
+      return { title: `${actor} veut aussi voir ${title}`, body: 'Vous l’avez tous les deux dans votre liste. On y va ensemble ?' };
+    case 'release_today': {
+      const also = input.payload?.also ?? [];
+      return {
+        title: `${title} sort aujourd’hui en salle`,
+        body: also.length
+          ? `${listNames(also)} ${also.length > 1 ? 'veulent' : 'veut'} aussi le voir. On y va ensemble ?`
+          : 'Il était dans ta liste. C’est le moment.',
+      };
+    }
+    case 'now_streaming': {
+      const also = input.payload?.also ?? [];
+      const providers = listNames(input.payload?.providers ?? []);
+      return {
+        title: providers ? `${title} est maintenant sur ${providers}` : `${title} est maintenant en streaming`,
+        body: also.length
+          ? `${listNames(also)} ${also.length > 1 ? 'veulent' : 'veut'} aussi le voir. Soirée ciné à la maison ?`
+          : 'Il était dans ta liste.',
+      };
+    }
     default:
       return { title: 'The Bitter', body: title };
   }
