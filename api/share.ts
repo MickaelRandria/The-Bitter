@@ -11,9 +11,43 @@
  * prénom de la personne qui invite et la fiche du film. Sa note n'arrive qu'après
  * que l'invité a donné la sienne, par `answer_share_link`, côté navigateur.
  */
-import { formatSlot } from '../supabase/functions/notify/messages.ts';
-
 export const config = { runtime: 'edge' };
+
+/**
+ * « samedi 3 octobre, 20 h 30 · UGC Talence », à l'heure de Paris.
+ *
+ * Copie de `formatWhen` / `formatSlot` de `supabase/functions/notify/messages.ts` :
+ * une fonction Vercel n'accepte pas d'importer un fichier .ts hors de son
+ * dossier, le build échoue. `tests/sharePage.test.mjs` vérifie que les deux
+ * versions écrivent toujours la même chose.
+ */
+export const formatWhen = (iso: string, now = new Date()): string => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const tz = 'Europe/Paris';
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat('fr-FR', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const hm = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' })
+    .format(date)
+    .replace(':', ' h ');
+  const tomorrow = new Date(now.getTime() + 86_400_000);
+  if (day(date) === day(now)) {
+    const hour = Number(
+      new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: 'numeric', hour12: false })
+        .formatToParts(date)
+        .find((part) => part.type === 'hour')?.value
+    );
+    return `${hour >= 18 ? 'ce soir' : 'aujourd’hui'}, ${hm}`;
+  }
+  if (day(date) === day(tomorrow)) return `demain, ${hm}`;
+  const label = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+  return `${label}, ${hm}`;
+};
+
+export const formatSlot = (slot: { starts_at: string; cinema_name?: string | null } | null | undefined, now = new Date()): string => {
+  if (!slot) return '';
+  return [formatWhen(slot.starts_at, now), slot.cinema_name].filter(Boolean).join(' · ');
+};
 
 // Valeurs publiques par nature : elles sont déjà dans le JavaScript de l'app. Les
 // variables d'environnement passent d'abord, nettoyées : un retour à la ligne

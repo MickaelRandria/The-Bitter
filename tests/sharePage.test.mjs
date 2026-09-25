@@ -18,3 +18,22 @@ test('le script envoyé par la page du lien est du JavaScript valide', () => {
   const served = eval('`' + match[1] + '`');
   assert.doesNotThrow(() => new Function(served));
 });
+
+test('la page du lien écrit les dates comme les notifications', async () => {
+  const ts = (await import('typescript')).default;
+  const load = (relative) => {
+    const compiled = ts.transpileModule(readFileSync(new URL(relative, import.meta.url), 'utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    const exports = {};
+    new Function('exports', 'require', 'process', compiled)(exports, () => ({}), { env: {} });
+    return exports;
+  };
+  const page = load('../api/share.ts');
+  const messages = load('../supabase/functions/notify/messages.ts');
+  const now = new Date('2026-09-26T08:00:00Z');
+  for (const iso of ['2026-09-26T18:30:00Z', '2026-09-26T12:00:00Z', '2026-09-27T18:30:00Z', '2026-10-03T18:30:00Z', '2026-12-31T23:15:00Z']) {
+    const slot = { starts_at: iso, cinema_name: 'UGC Talence' };
+    assert.equal(page.formatSlot(slot, now), messages.formatSlot(slot, now), iso);
+  }
+});
