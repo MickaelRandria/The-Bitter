@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, Check, Loader2, Send, Share2, Bell, Users } from 'lucide-react';
+import { X, Check, Loader2, Send, Share2, Bell, Users, CalendarClock, ChevronDown } from 'lucide-react';
+import PlanComposer from './PlanComposer';
+import { SlotDraft } from '../services/plans';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -20,7 +22,7 @@ import {
   isLikelyInstalledPwa,
   isPushSupported,
 } from '../services/pushNotifications';
-import { Movie, MovieFormData } from '../types';
+import { FavoriteCinema, Movie, MovieFormData } from '../types';
 
 interface Props {
   kind: ShareKind;
@@ -28,6 +30,8 @@ interface Props {
   onClose: () => void;
   /** Message de confirmation, affiché par l'app une fois la feuille refermée. */
   onDone?: (message: string) => void;
+  /** Pour proposer les vraies séances du film en même temps que l'invitation. */
+  favoriteCinema?: FavoriteCinema;
 }
 
 /**
@@ -40,7 +44,7 @@ interface Props {
  * « Quelqu'un d'autre » fabrique un lien pour qui n'a pas l'app : il part par le
  * partage du téléphone, dans la conversation de la personne qui invite.
  */
-const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone }) => {
+const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone, favoriteCinema }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose);
   const [companions, setCompanions] = useState<Companion[] | null>(null);
@@ -52,6 +56,9 @@ const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone }) => {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [pushState, setPushState] = useState<'idle' | 'busy' | 'on' | 'error'>('idle');
   const [pushError, setPushError] = useState<string | null>(null);
+  /** Séance jointe à l'invitation, facultative : « on se fait Dune samedi 20 h 30 ? » */
+  const [slots, setSlots] = useState<SlotDraft[]>([]);
+  const [datesOpen, setDatesOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -80,7 +87,7 @@ const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone }) => {
     if (!selected.length || sending) return;
     setSending(true);
     setError(null);
-    const result = await proposeToPeople(kind, asShareable(movie), selected);
+    const result = await proposeToPeople(kind, asShareable(movie), selected, slots);
     setSending(false);
     if (result.error || !result.data) {
       setError(result.error ?? t('social.failed'));
@@ -108,13 +115,13 @@ const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone }) => {
     if (linking) return;
     setLinking(true);
     setError(null);
-    const result = await createShareLink(kind, asShareable(movie));
+    const result = await createShareLink(kind, asShareable(movie), slots);
     if (result.error || !result.data) {
       setLinking(false);
       setError(result.error ?? t('social.failed'));
       return;
     }
-    const outcome = await shareLink(kind, movie.title, result.data.url);
+    const outcome = await shareLink(kind, movie.title, result.data.url, slots);
     setLinking(false);
     if (outcome === 'failed') {
       setError(t('social.linkCopyFailed', { url: result.data.url }));
@@ -288,6 +295,35 @@ const WatchWithSheet: React.FC<Props> = ({ kind, movie, onClose, onDone }) => {
                 <Users size={14} className="shrink-0 mt-0.5" />
                 {t('social.noCompanions')}
               </p>
+            )}
+
+            {/* La date se propose avec l'invitation, facultativement. Pour quelqu'un
+                sans l'app, c'est même la seule occasion : le lien ne le préviendra
+                pas d'une proposition faite plus tard. */}
+            {kind === 'watch' && (
+              <div className="rounded-2xl border border-stone-200 dark:border-white/10">
+                <button
+                  onClick={() => setDatesOpen((open) => !open)}
+                  aria-expanded={datesOpen}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
+                >
+                  <span className="flex items-center gap-2 text-sm font-bold text-charcoal dark:text-white">
+                    <CalendarClock size={15} />
+                    {slots.length ? t('plan.slotsChosen', { count: String(slots.length) }) : t('plan.addDates')}
+                  </span>
+                  <ChevronDown size={15} className={`text-stone-400 transition-transform ${datesOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {datesOpen && (
+                  <div className="px-4 pb-4">
+                    <PlanComposer
+                      titles={[movie.title]}
+                      favoriteCinema={movie.mediaType === 'tv' ? undefined : favoriteCinema}
+                      value={slots}
+                      onChange={setSlots}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             <button

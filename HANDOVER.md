@@ -342,6 +342,37 @@ espace.
 - **Purge** : cron `bitter-purge-liens-partage` ; liens et réponses sans compte
   supprimés 30 jours après expiration, notifications lues au bout de 180 jours.
 
+### 5.2 La séance à deux (26 septembre 2026)
+
+Après « ça me dit », « on y va quand ? ». Migrations `20260926_seance_a_deux`,
+`20260926_note_cachee_dans_la_notif`, `20260926_lien_reservation_invite`.
+
+- **Modèle** : `watch_plans` (une proposition, `participant_ids`) et
+  `watch_plan_slots` (un à trois créneaux). Une seule proposition ouverte par film
+  (la suivante la remplace) ; une séance calée et à venir ne se remplace pas sans
+  être annulée d'abord.
+- **Où naît une proposition** : avec l'invitation (`propose_to_people` et
+  `create_share_link` prennent `p_slots`), ou après un oui (`propose_plan`, depuis
+  le panneau « La séance » de l'onglet « À voir »).
+- **Calée** (`accept_plan_slot`, ou un créneau choisi sur la page du lien) : la
+  séance entre dans `cinema_screenings` de chacun, rappels J-2 / 30 min compris
+  (le trigger AFTER existant), note « Avec Léa », lien de réservation UGC si le
+  créneau vient de la vraie grille.
+- **Créneaux** (`PlanComposer`) : les vraies séances du cinéma favori quand il y
+  en a (UGC seulement), sinon saisie libre. Seuls 3 comptes avaient un cinéma
+  favori le 26/09 : la saisie libre est le cas courant, pas l'exception.
+- **Le lendemain matin** : cron `bitter-note-apres-seance` (8 h UTC) →
+  `plan_rate` pour chacun. Dans l'espace, tant que tu n'as pas noté un film vu
+  ensemble, les notes des autres sont floutées ; et la notification
+  `verdict_given` ne porte la note que si son destinataire a déjà noté.
+- **Piège** : deux clés étrangères relient `watch_plans` et `watch_plan_slots`
+  (`plan_id` et `chosen_slot_id`). Tout embed PostgREST doit nommer la sienne :
+  `watch_plan_slots!watch_plan_slots_plan_id_fkey(...)`, sinon erreur PGRST201.
+- **Piège** : le script de `api/share.ts` est un gabarit de texte : `\/` y perd sa
+  barre oblique inverse. `tests/sharePage.test.mjs` rejoue le script servi.
+- **Piège** : dans une regex Postgres, une répétition est bornée à 255
+  (`{1,300}` est refusé à la création de la fonction).
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code

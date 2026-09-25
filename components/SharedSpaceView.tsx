@@ -43,8 +43,11 @@ import {
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
+import PlanPanel from './PlanPanel';
+import { WatchPlan, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import { formatSlot } from '../supabase/functions/notify/messages.ts';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Movie } from '../types';
+import { FavoriteCinema, Movie } from '../types';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
 import { avatarSrc } from '../utils/avatar';
 import MemberProfileModal from './MemberProfileModal';
@@ -70,6 +73,12 @@ interface SharedSpaceViewProps {
   /** Collection personnelle, pour comparer ses verdicts a ceux d'un membre. */
   myMovies: Movie[];
   refreshTrigger?: number;
+  /** Cinéma favori, pour proposer les vraies séances d'un film. */
+  favoriteCinema?: FavoriteCinema;
+  /** Film à ouvrir d'emblée : celui d'une notification touchée. */
+  focusMovieId?: string | null;
+  onFocusHandled?: () => void;
+  onToast?: (message: string) => void;
 }
 
 type SpaceTab = 'feed' | 'watchlist' | 'members';
@@ -82,12 +91,19 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   onRateMovie,
   myMovies,
   refreshTrigger,
+  favoriteCinema,
+  focusMovieId,
+  onFocusHandled,
+  onToast,
 }) => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<SpaceTab>('feed');
   const [movies, setMovies] = useState<SharedMovie[]>([]);
   const [members, setMembers] = useState<SpaceMember[]>([]);
   const [votes, setVotes] = useState<MovieVote[]>([]);
+  /** Séances proposées ou calées, par film. */
+  const [plans, setPlans] = useState<WatchPlan[]>([]);
+  const reloadPlans = () => getSpacePlans(initialSpace.id).then(setPlans);
   // Notes IMDb des films de l'espace. Les saisons, qu'IMDb ne note pas, gardent TMDB.
   const imdbRatings = useImdbRatings(
     movies
@@ -181,10 +197,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     };
 
     const unsubscribe = subscribeToSpace(space.id, scheduleReload, scheduleReload);
+    const unsubscribePlans = subscribeToPlans(space.id, () => {
+      reloadPlans();
+    });
 
     return () => {
       if (pending) clearTimeout(pending);
       unsubscribe();
+      unsubscribePlans();
     };
   }, [space.id, resumeTick]);
 
@@ -222,6 +242,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       setMembers(uniqueMembers);
       setVotes(votes.data);
       setAllRatings(ratings.data);
+      reloadPlans();
     } catch (e) {
       console.warn('[Espaces] Chargement interrompu :', e);
       setLoadError(t('shared.loadFailedTitle'));
@@ -554,6 +575,30 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   );
 
   const feedMovies = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
+
+  /** Prénoms des membres, pour dire qui vient à la séance. */
+  const memberNames = useMemo(
+    () => Object.fromEntries(members.map((m) => [m.profile_id, m.profile?.first_name || ''])),
+    [members]
+  );
+
+  /**
+   * Notification touchée : on ouvre l'espace sur SON film, dans le bon onglet,
+   * déplié. Sinon la personne arrive sur un espace et doit chercher de quoi il
+   * s'agissait.
+   */
+  useEffect(() => {
+    if (!focusMovieId || movies.length === 0) return;
+    const target = movies.find((m) => m.id === focusMovieId);
+    onFocusHandled?.();
+    if (!target) return;
+    setActiveTab(target.status === 'watched' ? 'feed' : 'watchlist');
+    setExpandedMovie(target.id);
+    loadRatings(target.id);
+    window.setTimeout(() => {
+      document.getElementById(`space-movie-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 250);
+  }, [focusMovieId, movies]);
   const watchlistMovies = useMemo(() => {
     const list = movies.filter((m) => m.status === 'watchlist');
     return list.sort((a, b) => {
@@ -957,6 +1002,17 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
               const avgRating = calculateAverageRating(activeRatings);
               const myRating = ratings.find((r) => r.profile_id === currentUserId);
+              const plan = currentPlanFor(plans, movie.id);
+              const planSlot = chosenSlotOf(plan);
+              /**
+               * Vous y étiez ensemble et tu n'as pas encore noté : les notes des
+               * autres restent cachées. C'est ce qui donne envie de noter, et ce
+               * qui garde ta note à toi.
+               */
+              const blind =
+                !myRating &&
+                plan?.status === 'agreed' &&
+                plan.participant_ids.includes(currentUserId);
               const criteriaAvg = calculateCriteriaAverages(activeRatings);
               const isConsensus = members.length > 1 && activeRatings.length >= members.length;
               const participationRate = members.length
@@ -975,6 +1031,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               return (
                 <div
                   key={movie.id}
+                  id={`space-movie-${movie.id}`}
                   className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[2.5rem] overflow-hidden transition-all shadow-soft dark:shadow-black/20 animate-[fadeIn_0.3s_ease-out]"
                 >
                   <div
@@ -1005,6 +1062,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                         <p className="text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-wide mb-3">
                           {movie.director} • {movie.year}
                         </p>
+                        {activeTab === 'watchlist' && plan && (
+                          <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-forest/10 dark:bg-lime-400/10 px-2.5 py-1 text-[10px] font-black text-forest dark:text-lime-400">
+                            <Ticket size={11} />
+                            {plan.status === 'agreed' && planSlot
+                              ? formatSlot(planSlot)
+                              : t('plan.pending', { count: String(plan.slots.length) })}
+                          </p>
+                        )}
 
                         {activeTab === 'feed' ? (
                           <div className="flex flex-col gap-2">
@@ -1018,7 +1083,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 </span>
                               </div>
                               <div className="w-px h-3 bg-stone-200 dark:bg-stone-800" />
-                              {avgRating ? (
+                              {avgRating && !blind ? (
                                 <div className="flex items-center gap-1.5 text-forest dark:text-lime-500">
                                   <Star size={12} fill="currentColor" />
                                   <span className="text-xs font-black">{avgRating}</span>
@@ -1118,7 +1183,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             </div>
                           )}
 
-                          {criteriaAvg && (
+                          {criteriaAvg && !blind && (
                             <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10 shadow-sm transition-colors">
                               <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
                                 <BarChart3 size={16} />
@@ -1164,11 +1229,17 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             )}
                           </div>
 
+                          {blind && ratings.length > 0 && (
+                            <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
+                              {t('plan.blindHint')}
+                            </p>
+                          )}
                           {ratings.length > 0 ? (
                             <div className="grid gap-3">
                               {ratings.map((rating) => {
                                 const avg = ratingValue(rating).toFixed(1);
                                 const isMe = rating.profile_id === currentUserId;
+                                const hidden = blind && !isMe;
                                 return (
                                   <div
                                     key={rating.id}
@@ -1205,13 +1276,16 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                             <Flag size={12} />
                                           </button>
                                         )}
-                                        <div className="flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm">
+                                        <div
+                                          className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm ${hidden ? 'blur-[5px] select-none' : ''}`}
+                                          aria-label={hidden ? t('plan.hiddenScore') : undefined}
+                                        >
                                           <Star size={12} fill="currentColor" />
-                                          <span className="text-xs font-black">{avg}</span>
+                                          <span className="text-xs font-black">{hidden ? '?.?' : avg}</span>
                                         </div>
                                       </div>
                                     </div>
-                                    {rating.review && blocked.has(rating.profile_id) ? (
+                                    {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
                                       <p className="text-[11px] text-stone-400 dark:text-stone-500 italic">
                                         {t('moderation.hiddenReview')}
                                       </p>
@@ -1250,6 +1324,19 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       ) : (
                         <>
                           <div className="grid gap-4">
+                            <PlanPanel
+                              plan={plan}
+                              sharedMovieId={movie.id}
+                              title={movie.title}
+                              currentUserId={currentUserId}
+                              names={memberNames}
+                              favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
+                              onChanged={() => {
+                                reloadPlans();
+                                loadData(true);
+                              }}
+                              onToast={onToast}
+                            />
                             {/* Avant de demander un avis, dire à qui le film
                                 s'adresse. Un titre posé sans un mot ne dit pas
                                 s'il nous concerne, et dans le doute on passe. */}

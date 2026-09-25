@@ -9,7 +9,9 @@
 import { supabase, SharedSpace, SharedMovie, getSpaceMovies } from './supabase';
 import { Movie, MovieFormData } from '../types';
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
-import type { SocialKind } from '../supabase/functions/notify/messages.ts';
+import type { SocialKind, PlanPayload } from '../supabase/functions/notify/messages.ts';
+import { formatSlot } from '../supabase/functions/notify/messages.ts';
+import type { SlotDraft } from './plans';
 
 export type ShareKind = 'watch' | 'verdict';
 
@@ -31,6 +33,8 @@ export interface SocialNotification {
   poster_url: string | null;
   guest_name: string | null;
   rating: number | string | null;
+  plan_id?: string | null;
+  payload?: PlanPayload | null;
   created_at: string;
   read_at: string | null;
   actor?: { first_name: string | null; avatar_url: string | null } | null;
@@ -147,7 +151,8 @@ export async function getCompanions(): Promise<SocialResult<Companion[]>> {
 export async function proposeToPeople(
   kind: ShareKind,
   movie: ShareableMovie,
-  invitees: string[]
+  invitees: string[],
+  slots: SlotDraft[] = []
 ): Promise<SocialResult<{ space_id: string; shared_movie_id: string; sent: number }>> {
   if (!supabase) return { data: null, error: 'Sauvegarde en ligne indisponible' };
   const { data, error } = await supabase.rpc('propose_to_people', {
@@ -155,6 +160,7 @@ export async function proposeToPeople(
     p_movie: moviePayload(movie),
     p_invitees: invitees,
     p_rating: kind === 'verdict' ? ratingPayload(movie) : null,
+    p_slots: kind === 'watch' && slots.length ? slots : null,
   });
   if (error) return { data: null, error: readError(error) };
   return { data };
@@ -172,7 +178,8 @@ const linkOrigin = () => {
 
 export async function createShareLink(
   kind: ShareKind,
-  movie: ShareableMovie
+  movie: ShareableMovie,
+  slots: SlotDraft[] = []
 ): Promise<SocialResult<{ url: string; token: string }>> {
   if (!supabase) return { data: null, error: 'Sauvegarde en ligne indisponible' };
   const backdrop = movie.tmdbId ? await fetchBackdrop(movie.tmdbId, movie.mediaType === 'tv' ? 'tv' : 'movie') : null;
@@ -180,6 +187,7 @@ export async function createShareLink(
     p_kind: kind,
     p_movie: moviePayload(movie, backdrop),
     p_rating: kind === 'verdict' ? ratingPayload(movie) : null,
+    p_slots: kind === 'watch' && slots.length ? slots : null,
   });
   if (error || typeof data !== 'string') return { data: null, error: readError(error) };
   return { data: { token: data, url: `${linkOrigin()}/i/${data}` } };
@@ -190,17 +198,24 @@ export async function createShareLink(
  * il est écrit à la première personne et ne parle pas de l'app. L'aperçu du
  * lien fait le reste.
  */
-export const shareText = (kind: ShareKind, title: string): string =>
-  kind === 'verdict'
-    ? `T’as vu ${title} ? Je l’ai noté, devine combien 👀 Donne ta note pour voir la mienne 👉`
-    : `On se fait ${title} ensemble ? Dis-moi si ça te dit 👉`;
+export const shareText = (kind: ShareKind, title: string, slots: SlotDraft[] = []): string => {
+  if (kind === 'verdict') return `T’as vu ${title} ? Je l’ai noté, devine combien 👀 Donne ta note pour voir la mienne 👉`;
+  if (slots.length === 1) return `On se fait ${title} ${formatSlot(slots[0])} ? Dis-moi si ça te dit 👉`;
+  if (slots.length > 1) return `On se fait ${title} ? J’ai proposé ${slots.length} créneaux, choisis celui qui te va 👉`;
+  return `On se fait ${title} ensemble ? Dis-moi si ça te dit 👉`;
+};
 
 /**
  * Ouvre le partage du téléphone, ou copie le message à défaut.
  * Rend 'shared', 'copied', ou 'cancelled' quand la personne a refermé le partage.
  */
-export async function shareLink(kind: ShareKind, title: string, url: string): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
-  const text = `${shareText(kind, title)} ${url}`;
+export async function shareLink(
+  kind: ShareKind,
+  title: string,
+  url: string,
+  slots: SlotDraft[] = []
+): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
+  const text = `${shareText(kind, title, slots)} ${url}`;
   if (typeof navigator.share === 'function') {
     try {
       // Tout dans `text` : plusieurs messageries ignorent le champ `url` quand un

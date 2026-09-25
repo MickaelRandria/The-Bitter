@@ -138,6 +138,10 @@ export interface CinemaScreening {
   notes?: string;
   status: CinemaScreeningStatus;
   reminderOffsetsMinutes: number[];
+  /** Séance calée à plusieurs (« voir avec… ») : la proposition d'origine. */
+  planId?: string;
+  /** Lien de réservation UGC, quand la séance vient de la vraie grille. */
+  bookingUrl?: string;
   createdAt: number;
   updatedAt: number;
 }

@@ -15,7 +15,8 @@ import {
   markNotificationsRead,
   subscribeToNotifications,
 } from '../services/social';
-import { socialMessage } from '../supabase/functions/notify/messages.ts';
+import { socialMessage, formatSlot } from '../supabase/functions/notify/messages.ts';
+import { acceptSlot } from '../services/plans';
 import { enablePushNotifications, hasPushSubscription, isPushSupported } from '../services/pushNotifications';
 import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
@@ -149,6 +150,23 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
     onToast?.(interested ? t('social.answeredYes', { name: n.actor?.first_name ?? '' }) : t('social.answeredNo'));
   };
 
+  /** Un créneau choisi depuis la cloche : oui au film et séance calée, d'un geste. */
+  const pickSlot = async (n: SocialNotification, slotId: string) => {
+    if (answering) return;
+    setAnswering(n.id);
+    const result = await acceptSlot(slotId);
+    setAnswering(null);
+    if (!result.ok) {
+      onToast?.(result.error ?? t('social.failed'));
+      haptics.error();
+      return;
+    }
+    haptics.success();
+    trackEvent('social', 'plan_accepted', 'bell');
+    markSocialRead(n);
+    onToast?.(t('plan.acceptedWith', { name: n.actor?.first_name ?? '' }));
+  };
+
   const openNotification = (n: SocialNotification, rate = false) => {
     markSocialRead(n);
     if (n.space_id && onOpenSpace) {
@@ -220,6 +238,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
             ) : (
               <>
                 {social.map((n) => {
+                  // Un film dont la séance est déjà proposée ou calée : plus besoin de « on y va quand ? ».
+                  const planned = social.some(
+                    (x) =>
+                      x.shared_movie_id === n.shared_movie_id &&
+                      ['plan_proposed', 'plan_agreed'].includes(x.kind)
+                  );
                   const message = socialMessage({
                     kind: n.kind,
                     actor: n.actor?.first_name,
@@ -227,17 +251,27 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
                     title: n.title,
                     rating: n.rating,
                     linkKind: n.kind === 'link_answered' ? (n.rating != null ? 'verdict' : 'watch') : null,
+                    payload: n.payload,
                   });
                   const unread = !n.read_at;
                   const avatar = avatarSrc(n.actor?.avatar_url);
                   const pendingInvite = unread && n.kind === 'watch_invite' && !!n.shared_movie_id;
-                  const pendingVerdict = unread && n.kind === 'verdict_request' && !!n.space_id;
+                  const pendingVerdict = unread && (n.kind === 'verdict_request' || n.kind === 'plan_rate') && !!n.space_id;
+                  const pendingPlan = unread && n.kind === 'plan_proposed' && !!n.space_id;
+                  // Créneaux encore à venir d'une invitation ou d'une proposition.
+                  const openSlots = (n.payload?.slots ?? []).filter(
+                    (slot) => slot.id && new Date(slot.starts_at).getTime() > Date.now()
+                  );
+                  const offersSlots = (pendingInvite || pendingPlan) && openSlots.length > 0;
+                  // Quelqu'un vient de dire oui : c'est le moment de proposer une date.
+                  const canPlan = n.kind === 'watch_accepted' && !!n.space_id && !!n.shared_movie_id && !planned;
+                  const interactive = pendingInvite || pendingVerdict || pendingPlan;
                   return (
                     <div
                       key={n.id}
-                      onClick={() => !pendingInvite && !pendingVerdict && openNotification(n)}
+                      onClick={() => !interactive && openNotification(n)}
                       className={`flex gap-3 px-4 py-3 transition-colors ${
-                        pendingInvite || pendingVerdict ? '' : 'cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800'
+                        interactive ? '' : 'cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800'
                       } ${unread ? 'bg-lime-50 dark:bg-stone-800/60' : ''}`}
                     >
                       <div className="relative shrink-0">
@@ -264,7 +298,48 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
                         <p className="text-xs text-stone-500 dark:text-stone-500 mt-0.5 leading-snug">
                           {message.body} · {ago(n.created_at)}
                         </p>
-                        {pendingInvite && (
+                        {offersSlots && (
+                          <div className="mt-2.5 space-y-1.5">
+                            {openSlots.map((slot) => (
+                              <button
+                                key={slot.id}
+                                onClick={() => pickSlot(n, slot.id!)}
+                                disabled={answering === n.id}
+                                className="w-full flex items-center justify-between gap-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 px-3 py-2 text-left disabled:opacity-50"
+                              >
+                                <span className="text-xs font-bold text-stone-800 dark:text-stone-100 truncate">{formatSlot(slot)}</span>
+                                <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-forest dark:text-lime-400">
+                                  {t('plan.works')}
+                                </span>
+                              </button>
+                            ))}
+                            <div className="flex gap-3 pt-0.5 text-[11px] font-bold">
+                              <button
+                                onClick={() => openNotification(n)}
+                                className="text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-white"
+                              >
+                                {t('plan.counter')}
+                              </button>
+                              {pendingInvite && (
+                                <button onClick={() => answer(n, false)} className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200">
+                                  {t('social.no')}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {canPlan && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openNotification(n);
+                            }}
+                            className="mt-2 text-[11px] font-black uppercase tracking-wider text-forest dark:text-lime-400"
+                          >
+                            {t('plan.when')}
+                          </button>
+                        )}
+                        {pendingInvite && !offersSlots && (
                           <div className="flex gap-2 mt-2.5">
                             <button
                               onClick={() => answer(n, true)}
