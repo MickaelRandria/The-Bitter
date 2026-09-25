@@ -70,6 +70,8 @@ interface DiscoverViewProps {
   spaces?: SharedSpace[];
   suggestedTmdbIds?: Set<number>;
   onProposeToSpace?: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
+  /** « Voir avec… » depuis les sorties en salle. */
+  onWatchWith?: (tmdbId: number) => void;
   /**
    * La partie active de l'application. Cet écran garde son propre sélecteur —
    * on explore volontiers des séries depuis la partie Films — mais il s'ouvre
@@ -140,6 +142,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   spaces = [],
   suggestedTmdbIds,
   onProposeToSpace,
+  onWatchWith,
   initialMediaType = 'movie',
 }) => {
   const { t, language } = useLanguage();
@@ -436,6 +439,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           onProposeToSpace={async (tmdbId, space) =>
             onProposeToSpace ? onProposeToSpace(tmdbId, space) : false
           }
+          onWatchWith={onWatchWith}
         />
       ) : (
       <>

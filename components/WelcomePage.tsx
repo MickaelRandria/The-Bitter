@@ -39,6 +39,12 @@ interface WelcomePageProps {
   onDeleteProfile: (profileId: string) => void;
   /** Ouvre la reconnexion à un compte existant, pour un appareil neuf. */
   onOpenAccountSync?: () => void;
+  /**
+   * Arrivée par un lien d'invitation : on dit tout de suite qui attend, et pour
+   * quel film. Sans ça, la personne tombe sur un accueil générique et ne sait
+   * plus pourquoi elle est là.
+   */
+  invite?: { inviter: string; title: string; posterUrl?: string | null; kind: 'watch' | 'verdict' } | null;
 }
 
 const PLATFORMS = [
@@ -66,6 +72,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   onCreateProfile,
   onDeleteProfile,
   onOpenAccountSync,
+  invite,
 }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState<'landing' | 'select' | 'create'>('landing');
@@ -171,6 +178,22 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl mx-auto">
+        {invite && step !== 'select' && (
+          <div className="w-full max-w-sm sm:max-w-md mb-8 mt-16 flex items-center gap-3 rounded-[1.75rem] bg-lime-400 text-charcoal p-3 pr-5 shadow-xl shadow-lime-400/20 animate-[slideUp_0.5s_ease-out]">
+            {invite.posterUrl && (
+              <img src={invite.posterUrl} alt="" className="w-11 h-16 rounded-xl object-cover shrink-0" />
+            )}
+            <div className="min-w-0 text-left">
+              <p className="text-sm font-black leading-tight">
+                {invite.kind === 'verdict'
+                  ? t('social.inviteBannerVerdict', { name: invite.inviter })
+                  : t('social.inviteBannerWatch', { name: invite.inviter })}
+              </p>
+              <p className="text-xs font-bold opacity-70 truncate">{invite.title}</p>
+              <p className="text-[11px] font-medium opacity-70 mt-0.5">{t('social.inviteBannerHint')}</p>
+            </div>
+          </div>
+        )}
         {step === 'landing' && (
           <div className="text-center animate-[slideUp_0.6s_ease-out] w-full flex flex-col items-center">
             <div className="mb-12 relative inline-block group">

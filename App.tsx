@@ -38,7 +38,7 @@
   Trash2,
   Filter,
 } from 'lucide-react';
-import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef, useCallback } from 'react';
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import {
@@ -96,7 +96,7 @@ import {
   VibeAxis,
 } from './utils/tonightPick';
 import MoodPicker from './components/MoodPicker';
-import { initAnalytics, stopAnalytics } from './utils/analytics';
+import { initAnalytics, stopAnalytics, trackEvent } from './utils/analytics';
 import { readConsent, saveConsent } from './utils/consent';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
@@ -104,6 +104,22 @@ import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
 import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
 import NotificationCenter from './components/NotificationCenter';
+import WatchWithSheet from './components/WatchWithSheet';
+import SocialNudge from './components/SocialNudge';
+import {
+  ShareKind,
+  InvitePreview,
+  canShare,
+  hasRating,
+  isShareToken,
+  savePendingInvite,
+  readPendingInvite,
+  clearPendingInvite,
+  getInvitePreview,
+  claimInvite,
+  loadSpaceAndMovie,
+} from './services/social';
+import { formatRating } from './supabase/functions/notify/messages.ts';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
@@ -517,6 +533,18 @@ const App: React.FC = () => {
   /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
+  /** Feuille « Voir avec… » / « Demander son avis ». */
+  const [shareSheet, setShareSheet] = useState<{ kind: ShareKind; movie: Movie | MovieFormData } | null>(null);
+  /** La question posée juste après un ajout ou une note, sous forme de barre. */
+  const [socialNudge, setSocialNudge] = useState<{ kind: ShareKind; movie: Movie } | null>(null);
+  const dismissSocialNudge = useCallback(() => setSocialNudge(null), []);
+  /** Incrémenté pour ouvrir la cloche : notification push touchée. */
+  const [notifOpenSignal, setNotifOpenSignal] = useState(0);
+  const [pendingNotifOpen, setPendingNotifOpen] = useState(false);
+  /** Lien d'invitation reçu : qui attend, pour quel film. */
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+  const claimingRef = useRef(false);
+  const inviteSyncPromptedRef = useRef(false);
   const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
   /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
   /**
@@ -1233,6 +1261,163 @@ const App: React.FC = () => {
     haptics.success();
   };
 
+  /**
+   * Ouvre un espace, et au besoin la notation d'un de ses films : depuis une
+   * notification, ou juste après avoir rattaché un lien d'invitation.
+   */
+  const openSpaceFromNotification = async (spaceId: string, sharedMovieId: string | null, rate: boolean) => {
+    const loaded = await loadSpaceAndMovie(spaceId, sharedMovieId);
+    if (!loaded) {
+      setToastMessage(t('social.spaceGone'));
+      return;
+    }
+    setActiveSharedSpace(loaded.space);
+    setViewMode('SharedSpace');
+    setSharedSpaceRefreshTrigger((n) => n + 1);
+    if (rate && loaded.movie) {
+      setSharedMovieToRate(loaded.movie);
+      setSharedRatingToEdit(null);
+      setIsModalOpen(true);
+    }
+  };
+
+  /** « Voir avec… » depuis les sorties : la fiche de la collection si le film y est, TMDB sinon. */
+  const handleWatchWithTmdb = async (tmdbId: number) => {
+    const known = uniqueMovies.find(
+      (m) => m.tmdbId === tmdbId && m.seasonNumber == null && (m.mediaType ?? 'movie') === 'movie'
+    );
+    if (known) {
+      setShareSheet({ kind: 'watch', movie: known });
+      return;
+    }
+    const details = await getMovieDetailsForAdd(tmdbId);
+    if (!details) {
+      setToastMessage(t('social.failed'));
+      return;
+    }
+    setShareSheet({ kind: 'watch', movie: { ...details, mediaType: 'movie' } });
+  };
+
+  /**
+   * Liens entrants : `?invite=` (lien d'invitation), `?notif=` (notification
+   * touchée), `?screening=` (rappel de séance). Le service worker relaie aussi
+   * ceux d'une notification touchée alors que l'app était déjà ouverte.
+   */
+  const handleIncomingUrl = useCallback((href: string) => {
+    let url: URL;
+    try {
+      url = new URL(href, window.location.origin);
+    } catch {
+      return;
+    }
+    const invite = url.searchParams.get('invite');
+    if (isShareToken(invite)) {
+      savePendingInvite(invite);
+      getInvitePreview(invite).then((preview) => preview && setInvitePreview(preview));
+    }
+    if (url.searchParams.get('notif')) setPendingNotifOpen(true);
+    if (url.searchParams.get('screening')) setViewMode('Calendar');
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const incoming = ['invite', 'notif', 'screening'].filter((key) => params.has(key));
+    const hadInvite = params.has('invite');
+    if (incoming.length) {
+      handleIncomingUrl(window.location.href);
+      // Retirés de l'adresse : un rechargement ne doit pas rejouer l'action.
+      incoming.forEach((key) => params.delete(key));
+      const query = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }
+    if (!hadInvite) {
+      const pending = readPendingInvite();
+      if (pending) getInvitePreview(pending.token).then((preview) => preview && setInvitePreview(preview));
+    }
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'open' && typeof event.data.url === 'string') handleIncomingUrl(event.data.url);
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [handleIncomingUrl]);
+
+  // Notification touchée : on ouvre la cloche, une fois l'app prête à l'afficher.
+  useEffect(() => {
+    if (!pendingNotifOpen || !session?.user?.id || !activeProfileId || bootstrapping) return;
+    setPendingNotifOpen(false);
+    setActiveSharedSpace(null);
+    setViewMode('Feed');
+    setNotifOpenSignal((n) => n + 1);
+  }, [pendingNotifOpen, session?.user?.id, activeProfileId, bootstrapping]);
+
+  /**
+   * Lien d'invitation en attente et compte connecté : on le rattache.
+   *
+   * Le prénom part d'abord au serveur : l'espace à deux est nommé d'après ses
+   * membres, et un compte tout juste créé s'appelle encore « Utilisateur ».
+   */
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || bootstrapping || !activeProfile || claimingRef.current || !supabase) return;
+    const pending = readPendingInvite();
+    if (!pending) return;
+    claimingRef.current = true;
+    const client = supabase;
+    (async () => {
+      try {
+        const { data: remote } = await client.from('profiles').select('*').eq('id', userId).maybeSingle();
+        if (remote) await syncProfileFieldsToSupabase(userId, activeProfile, remote);
+        const preview = invitePreview ?? (await getInvitePreview(pending.token));
+        const result = await claimInvite(pending);
+        if (result.error || !result.data) {
+          // Lien mort : inutile de réessayer à chaque lancement. Coupure réseau : on garde.
+          if (!/connexion/i.test(result.error ?? '')) clearPendingInvite();
+          setToastMessage(result.error ?? t('social.failed'));
+          return;
+        }
+        clearPendingInvite();
+        setInvitePreview(null);
+        const claim = result.data;
+        if (claim.own) {
+          setToastMessage(t('social.ownLink'));
+          return;
+        }
+        trackEvent('social', 'invite_claimed', claim.kind);
+        if (claim.space_id) {
+          await openSpaceFromNotification(claim.space_id, claim.shared_movie_id ?? null, claim.kind === 'verdict');
+        }
+        setToastMessage(
+          claim.kind === 'verdict' && claim.guest_rating != null
+            ? t('social.claimedVerdict', { rating: formatRating(claim.guest_rating) ?? '' })
+            : t('social.claimedWatch', { name: preview?.inviter ?? '' })
+        );
+      } finally {
+        claimingRef.current = false;
+      }
+    })();
+  }, [session?.user?.id, bootstrapping, activeProfile?.id]);
+
+  // Lien reçu sans compte : la création de compte est l'étape suivante, on l'ouvre.
+  useEffect(() => {
+    if (session?.user?.id || bootstrapping || !activeProfileId || showWelcome) return;
+    if (inviteSyncPromptedRef.current || !invitePreview || invitePreview.expired) return;
+    inviteSyncPromptedRef.current = true;
+    setShowAccountSync(true);
+  }, [session?.user?.id, bootstrapping, activeProfileId, showWelcome, invitePreview]);
+
+  const inviteIntro =
+    invitePreview && !invitePreview.expired && !session?.user?.email
+      ? {
+          title:
+            invitePreview.kind === 'verdict'
+              ? t('social.inviteBannerVerdict', { name: invitePreview.inviter })
+              : t('social.inviteBannerWatch', { name: invitePreview.inviter }),
+          body: t('social.inviteSyncBody', { title: invitePreview.title }),
+          posterUrl: invitePreview.poster_url,
+        }
+      : null;
+
   const handleSaveMovie = (data: MovieFormData, viewingContext?: ViewingContext) => {
     if (!activeProfileId) return;
     const hasRatings =
@@ -1325,15 +1510,37 @@ const App: React.FC = () => {
         return { ...p, movies: updatedMovies, ...(newRole ? { role: newRole } : {}) };
       })
     );
-    setToastMessage(
-      newRole
-        ? t('archetype.evolved', { title: newRole })
-        : editingMovie
-          ? t('feed.movieEdited')
-          : data.status === 'watchlist'
-            ? t('feed.addedToWatchlist')
-            : t('feed.movieAdded')
-    );
+    /**
+     * Juste après le geste, la question qui va avec : « le voir avec quelqu'un ? »
+     * pour un ajout à la liste, « demander son avis ? » pour une première note.
+     * Pas dans un espace (on y est déjà à plusieurs), pas pour une saison.
+     */
+    const previous = editingMovie ? activeProfile?.movies.find((m) => m.id === editingMovie.id) : undefined;
+    const firstVerdict =
+      finalMovie.status === 'watched' &&
+      hasRating(finalMovie) &&
+      !(previous && previous.status === 'watched' && hasRating(previous));
+    const nudgeKind: ShareKind | null =
+      !newRole && session?.user?.id && viewMode !== 'SharedSpace' && canShare(finalMovie)
+        ? !editingMovie && finalMovie.status === 'watchlist'
+          ? 'watch'
+          : firstVerdict
+            ? 'verdict'
+            : null
+        : null;
+    if (nudgeKind) {
+      setSocialNudge({ kind: nudgeKind, movie: finalMovie });
+    } else {
+      setToastMessage(
+        newRole
+          ? t('archetype.evolved', { title: newRole })
+          : editingMovie
+            ? t('feed.movieEdited')
+            : data.status === 'watchlist'
+              ? t('feed.addedToWatchlist')
+              : t('feed.movieAdded')
+      );
+    }
     setEditingMovie(null);
     setSeasonDraft(null);
     setTmdbIdToLoad(null);
@@ -2212,6 +2419,16 @@ const App: React.FC = () => {
     return (
       <div className="relative min-h-screen">
         <WelcomePage
+          invite={
+            invitePreview && !invitePreview.expired
+              ? {
+                  inviter: invitePreview.inviter,
+                  title: invitePreview.title,
+                  posterUrl: invitePreview.poster_url,
+                  kind: invitePreview.kind,
+                }
+              : null
+          }
           existingProfiles={profiles}
           onSelectProfile={(id) => {
             setChoosingProfile(false);
@@ -2238,7 +2455,9 @@ const App: React.FC = () => {
             setActiveProfileId(newP.id);
             setShowWelcome(false);
             // Uniquement à la création : sélectionner un profil existant ne propose rien.
-            setPendingTour('main');
+            // Arrivé par un lien d'invitation, l'étape suivante est le compte : le
+            // tuto passerait devant et ferait perdre le fil.
+            if (!readPendingInvite()) setPendingTour('main');
           }}
           onOpenAccountSync={() => setShowAccountSync(true)}
           onDeleteProfile={(id) => {
@@ -2281,6 +2500,7 @@ const App: React.FC = () => {
         <Suspense fallback={null}>
           {showAccountSync && (
             <AccountSyncModal
+              intro={inviteIntro}
               accountEmail={session?.user?.email ?? null}
               accountId={session?.user?.id ?? null}
               isAnonymous={!!session?.user && !session.user.email}
@@ -2335,7 +2555,13 @@ const App: React.FC = () => {
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Les notifications suivent la partie ouverte : leurs libellés
                   parlent de films, et une série n'a rien à y faire. */}
-              <NotificationCenter movies={uniqueMovies} />
+              <NotificationCenter
+                movies={uniqueMovies}
+                userId={session?.user?.id ?? null}
+                openSignal={notifOpenSignal}
+                onOpenSpace={openSpaceFromNotification}
+                onToast={setToastMessage}
+              />
               {/* Le feedback vit dans les paramètres du profil : le header n'a de
                   place que pour les actions vraiment fréquentes. */}
               <button
@@ -2492,6 +2718,7 @@ const App: React.FC = () => {
               onToast={setToastMessage}
               spaces={mySpaces}
               onProposeToSpace={handleProposeToSpace}
+              onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
               initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
@@ -3130,6 +3357,9 @@ const App: React.FC = () => {
                           onViewDirector={(name, id) => setPreviewDirector({ name, id })}
                           onRewatch={(m) => setRewatchMovie(m)}
                           onToggleDisplayMode={handleToggleMovieDisplayMode}
+                          onShare={
+                            session?.user?.id ? (m, kind) => setShareSheet({ kind, movie: m }) : undefined
+                          }
                         />
                       ))}
                       {visibleMovies.length < filteredAndSortedMovies.length && (
@@ -3183,6 +3413,26 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {socialNudge && !shareSheet && (
+        <SocialNudge
+          kind={socialNudge.kind}
+          title={socialNudge.movie.title}
+          onOpen={() => {
+            setShareSheet({ kind: socialNudge.kind, movie: socialNudge.movie });
+            setSocialNudge(null);
+          }}
+          onDismiss={dismissSocialNudge}
+        />
+      )}
+      {shareSheet && (
+        <WatchWithSheet
+          kind={shareSheet.kind}
+          movie={shareSheet.movie}
+          onClose={() => setShareSheet(null)}
+          onDone={setToastMessage}
+        />
       )}
 
       {toastMessage && (
@@ -3531,6 +3781,7 @@ const App: React.FC = () => {
       <Suspense fallback={null}>
         {showAccountSync && (
           <AccountSyncModal
+            intro={inviteIntro}
             accountEmail={session?.user?.email ?? null}
             accountId={session?.user?.id ?? null}
             isAnonymous={!!session?.user && !session.user.email}

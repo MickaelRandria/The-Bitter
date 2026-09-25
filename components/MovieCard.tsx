@@ -1,6 +1,6 @@
 import React, { useState, memo, useRef } from 'react';
 import { Movie, WeightLabel } from '../types';
-import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw } from 'lucide-react';
+import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle } from 'lucide-react';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
 import MovieRatingToggle from './MovieRatingToggle';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
@@ -19,6 +19,11 @@ interface MovieCardProps {
   onViewDirector?: (name: string, id?: number) => void;
   onRewatch?: (movie: Movie) => void;
   onToggleDisplayMode?: (movieId: string, mode: MovieDisplayMode) => void;
+  /**
+   * « Voir avec… » sur un film de la liste, « Demander son avis » sur un film
+   * noté. Absent sans compte : le geste passe par le serveur.
+   */
+  onShare?: (movie: Movie, kind: 'watch' | 'verdict') => void;
 }
 
 const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
@@ -104,6 +109,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onViewDirector,
     onRewatch,
     onToggleDisplayMode,
+    onShare,
   }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -123,6 +129,8 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const displayRatings = getDisplayRatings(movie);
     const profileLabel = adaptive?.profile.label;
     const hasRewatches = (movie.watch_count ?? 1) > 1;
+    const hasVerdict =
+      movie.ratings.story > 0 || movie.ratings.visuals > 0 || movie.ratings.acting > 0 || movie.ratings.sound > 0;
     const hasPoster = !!movie.posterUrl;
     const isWatchlist = movie.status === 'watchlist';
     // Le rythme visuel dépend du film, pas de sa position : sinon la même carte
@@ -538,6 +546,19 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-3 mt-2 pb-4">
+                {onShare && movie.tmdbId && movie.seasonNumber == null && (isWatchlist || hasVerdict) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShare(movie, isWatchlist ? 'watch' : 'verdict');
+                    }}
+                    className="col-span-2 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-lime-400 text-charcoal active:scale-95 transition-all shadow-lg shadow-lime-400/20"
+                  >
+                    {isWatchlist ? <Users size={14} /> : <MessageCircle size={14} />}
+                    {isWatchlist ? t('social.watchWith') : t('social.askVerdict')}
+                  </button>
+                )}
+
                 {!isWatchlist && onRewatch && (
                   <button
                     onClick={(e) => {

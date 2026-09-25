@@ -16,6 +16,11 @@ interface Props {
   onSelectMovie: (tmdbId: number) => void;
   onQuickWatchlist: (tmdbId: number) => void;
   onProposeToSpace: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
+  /**
+   * « Voir avec… » : on choisit des personnes plutôt qu'un espace. Absent sans
+   * compte ; le sélecteur d'espace reste alors le seul chemin.
+   */
+  onWatchWith?: (tmdbId: number) => void;
 }
 
 /**
@@ -33,6 +38,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
   onSelectMovie,
   onQuickWatchlist,
   onProposeToSpace,
+  onWatchWith,
 }) => {
   const { t, language } = useLanguage();
   const [data, setData] = useState<TheatreReleases | null>(null);
@@ -175,7 +181,20 @@ const TheatreReleasesSection: React.FC<Props> = ({
             {t('releases.addToWatchlist')}
           </button>
 
-          {spaces.length > 0 && (
+          {onWatchWith && (
+            <button
+              onClick={() => {
+                haptics.soft();
+                onWatchWith(film.id);
+              }}
+              className="flex-1 py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400 border-l border-sand dark:border-white/5 active:scale-95 transition-transform"
+            >
+              <Users size={13} />
+              {t('social.watchWith')}
+            </button>
+          )}
+
+          {!onWatchWith && spaces.length > 0 && (
             <button
               onClick={() => {
                 haptics.soft();
@@ -193,6 +212,20 @@ const TheatreReleasesSection: React.FC<Props> = ({
             </button>
           )}
         </div>
+
+        {onWatchWith && spaces.length > 0 && pickerFor !== film.id && (
+          <button
+            onClick={() => {
+              haptics.soft();
+              setPickerFor(film.id);
+            }}
+            disabled={proposing === film.id}
+            className="w-full pb-2.5 -mt-0.5 text-[10px] font-bold text-stone-400 dark:text-stone-500 hover:text-charcoal dark:hover:text-white transition-colors flex items-center justify-center gap-1.5"
+          >
+            {proposing === film.id && <Loader2 size={11} className="animate-spin" />}
+            {t('social.orProposeToSpace')}
+          </button>
+        )}
 
         {/* Sélecteur d'espace en accordéon plutôt qu'en modale : proposer un film
             doit rester un geste court, et la liste tient en trois lignes. */}

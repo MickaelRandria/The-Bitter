@@ -297,6 +297,51 @@ sur les mêmes axes que tout le monde.
 tout le monde. Les autres le notent depuis l'onglet des verdicts. Le propriétaire
 en est informé et l'a accepté ; c'est réversible si l'usage montre que ça gêne.
 
+### 5.1 « Voir avec… », « Ton avis ? » et les liens d'invitation (25 septembre 2026)
+
+Constat de départ : 7 films partagés en tout, 0 vote en 30 jours, pendant que les
+watchlists perso vivaient. L'espace n'était pas le problème, **personne n'y entrait**.
+On amène donc l'espace au moment du geste, et on choisit des **personnes**, pas un
+espace.
+
+- **Deux gestes, un seul mécanisme.** Ajout à la liste → « Le voir avec quelqu'un ? »
+  (`kind = 'watch'`). Première note → « Demander son avis ? » (`kind = 'verdict'`).
+  Une barre (`SocialNudge`) et non une fenêtre ; puis la feuille `WatchWithSheet`.
+  Aussi sur la carte dépliée d'un film et dans les sorties en salle.
+- **Base** (`20260925_voir_avec.sql`) : `notifications`, `share_links`,
+  `share_link_responses`. **Aucune écriture directe depuis l'app** : tout passe par
+  `propose_to_people`, `create_share_link`, `claim_share_link`,
+  `mark_notifications_read`, et, sans compte, `get_share_link` / `answer_share_link`.
+  Le serveur refuse toute invitation vers quelqu'un qui ne partage aucun espace avec
+  soi, ou qui a bloqué.
+- **La réponse n'a pas de colonne à elle** : c'est le vote (`space_movie_votes`) ou le
+  verdict (`movie_ratings`). Deux triggers en tirent `watch_accepted` et
+  `verdict_given`. Un « non » ne notifie personne, à dessein.
+- **L'espace** : le plus petit espace actif qui réunit tout le monde, sinon un espace
+  « Mika & Léa » créé à la volée (`private.ensure_space_for`).
+- **Push** : trigger `notifications_push` → pg_net → Edge Function `notify`
+  (`verify_jwt: false`, protégée par le jeton de worker, comme `report-alert`). Les
+  textes vivent dans `supabase/functions/notify/messages.ts`, **partagé avec la
+  cloche** de l'app : une seule rédaction. Redéployer `notify` après l'avoir modifié.
+- **Page du lien** : `api/share.ts`, fonction Vercel (edge) derrière la réécriture
+  `/i/:token`. Elle est servie par Vercel parce que WhatsApp n'exécute pas JavaScript
+  (l'aperçu doit être dans le HTML) et que Supabase refuse de servir du HTML. La note
+  de la personne qui invite n'est rendue **qu'après** celle de l'invité, jamais son
+  texte.
+- **Rattachement** : la page ne garde l'invitation (`bitter_pending_invite`) qu'au
+  clic sur « Continuer avec… ». Sinon quelqu'un qui a dit non se retrouverait, en
+  ouvrant l'app plus tard, dans un espace avec la personne qui l'a invité. L'app
+  pousse le prénom au serveur **avant** `claim_share_link` : un compte neuf s'appelle
+  encore « Utilisateur », et l'espace prendrait ce nom.
+- **Notification touchée, app déjà ouverte** : le service worker transmet l'URL par
+  `postMessage`. Avant, il se contentait de mettre l'app au premier plan, et
+  `?screening=` n'était lu nulle part : les rappels de séance n'ouvraient jamais le
+  calendrier.
+- **Test de la migration** : rejouée sur PGlite avec le schéma relevé en prod
+  (13 scénarios : RLS, blocages, doublons, refus silencieux, dévoilement, purge).
+- **Purge** : cron `bitter-purge-liens-partage` ; liens et réponses sans compte
+  supprimés 30 jours après expiration, notifications lues au bout de 180 jours.
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code
