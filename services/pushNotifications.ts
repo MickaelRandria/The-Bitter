@@ -133,6 +133,27 @@ export const enablePushNotifications = async (): Promise<PushSetupResult> => {
   }
 };
 
+/**
+ * Vrai si cet appareil est réellement abonné aux push.
+ *
+ * La permission seule ne suffit pas : on peut l'avoir accordée sans que
+ * l'abonnement ait jamais été créé, et alors rien n'arrive. `ready` ne se
+ * résout jamais sans service worker (en développement) : d'où le délai.
+ */
+export const hasPushSubscription = async (): Promise<boolean> => {
+  if (!isPushSupported()) return false;
+  try {
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
+    if (!registration) return false;
+    return !!(await registration.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
+};
+
 /** Envoie un vrai push depuis le serveur, seulement aux appareils du compte connecté. */
 export const testPushNotification = async (): Promise<PushTestResult> => {
   if (!supabase || !isPushSupported()) {

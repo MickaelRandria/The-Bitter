@@ -23,6 +23,12 @@ interface AccountSyncModalProps {
   pendingCount: number;
   onBackfill: () => Promise<BackfillReport>;
   onClose: () => void;
+  /**
+   * Raison d'être là, affichée en tête tant que la personne n'est pas connectée :
+   * « Mika t'attend pour Dune ». Sans elle, arriver par un lien d'invitation sur
+   * un écran « Sauvegarde en ligne » ne dit pas pourquoi on donne son e-mail.
+   */
+  intro?: { title: string; body: string; posterUrl?: string | null } | null;
 }
 
 /**
@@ -40,6 +46,7 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
   pendingCount,
   onBackfill,
   onClose,
+  intro,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('accountSync.title'));
@@ -238,6 +245,17 @@ const AccountSyncModal: React.FC<AccountSyncModalProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-5">
+          {intro && !accountEmail && !justSignedIn && (
+            <div className="flex items-center gap-3 rounded-2xl bg-lime-400/15 border border-lime-400/40 p-3">
+              {intro.posterUrl && (
+                <img src={intro.posterUrl} alt="" className="w-10 h-14 rounded-lg object-cover shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-black text-charcoal dark:text-white leading-tight">{intro.title}</p>
+                <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 leading-snug">{intro.body}</p>
+              </div>
+            </div>
+          )}
           {report ? (
             <div className="text-center py-4 space-y-5">
               <div

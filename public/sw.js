@@ -36,10 +36,16 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';
 
+  // App déjà ouverte : la mettre au premier plan ne suffit pas, elle resterait sur
+  // l'écran où on l'avait laissée. On lui transmet l'adresse, qu'elle lit comme au
+  // démarrage (`?notif=`, `?screening=`).
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-      if (existing) return existing.focus();
+      if (existing) {
+        existing.postMessage({ type: 'open', url: targetUrl });
+        return existing.focus();
+      }
       return self.clients.openWindow(targetUrl);
     })
   );
