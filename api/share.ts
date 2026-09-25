@@ -11,6 +11,8 @@
  * prénom de la personne qui invite et la fiche du film. Sa note n'arrive qu'après
  * que l'invité a donné la sienne, par `answer_share_link`, côté navigateur.
  */
+import { formatSlot } from '../supabase/functions/notify/messages.ts';
+
 export const config = { runtime: 'edge' };
 
 // Valeurs publiques par nature : elles sont déjà dans le JavaScript de l'app. Les
@@ -36,6 +38,12 @@ interface LinkPreview {
   runtime: number | null;
   release_date: string | null;
   expired: boolean;
+  /** Séance proposée avec le lien : créneaux encore à venir. */
+  plan?: {
+    status: 'open' | 'agreed';
+    chosen_slot_id: string | null;
+    slots: { id: string; starts_at: string; cinema_name: string | null; version: string | null }[];
+  } | null;
 }
 
 const escapeHtml = (value: unknown): string =>
@@ -152,6 +160,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:.25rem 0 1rem}
 .cta p{color:var(--ink-2);margin:0 0 1rem;font-size:.95rem}
 .small{font-size:.75rem;color:var(--muted);text-align:center;margin:.6rem 0 0}
 .err{color:#B3261E;font-size:.85rem;margin:.5rem 0 0}
+.slots{display:grid;gap:.5rem;margin:0 0 1rem}
+.slot{display:flex;align-items:center;gap:.6rem;border:1px solid var(--line);border-radius:1rem;padding:.75rem .9rem;font-weight:700;font-size:.9rem;cursor:pointer}
+.slot input{accent-color:var(--accent);width:1.1rem;height:1.1rem;margin:0}
+.slot:has(input:checked){border-color:var(--accent);background:var(--soft)}
+.when{display:inline-block;margin-top:.6rem;padding:.35rem .7rem;border-radius:999px;background:var(--soft);font-size:.8rem;font-weight:800}
 [hidden]{display:none!important}
 `;
 
@@ -200,16 +213,34 @@ const SCRIPT = `
 
   var send = function(btn){
     var name = answer.rating !== null ? val('rateName') : val('nameInput');
+    var picked = document.querySelector('input[name="slot"]:checked');
+    var slotId = picked && picked.value ? picked.value : null;
     var err = btn.parentNode.querySelector('.err');
     if(!name){ if(err){ err.textContent = 'Ton prénom, pour que ' + S.inviter + ' sache que c’est toi.'; err.hidden=false; } return; }
     btn.disabled = true;
-    rpc('answer_share_link', { p_token:TOKEN, p_guest_key:guest, p_name:name, p_interested:answer.interested, p_rating:answer.rating })
+    rpc('answer_share_link', { p_token:TOKEN, p_guest_key:guest, p_name:name, p_interested:answer.interested, p_rating:answer.rating, p_slot_id:slotId })
       .then(function(res){
         store('bitter_guest_name', name);
         if(answer.rating !== null){ renderReveal(answer.rating, res.inviter_rating); }
-        else { show('sent'); }
+        else { showSent(res.slot_id); }
       })
       .catch(function(e){ btn.disabled = false; if(err){ err.textContent = /expired/.test(e.message) ? 'Ce lien a expiré.' : 'L’envoi a échoué. Réessaie.'; err.hidden=false; } });
+  };
+
+  // « C'est calé » quand un créneau a été retenu, « c'est dit » sinon.
+  var showSent = function(slotId){
+    var label = slotId && S.slots ? (S.slots.filter(function(x){ return x.id === slotId; })[0] || {}).label : null;
+    if(label && $('sentWhen')){ $('sentWhen').textContent = label; $('sentBooked').hidden = false; $('sentPlain').hidden = true; }
+    show('sent');
+    // Le lien de réservation n'existe qu'une fois le créneau arrêté : on le demande maintenant.
+    if(slotId){
+      rpc('get_share_link', { p_token:TOKEN, p_guest_key:guest }).then(function(d){
+        var slots = d && d.plan && d.plan.slots || [];
+        var chosen = slots.filter(function(x){ return x.id === slotId; })[0];
+        var url = chosen && chosen.booking_url;
+        if(url && url.indexOf('https://www.ugc.fr/') === 0 && $('book')){ $('book').href = url; $('book').hidden = false; }
+      }).catch(function(){});
+    }
   };
 
   var remembered = read('bitter_guest_name');
@@ -234,7 +265,7 @@ const SCRIPT = `
     if(!d || !d.response) return;
     var r = d.response;
     if(r.rating !== null && r.rating !== undefined){ renderReveal(r.rating, d.inviter_rating); }
-    else if(r.interested){ show('sent'); }
+    else if(r.interested){ showSent(r.slot_id); }
   }).catch(function(){});
 })();
 `;
@@ -268,10 +299,24 @@ export default async function handler(req: Request): Promise<Response> {
     .filter(Boolean)
     .join(' · ');
 
+  // Créneaux encore choisissables. Une séance déjà calée (par quelqu'un d'autre
+  // sur le même lien) s'affiche, mais ne se choisit plus.
+  const plan = !isVerdict && link.plan && link.plan.slots.length ? link.plan : null;
+  const planSlots = (plan?.slots ?? []).map((slot) => ({
+    id: slot.id,
+    label: [formatSlot(slot), slot.version].filter(Boolean).join(' · '),
+  }));
+  const agreedSlot = plan?.status === 'agreed' ? planSlots.find((slot) => slot.id === plan.chosen_slot_id) ?? null : null;
+  const choosable = plan?.status === 'open' ? planSlots : [];
+
   const ogTitle = isVerdict ? `${inviter} a noté ${link.title}. Et toi ?` : `${inviter} veut voir ${link.title} avec toi`;
   const ogDescription = isVerdict
     ? 'Donne ta note pour découvrir la sienne. Sans compte.'
-    : [release, 'Réponds en un clic, sans compte.'].filter(Boolean).join(' · ');
+    : choosable.length === 1
+      ? `${choosable[0].label}. Réponds en un clic, sans compte.`
+      : choosable.length > 1
+        ? `${choosable.length} créneaux proposés. Réponds en un clic, sans compte.`
+        : [release, 'Réponds en un clic, sans compte.'].filter(Boolean).join(' · ');
   const e = escapeHtml;
 
   const expiredBlock = `<div class="card"><p class="q">Ce lien a expiré.</p><p style="color:var(--ink-2);margin:0 0 1rem">Demande à ${e(inviter)} de t’en renvoyer un.</p><a class="btn ghost" href="/">Découvrir The Bitter</a></div>`;
@@ -288,8 +333,23 @@ export default async function handler(req: Request): Promise<Response> {
       <p class="small">Gratuit · connexion par code e-mail, sans mot de passe</p>
     </div>`;
 
+  const slotChoice = choosable.length
+    ? `
+      <p class="q" style="font-size:.95rem">${choosable.length > 1 ? 'Quel créneau te va ?' : 'Ce créneau te va ?'}</p>
+      <div class="slots" role="radiogroup">
+        ${choosable
+          .map(
+            (slot, i) =>
+              `<label class="slot"><input type="radio" name="slot" value="${e(slot.id)}"${choosable.length === 1 && i === 0 ? ' checked' : ''}> ${e(slot.label)}</label>`
+          )
+          .join('')}
+        <label class="slot"><input type="radio" name="slot" value=""> ${choosable.length > 1 ? 'Aucun, on en reparle' : 'Pas à ce moment-là, on en reparle'}</label>
+      </div>`
+    : '';
+
   const nameBlock = `
     <div class="card" id="name" hidden>
+      ${isVerdict ? '' : slotChoice}
       <label for="nameInput">Ton prénom, pour que ${e(inviter)} sache que c’est toi</label>
       <input type="text" id="nameInput" maxlength="30" autocomplete="given-name" enterkeyhint="send">
       <button class="primary" id="sendName">Envoyer</button>
@@ -303,7 +363,8 @@ export default async function handler(req: Request): Promise<Response> {
     </div>
     ${nameBlock}
     <div id="sent" hidden>
-      <div class="card"><p class="done">C’est dit.</p><p style="color:var(--ink-2);margin:0">${e(inviter)} vient de recevoir ta réponse.</p></div>
+      <div class="card" id="sentPlain"><p class="done">C’est dit.</p><p style="color:var(--ink-2);margin:0">${e(inviter)} vient de recevoir ta réponse.</p></div>
+      <div class="card" id="sentBooked" hidden><p class="done">C’est calé : <span id="sentWhen"></span>.</p><p style="color:var(--ink-2);margin:0 0 1rem">${e(inviter)} a la séance dans son calendrier. Pense à réserver ta place.</p><a class="btn primary" id="book" target="_blank" rel="noopener noreferrer" href="#" hidden>Réserver ma place</a></div>
       ${cta}
     </div>
     <div class="card" id="declined" hidden>
@@ -349,7 +410,7 @@ export default async function handler(req: Request): Promise<Response> {
       <a class="btn ghost" href="/">Découvrir The Bitter</a>
     </div>`;
 
-  const state = JSON.stringify({ token, inviter, api: found.base, key: found.key }).replace(/</g, '\\u003c');
+  const state = JSON.stringify({ token, inviter, api: found.base, key: found.key, slots: planSlots }).replace(/</g, '\\u003c');
 
   const html = `<!doctype html>
 <html lang="fr">
@@ -379,6 +440,7 @@ ${ogImage ? `<meta property="og:image" content="${e(ogImage)}">` : ''}
       <p class="who">${isVerdict ? `${e(inviter)} a noté` : `${e(inviter)} veut le voir avec toi`}</p>
       <h1>${e(link.title)}</h1>
       ${meta ? `<p class="meta">${e(meta)}</p>` : ''}
+      ${agreedSlot ? `<span class="when">C’est calé : ${e(agreedSlot.label)}</span>` : choosable.length === 1 ? `<span class="when">${e(choosable[0].label)}</span>` : choosable.length > 1 ? `<span class="when">${choosable.length} créneaux proposés</span>` : ''}
     </div>
   </div>
   <a class="btn ghost" id="open" data-app href="/" style="margin-top:1rem" hidden>Ouvrir dans The Bitter</a>

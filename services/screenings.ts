@@ -14,6 +14,8 @@ interface ScreeningRow {
   notes: string | null;
   status: CinemaScreeningStatus;
   reminder_offsets_minutes: unknown;
+  plan_id?: string | null;
+  booking_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +60,8 @@ const fromRow = (row: ScreeningRow): CinemaScreening => ({
   reminderOffsetsMinutes: Array.isArray(row.reminder_offsets_minutes)
     ? row.reminder_offsets_minutes.map(Number).filter(Number.isFinite)
     : DEFAULT_REMINDERS,
+  planId: row.plan_id ?? undefined,
+  bookingUrl: row.booking_url ?? undefined,
   createdAt: timestamp(row.created_at),
   updatedAt: timestamp(row.updated_at),
 });

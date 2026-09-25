@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
   const { data: notification } = await admin
     .from('notifications')
-    .select('id, recipient_id, actor_id, kind, shared_movie_id, share_link_id, title, guest_name, rating, read_at, pushed_at')
+    .select('id, recipient_id, actor_id, kind, shared_movie_id, share_link_id, plan_id, title, guest_name, rating, payload, read_at, pushed_at')
     .eq('id', notificationId)
     .maybeSingle();
   if (!notification || notification.pushed_at) return reply({ skipped: 'unknown-or-done' });
@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
     rating: notification.rating,
     ownRating,
     linkKind,
+    payload: notification.payload,
   });
 
   const { data: vapid } = await admin
@@ -135,7 +136,7 @@ Deno.serve(async (req) => {
     badge: ICON,
     // Une notification par film et par sorte : la suivante remplace la précédente
     // au lieu de s'empiler sur l'écran verrouillé.
-    tag: `social-${notification.kind}-${notification.shared_movie_id ?? notification.share_link_id ?? notification.id}`,
+    tag: `social-${notification.kind}-${notification.shared_movie_id ?? notification.share_link_id ?? notification.plan_id ?? notification.id}`,
     data: { url: `/?notif=${notification.id}` },
   });
 

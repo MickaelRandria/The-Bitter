@@ -125,6 +125,20 @@ const DayDetailModal: React.FC<{
                     {item.screening.cinemaName && (
                       <p className="flex items-center gap-1 text-[10px] font-bold text-stone-400 dark:text-stone-400 truncate"><MapPin size={11} />{item.screening.cinemaName}</p>
                     )}
+                    {/* Séance calée à plusieurs : avec qui, et de quoi réserver sa place. */}
+                    {item.screening.planId && item.screening.notes && (
+                      <p className="mt-1 text-[10px] font-black text-forest dark:text-lime-400 truncate">{item.screening.notes}</p>
+                    )}
+                    {item.screening.bookingUrl && item.screening.status === 'scheduled' && item.screening.startsAt > Date.now() && (
+                      <a
+                        href={item.screening.bookingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-charcoal px-3 text-[10px] font-black uppercase tracking-wide text-white transition active:scale-95 dark:bg-bitter-lime dark:text-charcoal"
+                      >
+                        Réserver ma place
+                      </a>
+                    )}
                     {/* Une séance ouverte depuis une fiche film reste « à confirmer »
                         tant que personne n'a dit avoir réservé : aucun rappel n'est
                         programmé avant ce geste. */}

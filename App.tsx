@@ -540,6 +540,8 @@ const App: React.FC = () => {
   const dismissSocialNudge = useCallback(() => setSocialNudge(null), []);
   /** Incrémenté pour ouvrir la cloche : notification push touchée. */
   const [notifOpenSignal, setNotifOpenSignal] = useState(0);
+  /** Film à ouvrir en arrivant dans un espace depuis une notification. */
+  const [spaceFocusMovieId, setSpaceFocusMovieId] = useState<string | null>(null);
   const [pendingNotifOpen, setPendingNotifOpen] = useState(false);
   /** Lien d'invitation reçu : qui attend, pour quel film. */
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
@@ -1273,6 +1275,7 @@ const App: React.FC = () => {
     }
     setActiveSharedSpace(loaded.space);
     setViewMode('SharedSpace');
+    setSpaceFocusMovieId(sharedMovieId);
     setSharedSpaceRefreshTrigger((n) => n + 1);
     if (rate && loaded.movie) {
       setSharedMovieToRate(loaded.movie);
@@ -2679,6 +2682,10 @@ const App: React.FC = () => {
               }}
               myMovies={activeProfile?.movies ?? []}
               refreshTrigger={sharedSpaceRefreshTrigger}
+              favoriteCinema={activeProfile?.favoriteCinema}
+              focusMovieId={spaceFocusMovieId}
+              onFocusHandled={() => setSpaceFocusMovieId(null)}
+              onToast={setToastMessage}
             />
           ) : viewMode === 'Analytics' ? (
             <AnalyticsView
@@ -3432,6 +3439,7 @@ const App: React.FC = () => {
           movie={shareSheet.movie}
           onClose={() => setShareSheet(null)}
           onDone={setToastMessage}
+          favoriteCinema={activeProfile?.favoriteCinema}
         />
       )}
 
