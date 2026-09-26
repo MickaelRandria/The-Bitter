@@ -154,6 +154,42 @@ export const hasPushSubscription = async (): Promise<boolean> => {
   }
 };
 
+/** iPhone ou iPad, y compris l'iPad qui se présente comme un Mac. */
+export const isIosDevice = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+const OFFER_KEY = 'bitter_push_offered_at';
+
+/**
+ * Faut-il proposer les notifications maintenant ?
+ *
+ * - déjà abonné, ou refusé dans les réglages : non ;
+ * - iPhone hors écran d'accueil : oui, pour expliquer comment l'y mettre (le
+ *   navigateur n'y propose pas les push) ;
+ * - sinon : oui, au plus une fois tous les trois jours, pour ne pas harceler.
+ */
+export const canOfferPush = async (cooldownDays = 3): Promise<boolean> => {
+  try {
+    const last = Number(localStorage.getItem(OFFER_KEY) || 0);
+    if (Date.now() - last < cooldownDays * 86_400_000) return false;
+  } catch {
+    // Stockage indisponible : on propose, au pire deux fois.
+  }
+  if (isIosDevice() && !isLikelyInstalledPwa()) return true;
+  if (!isPushSupported() || Notification.permission === 'denied') return false;
+  return !(await hasPushSubscription());
+};
+
+export const markPushOffered = () => {
+  try {
+    localStorage.setItem(OFFER_KEY, String(Date.now()));
+  } catch {
+    // rien à faire
+  }
+};
+
 /** Envoie un vrai push depuis le serveur, seulement aux appareils du compte connecté. */
 export const testPushNotification = async (): Promise<PushTestResult> => {
   if (!supabase || !isPushSupported()) {
