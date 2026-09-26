@@ -11,6 +11,8 @@ import {
 import {
   SocialNotification,
   answerWatchInvite,
+  getEmailPref,
+  setEmailPref,
   getNotifications,
   markNotificationsRead,
   subscribeToNotifications,
@@ -34,6 +36,10 @@ interface NotificationCenterProps {
   onToast?: (message: string) => void;
   /** « Voir avec… » sur un film de la liste : envie commune, sortie, streaming. */
   onWatchWith?: (tmdbId: number, mediaType: 'movie' | 'tv', preselect?: string[]) => void;
+  /** Une réponse vient d'être donnée : bon moment pour proposer les notifications. */
+  onEngaged?: (source: string) => void;
+  /** Des invitations attendent une réponse. */
+  onPending?: (count: number) => void;
 }
 
 const typeIcon: Record<AppNotification['type'], string> = {
@@ -53,7 +59,16 @@ const ago = (iso: string): string => {
   return days === 1 ? 'hier' : `il y a ${days} j`;
 };
 
-const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId, openSignal, onOpenSpace, onToast, onWatchWith }) => {
+const NotificationCenter: React.FC<NotificationCenterProps> = ({
+  movies,
+  userId,
+  openSignal,
+  onOpenSpace,
+  onToast,
+  onWatchWith,
+  onEngaged,
+  onPending,
+}) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -61,6 +76,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
   const [answering, setAnswering] = useState<string | null>(null);
   const [pushNeeded, setPushNeeded] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  /** E-mail de secours : `null` tant qu'on ne sait pas, ou sans adresse. */
+  const [emailPref, setEmailPrefState] = useState<boolean | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,7 +90,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
       return;
     }
     const result = await getNotifications();
-    if (result.data) setSocial(result.data);
+    if (result.data) {
+      setSocial(result.data);
+      const waiting = result.data.filter(
+        (n) => !n.read_at && ['watch_invite', 'plan_proposed', 'verdict_request'].includes(n.kind)
+      ).length;
+      if (waiting) onPending?.(waiting);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -91,6 +114,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
   useEffect(() => {
     if (!open || !userId) return;
     let alive = true;
+    getEmailPref(userId).then((pref) => alive && setEmailPrefState(pref));
     // Un compte, un appareil pas encore abonné : c'est ici que la question a du sens.
     hasPushSubscription().then((subscribed) => {
       if (alive) setPushNeeded(isPushSupported() && Notification.permission !== 'denied' && !subscribed);
@@ -149,6 +173,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
     haptics.success();
     trackEvent('social', 'watch_invite_answered', interested ? 'yes' : 'no');
     markSocialRead(n);
+    if (interested) onEngaged?.('answer');
     onToast?.(interested ? t('social.answeredYes', { name: n.actor?.first_name ?? '' }) : t('social.answeredNo'));
   };
 
@@ -166,6 +191,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
     haptics.success();
     trackEvent('social', 'plan_accepted', 'bell');
     markSocialRead(n);
+    onEngaged?.('plan');
     onToast?.(t('plan.acceptedWith', { name: n.actor?.first_name ?? '' }));
   };
 
@@ -453,6 +479,27 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ movies, userId,
             )}
           </div>
 
+          {userId && emailPref !== null && (
+            <label className="flex items-center justify-between gap-3 px-4 py-3 border-t border-stone-100 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-300 cursor-pointer">
+              <span>{t('email.toggle')}</span>
+              <input
+                type="checkbox"
+                checked={emailPref}
+                onChange={async (e) => {
+                  const next = e.target.checked;
+                  setEmailPrefState(next);
+                  const ok = await setEmailPref(userId, next);
+                  if (!ok) {
+                    setEmailPrefState(!next);
+                    onToast?.(t('social.failed'));
+                  } else {
+                    onToast?.(next ? t('email.on') : t('email.off'));
+                  }
+                }}
+                className="w-4 h-4 accent-[#3E5238] dark:accent-lime-400"
+              />
+            </label>
+          )}
           {userId && pushNeeded ? (
             <div className="px-4 py-3 border-t border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50">
               <button

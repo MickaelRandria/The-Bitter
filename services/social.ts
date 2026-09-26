@@ -370,6 +370,28 @@ export async function getCommonWishes(): Promise<Map<string, CommonWish[]>> {
   return map;
 }
 
+/** Réglage des e-mails de secours ; `null` quand le compte n'a pas d'adresse. */
+export async function getEmailPref(userId: string): Promise<boolean | null> {
+  if (!supabase || !userId) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email, email_notifications')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error || !data?.email) return null;
+  return data.email_notifications !== false;
+}
+
+export async function setEmailPref(userId: string, enabled: boolean): Promise<boolean> {
+  if (!supabase || !userId) return false;
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ email_notifications: enabled })
+    .eq('id', userId)
+    .select('id');
+  return !error && !!data?.length;
+}
+
 // ─── Boîte de notifications ─────────────────────────────────────────────────
 
 export async function getNotifications(limit = 40): Promise<SocialResult<SocialNotification[]>> {

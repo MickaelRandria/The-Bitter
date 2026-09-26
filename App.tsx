@@ -106,6 +106,8 @@ import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './service
 import NotificationCenter from './components/NotificationCenter';
 import WatchWithSheet from './components/WatchWithSheet';
 import SocialNudge from './components/SocialNudge';
+import PushPrompt from './components/PushPrompt';
+import { canOfferPush } from './services/pushNotifications';
 import {
   ShareKind,
   InvitePreview,
@@ -556,6 +558,19 @@ const App: React.FC = () => {
   /** Lien d'invitation reçu : qui attend, pour quel film. */
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const claimingRef = useRef(false);
+  /** Pourquoi proposer les notifications maintenant, et d'où vient la question. */
+  const [pushPrompt, setPushPrompt] = useState<{ reason: string; source: string } | null>(null);
+  const pushAskedRef = useRef(false);
+  /**
+   * Au plus une fois par session, et seulement si c'est utile (appareil pas
+   * abonné, pas de refus, délai de trois jours depuis la dernière question).
+   */
+  const askPush = useCallback(async (reason: string, source: string) => {
+    if (pushAskedRef.current) return;
+    if (!(await canOfferPush())) return;
+    pushAskedRef.current = true;
+    setPushPrompt({ reason, source });
+  }, []);
   const inviteSyncPromptedRef = useRef(false);
   const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
   /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
@@ -1415,6 +1430,11 @@ const App: React.FC = () => {
           return;
         }
         trackEvent('social', 'invite_claimed', claim.kind);
+        // Compte tout juste créé depuis un lien : le meilleur moment pour les notifications.
+        window.setTimeout(
+          () => askPush(t('push.reasonClaim', { name: preview?.inviter || t('push.someone') }), 'claim'),
+          2500
+        );
         if (claim.space_id) {
           await openSpaceFromNotification(claim.space_id, claim.shared_movie_id ?? null, claim.kind === 'verdict');
         }
@@ -2613,6 +2633,8 @@ const App: React.FC = () => {
                 onOpenSpace={openSpaceFromNotification}
                 onToast={setToastMessage}
                 onWatchWith={openWatchWith}
+                onEngaged={(source) => askPush(t('push.reasonAnswer'), source)}
+                onPending={(count) => askPush(t('push.reasonPending', { count: String(count) }), 'pending')}
               />
               {/* Le feedback vit dans les paramètres du profil : le header n'a de
                   place que pour les actions vraiment fréquentes. */}
@@ -3482,6 +3504,15 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Jamais par-dessus une autre fenêtre : la question attend qu'elles soient refermées. */}
+      {pushPrompt && !shareSheet && !showNewFeatures && !showAccountSync && !showConsent && !isModalOpen && !showProfile && (
+        <PushPrompt
+          reason={pushPrompt.reason}
+          source={pushPrompt.source}
+          onClose={() => setPushPrompt(null)}
+          onToast={setToastMessage}
+        />
+      )}
       {socialNudge && !shareSheet && (
         <SocialNudge
           kind={socialNudge.kind}

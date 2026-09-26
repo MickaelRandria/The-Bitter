@@ -397,6 +397,27 @@ Migration `20260927_film_attendu`, Edge Function `availability`.
 - `availability_candidates` et `record_availability` sont dans `public` (l'API
   REST ne sert que ce schéma) mais exécutables par `service_role` seulement.
 
+### 5.4 Faire arriver les notifications (27 septembre 2026)
+
+Constat : de vraies invitations attendaient sans avoir été poussées, aucun
+destinataire n'ayant de téléphone abonné.
+
+- **Demander le push au bon moment** (`PushPrompt`, `canOfferPush`) : après un
+  compte créé depuis un lien, après une réponse donnée dans la cloche, et à
+  l'ouverture quand des invitations attendent. Une fois par session, trois jours
+  entre deux questions, jamais par-dessus une autre fenêtre. Sur iPhone hors écran
+  d'accueil, on explique comment ajouter l'app : Safari n'y offre pas les push.
+- **E-mail de secours** : cron `bitter-relance-email` (heure pleine + 15, 7 h à
+  19 h UTC) → Edge Function `email-digest` → Resend. Invitations et séances non
+  lues depuis plus de 2 h, un récapitulatif par personne, au plus un toutes les
+  12 h. `dryRun: true` construit sans envoyer (vérification en prod sans déranger).
+- **Secret requis : `RESEND_API_KEY`** (Supabase → Edge Functions → Secrets). Sans
+  lui la fonction répond `no-key` et n'envoie rien. Le domaine est déjà vérifié
+  chez Resend (`resend._domainkey`, `send.thebitter.watch`).
+- **Désinscription** : lien de l'e-mail → `api/unsubscribe.ts` (GET, et POST pour
+  le bouton de Gmail) → `unsubscribe_email(jeton)`. Réglage aussi dans la cloche
+  (`profiles.email_notifications`).
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code
