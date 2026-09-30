@@ -1577,8 +1577,11 @@ const App: React.FC = () => {
       finalMovie.status === 'watched' &&
       hasRating(finalMovie) &&
       !(previous && previous.status === 'watched' && hasRating(previous));
+    /* Une série qu'on commence file dans « À suivre » : on le dit, plutôt que
+       « ajouté à ta watchlist », et on ne pose pas la question du partage. */
+    const startedSeries = !editingMovie && data.mediaType === 'tv' && data.tvProgress != null;
     const nudgeKind: ShareKind | null =
-      !newRole && session?.user?.id && viewMode !== 'SharedSpace' && canShare(finalMovie)
+      !newRole && !startedSeries && session?.user?.id && viewMode !== 'SharedSpace' && canShare(finalMovie)
         ? !editingMovie && finalMovie.status === 'watchlist'
           ? 'watch'
           : firstVerdict
@@ -1593,7 +1596,9 @@ const App: React.FC = () => {
           ? t('archetype.evolved', { title: newRole })
           : editingMovie
             ? t('feed.movieEdited')
-            : data.status === 'watchlist'
+            : startedSeries
+              ? t('feed.seriesStarted', { title: finalMovie.title })
+              : data.status === 'watchlist'
               ? t('feed.addedToWatchlist')
               : t('feed.movieAdded')
       );

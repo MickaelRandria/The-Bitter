@@ -25,6 +25,7 @@ import {
   Equal,
   FastForward,
   Check,
+  PlayCircle,
 } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import {
@@ -45,7 +46,10 @@ import ReviewComposer from './ReviewComposer';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { SharedSpace, addMovieToSpace, upsertMovieRating, markMovieAsWatched } from '../services/supabase';
-import { getSharedMovieDetails } from '../services/tmdb';
+import { getSeriesDetails, getSharedMovieDetails, TmdbSeriesDetails } from '../services/tmdb';
+import { progressFromLastSeen } from '../utils/episodeCompanion';
+import { EpisodePosition } from '../utils/upNext';
+import EpisodePicker from './EpisodePicker';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   RatingProfileId,
@@ -208,7 +212,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
-  const [mode, setMode] = useState<MovieStatus>(initialStatus);
+  /**
+   * « Vu » (on note), « À voir » (on range), et pour une série « En cours » :
+   * on dit où on en est, sans note, et elle entre dans « À suivre ».
+   */
+  const [mode, setMode] = useState<MovieStatus | 'watching'>(initialStatus);
+  /** « En cours » : on commence au premier épisode, ou on reprend après le dernier vu. */
+  const [seriesStart, setSeriesStart] = useState<'fresh' | 'resume'>('fresh');
+  const [lastSeen, setLastSeen] = useState<EpisodePosition | null>(null);
+  const [seriesDetails, setSeriesDetails] = useState<TmdbSeriesDetails | null>(null);
   // Bitter+ est le parcours naturel ; la notation Bitter reste un raccourci volontaire.
   const [useBitterPlus, setUseBitterPlus] = useState(true);
   const [profileId, setProfileId] = useState<RatingProfileId>('standard');
@@ -232,6 +244,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const isEditMode = !!initialData && !initialDataIsDraft;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
+  /** « En cours » n'a de sens qu'à l'ajout d'une série entière, hors espace partagé. */
+  const canStartSeries =
+    searchType === 'tv' &&
+    !isEditMode &&
+    !sharedSpace &&
+    !sharedMovieToRate &&
+    initialData?.seasonNumber == null;
   const skipSearchRef = useRef(false);
   const searchTimeoutRef = useRef<number | null>(null);
   /** Le profil affiché vient de la démo du tuto et doit être rendu à la détection auto. */
@@ -315,6 +334,25 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       }
     }
   }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSeriesStart('fresh');
+    setLastSeen(null);
+  }, [isOpen]);
+
+  useEffect(() => {
+    setSeriesDetails(null);
+    setLastSeen(null);
+    if (mode !== 'watching' || formData.mediaType !== 'tv' || formData.tmdbId == null) return;
+    let active = true;
+    getSeriesDetails(formData.tmdbId)
+      .catch(() => null)
+      .then((details) => active && setSeriesDetails(details));
+    return () => {
+      active = false;
+    };
+  }, [mode, formData.mediaType, formData.tmdbId]);
 
   // Déclaré après l'effet de réinitialisation pour passer en dernier : à l'ouverture,
   // celui-ci remet useBitterPlus à false, celui-là le rallume si le tuto l'exige.
@@ -531,7 +569,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    * de notes que personne n'a posées reviendrait à commenter un film à sa place.
    */
   const reviewCriteria = useMemo(() => {
-    if (mode === 'watchlist') return [];
+    if (mode !== 'watched') return [];
     const source = useBitterPlus ? adaptiveCriteria : bitterCriteria;
 
     if (source.length === 0) return [];
@@ -590,6 +628,36 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     if (isSaving || !formData.title.trim()) return;
     haptics.medium();
     setIsSaving(true);
+
+    /* Une série commencée : pas de verdict, une place. Elle reste « à voir »
+       dans la collection tant qu'elle n'est pas notée, et c'est sa progression
+       qui la fait entrer dans « À suivre ». */
+    if (mode === 'watching') {
+      if (!seriesDetails) {
+        setIsSaving(false);
+        return;
+      }
+      const ended =
+        seriesDetails.productionStatus === 'Ended' || seriesDetails.productionStatus === 'Canceled';
+      onSave({
+        ...formData,
+        status: 'watchlist',
+        ratings: { story: 0, visuals: 0, acting: 0, sound: 0 },
+        dateWatched: undefined,
+        adaptiveRating: undefined,
+        tvProgress: progressFromLastSeen(
+          undefined,
+          seriesStart === 'resume' ? lastSeen : null,
+          seriesDetails.seasons,
+          { ended }
+        ),
+        shareToFeed,
+      });
+      haptics.success();
+      setIsSaving(false);
+      return;
+    }
+
     const isWatchlist = mode === 'watchlist';
 
     let finalAdaptiveRating: AdaptiveRatingData | undefined;
@@ -841,6 +909,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             >
               <Eye size={16} strokeWidth={2.5} /> {t('addMovie.watched')}
             </button>
+            {canStartSeries && (
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  setMode('watching');
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all ${mode === 'watching' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+              >
+                <PlayCircle size={16} strokeWidth={2.5} /> {t('addMovie.watching')}
+              </button>
+            )}
             <button
               onClick={() => {
                 haptics.soft();
@@ -966,6 +1045,52 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {mode === 'watching' && (
+            <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
+              {formData.tmdbId == null ? (
+                <p className="rounded-3xl bg-stone-50 px-5 py-4 text-[11px] leading-relaxed text-stone-500 dark:bg-[#161616] dark:text-stone-400">
+                  {t('addMovie.watchingSearchFirst')}
+                </p>
+              ) : (
+                <>
+                  <div className="flex bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full border border-stone-200/50 dark:border-white/5">
+                    {(['fresh', 'resume'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={seriesStart === option}
+                        onClick={() => {
+                          haptics.soft();
+                          setSeriesStart(option);
+                        }}
+                        className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.15em] transition-all ${seriesStart === option ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm' : 'text-stone-400 dark:text-stone-600'}`}
+                      >
+                        {t(option === 'fresh' ? 'addMovie.startFresh' : 'addMovie.startResume')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {seriesStart === 'fresh' ? (
+                    <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
+                      {t('addMovie.startFreshHint')}
+                    </p>
+                  ) : !seriesDetails ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="animate-spin text-stone-300" size={20} />
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
+                        {t('bookmark.hint')}
+                      </p>
+                      <EpisodePicker seasons={seriesDetails.seasons} value={lastSeen} onChange={setLastSeen} />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -1288,10 +1413,24 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         <div className="p-8 border-t border-black/5 dark:border-white/10 bg-white dark:bg-[#1a1a1a] rounded-b-[3.5rem] shrink-0 transition-colors">
           <button
             onClick={handleSubmit}
-            disabled={isSaving || (mode === 'watched' && !isRatingReady)}
+            disabled={
+              isSaving ||
+              (mode === 'watched' && !isRatingReady) ||
+              (mode === 'watching' && (!seriesDetails || (seriesStart === 'resume' && !lastSeen)))
+            }
             className="w-full bg-charcoal dark:bg-forest text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
           >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : t('addMovie.confirm')}
+            {isSaving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : mode !== 'watching' ? (
+              t('addMovie.confirm')
+            ) : seriesStart === 'resume' && lastSeen ? (
+              t('bookmark.save', { season: lastSeen.season, episode: lastSeen.episode })
+            ) : seriesStart === 'resume' ? (
+              t('bookmark.pick')
+            ) : (
+              t('addMovie.startSeries')
+            )}
           </button>
         </div>
       </div>
