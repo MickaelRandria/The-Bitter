@@ -350,6 +350,7 @@ export const en: Record<string, string> = {
   'addMovie.startResume': 'Already started',
   'addMovie.startFreshHint': 'It lands in Up next at the first episode, ready to play. You’ll rate it once you have an opinion.',
   'addMovie.startSeries': 'Start the show',
+  'addMovie.startShort': 'Start',
   'addMovie.viewing': 'Viewing date',
   'addMovie.movies': 'Films',
   'addMovie.series': 'Series',

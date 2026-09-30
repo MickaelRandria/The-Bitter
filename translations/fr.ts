@@ -351,6 +351,7 @@ export const fr: Record<string, string> = {
   'addMovie.startResume': 'Déjà commencée',
   'addMovie.startFreshHint': 'Elle arrive dans « À suivre » au premier épisode, prête à être lancée. Tu la noteras quand tu auras un avis.',
   'addMovie.startSeries': 'Commencer la série',
+  'addMovie.startShort': 'Commencer',
   'addMovie.viewing': 'Visionnage',
   'addMovie.movies': 'Films',
   'addMovie.series': 'Séries',

@@ -72,7 +72,8 @@ interface AddMovieModalProps {
   initialData: Movie | null;
   initialDataIsDraft?: boolean;
   tmdbIdToLoad?: number | null;
-  initialStatus?: MovieStatus;
+  /** « En cours » ne vaut que pour une série : un film retombe sur « Vu ». */
+  initialStatus?: MovieStatus | 'watching';
   sharedSpace?: SharedSpace | null;
   currentUserId?: string;
   onSharedMovieAdded?: () => void;
@@ -252,6 +253,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     !sharedMovieToRate &&
     initialData?.seasonNumber == null;
   const skipSearchRef = useRef(false);
+  /**
+   * Le titre posé par le choix d'un résultat. Il ne doit pas relancer de
+   * recherche, même quand le drapeau ci-dessus a déjà été consommé par un autre
+   * changement : ouvrir une série depuis Explorer bascule aussi le type, et la
+   * liste de résultats se rouvrait alors par-dessus le formulaire.
+   */
+  const selectedTitleRef = useRef<string | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   /** Le profil affiché vient de la démo du tuto et doit être rendu à la détection auto. */
   const tourPreviewRef = useRef(false);
@@ -308,7 +316,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         const type: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
         setSearchType(type);
         handleSelectTMDBMovie(tmdbIdToLoad, type);
-        setMode(initialStatus);
+        setMode(initialStatus === 'watching' && type !== 'tv' ? 'watched' : initialStatus);
         setSelectedDate(new Date().toISOString().split('T')[0]);
         setEmotionalImprints([]);
       } else {
@@ -317,8 +325,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // quand même des films.
         const freshType: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
         skipSearchRef.current = false;
+        selectedTitleRef.current = null;
         setFormData({ ...INITIAL_FORM_STATE, mediaType: freshType });
-        setMode(initialStatus);
+        setMode(initialStatus === 'watching' && freshType !== 'tv' ? 'watched' : initialStatus);
         setSearchResults([]);
         setShowResults(false);
         setSearchType(freshType);
@@ -455,6 +464,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       skipSearchRef.current = false;
       return;
     }
+    if (selectedTitleRef.current != null && formData.title === selectedTitleRef.current) return;
     if (formData.title.trim().length < 2) {
       setSearchResults([]);
       setShowResults(false);
@@ -518,6 +528,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         director = data.credits?.crew?.find((c: any) => c.job === 'Director')?.name || 'Inconnu';
       }
       const genre = data.genres?.[0]?.name || GENRES[0];
+      selectedTitleRef.current = (typeToUse === 'tv' ? data.name : data.title) ?? null;
       const yearStr = typeToUse === 'tv' ? data.first_air_date : data.release_date;
       const year = yearStr ? parseInt(yearStr.split('-')[0]) : new Date().getFullYear();
       setFormData((prev) => ({
