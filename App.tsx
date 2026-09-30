@@ -85,6 +85,8 @@ import { resizeTmdbImage } from './utils/tmdbImage';
 import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
 import { haptics } from './utils/haptics';
+import { CompanionPhase } from './utils/episodeSession';
+import { useEpisodeReturn } from './utils/useEpisodeSession';
 import ErrorBoundary from './components/ErrorBoundary';
 import { restoreBackupPreferences, TheBitterBackup } from './utils/dataBackup';
 import { getAdvancedArchetype } from './utils/archetypes';
@@ -165,6 +167,7 @@ const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SeriesDetailModal = lazy(() => import('./components/SeriesDetailModal'));
 const UpNext = lazy(() => import('./components/UpNext'));
+const EpisodeCompanion = lazy(() => import('./components/EpisodeCompanion'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
@@ -480,6 +483,8 @@ const App: React.FC = () => {
   /** La série dont la fiche est ouverte, ou null. */
   const [openSeries, setOpenSeries] = useState<Movie | null>(null);
   const [seasonToResume, setSeasonToResume] = useState<{ seriesId: string; number: number } | null>(null);
+  /** Le mode épisode ouvert, sur la série et le moment voulus. */
+  const [companion, setCompanion] = useState<{ seriesId: string; phase: CompanionPhase } | null>(null);
 
   /**
    * Saison à noter, préremplie mais **pas encore dans la collection**.
@@ -2125,6 +2130,14 @@ const App: React.FC = () => {
     return Array.from(new Map(activeProfile.movies.map((m) => [m.id, m])).values());
   }, [activeProfile]);
 
+  /* Au retour d'un épisode lancé depuis l'app, lui demander comment c'était.
+     Seulement pour une série du profil ouvert, et sans chasser un mode épisode
+     déjà à l'écran. */
+  useEpisodeReturn((session) => {
+    if (!allMovies.some((m) => m.id === session.seriesId)) return;
+    setCompanion((current) => current ?? { seriesId: session.seriesId, phase: 'after' });
+  }, allMovies.length > 0);
+
   /**
    * Ce que la partie courante donne à voir. **Le seul point de filtrage.**
    *
@@ -2913,6 +2926,7 @@ const App: React.FC = () => {
                         onUpdateProgress={handleUpdateTvProgress}
                         onOpenSeries={setOpenSeries}
                         onRateSeason={handleRateSeason}
+                        onOpenCompanion={(series, phase) => setCompanion({ seriesId: series.id, phase })}
                       />
                     </Suspense>
                   )}
@@ -3651,6 +3665,26 @@ const App: React.FC = () => {
             />
           </Suspense>
         )}
+
+        {(() => {
+          const series = companion && allMovies.find((m) => m.id === companion.seriesId);
+          return (
+            series &&
+            !isModalOpen && (
+              <Suspense fallback={null}>
+                <EpisodeCompanion
+                  key={`${series.id}:${companion.phase}`}
+                  series={series}
+                  allMovies={allMovies}
+                  phase={companion.phase}
+                  onClose={() => setCompanion(null)}
+                  onRateSeason={(season) => handleRateSeason(series, season)}
+                  onUpdateProgress={(progress) => handleUpdateTvProgress(series, progress)}
+                />
+              </Suspense>
+            )
+          );
+        })()}
 
         {previewTmdbId &&
           (() => {

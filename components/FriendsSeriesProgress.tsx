@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { TvProgress, TvWatchState } from '../types';
+import { TvProgress } from '../types';
 import { TmdbSeasonSummary } from '../services/tmdb';
-import { supabase } from '../services/supabase';
+import { comparePositions as compare, FriendProgress, getFriendsSeriesProgress } from '../services/seriesFriends';
 import { EpisodePosition, furthestPosition } from '../utils/upNext';
-import { avatarSrc } from '../utils/avatar';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
@@ -11,29 +10,6 @@ interface Props {
   seasons: TmdbSeasonSummary[];
   progress?: TvProgress;
 }
-
-/** Une ligne de `get_friends_series_progress` : une place, jamais un avis. */
-interface FriendProgressRow {
-  profile_id: string;
-  first_name: string;
-  avatar_url: string | null;
-  state: TvWatchState | null;
-  last_season: number | null;
-  last_episode: number | null;
-  seasons_watched: number[] | null;
-  furthest_season: number | null;
-  furthest_episode: number | null;
-}
-
-interface Friend {
-  id: string;
-  name: string;
-  avatar: string | null;
-  position: EpisodePosition | null;
-}
-
-const compare = (a: EpisodePosition, b: EpisodePosition) =>
-  a.season - b.season || a.episode - b.episode;
 
 /**
  * Où en sont les proches sur cette série.
@@ -48,50 +24,12 @@ const compare = (a: EpisodePosition, b: EpisodePosition) =>
  */
 const FriendsSeriesProgress: React.FC<Props> = ({ seriesTmdbId, seasons, progress }) => {
   const { t } = useLanguage();
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<FriendProgress[]>([]);
 
   useEffect(() => {
-    const client = supabase;
-    if (!client) return;
     let active = true;
-    (async () => {
-      // Sans compte, pas de proches : inutile de solliciter la base.
-      const { data: auth } = await client.auth.getSession();
-      if (!auth.session) return;
-      const { data, error } = await client.rpc('get_friends_series_progress', {
-        p_series_tmdb_id: seriesTmdbId,
-      });
-      if (!active || error || !Array.isArray(data)) return;
-      setFriends(
-        (data as FriendProgressRow[]).map((row) => {
-          const synthetic: TvProgress = {
-            state: row.state ?? 'watching',
-            updatedAt: 0,
-            lastSeason: row.last_season ?? undefined,
-            lastEpisode: row.last_episode ?? undefined,
-            seasonsWatched: row.seasons_watched ?? undefined,
-            episodes:
-              row.furthest_season != null && row.furthest_episode != null
-                ? {
-                    furthest: {
-                      seasonNumber: row.furthest_season,
-                      episodeNumber: row.furthest_episode,
-                      watched: true,
-                      updatedAt: 0,
-                    },
-                  }
-                : undefined,
-          };
-          return {
-            id: row.profile_id,
-            name: row.first_name,
-            avatar: avatarSrc(row.avatar_url),
-            position: furthestPosition(synthetic, seasons),
-          };
-        })
-      );
-    })().catch(() => {
-      /* Base injoignable : la section reste masquée. */
+    getFriendsSeriesProgress(seriesTmdbId, seasons).then((list) => {
+      if (active) setFriends(list);
     });
     return () => {
       active = false;
