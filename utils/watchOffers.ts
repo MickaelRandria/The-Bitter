@@ -95,8 +95,11 @@ export function groupWatchOffers(country: TmdbCountryOffers | null | undefined):
   return { streaming: [...streaming.values()], transactional: [...transactional.values()] };
 }
 
+export const isNetflixProvider = (providerId: number): boolean =>
+  NETFLIX_PROVIDER_IDS.has(providerId);
+
 export const hasNetflix = (offers: WatchOffers): boolean =>
-  offers.streaming.some((offer) => NETFLIX_PROVIDER_IDS.has(offer.id));
+  offers.streaming.some((offer) => isNetflixProvider(offer.id));
 
 function toOffer<Access>(provider: TmdbProvider, access: Access): WatchOffer<Access> {
   return {

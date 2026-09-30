@@ -538,6 +538,13 @@ Le bouton « Regarder sur Netflix » tire l'identifiant Netflix de Wikidata
 (`services/streamingLinks.ts`). Il ne s'affiche que si TMDB voit le titre sur
 Netflix en France, parce que Wikidata ne connaît pas les catalogues par pays.
 
+**Tout nouveau domaine appelé depuis le navigateur doit être ajouté à `connect-src`
+dans `vercel.json`.** Le serveur de dev Vite n'envoie pas cette politique : un appel
+qui marche en local peut être bloqué en prod sans aucune erreur visible. C'est arrivé
+au bouton Netflix le jour de sa sortie, parce que `query.wikidata.org` était absent.
+Pour recetter avec la vraie politique, injecter l'en-tête de `vercel.json` dans le
+document servi, avec un `page.route` Playwright.
+
 ---
 
 ## 7. Frontière d'erreur
