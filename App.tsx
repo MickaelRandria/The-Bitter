@@ -195,7 +195,7 @@ const BottomNav = memo(
     setViewMode: (v: ViewMode) => void;
     setIsModalOpen: (o: boolean) => void;
     feedTab: FeedTab;
-    setInitialStatusForAdd: (s: MovieStatus) => void;
+    setInitialStatusForAdd: (s: MovieStatus | 'watching') => void;
     setMediaTypeToLoad: (m: 'movie' | 'tv') => void;
     mediaMode: 'movie' | 'tv';
     movieCount: number;
@@ -241,7 +241,12 @@ const BottomNav = memo(
             data-tour="nav-add"
             onClick={() => {
               haptics.medium();
-              setInitialStatusForAdd(feedTab === 'queue' ? 'watchlist' : 'watched');
+              // Une série s'ajoute d'abord pour être commencée : c'est ce qui
+              // la fait entrer dans « À suivre ». « Vu » et « À voir » restent à
+              // un geste dans la fenêtre.
+              setInitialStatusForAdd(
+                mediaMode === 'tv' ? 'watching' : feedTab === 'queue' ? 'watchlist' : 'watched'
+              );
               // Le « + » ajoute dans la partie où l'on se trouve : en mode
               // Séries, il ouvre la recherche de séries, pas celle de films.
               setMediaTypeToLoad(mediaMode);
@@ -437,7 +442,7 @@ const App: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [tmdbIdToLoad, setTmdbIdToLoad] = useState<number | null>(null);
-  const [initialStatusForAdd, setInitialStatusForAdd] = useState<MovieStatus>('watched');
+  const [initialStatusForAdd, setInitialStatusForAdd] = useState<MovieStatus | 'watching'>('watched');
   const [watchlistGenreFilter, setWatchlistGenreFilter] = useState<string>('all');
   const [tonightPick, setTonightPick] = useState<Movie | null>(null);
   const [isPickAnimating, setIsPickAnimating] = useState(false);
@@ -2810,6 +2815,7 @@ const App: React.FC = () => {
               onSelectMovie={(id, type) => {
                 setTmdbIdToLoad(id);
                 setMediaTypeToLoad(type);
+                setInitialStatusForAdd(type === 'tv' ? 'watching' : 'watched');
                 setIsModalOpen(true);
               }}
               onPreview={(id, type) => {
@@ -3701,6 +3707,25 @@ const App: React.FC = () => {
                 isOpen={!!previewTmdbId}
                 onClose={() => setPreviewTmdbId(null)}
                 onAction={(id, status) => {
+                  /* « Commencer » une série déjà dans la collection : pas de
+                     seconde fiche, elle passe simplement en cours. */
+                  const existingSeries =
+                    status === 'watching'
+                      ? allMovies.find(
+                          (m) => m.mediaType === 'tv' && m.seasonNumber == null && m.tmdbId === id
+                        )
+                      : undefined;
+                  if (existingSeries) {
+                    setPreviewTmdbId(null);
+                    haptics.success();
+                    handleUpdateTvProgress(existingSeries, {
+                      ...existingSeries.tvProgress,
+                      state: 'watching',
+                      updatedAt: Date.now(),
+                    });
+                    setToastMessage(t('feed.seriesStarted', { title: existingSeries.title }));
+                    return;
+                  }
                   setPreviewTmdbId(null);
                   setTmdbIdToLoad(id);
                   setMediaTypeToLoad(previewMediaType);

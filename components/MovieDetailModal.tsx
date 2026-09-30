@@ -18,6 +18,7 @@ import { tmdbImage } from '../utils/tmdbImage';
 import { FavoriteCinema, MovieStatus } from '../types';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import { useLanguage } from '../contexts/LanguageContext';
 import MovieShowtimes from './MovieShowtimes';
 import { fetchImdbRatings, imdbKey, ImdbRating, readImdbId } from '../services/imdb';
 import { formatVotes, pickPublicRating } from '../utils/publicRating';
@@ -50,7 +51,8 @@ interface MovieDetailModalProps {
   tmdbId: number;
   isOpen: boolean;
   onClose: () => void;
-  onAction: (id: number, status: MovieStatus) => void;
+  /** `watching` : commencer une série, sans la noter. */
+  onAction: (id: number, status: MovieStatus | 'watching') => void;
   onViewDirector?: (name: string, id?: number) => void;
   mediaType?: 'movie' | 'tv';
   collectionMovieId?: string;
@@ -123,6 +125,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   onToast,
 }) => {
   const dialog = useDialog(onClose);
+  const { t } = useLanguage();
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [reviews, setReviews] = useState<TMDBReview[]>([]);
   const [reviewFilter, setReviewFilter] = useState<'good' | 'bad' | 'matching'>('good');
@@ -751,8 +754,44 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               </div>
             )}
 
-            {/* Sticky Actions */}
+            {/* Sticky Actions. Une série se commence d'abord : c'est le geste
+                qui la fait entrer dans « À suivre ». */}
             <div className="absolute bottom-0 left-0 right-0 p-6 bg-cream dark:bg-[#0c0c0c] border-t border-sand dark:border-white/10 flex gap-3 z-30">
+              {mediaType === 'tv' ? (
+                <>
+                  <button
+                    onClick={() => {
+                      haptics.medium();
+                      onAction(movie.id, 'watching');
+                    }}
+                    className="flex-1 min-w-0 bg-bitter-lime text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                  >
+                    <Play size={16} fill="currentColor" />
+                    <span className="truncate">{t('addMovie.startShort')}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      onAction(movie.id, 'watched');
+                    }}
+                    aria-label={t('addMovie.watched')}
+                    className="shrink-0 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <Eye size={16} /> {t('addMovie.watched')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      onAction(movie.id, 'watchlist');
+                    }}
+                    aria-label={t('addMovie.toWatch')}
+                    className="shrink-0 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <Plus size={16} /> {t('addMovie.toWatch')}
+                  </button>
+                </>
+              ) : (
+              <>
               <button
                 onClick={() => {
                   haptics.soft();
@@ -771,6 +810,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               >
                 <Plus size={18} /> À voir
               </button>
+              </>
+              )}
             </div>
           </>
         ) : null}
