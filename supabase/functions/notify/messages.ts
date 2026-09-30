@@ -22,7 +22,10 @@ export type SocialKind =
   | 'plan_rate'
   | 'common_wish'
   | 'release_today'
-  | 'now_streaming';
+  | 'now_streaming'
+  | 'tv_episode'
+  | 'tv_season'
+  | 'tv_season_soon';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -44,6 +47,10 @@ export interface PlanPayload {
   providers?: string[];
   /** Prénoms des proches qui attendent aussi le film. */
   also?: string[];
+  /** Série suivie : l'épisode ou la saison annoncés, et leur date de diffusion. */
+  season?: number;
+  episode?: number;
+  air_date?: string;
 }
 
 export interface SocialMessageInput {
@@ -113,6 +120,17 @@ export const formatSlot = (slot: PlanSlot | null | undefined, now = new Date()):
 const chosenSlot = (payload?: PlanPayload | null): PlanSlot | null => {
   const slots = payload?.slots ?? [];
   return slots.find((s) => s.id && s.id === payload?.chosen_slot_id) ?? (slots.length === 1 ? slots[0] : null);
+};
+
+/** « jeudi 8 octobre » : une date de diffusion, sans heure — TMDB n'en donne pas. */
+export const formatAirDay = (day: string | undefined): string => {
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return '';
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(`${day}T12:00:00Z`));
 };
 
 /** « Léa », « Léa et Tom », « Léa, Tom et Sam ». */
@@ -206,6 +224,34 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         body: also.length
           ? `${listNames(also)} ${also.length > 1 ? 'veulent' : 'veut'} aussi le voir. Soirée ciné à la maison ?`
           : 'Il était dans ta liste.',
+      };
+    }
+    // « Diffusé » et non « disponible » : TMDB donne la date de la diffusion
+    // d'origine, qui précède parfois d'un jour l'arrivée sur une plateforme française.
+    case 'tv_episode': {
+      const season = input.payload?.season;
+      const episode = input.payload?.episode;
+      return {
+        title: `Nouvel épisode de ${title}`,
+        body:
+          season && episode
+            ? `Saison ${season}, épisode ${episode} : diffusé aujourd’hui.`
+            : 'Un nouvel épisode est diffusé aujourd’hui.',
+      };
+    }
+    case 'tv_season': {
+      const season = input.payload?.season;
+      return {
+        title: season ? `${title} : la saison ${season} commence` : `${title} revient`,
+        body: 'Premier épisode diffusé aujourd’hui. Besoin d’un rappel ? Le récap est dans l’app.',
+      };
+    }
+    case 'tv_season_soon': {
+      const season = input.payload?.season;
+      const day = formatAirDay(input.payload?.air_date);
+      return {
+        title: day ? `${title} revient ${day.split(' ')[0]}` : `${title} revient bientôt`,
+        body: `${season ? `La saison ${season}` : 'La nouvelle saison'} commence ${day || 'dans quelques jours'}. Le récap de la saison d’avant t’attend dans l’app.`,
       };
     }
     default:
