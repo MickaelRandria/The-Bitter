@@ -51,7 +51,8 @@ type Action =
   | 'discover-query'
   | 'recommend'
   | 'portrait'
-  | 'space-pitch';
+  | 'space-pitch'
+  | 'series-recap';
 type Role = 'user' | 'assistant';
 interface Turn {
   role: Role;
@@ -378,6 +379,32 @@ Reprends les prénoms exactement comme ils apparaissent ci-dessous.
 
 ${context}`;
 
+/**
+ * « Précédemment dans… » d'une série.
+ *
+ * Le client n'envoie que les résumés des épisodes déjà vus. Le danger est
+ * ailleurs : le modèle connaît souvent la série, et pourrait compléter avec la
+ * suite. La consigne le lui interdit en toutes lettres.
+ */
+const recapPersona = (context: string) => `Tu écris le « Précédemment dans… » d'une série, pour quelqu'un qui la reprend après une pause.
+
+RÈGLES ABSOLUES :
+- Appuie-toi UNIQUEMENT sur les résumés fournis ci-dessous. N'ajoute AUCUN fait,
+  nom, lieu, rebondissement ou détail qui n'y figure pas, même si tu connais la
+  série.
+- Ne dis RIEN de ce qui se passe après le dernier épisode vu : ni la suite, ni
+  un indice, ni une hypothèse, ni « la suite réserve des surprises ».
+- Va à ce qui sert pour reprendre : qui sont les personnages principaux, où en
+  sont les intrigues, et la situation à la fin du dernier épisode vu.
+- Entre 4 et 7 phrases, au présent, en français. Pas de titre, pas de liste, pas
+  de formule d'introduction.
+- Si les résumés sont maigres, fais court plutôt que d'inventer.
+
+Réponds UNIQUEMENT par un objet JSON de la forme :
+{"recap":"..."}
+
+${context}`;
+
 /** Réglages propres à chaque usage : longueur et liberté n'ont rien à voir. */
 const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boolean }> = {
   assistant: { temperature: 0.8, maxTokens: 700, json: false },
@@ -388,6 +415,8 @@ const TUNING: Record<Action, { temperature: number; maxTokens: number; json: boo
   recommend: { temperature: 0.9, maxTokens: 800, json: true },
   portrait: { temperature: 0.8, maxTokens: 400, json: true },
   'space-pitch': { temperature: 0.8, maxTokens: 400, json: true },
+  // Température basse : un récap raconte ce qu'on lui donne, il n'invente pas.
+  'series-recap': { temperature: 0.3, maxTokens: 500, json: true },
 };
 
 const isAction = (value: unknown): value is Action =>
@@ -398,7 +427,8 @@ const isAction = (value: unknown): value is Action =>
   value === 'discover-query' ||
   value === 'recommend' ||
   value === 'portrait' ||
-  value === 'space-pitch';
+  value === 'space-pitch' ||
+  value === 'series-recap';
 
 /** Genres TMDB acceptés. Tout le reste est écarté avant de bâtir une requête. */
 const GENRE_IDS = new Set([
@@ -503,6 +533,18 @@ const parsePitches = (raw: string) => {
     }))
     .filter((item) => item.name.length > 0 && item.text.length > 0)
     .slice(0, 10);
+};
+
+/** Le récap, borné : un paragraphe, pas un roman. */
+const parseRecap = (raw: string): string => {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return '';
+  }
+  const recap = typeof parsed?.recap === 'string' ? parsed.recap.trim() : '';
+  return recap.length > 1500 ? `${recap.slice(0, 1499).trimEnd()}…` : recap;
 };
 
 /**
@@ -659,6 +701,8 @@ Deno.serve(async (req: Request) => {
     messages.push({ role: 'system', content: pitchPersona(context) });
   } else if (action === 'recommend') {
     messages.push({ role: 'system', content: recommendPersona(context) });
+  } else if (action === 'series-recap') {
+    messages.push({ role: 'system', content: recapPersona(context) });
   } else if (action === 'discover-query') {
     messages.push({
       role: 'system',
@@ -738,6 +782,12 @@ Deno.serve(async (req: Request) => {
       const pitches = parsePitches(text);
       if (pitches.length === 0) return fail(502, 'upstream', 'Argumentaire illisible.');
       return json({ pitches, usage: payload?.usage ?? null });
+    }
+
+    if (action === 'series-recap') {
+      const recap = parseRecap(text);
+      if (!recap) return fail(502, 'upstream', 'Récap illisible.');
+      return json({ recap, usage: payload?.usage ?? null });
     }
 
     if (action === 'recommend') {

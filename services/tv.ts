@@ -1,7 +1,7 @@
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { getCachedData, setCachedData } from '../utils/cache';
 import { SERIES_TYPES, getDiscoveryRegion, originCountriesOf } from '../utils/discoveryRegion';
-import { groupWatchOffers } from '../utils/watchOffers';
+import { groupWatchOffers, TmdbCountryOffers } from '../utils/watchOffers';
 
 export interface TvEpisode {
   id: number;
@@ -47,7 +47,96 @@ export async function getSeasonEpisodes(id: number, season: number, language = '
     voteAverage: e.vote_average > 0 ? e.vote_average : undefined,
   }));
   setCachedData(key, episodes);
+  // Le résumé de la saison arrive dans la même réponse : on le garde pour le
+  // récap plutôt que de redemander la saison.
+  setCachedData(`tvSeasonOverview:${id}:${season}:${language}`, data.overview || '');
   return episodes;
+}
+
+/** Le résumé d'une saison entière, tel que TMDB l'écrit. Vide s'il n'en a pas. */
+export async function getSeasonOverview(id: number, season: number, language = 'fr-FR'): Promise<string> {
+  const key = `tvSeasonOverview:${id}:${season}:${language}`;
+  const cached = getCachedData<string>(key);
+  if (cached != null) return cached;
+  await getSeasonEpisodes(id, season, language);
+  return getCachedData<string>(key) ?? '';
+}
+
+/** Les offres de visionnage en France d'un film ou d'une série (données JustWatch). */
+export async function getWatchOffers(mediaType: 'movie' | 'tv', id: number): Promise<TmdbCountryOffers | null> {
+  const key = `watchOffers:${mediaType}:${id}`;
+  const cached = getCachedData<TmdbCountryOffers | null>(key);
+  if (cached !== null) return cached;
+  const data = await request(`${mediaType}/${id}/watch/providers`, 'fr-FR');
+  const offers: TmdbCountryOffers | null = data.results?.FR ?? null;
+  setCachedData(key, offers);
+  return offers;
+}
+
+/** Un épisode vu d'avion : sa place, sa date, et la note du public. */
+export interface EpisodeScore {
+  season: number;
+  episode: number;
+  airDate?: string;
+  /** Absente quand trop peu de votes pour qu'elle veuille dire quelque chose. */
+  rating?: number;
+  votes: number;
+  name: string;
+}
+
+/**
+ * En dessous, une note TMDB d'épisode dit l'avis de deux ou trois personnes :
+ * la colorer comme une vraie note tromperait.
+ */
+const MIN_EPISODE_VOTES = 3;
+/** TMDB accepte au plus vingt sous-requêtes `append_to_response` par appel. */
+const APPEND_LIMIT = 20;
+/** Au-delà, la carte deviendrait illisible sur un téléphone de toute façon. */
+const MAX_MAPPED_SEASONS = 40;
+
+/**
+ * Toutes les notes d'épisodes d'une série, en une ou deux requêtes.
+ *
+ * Demander les saisons une à une coûterait vingt-sept appels pour New York Unité
+ * Spéciale. `append_to_response=season/1,season/2,…` les rapporte avec la fiche,
+ * par paquets de vingt. La saison 0 (bonus) est écartée.
+ */
+export async function getSeriesEpisodeScores(
+  id: number,
+  seasonNumbers: number[],
+  language = 'fr-FR'
+): Promise<EpisodeScore[]> {
+  const wanted = seasonNumbers.filter((n) => n > 0).sort((a, b) => a - b).slice(0, MAX_MAPPED_SEASONS);
+  const key = `tvEpisodeScores:${id}:${wanted.join(',')}:${language}`;
+  const cached = getCachedData<EpisodeScore[]>(key);
+  if (cached) return cached;
+
+  const batches: number[][] = [];
+  for (let i = 0; i < wanted.length; i += APPEND_LIMIT) batches.push(wanted.slice(i, i + APPEND_LIMIT));
+  const responses = await Promise.all(
+    batches.map((batch) =>
+      request(`tv/${id}?append_to_response=${batch.map((n) => `season/${n}`).join(',')}`, language)
+    )
+  );
+
+  const scores: EpisodeScore[] = [];
+  responses.forEach((data, index) => {
+    for (const seasonNumber of batches[index]) {
+      for (const e of data[`season/${seasonNumber}`]?.episodes ?? []) {
+        const votes = e.vote_count ?? 0;
+        scores.push({
+          season: seasonNumber,
+          episode: e.episode_number,
+          airDate: e.air_date || undefined,
+          rating: votes >= MIN_EPISODE_VOTES && e.vote_average > 0 ? e.vote_average : undefined,
+          votes,
+          name: e.name ?? '',
+        });
+      }
+    }
+  });
+  setCachedData(key, scores);
+  return scores;
 }
 
 /**

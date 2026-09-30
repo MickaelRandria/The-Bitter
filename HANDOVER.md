@@ -80,7 +80,7 @@ Poser un secret redéploie la fonction (le numéro de version s'incrémente).
    La fonction n'est exécutable que par `service_role`. **Fermé par défaut** :
    compteur en panne ou réponse vide → refus.
 
-**Les huit actions :**
+**Les neuf actions :**
 
 | Action | Ce qu'elle rend | Mode JSON |
 |---|---|---|
@@ -92,6 +92,7 @@ Poser un secret redéploie la fonction (le numéro de version s'incrémente).
 | `recommend` | 5 films + justification | oui |
 | `portrait` | 3 observations + le chiffre de chacune | oui |
 | `space-pitch` | un argument par membre | oui |
+| `series-recap` | « Précédemment dans… » d'une série, à partir des seuls résumés fournis | oui |
 
 Chaque action a sa `persona` (consigne système) et son entrée dans `TUNING`
 (température, `max_tokens`, mode JSON). **Toute sortie JSON est validée et bornée
@@ -417,6 +418,46 @@ destinataire n'ayant de téléphone abonné.
 - **Désinscription** : lien de l'e-mail → `api/unsubscribe.ts` (GET, et POST pour
   le bouton de Gmail) → `unsubscribe_email(jeton)`. Réglage aussi dans la cloche
   (`profiles.email_notifications`).
+
+### 5.5 Compagnon des séries (30 septembre 2026)
+
+Aucune plateforme ne laisse lire l'historique de visionnage (voir la mémoire du
+projet sur les intégrations streaming). Le compagnon rend donc le suivi manuel
+presque gratuit, et prévient au bon moment.
+
+- **« À suivre »** (`components/UpNext.tsx`, accueil du mode Séries) : le prochain
+  épisode de chaque série en cours ou à jour, cochable d'un geste, avec « Annuler »,
+  le bouton Netflix et le temps restant dans la saison. Finir une saison propose
+  son verdict. Le calcul du prochain épisode est pur et testé : `utils/upNext.ts`
+  (épisodes cochés, saisons en bloc, marque-page ; le plus avancé l'emporte).
+  Cocher depuis la carte met aussi à jour le marque-page.
+- **« Précédemment dans… »** (`components/SeriesRecap.tsx`, `services/seriesRecap.ts`) :
+  récap rédigé par l'action `series-recap` à partir des résumés TMDB des **seuls
+  épisodes vus**. Tant que le relais n'est pas redéployé, il répond avec
+  l'assistant généraliste (`text` au lieu de `recap`) : cette réponse est **jetée
+  sans être montrée**, parce que l'assistant connaît la suite de la série. On
+  affiche alors les résumés bruts des derniers épisodes vus.
+- **La carte de la série** (`components/SeriesHeatmap.tsx`) : notes TMDB de chaque
+  épisode, par paquets de 20 saisons en `append_to_response`. Titres masqués tant
+  que l'épisode n'est pas vu.
+- **Où en sont mes proches** (`components/FriendsSeriesProgress.tsx`,
+  `get_friends_series_progress`) : seulement la place, jamais les avis. Limité aux
+  séries partagées (`shared_to_feed`), jamais les abandonnées. Section masquée tant
+  que la fonction n'existe pas en base.
+- **Alertes** : cron `bitter-series` (7 h 20 UTC) → Edge Function `series-alerts`
+  → `record_series_alert` → `notifications` → push par `notify`. Trois sortes :
+  `tv_episode` (diffusé aujourd'hui, pour qui a atteint cette saison), `tv_season`
+  (saison qui commence, pour qui a atteint la précédente), `tv_season_soon` (trois
+  jours avant). Les dates TMDB sont celles de la **diffusion d'origine** : les
+  textes disent « diffusé », jamais « disponible sur ».
+
+**Mise en ligne, dans cet ordre :**
+1. Relever la vraie contrainte `notifications_kind_check` en prod et vérifier que la
+   migration `20260930_compagnon_series.sql` n'en retire rien ; l'appliquer.
+2. Déployer `series-alerts` (**`verify_jwt: false`**, comme `availability` : le cron
+   n'envoie pas de jeton utilisateur, c'est le jeton de worker qui protège), puis
+   redéployer `notify` (nouveaux textes) et `ai` (action `series-recap`).
+3. Le front peut précéder : chaque morceau serveur manquant se dégrade sans casser.
 
 ---
 

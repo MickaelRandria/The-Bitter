@@ -36,6 +36,8 @@ interface NotificationCenterProps {
   onToast?: (message: string) => void;
   /** « Voir avec… » sur un film de la liste : envie commune, sortie, streaming. */
   onWatchWith?: (tmdbId: number, mediaType: 'movie' | 'tv', preselect?: string[]) => void;
+  /** Une alerte de série suivie : nouvel épisode, nouvelle saison. */
+  onOpenSeries?: (tmdbId: number) => void;
   /** Une réponse vient d'être donnée : bon moment pour proposer les notifications. */
   onEngaged?: (source: string) => void;
   /** Des invitations attendent une réponse. */
@@ -66,6 +68,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   onOpenSpace,
   onToast,
   onWatchWith,
+  onOpenSeries,
   onEngaged,
   onPending,
 }) => {
@@ -307,11 +310,23 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       n.kind === 'common_wish' && n.actor_id ? [n.actor_id] : undefined
                     );
                   };
+                  // Une série suivie : l'alerte ouvre sa fiche, là où l'on coche et reprend.
+                  const seriesTmdb = ['tv_episode', 'tv_season', 'tv_season_soon'].includes(n.kind)
+                    ? n.payload?.tmdb_id
+                    : undefined;
+                  const openSeries = () => {
+                    if (!seriesTmdb || !onOpenSeries) return;
+                    markSocialRead(n);
+                    setOpen(false);
+                    onOpenSeries(seriesTmdb);
+                  };
                   const interactive = pendingInvite || pendingVerdict || pendingPlan;
                   return (
                     <div
                       key={n.id}
-                      onClick={() => (wishTmdb ? watchWith() : !interactive && openNotification(n))}
+                      onClick={() =>
+                        seriesTmdb ? openSeries() : wishTmdb ? watchWith() : !interactive && openNotification(n)
+                      }
                       className={`flex gap-3 px-4 py-3 transition-colors ${
                         interactive ? '' : 'cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800'
                       } ${unread ? 'bg-lime-50 dark:bg-stone-800/60' : ''}`}

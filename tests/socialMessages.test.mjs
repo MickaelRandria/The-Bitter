@@ -100,3 +100,26 @@ test('le film que tu attends : envie commune, sortie et streaming', () => {
     body: 'Léa veut aussi le voir. Soirée ciné à la maison ?',
   });
 });
+
+test('séries suivies : épisode du jour, saison qui commence, saison annoncée', () => {
+  assert.deepEqual(socialMessage({ kind: 'tv_episode', title: 'The Bear', payload: { season: 5, episode: 3 } }), {
+    title: 'Nouvel épisode de The Bear',
+    body: 'Saison 5, épisode 3 : diffusé aujourd’hui.',
+  });
+  assert.equal(
+    socialMessage({ kind: 'tv_season', title: 'Severance', payload: { season: 3 } }).title,
+    'Severance : la saison 3 commence'
+  );
+  assert.deepEqual(
+    socialMessage({ kind: 'tv_season_soon', title: 'New York Unité Spéciale', payload: { season: 28, air_date: '2026-10-08' } }),
+    {
+      title: 'New York Unité Spéciale revient jeudi',
+      body: 'La saison 28 commence jeudi 8 octobre. Le récap de la saison d’avant t’attend dans l’app.',
+    }
+  );
+  // Une date illisible ne laisse pas de trou.
+  assert.equal(
+    socialMessage({ kind: 'tv_season_soon', title: 'X', payload: { air_date: 'bientôt' } }).title,
+    'X revient bientôt'
+  );
+});
