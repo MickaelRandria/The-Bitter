@@ -158,7 +158,68 @@ const UpNext: React.FC<Props> = ({ movies, onUpdateProgress, onOpenSeries, onRat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followedKey]);
 
-  if (followed.length === 0) return null;
+  if (followed.length === 0) {
+    // Des séries dans la collection, aucune suivie : sans point de départ, « À
+    // suivre » n'a rien à proposer. Relevé le 30 septembre 2026 : 14 séries sur 15
+    // en base n'avaient aucune progression. On invite donc à dire où on en est.
+    const untracked = movies
+      .filter(
+        (m) =>
+          m.mediaType === 'tv' &&
+          m.seasonNumber == null &&
+          m.tmdbId != null &&
+          m.tvProgress?.state !== 'dropped'
+      )
+      // Les séries déjà vues d'abord : ce sont les plus susceptibles d'être en cours.
+      .sort((a, b) => Number(b.status === 'watched') - Number(a.status === 'watched'))
+      .slice(0, 8);
+    if (untracked.length === 0) return null;
+    return (
+      <section aria-labelledby="up-next-title" className="space-y-3">
+        <p
+          id="up-next-title"
+          className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500"
+        >
+          {t('upNext.title')}
+        </p>
+        <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 dark:border-white/10 dark:bg-[#1a1a1a]">
+          <p className="text-[13px] font-bold leading-snug text-charcoal dark:text-white">
+            {t('upNext.inviteTitle')}
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
+            {t('upNext.inviteBody')}
+          </p>
+          <div className="-mx-1 mt-3 flex gap-2.5 overflow-x-auto no-scrollbar px-1 pb-1">
+            {untracked.map((series) => (
+              <button
+                key={series.id}
+                onClick={() => {
+                  haptics.soft();
+                  onOpenSeries(series);
+                }}
+                className="w-16 shrink-0 text-left transition-transform active:scale-95"
+              >
+                <span className="block aspect-[2/3] overflow-hidden rounded-xl bg-stone-200 dark:bg-[#252525]">
+                  {series.posterUrl && (
+                    <img
+                      src={resizeTmdbImage(series.posterUrl, 'w185')}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </span>
+                <span className="mt-1 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-400">
+                  {series.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const available = (items ?? []).filter((item) => item.available);
