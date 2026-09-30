@@ -1,6 +1,7 @@
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import { getCachedData, setCachedData } from '../utils/cache';
 import { SERIES_TYPES, getDiscoveryRegion, originCountriesOf } from '../utils/discoveryRegion';
+import { groupWatchOffers } from '../utils/watchOffers';
 
 export interface TvEpisode {
   id: number;
@@ -125,7 +126,8 @@ export async function getTvUpcoming(followedIds: number[] = [], language = 'fr-F
         const base = { id, title: data.name, poster: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : undefined,
           // Ce que ces plateformes diffusent **aujourd'hui** en France, et non ce
           // qu'elles diffuseront : la saison annoncée n'y est promise nulle part.
-          providers: (data['watch/providers']?.results?.FR?.flatrate ?? []).map((p: any) => p.provider_name) };
+          // Les offres gratuites comptent aussi : TMDB y range Arte, par exemple.
+          providers: groupWatchOffers(data['watch/providers']?.results?.FR).streaming.map(offer => offer.name) };
         const upcomingSeasons = (data.seasons ?? []).filter((s: any) => s.season_number > 0 && s.air_date >= today && s.air_date <= end);
         for (const season of upcomingSeasons) result.push({ ...base, date: season.air_date, season: season.season_number, kind: season.season_number === 1 ? 'new' : 'season' });
         const next = data.next_episode_to_air;

@@ -1004,6 +1004,7 @@ export const en: Record<string, string> = {
   'discover.month': 'Month',
   'discover.catalogue': 'Catalogue',
   'discover.platform': 'Platform',
+  'streaming.source': 'Availability data:',
   'discover.region': "Where I watch from",
   'discover.regionWorld': "World",
   'discover.regionHint': "Series people talk about here. TMDB ranks by worldwide popularity: without this, it mostly surfaces shows that never leave their own country.",

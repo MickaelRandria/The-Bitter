@@ -1010,6 +1010,7 @@ export const fr: Record<string, string> = {
   'discover.month': 'Mois',
   'discover.catalogue': 'Catalogue',
   'discover.platform': 'Plateforme',
+  'streaming.source': 'Source des disponibilités :',
   'discover.region': "D'où je regarde",
   'discover.regionWorld': "Monde",
   'discover.regionHint': "Les séries dont on entend parler ici. Le classement de TMDB est mondial : sans ce réglage, il remonte surtout des programmes qui ne sortent jamais de leur pays.",
