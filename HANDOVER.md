@@ -524,6 +524,20 @@ pris et **toute requête suivante attend derrière lui**. D'où des écrans qui 
 dans le vide que seul un redémarrage débloquait. `stopAutoRefresh` avant la veille,
 `startAutoRefresh` + `realtime.connect()` au réveil.
 
+### 6.10 Plateformes : citer JustWatch, lire toutes les offres
+
+Les plateformes de TMDB (`watch/providers`, `with_watch_providers`) viennent de
+JustWatch. TMDB exige de le citer partout où on les affiche, **sinon il révoque la
+clé API**. Tout nouvel écran qui montre une plateforme ajoute `<JustWatchCredit />`.
+
+Ne pas relire `FR.flatrate` seul : `utils/watchOffers.ts` regroupe aussi `free`,
+`ads`, `rent` et `buy`. Un film qui n'est qu'en location, comme Oppenheimer, n'affichait
+sinon aucune plateforme.
+
+Le bouton « Regarder sur Netflix » tire l'identifiant Netflix de Wikidata
+(`services/streamingLinks.ts`). Il ne s'affiche que si TMDB voit le titre sur
+Netflix en France, parce que Wikidata ne connaît pas les catalogues par pays.
+
 ---
 
 ## 7. Frontière d'erreur

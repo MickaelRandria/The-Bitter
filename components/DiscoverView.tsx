@@ -33,6 +33,7 @@ import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
 import MoodSearch from './MoodSearch';
 import StreamingBadge from './StreamingBadge';
+import JustWatchCredit from './JustWatchCredit';
 import { useLanguage } from '../contexts/LanguageContext';
 import TheatreReleasesSection from './TheatreReleasesSection';
 import FriendsFeed from './FriendsFeed';
@@ -894,6 +895,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             })}
           </div>
         )}
+        {/* Les badges de plateforme et le filtre « Plateforme » viennent de JustWatch. */}
+        {!loading && items.length > 0 && <JustWatchCredit className="text-center" />}
       </div>
       </>
       )}

@@ -22,6 +22,28 @@ import MovieShowtimes from './MovieShowtimes';
 import { fetchImdbRatings, imdbKey, ImdbRating, readImdbId } from '../services/imdb';
 import { formatVotes, pickPublicRating } from '../utils/publicRating';
 import { ImdbMark } from './PublicRatingBadge';
+import {
+  groupWatchOffers,
+  hasNetflix,
+  StreamingAccess,
+  TmdbCountryOffers,
+  TransactionAccess,
+  WatchOffer,
+} from '../utils/watchOffers';
+import { getNetflixUrl } from '../services/streamingLinks';
+import JustWatchCredit from './JustWatchCredit';
+
+/** Rien sous le nom pour le cas courant : l'abonnement, ou la location comme l'achat. */
+const STREAMING_ACCESS_LABEL: Record<StreamingAccess, string | null> = {
+  subscription: null,
+  free: 'Gratuit',
+  ads: 'Gratuit avec pub',
+};
+const TRANSACTION_ACCESS_LABEL: Record<TransactionAccess, string | null> = {
+  rentOrBuy: null,
+  rent: 'Location',
+  buy: 'Achat',
+};
 
 interface MovieDetailModalProps {
   tmdbId: number;
@@ -71,11 +93,7 @@ interface MovieDetail {
   created_by?: { name: string }[]; // For TV
   'watch/providers': {
     results: {
-      FR?: {
-        flatrate?: { provider_name: string; logo_path: string }[];
-        rent?: { provider_name: string; logo_path: string }[];
-        buy?: { provider_name: string; logo_path: string }[];
-      };
+      FR?: TmdbCountryOffers;
     };
   };
   videos?: {
@@ -110,6 +128,23 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   const [expandedReview, setExpandedReview] = useState<TMDBReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [imdb, setImdb] = useState<ImdbRating | null>(null);
+  const [netflixUrl, setNetflixUrl] = useState<string | null>(null);
+
+  // Le lien direct, pour un titre que TMDB voit sur Netflix en France. Une fiche
+  // encore affichée pendant le chargement de la suivante ne déclenche rien : le
+  // bouton ouvrirait un autre titre que celui à l'écran.
+  useEffect(() => {
+    setNetflixUrl(null);
+    if (!movie || movie.id !== tmdbId) return;
+    if (!hasNetflix(groupWatchOffers(movie['watch/providers']?.results?.FR))) return;
+    let active = true;
+    getNetflixUrl(mediaType === 'tv' ? 'tv' : 'movie', tmdbId).then((url) => {
+      if (active) setNetflixUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [movie, mediaType, tmdbId]);
 
   useEffect(() => {
     if (isOpen && tmdbId) {
@@ -308,7 +343,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   const showtimeTitles = [...new Set([title, movie?.original_title].filter(Boolean) as string[])];
 
   const cast = movie?.credits.cast.slice(0, 6) || [];
-  const providers = movie?.['watch/providers']?.results?.FR?.flatrate || [];
+  const offers = groupWatchOffers(movie?.['watch/providers']?.results?.FR);
   const trailer = movie?.videos?.results?.find((v) => v.type === 'Trailer' && v.site === 'YouTube');
 
   // Review categories — thresholds: ≥7 positive, ≤4 negative, closest to user rating
@@ -476,30 +511,39 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               )}
 
               {/* Providers */}
-              {providers.length > 0 && (
+              {(offers.streaming.length > 0 || offers.transactional.length > 0) && (
                 <div className="mb-8">
-                  <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
-                    Disponible sur
-                  </h3>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                    {providers.map((p) => (
-                      <div
-                        key={p.provider_name}
-                        className="flex items-center gap-2 bg-white dark:bg-white/5 border border-stone-100 dark:border-white/10 pr-3 rounded-xl p-1 shadow-sm"
+                  {netflixUrl && (
+                    <a
+                      href={netflixUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => haptics.medium()}
+                      className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#E50914] py-3.5 text-sm font-black text-white shadow-lg shadow-[#E50914]/20 active:scale-[0.98] transition-transform"
+                    >
+                      <Play size={16} fill="currentColor" />
+                      Regarder sur Netflix
+                    </a>
+                  )}
+                  {offers.streaming.length > 0 && (
+                    <>
+                      <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
+                        Disponible sur
+                      </h3>
+                      <OfferRow offers={offers.streaming} labels={STREAMING_ACCESS_LABEL} />
+                    </>
+                  )}
+                  {offers.transactional.length > 0 && (
+                    <>
+                      <h3
+                        className={`text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3 ${offers.streaming.length > 0 ? 'mt-4' : ''}`}
                       >
-                        <img
-                          src={tmdbImage(p.logo_path, 'w92')}
-                          className="w-6 h-6 rounded-lg"
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                        />
-                        <span className="text-[10px] font-bold text-charcoal dark:text-white whitespace-nowrap">
-                          {p.provider_name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                        En location ou à l'achat
+                      </h3>
+                      <OfferRow offers={offers.transactional} labels={TRANSACTION_ACCESS_LABEL} />
+                    </>
+                  )}
+                  <JustWatchCredit className="mt-1" />
                 </div>
               )}
 
@@ -729,5 +773,45 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
     </div>
   );
 };
+
+function OfferRow<Access extends string>({
+  offers,
+  labels,
+}: {
+  offers: WatchOffer<Access>[];
+  labels: Record<Access, string | null>;
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+      {offers.map((offer) => {
+        const label = labels[offer.access];
+        return (
+          <div
+            key={offer.id}
+            className="flex items-center gap-2 bg-white dark:bg-white/5 border border-stone-100 dark:border-white/10 pr-3 rounded-xl p-1 shadow-sm"
+          >
+            <img
+              src={tmdbImage(offer.logoPath, 'w92')}
+              className="w-6 h-6 rounded-lg"
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="flex flex-col leading-tight">
+              <span className="text-[10px] font-bold text-charcoal dark:text-white whitespace-nowrap">
+                {offer.name}
+              </span>
+              {label && (
+                <span className="text-[9px] font-bold text-stone-500 dark:text-stone-400 whitespace-nowrap">
+                  {label}
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default MovieDetailModal;

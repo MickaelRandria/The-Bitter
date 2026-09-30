@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getTvUpcoming, TvRelease } from '../services/tv';
 import { useLanguage } from '../contexts/LanguageContext';
+import JustWatchCredit from './JustWatchCredit';
 
 export default function TvUpcoming({ followedIds, onPreview, onAdd }: { followedIds: number[]; onPreview: (id: number) => void; onAdd?: (id: number) => Promise<void> }) {
   const { t, language } = useLanguage();
@@ -31,5 +32,6 @@ export default function TvUpcoming({ followedIds, onPreview, onAdd }: { followed
         {onAdd && <button disabled={pending === item.id || followedIds.includes(item.id) || added.includes(item.id)} className="mt-2 text-xs font-bold py-2 disabled:opacity-50" onClick={async () => { setPending(item.id); try { await onAdd(item.id); setAdded(prev => [...prev, item.id]); } finally { setPending(null); } }}>{followedIds.includes(item.id) || added.includes(item.id) ? t('tv.inLibrary') : t('tv.addSeries')}</button>}
       </div>
     </li>)}</ul>}
+    {!loading && !error && visible.some(item => item.providers.length) && <JustWatchCredit />}
   </section>;
 }
