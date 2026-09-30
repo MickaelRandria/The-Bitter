@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronRight, Loader2, X } from 'lucide-react';
 import { Movie, TvProgress } from '../types';
 import { getSeriesDetails, TmdbSeriesDetails } from '../services/tmdb';
 import { progressFromLastSeen } from '../utils/episodeCompanion';
+import { EpisodePosition } from '../utils/upNext';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
+import EpisodePicker from './EpisodePicker';
 
 interface Props {
   series: Movie;
@@ -29,8 +31,7 @@ const SeriesBookmarkSheet: React.FC<Props> = ({ series, onSave, onClose, onOpenS
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('bookmark.title'));
   const [details, setDetails] = useState<TmdbSeriesDetails | null | undefined>(undefined);
-  const [season, setSeason] = useState<number | null>(null);
-  const [lastSeen, setLastSeen] = useState<number | null>(null);
+  const [lastSeen, setLastSeen] = useState<EpisodePosition | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -42,24 +43,10 @@ const SeriesBookmarkSheet: React.FC<Props> = ({ series, onSave, onClose, onOpenS
     };
   }, [series.tmdbId]);
 
-  const seasons = useMemo(
-    () =>
-      (details?.seasons ?? [])
-        .filter((s) => s.seasonNumber > 0 && s.episodeCount > 0)
-        .sort((a, b) => a.seasonNumber - b.seasonNumber),
-    [details]
-  );
-
-  useEffect(() => {
-    if (season != null || seasons.length === 0) return;
-    const bookmarked = series.tvProgress?.lastSeason;
-    setSeason(seasons.some((s) => s.seasonNumber === bookmarked) ? bookmarked! : seasons[0].seasonNumber);
-  }, [seasons, season, series.tvProgress?.lastSeason]);
-
-  const current = seasons.find((s) => s.seasonNumber === season);
+  const hasSeasons = (details?.seasons ?? []).some((s) => s.seasonNumber > 0 && s.episodeCount > 0);
   const ended = details?.productionStatus === 'Ended' || details?.productionStatus === 'Canceled';
 
-  const save = (position: { season: number; episode: number } | null) => {
+  const save = (position: EpisodePosition | null) => {
     if (!details) return;
     haptics.success();
     onSave(progressFromLastSeen(series.tvProgress, position, details.seasons, { ended }));
@@ -109,74 +96,27 @@ const SeriesBookmarkSheet: React.FC<Props> = ({ series, onSave, onClose, onOpenS
             <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-stone-300" size={22} />
             </div>
-          ) : seasons.length === 0 ? (
+          ) : !hasSeasons ? (
             <p className="rounded-2xl bg-stone-100 px-4 py-3 text-[11px] text-stone-500 dark:bg-white/5 dark:text-stone-400">
               {t('bookmark.unavailable')}
             </p>
           ) : (
-            <>
-              {seasons.length > 1 && (
-                <div role="tablist" className="-mx-6 flex gap-2 overflow-x-auto no-scrollbar px-6">
-                  {seasons.map((s) => (
-                    <button
-                      key={s.seasonNumber}
-                      role="tab"
-                      aria-selected={s.seasonNumber === season}
-                      onClick={() => {
-                        haptics.soft();
-                        setSeason(s.seasonNumber);
-                        setLastSeen(null);
-                      }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                        s.seasonNumber === season
-                          ? 'bg-charcoal text-white dark:bg-white dark:text-charcoal'
-                          : 'border border-sand bg-white text-stone-400 dark:border-white/10 dark:bg-[#1a1a1a] dark:text-stone-500'
-                      }`}
-                    >
-                      {t('bookmark.season', { season: s.seasonNumber })}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {current && (
-                <div className="grid grid-cols-6 gap-2">
-                  {Array.from({ length: current.episodeCount }, (_, i) => i + 1).map((episode) => {
-                    const seen = lastSeen != null && episode <= lastSeen;
-                    return (
-                      <button
-                        key={episode}
-                        onClick={() => {
-                          haptics.soft();
-                          setLastSeen(episode === lastSeen ? null : episode);
-                        }}
-                        aria-pressed={episode === lastSeen}
-                        aria-label={t('bookmark.episodeAria', { episode })}
-                        className={`aspect-square rounded-xl text-[13px] font-black tabular-nums transition-all active:scale-90 ${
-                          seen
-                            ? episode === lastSeen
-                              ? 'bg-forest text-white ring-2 ring-forest/30 dark:bg-bitter-lime dark:text-black dark:ring-bitter-lime/30'
-                              : 'bg-forest/15 text-forest dark:bg-bitter-lime/15 dark:text-bitter-lime'
-                            : 'border border-sand bg-white text-stone-500 dark:border-white/10 dark:bg-[#1a1a1a] dark:text-stone-400'
-                        }`}
-                      >
-                        {episode}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+            <EpisodePicker
+              seasons={details!.seasons}
+              value={lastSeen}
+              onChange={setLastSeen}
+              initialSeason={series.tvProgress?.lastSeason}
+            />
           )}
 
           <div className="space-y-2">
             <button
-              disabled={lastSeen == null || season == null}
-              onClick={() => season != null && lastSeen != null && save({ season, episode: lastSeen })}
+              disabled={lastSeen == null}
+              onClick={() => lastSeen && save(lastSeen)}
               className="w-full rounded-2xl bg-forest py-4 text-[11px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40 dark:bg-bitter-lime dark:text-black"
             >
-              {season != null && lastSeen != null
-                ? t('bookmark.save', { season, episode: lastSeen })
+              {lastSeen
+                ? t('bookmark.save', { season: lastSeen.season, episode: lastSeen.episode })
                 : t('bookmark.pick')}
             </button>
             <div className="flex items-center justify-between gap-3">
