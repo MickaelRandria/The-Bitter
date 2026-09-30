@@ -189,6 +189,8 @@ export interface TmdbSeriesDetails {
   genres: string[];
   synopsis: string;
   posterUrl?: string;
+  /** L'image large de la série (16/9), sans rien d'un épisode : elle ne dévoile rien. */
+  backdropUrl?: string;
   tmdbRating: number;
   numberOfSeasons: number;
   /** Diffusion en cours, terminée, annulée — ce que TMDB en sait. */
@@ -236,6 +238,7 @@ export const getSeriesDetails = async (tmdbId: number): Promise<TmdbSeriesDetail
       genres: (data.genres || []).map((g: any) => g.name),
       synopsis: data.overview || '',
       posterUrl: data.poster_path ? `${TMDB_IMAGE_URL}${data.poster_path}` : undefined,
+      backdropUrl: data.backdrop_path ? `${TMDB_IMAGE_URL}${data.backdrop_path}` : undefined,
       tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
       numberOfSeasons: data.number_of_seasons ?? 0,
       productionStatus: data.status || undefined,

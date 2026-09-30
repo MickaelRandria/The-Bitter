@@ -144,9 +144,9 @@ const SeriesDetailModal: React.FC<Props> = ({
     >
       <div className="relative w-full sm:max-w-md bg-cream dark:bg-[#0c0c0c] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20 dark:border-white/10">
         <div className="relative h-32 shrink-0 bg-stone-200 dark:bg-[#161616] overflow-hidden">
-          {series.posterUrl && (
+          {(tmdb?.backdropUrl ?? series.posterUrl) && (
             <img
-              src={resizeTmdbImage(series.posterUrl, 'w500')}
+              src={resizeTmdbImage(tmdb?.backdropUrl ?? series.posterUrl, tmdb?.backdropUrl ? 'w780' : 'w500')}
               alt=""
               className="w-full h-full object-cover opacity-60"
             />

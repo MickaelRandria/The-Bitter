@@ -121,3 +121,40 @@ export function formatDuration(minutes: number): string {
   if (hours === 0) return `${rest} min`;
   return rest ? `${hours} h ${String(rest).padStart(2, '0')}` : `${hours} h`;
 }
+
+/**
+ * Une étape de la barre de saison. `seen` précède l'épisode à voir, `aired`
+ * est diffusé mais pas encore vu, `upcoming` n'est pas encore sorti.
+ */
+export type RailStep = 'seen' | 'next' | 'aired' | 'upcoming';
+
+/**
+ * La saison en cours, épisode par épisode, pour la barre des cartes « À suivre ».
+ *
+ * Tout ce qui précède l'épisode à voir compte comme vu, qu'il ait été coché ou
+ * seulement dépassé par un marque-page : c'est la règle de `furthestPosition`.
+ * Aucun titre n'en sort, seulement des places.
+ */
+export function seasonRail(
+  episodes: { episodeNumber: number; airDate?: string }[],
+  next: number,
+  today: string
+): RailStep[] {
+  return episodes
+    .filter((e) => e.episodeNumber > 0)
+    .sort((a, b) => a.episodeNumber - b.episodeNumber)
+    .map((e) =>
+      e.episodeNumber < next
+        ? 'seen'
+        : e.episodeNumber === next
+          ? 'next'
+          : e.airDate != null && e.airDate <= today
+            ? 'aired'
+            : 'upcoming'
+    );
+}
+
+/** Jours pleins entre aujourd'hui et une date de diffusion, toutes deux « AAAA-MM-JJ ». */
+export function daysUntil(airDate: string, today: string): number {
+  return Math.round((Date.parse(airDate) - Date.parse(today)) / 86_400_000);
+}
