@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, Loader2, Pause, Play, Star, X } from 'lucide-react';
+import { Check, ChevronDown, History, Loader2, Pause, Play, Star, X } from 'lucide-react';
 import { Movie, TvEpisodeEntry, TvProgress, TvWatchState } from '../types';
 import { TmdbSeasonSummary, TmdbSeriesDetails, getSeriesDetails } from '../services/tmdb';
 import { getDisplayWeightedRating, getSeriesRating, hasVerdict, seasonScores } from '../utils/rating';
@@ -9,6 +9,13 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import SeasonEpisodes from './SeasonEpisodes';
+import SeriesRecap from './SeriesRecap';
+import SeriesHeatmap from './SeriesHeatmap';
+import FriendsSeriesProgress from './FriendsSeriesProgress';
+import { getWatchOffers } from '../services/tv';
+import { getNetflixUrl } from '../services/streamingLinks';
+import { groupWatchOffers, hasNetflix } from '../utils/watchOffers';
+import { furthestPosition } from '../utils/upNext';
 
 interface Props {
   initialSeason?: number;
@@ -52,6 +59,22 @@ const SeriesDetailModal: React.FC<Props> = ({
   const progress: TvProgress | undefined = series.tvProgress;
   const [draftSeason, setDraftSeason] = useState(progress?.lastSeason ?? 1);
   const [draftEpisode, setDraftEpisode] = useState(progress?.lastEpisode ?? 1);
+  const [recapOpen, setRecapOpen] = useState(false);
+  const [netflixUrl, setNetflixUrl] = useState<string | null>(null);
+
+  // Le lien direct, pour une série que TMDB voit sur Netflix en France.
+  useEffect(() => {
+    if (series.tmdbId == null) return;
+    let active = true;
+    const id = series.tmdbId;
+    getWatchOffers('tv', id)
+      .then((offers) => (hasNetflix(groupWatchOffers(offers)) ? getNetflixUrl('tv', id) : null))
+      .catch(() => null)
+      .then((url) => active && setNetflixUrl(url));
+    return () => {
+      active = false;
+    };
+  }, [series.tmdbId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +134,8 @@ const SeriesDetailModal: React.FC<Props> = ({
   };
 
   const state: TvWatchState = progress?.state ?? 'planned';
+  // Le récap n'a de sens qu'une fois la série commencée.
+  const started = tmdb != null && furthestPosition(progress, tmdb.seasons) != null;
 
   return (
     <div
@@ -332,7 +357,40 @@ const SeriesDetailModal: React.FC<Props> = ({
                 })}
               </p>
             )}
+
+            {(netflixUrl || started) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {netflixUrl && (
+                  <a
+                    href={netflixUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => haptics.medium()}
+                    className="flex items-center gap-1.5 rounded-xl bg-[#E50914] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-transform active:scale-95"
+                  >
+                    <Play size={12} fill="currentColor" />
+                    {t('series.watchOnNetflix')}
+                  </a>
+                )}
+                {started && (
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setRecapOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl border border-sand px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 transition-transform active:scale-95 dark:border-white/10 dark:text-stone-300"
+                  >
+                    <History size={12} strokeWidth={2.5} />
+                    {t('upNext.previously')}
+                  </button>
+                )}
+              </div>
+            )}
           </section>
+
+          {series.tmdbId != null && tmdb && (
+            <FriendsSeriesProgress seriesTmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
+          )}
 
           {/* 2 — Ce que j'en pense. */}
           <section>
@@ -368,9 +426,15 @@ const SeriesDetailModal: React.FC<Props> = ({
             )}
           </section>
 
-
+          {series.tmdbId != null && tmdb && tmdb.seasons.length > 0 && (
+            <SeriesHeatmap tmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
+          )}
         </div>
       </div>
+
+      {recapOpen && tmdb && (
+        <SeriesRecap series={series} seasons={tmdb.seasons} onClose={() => setRecapOpen(false)} />
+      )}
     </div>
   );
 };

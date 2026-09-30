@@ -164,6 +164,7 @@ const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SeriesDetailModal = lazy(() => import('./components/SeriesDetailModal'));
+const UpNext = lazy(() => import('./components/UpNext'));
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
@@ -1878,8 +1879,9 @@ const App: React.FC = () => {
           : { ...p, movies: p.movies.map((m) => (m.id === series.id ? updated : m)) }
       )
     );
-    // La fiche reste ouverte : elle doit refléter ce qui vient d'être posé.
-    setOpenSeries(updated);
+    // La fiche, si elle est ouverte, doit refléter ce qui vient d'être posé. Mais
+    // un épisode coché depuis « À suivre » ne doit pas l'ouvrir.
+    setOpenSeries((current) => (current?.id === series.id ? updated : current));
     if (session?.user?.id) void syncMovieToSupabase(session.user.id, updated);
   };
 
@@ -2633,6 +2635,17 @@ const App: React.FC = () => {
                 onOpenSpace={openSpaceFromNotification}
                 onToast={setToastMessage}
                 onWatchWith={openWatchWith}
+                onOpenSeries={(tmdbId) => {
+                  // Suivie, donc dans la collection : sa fiche. Sinon, l'aperçu TMDB.
+                  const series = allMovies.find((m) => isSeries(m) && m.tmdbId === tmdbId);
+                  if (series) {
+                    setMediaMode('tv');
+                    setOpenSeries(series);
+                  } else {
+                    setPreviewTmdbId(tmdbId);
+                    setPreviewMediaType('tv');
+                  }
+                }}
                 onEngaged={(source) => askPush(t('push.reasonAnswer'), source)}
                 onPending={(count) => askPush(t('push.reasonPending', { count: String(count) }), 'pending')}
               />
@@ -2893,6 +2906,16 @@ const App: React.FC = () => {
                       {t('feed.myStats')} <ChevronRight size={13} strokeWidth={2.5} />
                     </span>
                   </button>
+                  {mediaMode === 'tv' && (
+                    <Suspense fallback={null}>
+                      <UpNext
+                        movies={allMovies}
+                        onUpdateProgress={handleUpdateTvProgress}
+                        onOpenSeries={setOpenSeries}
+                        onRateSeason={handleRateSeason}
+                      />
+                    </Suspense>
+                  )}
                   <div className="space-y-2">
                     {false && (feedTab === 'history' ? feedStats : queueStats) && (
                     <div className="flex flex-col items-center">

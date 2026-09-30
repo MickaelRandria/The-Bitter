@@ -208,6 +208,23 @@ ${members.map((m) => `— ${m.name} : ${m.taste}`).join('\n')}`;
   return Array.isArray(pitches) ? pitches.filter((p) => p?.name && p?.text) : [];
 };
 
+/**
+ * « Précédemment dans… » d'une série, rédigé à partir des seuls résumés fournis.
+ *
+ * Rend `null` quand le relais ne connaît pas encore l'action `series-recap` :
+ * il retombe alors sur l'assistant généraliste, qui répond par `text` et non par
+ * `recap`. Cette réponse-là est jetée sans être montrée — l'assistant connaît la
+ * série et pourrait en révéler la suite.
+ */
+export const getSeriesRecap = async (context: string): Promise<string | null> => {
+  const { recap } = await callAI<{ recap?: string }>({
+    action: 'series-recap',
+    context,
+    text: 'Écris le « Précédemment dans… » de cette série.',
+  });
+  return typeof recap === 'string' && recap.trim() ? recap.trim() : null;
+};
+
 /** Un film proposé, une fois retrouvé dans TMDB. */
 export interface PersonalRecommendation {
   tmdbId: number;
