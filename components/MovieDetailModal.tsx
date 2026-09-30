@@ -25,6 +25,7 @@ import { ImdbMark } from './PublicRatingBadge';
 import {
   groupWatchOffers,
   hasNetflix,
+  isNetflixProvider,
   StreamingAccess,
   TmdbCountryOffers,
   TransactionAccess,
@@ -530,7 +531,11 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
                         Disponible sur
                       </h3>
-                      <OfferRow offers={offers.streaming} labels={STREAMING_ACCESS_LABEL} />
+                      <OfferRow
+                        offers={offers.streaming}
+                        labels={STREAMING_ACCESS_LABEL}
+                        netflixUrl={netflixUrl}
+                      />
                     </>
                   )}
                   {offers.transactional.length > 0 && (
@@ -777,22 +782,23 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 function OfferRow<Access extends string>({
   offers,
   labels,
+  netflixUrl,
 }: {
   offers: WatchOffer<Access>[];
   labels: Record<Access, string | null>;
+  /** Le logo Netflix mène au même endroit que le bouton : c'est lui qu'on touche d'instinct. */
+  netflixUrl?: string | null;
 }) {
   return (
-    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
       {offers.map((offer) => {
         const label = labels[offer.access];
-        return (
-          <div
-            key={offer.id}
-            className="flex items-center gap-2 bg-white dark:bg-white/5 border border-stone-100 dark:border-white/10 pr-3 rounded-xl p-1 shadow-sm"
-          >
+        const href = netflixUrl && isNetflixProvider(offer.id) ? netflixUrl : null;
+        const content = (
+          <>
             <img
               src={tmdbImage(offer.logoPath, 'w92')}
-              className="w-6 h-6 rounded-lg"
+              className="w-6 h-6 rounded-lg shrink-0"
               alt=""
               loading="lazy"
               decoding="async"
@@ -807,6 +813,25 @@ function OfferRow<Access extends string>({
                 </span>
               )}
             </span>
+          </>
+        );
+        // Sans `shrink-0`, Safari écrase les pastilles et le nom déborde du cadre.
+        const className =
+          'shrink-0 flex items-center gap-2 bg-white dark:bg-white/5 border border-stone-100 dark:border-white/10 pr-3 rounded-xl p-1 shadow-sm';
+        return href ? (
+          <a
+            key={offer.id}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => haptics.medium()}
+            className={`${className} active:scale-95 transition-transform`}
+          >
+            {content}
+          </a>
+        ) : (
+          <div key={offer.id} className={className}>
+            {content}
           </div>
         );
       })}

@@ -149,8 +149,10 @@ const StreamingBadge: React.FC<StreamingBadgeProps> = ({
   }
 
   return (
+    // `flex` comme le badge « AU CINÉMA » : sans lui, la ligne prend la hauteur du
+    // texte parent et non celle des 9 px du libellé, et la pastille double de taille.
     <div
-      className={`px-2.5 py-1 rounded-lg shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out] ${badge.className}`}
+      className={`flex items-center px-2.5 py-1 rounded-lg shadow-lg border border-white/10 animate-[fadeIn_0.3s_ease-out] ${badge.className}`}
     >
       <span className="text-[9px] font-black uppercase tracking-wide leading-none">{badge.label}</span>
     </div>
