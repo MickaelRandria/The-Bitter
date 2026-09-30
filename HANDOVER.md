@@ -459,6 +459,26 @@ presque gratuit, et prévient au bon moment.
    redéployer `notify` (nouveaux textes) et `ai` (action `series-recap`).
 3. Le front peut précéder : chaque morceau serveur manquant se dégrade sans casser.
 
+**Fait le 30 septembre 2026**, via le connecteur Supabase :
+- La migration a été appliquée ; la contrainte de prod était identique à celle du dépôt.
+- `series-alerts` v1, `notify` v6 et `ai` v18 sont déployées.
+- Un tour réel lancé comme le cron a donné `checked: 1, notified: 0` : seule The Office
+  était suivie.
+- Le récap a été vérifié avec le compte démo, et un utilisateur ne peut pas appeler
+  `record_series_alert` (42501).
+
+**Attention, dérive de `ai` corrigée au passage.** La prod (v17, 8 septembre) tournait
+sur le code de la PR #88 (`mistral-alias-hors-forfait`, jamais fusionnée) :
+`ministral-14b-latest`, relance sur 429, remboursement du quota. Le `ai/index.ts` du
+dépôt en était resté à `mistral-small-latest`, qui est **hors forfait** : le redéployer
+tel quel aurait éteint tout l'assistant. Le fichier du dépôt est désormais celui de la
+prod plus `series-recap`. La PR #88 reste ouverte pour sa partie HANDOVER (§6.11 à 6.13)
+et sa migration `20260806_add_ai_quota.sql`.
+
+**Avant tout redéploiement d'une fonction Edge**, comparer le code déployé
+(`get_edge_function`) au dépôt, ou chercher la branche qui le contient
+(`git log --all -S "<extrait>"`).
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code

@@ -806,6 +806,8 @@ export const en: Record<string, string> = {
   'series.seasonTitle': '{series} — {season}',
   'series.watchOnNetflix': 'Watch on Netflix',
   'upNext.title': 'Up next',
+  'upNext.inviteTitle': 'Where are you in your series?',
+  'upNext.inviteBody': 'Open a series and tick the last episode you watched: it will show up here with the next one to watch, and the app will tell you about new episodes.',
   'upNext.episodeLine': 'S{season} · E{episode}',
   'upNext.newSeason': 'New season',
   'upNext.left': '{count} episode(s) left · {duration} to finish the season',

@@ -811,6 +811,8 @@ export const fr: Record<string, string> = {
   'series.seasonTitle': '{series} — {season}',
   'series.watchOnNetflix': 'Regarder sur Netflix',
   'upNext.title': 'À suivre',
+  'upNext.inviteTitle': 'Où en es-tu dans tes séries ?',
+  'upNext.inviteBody': 'Ouvre une série et coche le dernier épisode vu : elle arrivera ici avec le suivant à regarder, et l’app te préviendra des nouveaux épisodes.',
   'upNext.episodeLine': 'S{season} · É{episode}',
   'upNext.newSeason': 'Nouvelle saison',
   'upNext.left': 'Encore {count} épisode(s) · {duration} pour finir la saison',
