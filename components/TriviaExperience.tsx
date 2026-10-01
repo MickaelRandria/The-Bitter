@@ -26,6 +26,52 @@ const plain = (text: string) => text.replace(/\*+/g, '');
 /** Le temps habituel d'une première préparation, pour la jauge d'attente. */
 const EXPECTED_SECONDS = 35;
 
+/** Une manche de quiz : quatre questions. */
+const ROUND_SIZE = 4;
+/** Après la première manche, deux relances au plus par épisode. */
+const MAX_RELAUNCHES = 2;
+/** Une dernière manche plus courte passe, une question seule non. */
+const MIN_ROUND = 2;
+
+/**
+ * L'ordre des questions pour un épisode donné. Toujours le même pour cet
+ * épisode (on peut refaire sa manche), différent d'un épisode à l'autre : le
+ * quiz ne recommence pas par les mêmes questions à chaque soirée.
+ */
+function episodeOrder<T>(items: T[], seed: string): T[] {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  const random = () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+/** La manche atteinte pour cet épisode, gardée sur l'appareil : fermer l'écran ne rend pas les relances. */
+const roundKey = (tmdbId: number, season: number, episode: number) =>
+  `bitter.triviaRound:${tmdbId}:${season}:${episode}`;
+const readRound = (key: string) => {
+  try {
+    return Math.max(0, Math.min(MAX_RELAUNCHES, Number(localStorage.getItem(key)) || 0));
+  } catch {
+    return 0;
+  }
+};
+const writeRound = (key: string, round: number) => {
+  try {
+    localStorage.setItem(key, String(round));
+  } catch {
+    /* Navigation privée : la limite ne survivra pas à la fermeture, rien de grave. */
+  }
+};
+
 /**
  * « Le saviez-vous + » : les coulisses de la série, en plein écran.
  *
@@ -50,6 +96,8 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
   const [quizIndex, setQuizIndex] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [score, setScore] = useState(0);
+  const storageKey = roundKey(tmdbId, season, episode);
+  const [round, setRound] = useState(() => readRound(storageKey));
 
   useEffect(() => {
     let active = true;
@@ -95,6 +143,17 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
 
   const facts = useMemo(() => (trivia?.items ?? []).filter((i): i is Fact => i.type === 'fact'), [trivia]);
   const quiz = useMemo(() => (trivia?.items ?? []).filter((i): i is Quiz => i.type === 'quiz'), [trivia]);
+  /** Le quiz de l'IA se signale comme tel ; celui des bases de données, non (une ancienne entrée sans origine est de l'IA). */
+  const aiQuiz = quiz.length > 0 && !quiz.some((q) => q.origin === 'data');
+  const rounds = useMemo(() => {
+    const ordered = episodeOrder<Quiz>(quiz, `${tmdbId}:${season}:${episode}`);
+    const chunks: Quiz[][] = [];
+    for (let i = 0; i < ordered.length; i += ROUND_SIZE) chunks.push(ordered.slice(i, i + ROUND_SIZE));
+    return chunks.filter((chunk) => chunk.length >= MIN_ROUND).slice(0, 1 + MAX_RELAUNCHES);
+  }, [quiz, tmdbId, season, episode]);
+  const currentRound = Math.min(round, Math.max(0, rounds.length - 1));
+  const questions = rounds[currentRound] ?? [];
+  const nextRound = rounds[currentRound + 1];
   const source = trivia?.sources[language === 'en' ? 'en' : 'fr'] ?? trivia?.sources.en ?? trivia?.sources.fr;
   const steps = [t('trivia.loading1'), t('trivia.loading2'), t('trivia.loading3')];
   const step = Math.min(steps.length - 1, Math.floor(elapsed / (EXPECTED_SECONDS / steps.length)));
@@ -116,16 +175,23 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
   const nextFact = () => {
     haptics.soft();
     if (factIndex < facts.length - 1) setFactIndex(factIndex + 1);
-    else if (quiz.length) openQuiz();
+    else if (questions.length) openQuiz();
     else setView('home');
   };
 
+  const relaunch = () => {
+    const next = currentRound + 1;
+    setRound(next);
+    writeRound(storageKey, next);
+    openQuiz();
+  };
+
   const verdict =
-    quiz.length === 0
+    questions.length === 0
       ? ''
-      : score === quiz.length
+      : score === questions.length
         ? t('trivia.verdictPerfect')
-        : score / quiz.length >= 0.5
+        : score / questions.length >= 0.5
           ? t('trivia.verdictGood')
           : score > 0
             ? t('trivia.verdictSome')
@@ -238,14 +304,22 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
                 <ChevronRight size={18} className="shrink-0 text-white/40" />
               </button>
             )}
-            {quiz.length > 0 && (
+            {questions.length > 0 && (
               <button onClick={openQuiz} className={tile}>
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-black">
                   <Target size={22} strokeWidth={2.5} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[17px] font-black tracking-tight">{t('trivia.quizTile')}</span>
-                  <span className="block text-[12px] text-white/50">{t('trivia.quizCount', { count: quiz.length })}</span>
+                  <span className="block text-[12px] text-white/50">
+                    {rounds.length > 1
+                      ? t('trivia.roundOf', { round: currentRound + 1, total: rounds.length }) + ' · '
+                      : ''}
+                    {t('trivia.quizRound', { count: questions.length })}
+                  </span>
+                  <span className={`mt-1 block text-[10px] font-bold ${aiQuiz ? 'text-amber-300/90' : 'text-white/35'}`}>
+                    {aiQuiz ? t('trivia.quizAi') : t('trivia.quizData')}
+                  </span>
                 </span>
                 <ChevronRight size={18} className="shrink-0 text-white/40" />
               </button>
@@ -306,7 +380,7 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
                   {t('trivia.next')}
                   <ChevronRight size={14} strokeWidth={3} />
                 </>
-              ) : quiz.length ? (
+              ) : questions.length ? (
                 <>
                   <Target size={14} strokeWidth={3} />
                   {t('trivia.toQuiz')}
@@ -318,11 +392,12 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
           </div>
         )}
 
-        {view === 'quiz' && quiz[quizIndex] && (
+        {view === 'quiz' && questions[quizIndex] && (
           <div className="flex flex-1 flex-col pt-4">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
-                {t('trivia.questionOf', { index: quizIndex + 1, total: quiz.length })}
+                {rounds.length > 1 && `${t('trivia.roundOf', { round: currentRound + 1, total: rounds.length })} · `}
+                {t('trivia.questionOf', { index: quizIndex + 1, total: questions.length })}
               </p>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
                 {t('trivia.points', { score })}
@@ -331,14 +406,19 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-bitter-lime transition-[width] duration-500"
-                style={{ width: `${((quizIndex + (picked != null ? 1 : 0)) / quiz.length) * 100}%` }}
+                style={{ width: `${((quizIndex + (picked != null ? 1 : 0)) / questions.length) * 100}%` }}
               />
             </div>
+            {aiQuiz && (
+              <p className="mt-3 rounded-xl bg-amber-400/10 px-3 py-2 text-[11px] font-bold leading-snug text-amber-200/90">
+                {t('trivia.quizAi')}
+              </p>
+            )}
             <div key={quizIndex} className="flex flex-1 flex-col justify-center animate-[fadeIn_0.4s_ease-out]">
-              <p className="text-[24px] font-black leading-[1.25] tracking-tight">{plain(quiz[quizIndex].question)}</p>
+              <p className="text-[24px] font-black leading-[1.25] tracking-tight">{plain(questions[quizIndex].question)}</p>
               <div className="mt-6 space-y-2.5">
-                {quiz[quizIndex].options.map((option, index) => {
-                  const right = index === quiz[quizIndex].answer;
+                {questions[quizIndex].options.map((option, index) => {
+                  const right = index === questions[quizIndex].answer;
                   const answered = picked != null;
                   return (
                     <button
@@ -371,9 +451,9 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
               {picked != null && (
                 <p className="mt-4 text-[13px] leading-relaxed text-white/65 animate-[fadeIn_0.3s_ease-out]">
                   <span className="font-black text-white">
-                    {picked === quiz[quizIndex].answer ? t('trivia.right') : t('trivia.wrong')}
+                    {picked === questions[quizIndex].answer ? t('trivia.right') : t('trivia.wrong')}
                   </span>{' '}
-                  {plain(quiz[quizIndex].explanation)}
+                  {plain(questions[quizIndex].explanation)}
                 </p>
               )}
             </div>
@@ -381,7 +461,7 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
               <button
                 onClick={() => {
                   haptics.soft();
-                  if (quizIndex < quiz.length - 1) {
+                  if (quizIndex < questions.length - 1) {
                     setQuizIndex(quizIndex + 1);
                     setPicked(null);
                   } else {
@@ -390,7 +470,7 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
                 }}
                 className={primary}
               >
-                {quizIndex < quiz.length - 1 ? t('trivia.nextQuestion') : t('trivia.seeScore')}
+                {quizIndex < questions.length - 1 ? t('trivia.nextQuestion') : t('trivia.seeScore')}
                 <ChevronRight size={14} strokeWidth={3} />
               </button>
             )}
@@ -402,14 +482,23 @@ const TriviaExperience: React.FC<Props> = ({ title, image, tmdbId, season, episo
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/40">{title}</p>
             <p className="mt-2 text-[96px] font-black leading-none tracking-tighter text-bitter-lime tabular-nums">
               {score}
-              <span className="text-[40px] text-white/30">/{quiz.length}</span>
+              <span className="text-[40px] text-white/30">/{questions.length}</span>
             </p>
             <p className="mt-3 text-[22px] font-black tracking-tight">{verdict}</p>
             <div className="mt-10 space-y-2">
-              <button onClick={openQuiz} className={primary}>
-                <RotateCcw size={14} strokeWidth={2.5} />
-                {t('trivia.replay')}
-              </button>
+              {nextRound ? (
+                <>
+                  <button onClick={relaunch} className={primary}>
+                    <RotateCcw size={14} strokeWidth={2.5} />
+                    {t('trivia.relaunch', { count: nextRound.length })}
+                  </button>
+                  <p className="pb-1 text-center text-[11px] text-white/40">
+                    {t('trivia.relaunchesLeft', { count: rounds.length - 1 - currentRound })}
+                  </p>
+                </>
+              ) : (
+                <p className="pb-2 text-[13px] leading-relaxed text-white/55">{t('trivia.noMoreRounds')}</p>
+              )}
               {facts.length > 0 && (
                 <button
                   onClick={openFacts}

@@ -69,9 +69,13 @@ const TriviaEntry: React.FC<Props> = ({ tmdbId, season, episode, onOpen }) => {
           <span className="min-w-0 flex-1">
             <span className="block text-[15px] font-black tracking-tight text-white">{t('trivia.plus')}</span>
             <span className="mt-0.5 block text-[11px] leading-snug text-white/55">
-              {peek!.status === 'ready'
-                ? t('trivia.entryReady', { facts, quiz })
-                : t('trivia.entryMissing')}
+              {peek!.status !== 'ready'
+                ? t('trivia.entryMissing')
+                : facts && quiz
+                  ? t('trivia.entryReady', { facts })
+                  : facts
+                    ? t('trivia.entryFactsOnly', { facts })
+                    : t('trivia.entryQuizOnly')}
             </span>
           </span>
           <ChevronRight size={18} className="shrink-0 text-bitter-lime transition-transform group-active:translate-x-0.5" />

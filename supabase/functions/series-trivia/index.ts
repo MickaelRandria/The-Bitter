@@ -1,19 +1,22 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { introducedNames, makingOfSections, parseTrivia, TriviaItem, visibleTrivia } from './logic.ts';
+import { buildDataQuiz, MIN_DATA_QUESTIONS, SeriesFacts } from './quiz.ts';
 
 /**
- * « Le saviez-vous ? » : anecdotes et quiz sur la fabrication d'une série.
+ * « Le saviez-vous + » : anecdotes et quiz sur la fabrication d'une série.
  *
- * Générés une fois par série et par langue, puis gardés dans `series_trivia`
- * pour tout le monde : Mistral n'est appelé qu'au premier visionnage d'une
- * série dans toute l'application, pas à chaque épisode. Le filtre de saison et
- * de noms (logic.ts) s'applique ensuite à chaque lecture, selon où en est la
- * personne.
+ * LE QUIZ vient d'abord des bases de données (Wikidata, TMDB), sans IA : voir
+ * quiz.ts. Mistral n'écrit des questions que pour une série trop peu
+ * documentée pour une manche complète, et elles sont alors marquées comme
+ * telles (`origin: 'ai'`), pour que l'écran le dise.
  *
- * Les sources sont lues ici et non dans le navigateur : Wikipédia et Wikidata
- * n'ont pas à entrer dans la politique de sécurité de l'application, et la clé
- * Mistral ne quitte pas les secrets.
+ * LES ANECDOTES viennent de Wikipédia, réécrites par Mistral (logic.ts).
+ *
+ * Tout est préparé une fois par série et par langue, sur un geste explicite
+ * (`generate: true`), puis gardé dans `series_trivia` pour tout le monde. Sans
+ * ce geste, la fonction ne fait que lire le cache. Le filtre de saison et de
+ * noms s'applique à chaque lecture, selon où en est la personne.
  */
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
@@ -27,8 +30,7 @@ const EMPTY_RETRY_DAYS = 30;
 const MAX_SEASONS = 25;
 /**
  * Une génération lit 10 à 15 000 caractères et en écrit un millier : avec un
- * Ministral, 30 à 50 secondes. La fiche s'ouvre avant l'épisode, l'attente se
- * fait pendant qu'on lance Netflix, et elle n'a lieu qu'une fois par série.
+ * Ministral, 30 à 50 secondes. Elle n'a lieu qu'une fois par série.
  */
 const UPSTREAM_TIMEOUT_MS = 100_000;
 
@@ -56,17 +58,34 @@ const getJson = async (url: string, timeout = 12_000) => {
   return response.json();
 };
 
+const sparql = (query: string) =>
+  getJson(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`);
+
 /** Les articles Wikipédia d'une série, par son identifiant TMDB (Wikidata P4983). */
 async function wikipediaTitles(tmdbId: number): Promise<{ fr?: string; en?: string }> {
-  const query = `SELECT ?fr ?en WHERE { ?item wdt:P4983 "${tmdbId}".
+  const data = await sparql(`SELECT ?fr ?en WHERE { ?item wdt:P4983 "${tmdbId}".
     OPTIONAL { ?fr schema:about ?item; schema:isPartOf <https://fr.wikipedia.org/>. }
-    OPTIONAL { ?en schema:about ?item; schema:isPartOf <https://en.wikipedia.org/>. } } LIMIT 1`;
-  const data = await getJson(
-    `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`
-  );
+    OPTIONAL { ?en schema:about ?item; schema:isPartOf <https://en.wikipedia.org/>. } } LIMIT 1`);
   const row = data?.results?.bindings?.[0] ?? {};
   const title = (url?: string) => (url ? decodeURIComponent(url.split('/wiki/')[1] ?? '') : undefined);
   return { fr: title(row.fr?.value), en: title(row.en?.value) };
+}
+
+/** Les faits de fabrication que Wikidata connaît : créateurs, musique, diffusion, tournage, pays, prix. */
+async function wikidataFacts(tmdbId: number, language: 'fr' | 'en') {
+  const data = await sparql(`SELECT ?p ?valueLabel WHERE { ?item wdt:P4983 "${tmdbId}".
+    VALUES ?p { wdt:P170 wdt:P86 wdt:P449 wdt:P915 wdt:P495 wdt:P166 }
+    ?item ?p ?value.
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "${language === 'fr' ? 'fr,en' : 'en,fr'}". } }`);
+  const facts: Record<string, string[]> = {};
+  for (const row of data?.results?.bindings ?? []) {
+    const property = String(row.p?.value ?? '').split('/').pop() ?? '';
+    const label = String(row.valueLabel?.value ?? '');
+    if (!property || !label) continue;
+    const values = (facts[property] ??= []);
+    if (!values.includes(label)) values.push(label);
+  }
+  return facts;
 }
 
 async function wikipediaExtract(lang: 'fr' | 'en', title: string): Promise<string> {
@@ -84,17 +103,22 @@ async function wikipediaExtract(lang: 'fr' | 'en', title: string): Promise<strin
   return data?.query?.pages?.[0]?.extract ?? '';
 }
 
-/** Pour chaque saison, ses personnages et ses acteurs (TMDB). */
+type Role = { character: string; actor: string };
+
+/** Pour chaque saison, ses rôles réguliers (TMDB). */
 async function castBySeason(tmdbId: number, seasons: number[], tmdbKey: string) {
-  const bySeason: Record<number, string[]> = {};
+  const bySeason: Record<number, Role[]> = {};
   const queue = [...seasons];
   const worker = async () => {
     for (let season = queue.shift(); season != null; season = queue.shift()) {
       try {
         const data = await getJson(`${TMDB_BASE}/tv/${tmdbId}/season/${season}/credits?api_key=${tmdbKey}`);
-        bySeason[season] = (data?.cast ?? []).flatMap((c: { character?: string; name?: string }) =>
-          [c.character, c.name].filter((v): v is string => !!v)
-        );
+        bySeason[season] = (data?.cast ?? [])
+          .filter((c: { character?: string; name?: string }) => c.character && c.name)
+          .map((c: { character: string; name: string }) => ({
+            character: c.character.split(' / ')[0],
+            actor: c.name,
+          }));
       } catch {
         bySeason[season] = [];
       }
@@ -104,7 +128,40 @@ async function castBySeason(tmdbId: number, seasons: number[], tmdbKey: string) 
   return bySeason;
 }
 
-const persona = (language: 'fr' | 'en', title: string) => `Tu prépares des anecdotes de coulisses sur la série « ${title} », à lire pendant qu'on regarde un épisode.
+type TmdbSeries = {
+  name?: string;
+  first_air_date?: string;
+  created_by?: { name: string }[];
+  networks?: { name: string }[];
+  seasons?: { season_number: number; episode_count: number }[];
+};
+
+const regularSeasons = (series: TmdbSeries) =>
+  (series.seasons ?? [])
+    .filter((s) => s.season_number > 0 && s.episode_count > 0)
+    .map((s) => s.season_number)
+    .sort((a, b) => a - b)
+    .slice(0, MAX_SEASONS);
+
+/** Le quiz sans IA : Wikidata d'abord, TMDB pour ce qu'il ne sait pas, et la distribution de la saison 1. */
+async function dataQuiz(tmdbId: number, series: TmdbSeries, bySeason: Record<number, Role[]>, language: 'fr' | 'en') {
+  const wd = await wikidataFacts(tmdbId, language).catch(() => ({}) as Record<string, string[]>);
+  const first = regularSeasons(series)[0];
+  const facts: SeriesFacts = {
+    title: series.name ?? '',
+    creators: wd.P170 ?? (series.created_by ?? []).map((c) => c.name),
+    composers: wd.P86 ?? [],
+    networks: wd.P449 ?? (series.networks ?? []).map((n) => n.name),
+    locations: wd.P915 ?? [],
+    countries: wd.P495 ?? [],
+    awards: wd.P166 ?? [],
+    year: series.first_air_date ? Number(series.first_air_date.slice(0, 4)) : undefined,
+    cast: first != null ? (bySeason[first] ?? []).slice(0, 10) : [],
+  };
+  return facts.title ? buildDataQuiz(facts, language) : [];
+}
+
+const persona = (language: 'fr' | 'en', title: string, withQuiz: boolean) => `Tu prépares des anecdotes de coulisses sur la série « ${title} », à lire pendant qu'on regarde un épisode.
 
 Tu reçois des extraits de Wikipédia (français et/ou anglais) sur la FABRICATION de la série : création, écriture, casting, tournage, musique, décors. Ce sont tes SEULES sources.
 
@@ -119,13 +176,21 @@ RÈGLES ABSOLUES :
 
 À PRODUIRE, en ${language === 'fr' ? 'français' : 'anglais'}, ton vivant et précis :
 - 5 à 8 anecdotes ("type": "fact"), une ou deux phrases chacune, 220 caractères maximum, qui commencent directement par le fait (pas de « Saviez-vous que »).
-- 2 ou 3 questions de quiz ("type": "quiz") sur ces mêmes faits : "question", exactement 3 "options" courtes et plausibles, "answer" (index 0, 1 ou 2 de la bonne réponse, à varier), "explanation" (une phrase qui donne la réponse).
+${
+  withQuiz
+    ? `- 6 à 8 questions de quiz ("type": "quiz") sur ces mêmes faits : "question", exactement 3 "options" courtes et plausibles, "answer" (index 0, 1 ou 2 de la bonne réponse, à varier), "explanation" (une phrase qui donne la réponse).`
+    : `- AUCUNE question de quiz : seulement des anecdotes.`
+}
 - Si les extraits ne contiennent presque rien d'intéressant, renvoie moins d'éléments, voire une liste vide. Mieux vaut rien qu'une anecdote fade ou inventée.
 
 Réponds UNIQUEMENT en JSON, exactement sous cette forme :
 {"items": [
-  {"type": "fact", "season": null, "text": "…", "source": "en"},
-  {"type": "quiz", "season": 2, "question": "…", "options": ["…", "…", "…"], "answer": 1, "explanation": "…", "source": "fr"}
+  {"type": "fact", "season": null, "text": "…", "source": "en"}${
+    withQuiz
+      ? `,
+  {"type": "quiz", "season": 2, "question": "…", "options": ["…", "…", "…"], "answer": 1, "explanation": "…", "source": "fr"}`
+      : ''
+  }
 ]}`;
 
 Deno.serve(async (req: Request) => {
@@ -165,10 +230,15 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+  const tmdbKey = Deno.env.get('TMDB_API_KEY');
+  const reply = (items: TriviaItem[], introduced: Record<number, string[]>, sources: unknown) => {
+    const visible = visibleTrivia(items, introduced, season);
+    return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources: sources ?? {} });
+  };
 
   const { data: cached } = await admin
     .from('series_trivia')
-    .select('items, introduced, sources, created_at')
+    .select('items, introduced, sources, created_at, quiz_origin')
     .eq('tmdb_id', tmdbId)
     .eq('language', language)
     .maybeSingle();
@@ -176,21 +246,94 @@ Deno.serve(async (req: Request) => {
     cached &&
     ((Array.isArray(cached.items) && cached.items.length > 0) ||
       Date.now() - Date.parse(cached.created_at) < EMPTY_RETRY_DAYS * 86_400_000);
+
   if (fresh) {
-    const visible = visibleTrivia(cached.items as TriviaItem[], cached.introduced ?? {}, season);
-    return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources: cached.sources ?? {} });
+    let items = cached.items as TriviaItem[];
+    /*
+     * Une série préparée avant le quiz sans IA n'a que les questions de
+     * Mistral. Au prochain geste, on construit celui des bases de données (sans
+     * Mistral, donc sans quota) et il remplace l'ancien s'il fait une manche.
+     */
+    if (generate && cached.quiz_origin == null && tmdbKey) {
+      try {
+        const series: TmdbSeries = await getJson(
+          `${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbKey}&language=${language === 'fr' ? 'fr-FR' : 'en-US'}`
+        );
+        const first = regularSeasons(series)[0];
+        const cast = first != null ? await castBySeason(tmdbId, [first], tmdbKey) : {};
+        const quiz = await dataQuiz(tmdbId, series, cast, language);
+        const origin = quiz.length >= MIN_DATA_QUESTIONS ? 'data' : 'ai';
+        if (origin === 'data') items = [...items.filter((i) => i.type === 'fact'), ...quiz];
+        await admin
+          .from('series_trivia')
+          .update({ items, quiz_origin: origin })
+          .eq('tmdb_id', tmdbId)
+          .eq('language', language);
+      } catch (error) {
+        console.error('[series-trivia] quiz des bases :', error instanceof Error ? error.message : error);
+      }
+    }
+    return reply(items, cached.introduced ?? {}, cached.sources);
   }
   if (!generate) return json({ status: 'missing', items: [], sources: {} });
 
   const apiKey = Deno.env.get('MISTRAL_API_KEY');
-  const tmdbKey = Deno.env.get('TMDB_API_KEY');
   if (!apiKey || !tmdbKey) {
     console.error('[series-trivia] MISTRAL_API_KEY ou TMDB_API_KEY absente des secrets.');
     return fail(503, 'misconfigured', 'Les anecdotes ne sont pas encore configurées.');
   }
 
-  // Une génération coûte un appel Mistral : elle entre dans le quota du jour de
-  // la personne, comme une question à l'assistant. Une lecture en cache, non.
+  let series: TmdbSeries;
+  let titles: { fr?: string; en?: string } = {};
+  try {
+    [series, titles] = await Promise.all([
+      getJson(`${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbKey}&language=${language === 'fr' ? 'fr-FR' : 'en-US'}`),
+      wikipediaTitles(tmdbId).catch(() => ({})),
+    ]);
+  } catch (error) {
+    console.error('[series-trivia] TMDB :', error instanceof Error ? error.message : error);
+    return fail(502, 'upstream', 'Anecdotes momentanément indisponibles.');
+  }
+
+  const [frText, enText, bySeason] = await Promise.all([
+    titles.fr ? wikipediaExtract('fr', titles.fr).catch(() => '') : Promise.resolve(''),
+    titles.en ? wikipediaExtract('en', titles.en).catch(() => '') : Promise.resolve(''),
+    castBySeason(tmdbId, regularSeasons(series), tmdbKey),
+  ]);
+  const quiz = await dataQuiz(tmdbId, series, bySeason, language);
+  const quizFromData = quiz.length >= MIN_DATA_QUESTIONS;
+  const frMaking = makingOfSections(frText, 4_000);
+  const enMaking = makingOfSections(enText, 7_000);
+  const introduced = introducedNames(
+    Object.fromEntries(
+      Object.entries(bySeason).map(([s, roles]) => [s, roles.flatMap((r) => [r.character, r.actor])])
+    )
+  );
+  const sources = {
+    ...(titles.fr && frMaking ? { fr: `https://fr.wikipedia.org/wiki/${encodeURIComponent(titles.fr)}` } : {}),
+    ...(titles.en && enMaking ? { en: `https://en.wikipedia.org/wiki/${encodeURIComponent(titles.en)}` } : {}),
+  };
+
+  const store = (items: TriviaItem[], origin: 'data' | 'ai') =>
+    admin.from('series_trivia').upsert({
+      tmdb_id: tmdbId,
+      language,
+      items,
+      introduced,
+      sources,
+      quiz_origin: origin,
+      created_at: new Date().toISOString(),
+    });
+
+  // Rien à faire écrire : pas de Wikipédia exploitable. Le quiz des bases, s'il existe, suffit.
+  if (!frMaking && !enMaking) {
+    const items = quizFromData ? quiz : [];
+    await store(items, quizFromData ? 'data' : 'ai');
+    return reply(items, introduced, sources);
+  }
+
+  // Une génération coûte un appel Mistral : elle entre dans le quota du jour,
+  // comme une question à l'assistant. Une lecture en cache, non.
   const limit = Number(Deno.env.get('AI_DAILY_LIMIT') ?? DEFAULT_DAILY_LIMIT);
   const { data: quota, error: quotaError } = await admin.rpc('consume_ai_quota', {
     p_user: user.id,
@@ -203,55 +346,6 @@ Deno.serve(async (req: Request) => {
     const { error } = await admin.rpc('refund_ai_quota', { p_user: user.id });
     if (error) console.error('[series-trivia] refund_ai_quota :', error.message);
   };
-
-  let series: { name?: string; seasons?: { season_number: number; episode_count: number }[] };
-  let titles: { fr?: string; en?: string } = {};
-  try {
-    [series, titles] = await Promise.all([
-      getJson(`${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbKey}&language=${language === 'fr' ? 'fr-FR' : 'en-US'}`),
-      wikipediaTitles(tmdbId).catch(() => ({})),
-    ]);
-  } catch (error) {
-    await refund();
-    console.error('[series-trivia] TMDB :', error instanceof Error ? error.message : error);
-    return fail(502, 'upstream', 'Anecdotes momentanément indisponibles.');
-  }
-
-  const seasonNumbers = (series.seasons ?? [])
-    .filter((s) => s.season_number > 0 && s.episode_count > 0)
-    .map((s) => s.season_number)
-    .sort((a, b) => a - b)
-    .slice(0, MAX_SEASONS);
-
-  const [frText, enText, bySeason] = await Promise.all([
-    titles.fr ? wikipediaExtract('fr', titles.fr).catch(() => '') : Promise.resolve(''),
-    titles.en ? wikipediaExtract('en', titles.en).catch(() => '') : Promise.resolve(''),
-    castBySeason(tmdbId, seasonNumbers, tmdbKey),
-  ]);
-  const frMaking = makingOfSections(frText, 4_000);
-  const enMaking = makingOfSections(enText, 7_000);
-  const introduced = introducedNames(bySeason);
-  const sources = {
-    ...(titles.fr && frMaking ? { fr: `https://fr.wikipedia.org/wiki/${encodeURIComponent(titles.fr)}` } : {}),
-    ...(titles.en && enMaking ? { en: `https://en.wikipedia.org/wiki/${encodeURIComponent(titles.en)}` } : {}),
-  };
-
-  const store = (items: TriviaItem[]) =>
-    admin.from('series_trivia').upsert({
-      tmdb_id: tmdbId,
-      language,
-      items,
-      introduced,
-      sources,
-      created_at: new Date().toISOString(),
-    });
-
-  // Rien de solide à lire : on le retient, sans appeler Mistral pour rien.
-  if (!frMaking && !enMaking) {
-    await refund();
-    await store([]);
-    return json({ status: 'empty', items: [], sources });
-  }
 
   const context = [
     frMaking ? `=== WIKIPÉDIA (FR) ===\n${frMaking}` : '',
@@ -268,11 +362,11 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: resolveModel(),
         messages: [
-          { role: 'system', content: persona(language, series.name ?? 'cette série') },
+          { role: 'system', content: persona(language, series.name ?? 'cette série', !quizFromData) },
           { role: 'user', content: context },
         ],
         temperature: 0.2,
-        max_tokens: 1_500,
+        max_tokens: quizFromData ? 1_000 : 1_800,
         response_format: { type: 'json_object' },
       }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
@@ -285,10 +379,12 @@ Deno.serve(async (req: Request) => {
     const payload = await upstream.json();
     const content = payload?.choices?.[0]?.message?.content ?? '{}';
     const raw = JSON.parse(typeof content === 'string' ? content : '{}');
-    items = parseTrivia(raw);
+    const written = parseTrivia(raw);
+    // Le quiz des bases l'emporte : le modèle n'en a pas écrit, ou on ignore ce qu'il a écrit.
+    items = quizFromData ? [...written.filter((i) => i.type === 'fact'), ...quiz] : written;
     // Ce que le modèle a rendu et ce qui a passé la validation : l'écart dit s'il dérive.
     console.log(
-      `[series-trivia] ${tmdbId}/${language} : ${Array.isArray(raw?.items) ? raw.items.length : 0} reçus, ${items.length} gardés`
+      `[series-trivia] ${tmdbId}/${language} : ${Array.isArray(raw?.items) ? raw.items.length : 0} reçus, ${written.length} gardés, quiz ${quizFromData ? `bases (${quiz.length})` : 'IA'}`
     );
   } catch (error) {
     await refund();
@@ -296,9 +392,8 @@ Deno.serve(async (req: Request) => {
     return fail(502, 'upstream', 'Anecdotes momentanément indisponibles.');
   }
 
-  const { error: storeError } = await store(items);
+  const { error: storeError } = await store(items, quizFromData ? 'data' : 'ai');
   if (storeError) console.error('[series-trivia] cache :', storeError.message);
 
-  const visible = visibleTrivia(items, introduced, season);
-  return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources });
+  return reply(items, introduced, sources);
 });
