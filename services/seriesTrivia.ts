@@ -10,7 +10,9 @@ export type TriviaItem =
       options: string[];
       answer: number;
       explanation: string;
-      source: 'fr' | 'en';
+      source: 'fr' | 'en' | 'data';
+      /** `data` : tirée de Wikidata et TMDB, sans IA. `ai` (ou absente) : écrite par Mistral, à signaler. */
+      origin?: 'ai' | 'data';
     };
 
 /**

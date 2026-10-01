@@ -26,7 +26,10 @@ export type TriviaItem =
       options: string[];
       answer: number;
       explanation: string;
-      source: 'fr' | 'en';
+      /** L'article Wikipédia lu par le modèle, ou `data` pour une question tirée de Wikidata et TMDB. */
+      source: 'fr' | 'en' | 'data';
+      /** `ai` : écrite par Mistral, et dite comme telle à l'écran. `data` : construite sans IA (quiz.ts). */
+      origin?: 'ai' | 'data';
     };
 
 /** Les sections qui parlent de la fabrication, en anglais et en français. */
@@ -167,6 +170,7 @@ export function parseTrivia(raw: unknown): TriviaItem[] {
         answer,
         explanation,
         source,
+        origin: 'ai',
       });
     } else {
       // Les petits modèles nomment parfois la clé autrement : on lit les variantes courantes.
