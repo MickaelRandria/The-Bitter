@@ -53,6 +53,41 @@ export async function getSeasonEpisodes(id: number, season: number, language = '
   return episodes;
 }
 
+/** Un rôle de la saison : le personnage d'abord, c'est lui qu'on cherche. */
+export interface CastMember {
+  id: number;
+  character: string;
+  actor: string;
+  photo?: string;
+}
+
+/**
+ * Les rôles réguliers d'une saison, pour « Qui est qui ? ».
+ *
+ * La saison et pas toute la série : le casting complet nommerait des
+ * personnages qui n'arrivent que plus tard, ce qui en dit déjà trop. Les
+ * invités d'un épisode sont écartés pour la même raison : une apparition
+ * surprise n'en est plus une si son nom s'affiche avant.
+ */
+export async function getSeasonCast(id: number, season: number, language = 'fr-FR'): Promise<CastMember[]> {
+  const key = `tvSeasonCast:${id}:${season}:${language}`;
+  const cached = getCachedData<CastMember[]>(key);
+  if (cached) return cached;
+  const data = await request(`tv/${id}/season/${season}/credits`, language);
+  const cast: CastMember[] = (data.cast ?? [])
+    .filter((c: any) => c.character)
+    .sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999))
+    .slice(0, 16)
+    .map((c: any) => ({
+      id: c.id,
+      character: String(c.character).split(' / ')[0],
+      actor: c.name,
+      photo: c.profile_path ? `${TMDB_IMAGE_URL}${c.profile_path}` : undefined,
+    }));
+  setCachedData(key, cast);
+  return cast;
+}
+
 /** Le résumé d'une saison entière, tel que TMDB l'écrit. Vide s'il n'en a pas. */
 export async function getSeasonOverview(id: number, season: number, language = 'fr-FR'): Promise<string> {
   const key = `tvSeasonOverview:${id}:${season}:${language}`;

@@ -278,6 +278,9 @@ export type TvRatingMode = 'global' | 'bitter' | 'bitter_plus';
  * il aurait fait cohabiter deux échelles dans la même application : la note
  * d'un épisode n'aurait pas voulu dire la même chose que celle d'un film.
  */
+/** Une réaction à chaud après un épisode : 😱 🔥 😭 😂. */
+export type EpisodeReaction = 'shock' | 'fire' | 'cry' | 'laugh';
+
 export interface TvEpisodeEntry {
   seasonNumber: number;
   episodeNumber: number;
@@ -297,6 +300,8 @@ export interface TvEpisodeEntry {
   /** Quelle grille rouvrir. Absent = note héritée, antérieure aux trois modes. */
   ratingMode?: TvRatingMode;
   review?: string;
+  /** Les réactions posées en sortant de l'épisode, jamais montrées avant qu'il soit vu. */
+  reactions?: EpisodeReaction[];
   runtime?: number;
   updatedAt: number;
 }

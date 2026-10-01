@@ -27,6 +27,11 @@ export interface RecapSource {
   seasons: RecapPart[];
   /** Les épisodes vus de la saison en cours, dans l'ordre. */
   episodes: RecapPart[];
+  /**
+   * Les images des derniers épisodes vus, pour le générique « Précédemment
+   * dans… ». Seulement des épisodes vus : aucune n'en dit plus que le récap.
+   */
+  stills: { label: string; url: string }[];
 }
 
 export interface SeriesRecapResult {
@@ -40,6 +45,7 @@ export interface SeriesRecapResult {
 const PART_LIMIT = 700;
 const PREVIOUS_SEASONS = 3;
 const RECENT_EPISODES = 10;
+const RECAP_STILLS = 3;
 
 const trim = (text: string) =>
   text.length > PART_LIMIT ? `${text.slice(0, PART_LIMIT - 1)}…` : text;
@@ -97,6 +103,10 @@ export async function buildRecapSource(
       .filter((e) => e.episodeNumber <= seen.episode && e.overview)
       .slice(-RECENT_EPISODES)
       .map((e) => ({ label: `S${seen.season} · É${e.episodeNumber}`, text: trim(e.overview!) })),
+    stills: episodes
+      .filter((e) => e.episodeNumber <= seen.episode && e.still)
+      .slice(-RECAP_STILLS)
+      .map((e) => ({ label: `S${seen.season} · É${e.episodeNumber}`, url: e.still! })),
   };
   return source.seasons.length || source.episodes.length ? source : null;
 }

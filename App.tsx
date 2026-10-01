@@ -39,6 +39,7 @@
   Filter,
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo, lazy, Suspense, memo, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useLanguage } from './contexts/LanguageContext';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from './constants';
 import {
@@ -167,7 +168,22 @@ const CineAssistant = lazy(() => import('./components/CineAssistant'));
 const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
 const SeriesDetailModal = lazy(() => import('./components/SeriesDetailModal'));
 const UpNext = lazy(() => import('./components/UpNext'));
-const EpisodeCompanion = lazy(() => import('./components/EpisodeCompanion'));
+type EpisodeCompanionComponent = typeof import('./components/EpisodeCompanion').default;
+/**
+ * Le mode épisode, chargé à la demande mais toujours avant d'être affiché, et
+ * pas par `lazy` : la transition depuis la carte « À suivre » a besoin qu'il
+ * rende dès la première image, alors que `lazy` suspend au premier rendu.
+ */
+let episodeCompanionModule: Promise<EpisodeCompanionComponent> | null = null;
+const loadEpisodeCompanion = () =>
+  (episodeCompanionModule ??= import('./components/EpisodeCompanion').then((m) => m.default));
+
+/** L'image de la carte « À suivre » d'une série, point de départ de la transition. */
+const episodeHeroOf = (seriesId: string) =>
+  document.querySelector<HTMLElement>(`[data-episode-hero="${CSS.escape(seriesId)}"]`);
+const canMorph = () =>
+  typeof document.startViewTransition === 'function' &&
+  !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
@@ -489,7 +505,65 @@ const App: React.FC = () => {
   const [openSeries, setOpenSeries] = useState<Movie | null>(null);
   const [seasonToResume, setSeasonToResume] = useState<{ seriesId: string; number: number } | null>(null);
   /** Le mode épisode ouvert, sur la série et le moment voulus. */
-  const [companion, setCompanion] = useState<{ seriesId: string; phase: CompanionPhase } | null>(null);
+  const [companion, setCompanion] = useState<{
+    seriesId: string;
+    phase: CompanionPhase;
+    /** Ouvert par la transition depuis la carte : il se referme de la même façon. */
+    morph?: boolean;
+    image?: string;
+  } | null>(null);
+  const [EpisodeCompanionView, setEpisodeCompanionView] = useState<EpisodeCompanionComponent | null>(null);
+
+  // Le mode épisode demandé sans transition (retour d'un épisode) : on le charge.
+  useEffect(() => {
+    if (!companion || EpisodeCompanionView) return;
+    let active = true;
+    loadEpisodeCompanion()
+      .then((view) => active && setEpisodeCompanionView(() => view))
+      .catch(() => {
+        /* Hors ligne : le mode épisode attendra la prochaine demande. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [companion, EpisodeCompanionView]);
+
+  /**
+   * Ouvre le mode épisode depuis une carte : l'image de la carte s'agrandit
+   * jusqu'à devenir l'affiche de la séance (View Transitions). Sans le support
+   * du navigateur, ou mouvements réduits demandés, il s'ouvre simplement.
+   */
+  const openCompanion = async (series: Movie, phase: CompanionPhase, image?: string) => {
+    const view = await loadEpisodeCompanion().catch(() => null);
+    const hero = episodeHeroOf(series.id);
+    if (!view || !hero || !canMorph()) {
+      setCompanion({ seriesId: series.id, phase, image });
+      return;
+    }
+    hero.style.setProperty('view-transition-name', 'episode-hero');
+    const transition = document.startViewTransition(() => {
+      hero.style.removeProperty('view-transition-name');
+      flushSync(() => {
+        setEpisodeCompanionView(() => view);
+        setCompanion({ seriesId: series.id, phase, image, morph: true });
+      });
+    });
+    transition.finished.finally(() => hero.style.removeProperty('view-transition-name'));
+  };
+
+  /** Le chemin inverse : l'affiche redevient la carte, si la carte est toujours là. */
+  const closeCompanion = () => {
+    const hero = companion?.morph ? episodeHeroOf(companion.seriesId) : null;
+    if (!hero || !canMorph()) {
+      setCompanion(null);
+      return;
+    }
+    const transition = document.startViewTransition(() => {
+      flushSync(() => setCompanion(null));
+      hero.style.setProperty('view-transition-name', 'episode-hero');
+    });
+    transition.finished.finally(() => hero.style.removeProperty('view-transition-name'));
+  };
 
   /**
    * Saison à noter, préremplie mais **pas encore dans la collection**.
@@ -2939,7 +3013,7 @@ const App: React.FC = () => {
                         onUpdateProgress={handleUpdateTvProgress}
                         onOpenSeries={setOpenSeries}
                         onRateSeason={handleRateSeason}
-                        onOpenCompanion={(series, phase) => setCompanion({ seriesId: series.id, phase })}
+                        onOpenCompanion={(series, phase, image) => void openCompanion(series, phase, image)}
                         onDeleteSeries={(series) => handleDeleteMovie(series.id)}
                       />
                     </Suspense>
@@ -3689,18 +3763,19 @@ const App: React.FC = () => {
           const series = companion && allMovies.find((m) => m.id === companion.seriesId);
           return (
             series &&
-            !isModalOpen && (
-              <Suspense fallback={null}>
-                <EpisodeCompanion
-                  key={`${series.id}:${companion.phase}`}
-                  series={series}
-                  allMovies={allMovies}
-                  phase={companion.phase}
-                  onClose={() => setCompanion(null)}
-                  onRateSeason={(season) => handleRateSeason(series, season)}
-                  onUpdateProgress={(progress) => handleUpdateTvProgress(series, progress)}
-                />
-              </Suspense>
+            !isModalOpen &&
+            EpisodeCompanionView && (
+              <EpisodeCompanionView
+                key={`${series.id}:${companion.phase}`}
+                series={series}
+                allMovies={allMovies}
+                phase={companion.phase}
+                morph={companion.morph}
+                initialImage={companion.image}
+                onClose={closeCompanion}
+                onRateSeason={(season) => handleRateSeason(series, season)}
+                onUpdateProgress={(progress) => handleUpdateTvProgress(series, progress)}
+              />
             )
           );
         })()}

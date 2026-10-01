@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, History, Loader2, Play, Star, Users, X } from 'lucide-react';
-import { Movie, TvEpisodeEntry, TvProgress } from '../types';
+import { EpisodeReaction, Movie, TvEpisodeEntry, TvProgress } from '../types';
 import { getSeriesDetails, TmdbSeasonSummary, TmdbSeriesDetails } from '../services/tmdb';
-import { getSeasonEpisodes, getWatchOffers, TvEpisode } from '../services/tv';
+import { CastMember, getSeasonCast, getSeasonEpisodes, getWatchOffers, TvEpisode } from '../services/tv';
 import { getNetflixUrl } from '../services/streamingLinks';
 import { comparePositions, getFriendsSeriesProgress } from '../services/seriesFriends';
 import { EpisodePosition, furthestPosition, nextEpisode, seasonRail } from '../utils/upNext';
 import { markEpisodeWatched } from '../utils/episodeCompanion';
+import { REACTION_EMOJI, REACTIONS, seasonMoments } from '../utils/seriesInsights';
 import {
   CompanionPhase,
   readEpisodeSession,
@@ -32,6 +33,13 @@ interface Props {
   series: Movie;
   allMovies: Movie[];
   phase: CompanionPhase;
+  /**
+   * Ouvert depuis une carte « À suivre » par une transition : l'image de la
+   * carte devient l'affiche de la séance. Pas d'animation d'entrée en plus.
+   */
+  morph?: boolean;
+  /** L'image de la carte, pour que l'affiche soit la même dès la première image. */
+  initialImage?: string;
   onClose: () => void;
   onUpdateProgress: (progress: TvProgress) => void;
   onRateSeason: (season: TmdbSeasonSummary) => void;
@@ -45,6 +53,8 @@ interface Done {
   /** La saison que cet épisode vient de terminer, si elle attend encore un verdict. */
   finishedSeason?: TmdbSeasonSummary;
   following: EpisodePosition | null;
+  /** Les moments forts de la saison, quand cet épisode la termine. */
+  moments: ReturnType<typeof seasonMoments>;
 }
 
 const todayInParis = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
@@ -67,6 +77,8 @@ const EpisodeCompanion: React.FC<Props> = ({
   series,
   allMovies,
   phase,
+  morph = false,
+  initialImage,
   onClose,
   onUpdateProgress,
   onRateSeason,
@@ -89,6 +101,8 @@ const EpisodeCompanion: React.FC<Props> = ({
     return sessionMoment(mine, Date.now()) === 'ask' ? 'after' : 'watching';
   });
   const [rating, setRating] = useState<number | null>(null);
+  const [reactions, setReactions] = useState<EpisodeReaction[]>([]);
+  const [cast, setCast] = useState<CastMember[]>([]);
   const [done, setDone] = useState<Done | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -140,6 +154,18 @@ const EpisodeCompanion: React.FC<Props> = ({
       active = false;
     };
   }, [series.tmdbId]);
+
+  // « Qui est qui ? » : le casting de la saison, seulement pendant l'épisode.
+  useEffect(() => {
+    if (view !== 'watching' || series.tmdbId == null || !position) return;
+    let active = true;
+    getSeasonCast(series.tmdbId, position.season, locale)
+      .catch(() => [] as CastMember[])
+      .then((list) => active && setCast(list));
+    return () => {
+      active = false;
+    };
+  }, [view, series.tmdbId, position?.season, locale]);
 
   // Des proches plus loin : on le dit, sans jamais dire où.
   useEffect(() => {
@@ -215,7 +241,13 @@ const EpisodeCompanion: React.FC<Props> = ({
   const finish = (extra?: Partial<TvEpisodeEntry>) => {
     if (!position || !details) return;
     const before = series.tvProgress;
-    const progress = markEpisodeWatched(before, position, details.seasons, { ended, runtime, extra });
+    // Sans réaction choisie, on ne touche pas à celles d'un premier visionnage.
+    const withReactions = reactions.length ? { ...extra, reactions } : extra;
+    const progress = markEpisodeWatched(before, position, details.seasons, {
+      ended,
+      runtime,
+      extra: withReactions,
+    });
     writeEpisodeSession(null);
     onUpdateProgress(progress);
     haptics.success();
@@ -230,6 +262,9 @@ const EpisodeCompanion: React.FC<Props> = ({
       before,
       finishedSeason: seasonDone && !alreadyRated ? season : undefined,
       following: nextEpisode(progress, details.seasons),
+      moments: seasonDone
+        ? seasonMoments(Object.values<TvEpisodeEntry>(progress.episodes ?? {}), position.season)
+        : [],
     });
     setView('done');
   };
@@ -247,6 +282,7 @@ const EpisodeCompanion: React.FC<Props> = ({
     haptics.soft();
     setPosition(following);
     setRating(null);
+    setReactions([]);
     setDone(null);
     setView('before');
   };
@@ -262,7 +298,7 @@ const EpisodeCompanion: React.FC<Props> = ({
     .sort((a, b) => b.updatedAt - a.updatedAt)[0];
 
   const shown = done?.seen ?? position;
-  const image = details?.backdropUrl ?? series.posterUrl;
+  const image = details?.backdropUrl ?? initialImage ?? series.posterUrl;
   const minutes = mine ? Math.max(0, Math.floor((now - mine.startedAt) / 60_000)) : 0;
 
   const primary =
@@ -328,16 +364,23 @@ const EpisodeCompanion: React.FC<Props> = ({
   return (
     <div
       {...dialog.props}
-      className="fixed inset-0 z-[290] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-[fadeIn_0.25s_ease-out]"
+      className={`fixed inset-0 z-[290] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm ${
+        morph ? '' : 'animate-[fadeIn_0.25s_ease-out]'
+      }`}
     >
-      <div className="relative flex h-[94dvh] w-full flex-col overflow-hidden rounded-t-[2.5rem] bg-[#0a0a0a] text-white shadow-2xl animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] sm:h-auto sm:max-h-[92dvh] sm:max-w-md sm:rounded-[2.5rem]">
+      <div
+        className={`relative flex h-[94dvh] w-full flex-col overflow-hidden rounded-t-[2.5rem] bg-[#0a0a0a] text-white shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-md sm:rounded-[2.5rem] ${
+          morph ? '' : 'animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]'
+        }`}
+      >
         {/* L'affiche de la séance. */}
         <div className="relative h-[36dvh] min-h-[210px] shrink-0 overflow-hidden">
           {image && (
             <img
               src={resizeTmdbImage(image, 'w780')}
               alt=""
-              className="absolute inset-0 h-full w-full object-cover animate-[fadeIn_0.6s_ease-out]"
+              className={`absolute inset-0 h-full w-full object-cover ${morph ? '' : 'animate-[fadeIn_0.6s_ease-out]'}`}
+              style={morph ? { viewTransitionName: 'episode-hero' } : undefined}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-black/30" />
@@ -388,6 +431,32 @@ const EpisodeCompanion: React.FC<Props> = ({
                   {t('upNext.undo')}
                 </button>
               </div>
+
+              {done.moments.length > 0 && (
+                <div className="rounded-2xl bg-white/[0.04] p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">
+                    {t('companion.moments')}
+                  </p>
+                  <p className="mt-2 text-[14px] font-bold">
+                    {t('companion.mostOf', {
+                      emoji: REACTION_EMOJI[done.moments[0].reaction],
+                      episode: done.moments[0].episode,
+                    })}
+                  </p>
+                  {done.moments.length > 1 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {done.moments.slice(1).map((moment) => (
+                        <span
+                          key={moment.reaction}
+                          className="rounded-full bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold text-white/80"
+                        >
+                          {REACTION_EMOJI[moment.reaction]} É{moment.episode}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {done.finishedSeason ? (
                 <div className="space-y-3 rounded-2xl bg-white/[0.06] p-4">
@@ -455,6 +524,35 @@ const EpisodeCompanion: React.FC<Props> = ({
               <div>
                 <p className="text-2xl font-black tracking-tight">{t('companion.askTitle')}</p>
                 <p className="mt-1 text-[12px] text-white/50">{t('companion.askHint')}</p>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-white/40">
+                  {t('companion.reactionsTitle')}
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {REACTIONS.map((reaction) => {
+                    const on = reactions.includes(reaction);
+                    return (
+                      <button
+                        key={reaction}
+                        onClick={() => {
+                          haptics.soft();
+                          setReactions((list) =>
+                            on ? list.filter((r) => r !== reaction) : [...list, reaction]
+                          );
+                        }}
+                        aria-pressed={on}
+                        aria-label={t(`reaction.${reaction}`)}
+                        className={`flex h-14 items-center justify-center rounded-2xl text-[26px] transition-all active:scale-90 ${
+                          on ? 'scale-105 bg-bitter-lime/20 ring-2 ring-bitter-lime' : 'bg-white/[0.06] grayscale-[0.4]'
+                        }`}
+                      >
+                        {REACTION_EMOJI[reaction]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-5 gap-2">
@@ -538,6 +636,37 @@ const EpisodeCompanion: React.FC<Props> = ({
                 </div>
               </div>
               <p className="text-[12px] leading-relaxed text-white/50">{t('companion.watchingHint')}</p>
+              {cast.length > 0 && position && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">
+                    {t('companion.whoIsWho')}
+                  </p>
+                  <ul className="-mx-6 mt-3 flex gap-3 overflow-x-auto no-scrollbar px-6 pb-1">
+                    {cast.map((member) => (
+                      <li key={member.id} className="w-[76px] shrink-0">
+                        <span className="block aspect-[3/4] overflow-hidden rounded-2xl bg-white/[0.06]">
+                          {member.photo ? (
+                            <img
+                              src={resizeTmdbImage(member.photo, 'w185')}
+                              alt=""
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="flex h-full w-full items-center justify-center text-xl font-black text-white/30">
+                              {member.character.charAt(0)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1.5 block text-[11px] font-black leading-tight text-white line-clamp-2">
+                          {member.character}
+                        </span>
+                        <span className="block truncate text-[10px] text-white/40">{member.actor}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="space-y-2">
                 <button
                   onClick={() => {
