@@ -13,44 +13,83 @@ export type TriviaItem =
       source: 'fr' | 'en';
     };
 
+/**
+ * `ready` : il y a de quoi montrer. `missing` : rien n'a encore été préparé
+ * pour cette série, il faut un geste pour le lancer. `empty` : préparé, mais
+ * rien de montrable (Wikipédia trop maigre, ou tout est au-delà de ta saison).
+ */
+export type TriviaStatus = 'ready' | 'missing' | 'empty';
+
 export interface SeriesTrivia {
+  status: TriviaStatus;
   items: TriviaItem[];
   /** Les articles Wikipédia d'où viennent les anecdotes. */
   sources: { fr?: string; en?: string };
 }
 
-/** Une demande par série, saison et langue : le mode épisode la lance tôt et la relit plus tard. */
-const lookups = new Map<string, Promise<SeriesTrivia | null>>();
+export type TriviaResult = SeriesTrivia | { error: string };
+
+const key = (tmdbId: number, season: number, language: string) => `${tmdbId}:${season}:${language}`;
+const peeks = new Map<string, Promise<SeriesTrivia | null>>();
+const generations = new Map<string, Promise<TriviaResult>>();
+
+async function call(
+  tmdbId: number,
+  season: number,
+  language: 'fr' | 'en',
+  generate: boolean
+): Promise<TriviaResult | null> {
+  const client = supabase;
+  if (!client) return null;
+  const { data: auth } = await client.auth.getSession();
+  if (!auth.session) return null;
+  const { data, error } = await client.functions.invoke<SeriesTrivia>('series-trivia', {
+    body: { tmdbId, season, language, generate },
+  });
+  if (error) {
+    // Le message de la fonction (quota atteint, panne) est fait pour être lu tel quel.
+    const body = await (error as { context?: Response }).context?.json?.().catch(() => null);
+    return { error: typeof body?.message === 'string' ? body.message : 'unavailable' };
+  }
+  if (!data || !Array.isArray(data.items)) return { error: 'unavailable' };
+  return { status: data.status ?? (data.items.length ? 'ready' : 'empty'), items: data.items, sources: data.sources ?? {} };
+}
 
 /**
- * « Le saviez-vous ? » : les anecdotes de coulisses montrables à qui en est à
- * cette saison. Le tri anti-spoiler est fait côté serveur ; ici on ne fait que
- * demander. Sans compte, rien : la génération passe par Mistral et son quota.
- *
- * La première demande pour une série peut prendre une demi-minute (la
- * fonction lit Wikipédia et fait écrire Mistral) : le mode épisode la lance
- * dès son ouverture, pour qu'elle soit prête quand l'épisode démarre.
+ * Ce qui est déjà prêt pour cette série, sans rien générer ni rien dépenser :
+ * de quoi afficher « 6 anecdotes · 3 questions » sur le bouton, ou proposer de
+ * les préparer. `null` sans compte ou si la fonction ne répond pas.
  */
-export function getSeriesTrivia(tmdbId: number, season: number, language: 'fr' | 'en'): Promise<SeriesTrivia | null> {
-  const key = `${tmdbId}:${season}:${language}`;
-  let lookup = lookups.get(key);
-  if (!lookup) {
-    const client = supabase;
-    lookup = (async () => {
-      if (!client) return null;
-      const { data: auth } = await client.auth.getSession();
-      if (!auth.session) return null;
-      const { data, error } = await client.functions.invoke<SeriesTrivia>('series-trivia', {
-        body: { tmdbId, season, language },
-      });
-      if (error || !data || !Array.isArray(data.items)) throw error ?? new Error('series-trivia');
-      return { items: data.items, sources: data.sources ?? {} };
-    })().catch(() => {
-      // Une panne passagère ne se retient pas : on redemandera à la prochaine séance.
-      lookups.delete(key);
-      return null;
-    });
-    lookups.set(key, lookup);
+export function peekSeriesTrivia(tmdbId: number, season: number, language: 'fr' | 'en') {
+  const k = key(tmdbId, season, language);
+  let peek = peeks.get(k);
+  if (!peek) {
+    peek = call(tmdbId, season, language, false)
+      .then((result) => (result && 'status' in result ? result : null))
+      .catch(() => null);
+    peeks.set(k, peek);
   }
-  return lookup;
+  return peek;
+}
+
+/**
+ * Les anecdotes et le quiz, préparés au besoin. C'est le seul chemin qui
+ * appelle Mistral, et il ne part que d'un geste (« Le saviez-vous + »). Une
+ * génération en cours est partagée : rouvrir l'écran ne la relance pas.
+ */
+export function generateSeriesTrivia(tmdbId: number, season: number, language: 'fr' | 'en'): Promise<TriviaResult> {
+  const k = key(tmdbId, season, language);
+  let generation = generations.get(k);
+  if (!generation) {
+    generation = call(tmdbId, season, language, true)
+      .then((result) => result ?? { error: 'unauthenticated' })
+      .catch(() => ({ error: 'unavailable' }));
+    generations.set(k, generation);
+    generation.then((result) => {
+      if ('error' in result) generations.delete(k);
+      // Le coup d'œil suivant doit voir ce qui vient d'être préparé.
+      else peeks.set(k, Promise.resolve(result));
+    });
+  }
+  return generation;
 }
