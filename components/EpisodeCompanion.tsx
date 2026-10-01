@@ -27,8 +27,8 @@ import { RatingProfileId } from '../config/ratingProfiles';
 import SeasonRail from './SeasonRail';
 import SeriesRecap from './SeriesRecap';
 import EpisodeRatingSheet from './EpisodeRatingSheet';
-import TriviaCards from './TriviaCards';
-import { getSeriesTrivia } from '../services/seriesTrivia';
+import TriviaEntry from './TriviaEntry';
+import TriviaExperience from './TriviaExperience';
 
 interface Props {
   /** La ligne-série, tenue à jour par l'app : ce qu'on coche ici y revient. */
@@ -105,6 +105,8 @@ const EpisodeCompanion: React.FC<Props> = ({
   const [rating, setRating] = useState<number | null>(null);
   const [reactions, setReactions] = useState<EpisodeReaction[]>([]);
   const [cast, setCast] = useState<CastMember[]>([]);
+  /** « Le saviez-vous + » ouvert : c'est ce geste, et lui seul, qui peut lancer Mistral. */
+  const [triviaOpen, setTriviaOpen] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -156,14 +158,6 @@ const EpisodeCompanion: React.FC<Props> = ({
       active = false;
     };
   }, [series.tmdbId]);
-
-  /* « Le saviez-vous ? » : demandé dès l'ouverture. La première fois pour une
-     série, la fonction met une demi-minute à écrire ; on la fait travailler
-     pendant qu'on lance l'épisode plutôt qu'après. */
-  useEffect(() => {
-    if (series.tmdbId == null || !position) return;
-    void getSeriesTrivia(series.tmdbId, position.season, language === 'en' ? 'en' : 'fr');
-  }, [series.tmdbId, position?.season, language]);
 
   // « Qui est qui ? » : le casting de la saison, seulement pendant l'épisode.
   useEffect(() => {
@@ -678,7 +672,12 @@ const EpisodeCompanion: React.FC<Props> = ({
                 </div>
               )}
               {series.tmdbId != null && position && (
-                <TriviaCards tmdbId={series.tmdbId} season={position.season} episode={position.episode} />
+                <TriviaEntry
+                  tmdbId={series.tmdbId}
+                  season={position.season}
+                  episode={position.episode}
+                  onOpen={() => setTriviaOpen(true)}
+                />
               )}
               <div className="space-y-2">
                 <button
@@ -745,6 +744,17 @@ const EpisodeCompanion: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {triviaOpen && series.tmdbId != null && position && (
+        <TriviaExperience
+          title={series.title}
+          image={image}
+          tmdbId={series.tmdbId}
+          season={position.season}
+          episode={position.episode}
+          onClose={() => setTriviaOpen(false)}
+        />
+      )}
 
       {recapOpen && details && (
         <SeriesRecap series={series} seasons={details.seasons} onClose={() => setRecapOpen(false)} />

@@ -154,6 +154,12 @@ Deno.serve(async (req: Request) => {
   const tmdbId = Number(body.tmdbId);
   const season = Number(body.season);
   const language: 'fr' | 'en' = body.language === 'en' ? 'en' : 'fr';
+  /**
+   * Générer coûte un appel Mistral : seulement sur un geste explicite (« Le
+   * saviez-vous + »). Sans lui, la fonction ne fait que lire le cache et dit
+   * s'il y a quelque chose à montrer, sans rien dépenser.
+   */
+  const generate = body.generate === true;
   if (!Number.isInteger(tmdbId) || tmdbId <= 0 || !Number.isInteger(season) || season < 1 || season > 200) {
     return fail(400, 'bad_request', 'Série ou saison invalide.');
   }
@@ -171,11 +177,10 @@ Deno.serve(async (req: Request) => {
     ((Array.isArray(cached.items) && cached.items.length > 0) ||
       Date.now() - Date.parse(cached.created_at) < EMPTY_RETRY_DAYS * 86_400_000);
   if (fresh) {
-    return json({
-      items: visibleTrivia(cached.items as TriviaItem[], cached.introduced ?? {}, season),
-      sources: cached.sources ?? {},
-    });
+    const visible = visibleTrivia(cached.items as TriviaItem[], cached.introduced ?? {}, season);
+    return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources: cached.sources ?? {} });
   }
+  if (!generate) return json({ status: 'missing', items: [], sources: {} });
 
   const apiKey = Deno.env.get('MISTRAL_API_KEY');
   const tmdbKey = Deno.env.get('TMDB_API_KEY');
@@ -245,7 +250,7 @@ Deno.serve(async (req: Request) => {
   if (!frMaking && !enMaking) {
     await refund();
     await store([]);
-    return json({ items: [], sources });
+    return json({ status: 'empty', items: [], sources });
   }
 
   const context = [
@@ -294,5 +299,6 @@ Deno.serve(async (req: Request) => {
   const { error: storeError } = await store(items);
   if (storeError) console.error('[series-trivia] cache :', storeError.message);
 
-  return json({ items: visibleTrivia(items, introduced, season), sources });
+  const visible = visibleTrivia(items, introduced, season);
+  return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources });
 });
