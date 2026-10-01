@@ -80,6 +80,14 @@ input[type='range']::-webkit-slider-runnable-track {
     opacity: 1;
   }
 }
+@keyframes kenburns {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(-2%, -1.5%, 0);
+  }
+}
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -164,4 +172,25 @@ input[type='range']::-webkit-slider-runnable-track {
     rgba(255, 255, 255, 0) 100%
   );
   background-size: 200% 100%;
+}
+
+/* Carte « À suivre » → mode épisode : l'image de la série s'agrandit jusqu'à
+   devenir l'affiche de la séance. Les deux images n'ont pas le même cadre, on
+   les recadre donc pendant le trajet plutôt que de les déformer. */
+::view-transition-group(episode-hero) {
+  animation-duration: 0.5s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 1.75rem;
+  overflow: clip;
+}
+::view-transition-old(episode-hero),
+::view-transition-new(episode-hero) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation-duration: 0.5s;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
 }

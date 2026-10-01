@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { History, Loader2, X } from 'lucide-react';
 import { Movie } from '../types';
 import { TmdbSeasonSummary } from '../services/tmdb';
-import { getRecap, SeriesRecapResult } from '../services/seriesRecap';
+import { buildRecapSource, getRecap, SeriesRecapResult } from '../services/seriesRecap';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -45,6 +45,30 @@ const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
     };
   }, [series.tmdbId, series.title, series.tvProgress, seasons, language]);
 
+  /* Le générique : les images des derniers épisodes vus, sans attendre le
+     récap rédigé, qui peut prendre quelques secondes. */
+  const [stills, setStills] = useState<{ label: string; url: string }[]>([]);
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    if (series.tmdbId == null) return;
+    let active = true;
+    buildRecapSource(series.tmdbId, series.tvProgress, seasons, language === 'fr' ? 'fr-FR' : 'en-US')
+      .catch(() => null)
+      .then((source) => {
+        if (active && source) setStills(source.stills);
+      });
+    return () => {
+      active = false;
+    };
+  }, [series.tmdbId, series.tvProgress, seasons, language]);
+
+  useEffect(() => {
+    if (stills.length < 2) return;
+    const timer = window.setInterval(() => setSlide((n) => (n + 1) % stills.length), 3800);
+    return () => window.clearInterval(timer);
+  }, [stills.length]);
+
   const seen = result?.source.lastSeen;
   const fallback = result
     ? [...result.source.seasons.slice(-1), ...result.source.episodes.slice(-3)]
@@ -57,6 +81,36 @@ const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
     >
       <div className="relative w-full sm:max-w-md bg-cream dark:bg-[#0c0c0c] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden animate-[slideUp_0.35s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20 dark:border-white/10">
         <div className="relative shrink-0">
+          {stills.length > 0 ? (
+            <div className="relative h-56 overflow-hidden bg-black">
+              {stills.map((still, index) => (
+                <img
+                  key={still.url}
+                  src={resizeTmdbImage(still.url, 'w780')}
+                  alt=""
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 motion-safe:animate-[kenburns_9s_ease-out_infinite_alternate] ${
+                    index === slide ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  style={{ animationDelay: `${-index * 2.5}s` }}
+                />
+              ))}
+              <span className="absolute left-5 top-4 rounded-md bg-black/50 px-2 py-1 text-[10px] font-black tracking-wider text-white backdrop-blur">
+                {stills[slide]?.label}
+              </span>
+              {stills.length > 1 && (
+                <div className="absolute inset-x-5 top-12 flex gap-1" aria-hidden>
+                  {stills.map((still, index) => (
+                    <span
+                      key={still.url}
+                      className={`h-0.5 flex-1 rounded-full transition-colors duration-500 ${
+                        index <= slide ? 'bg-white/90' : 'bg-white/25'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="h-28 bg-stone-200 dark:bg-[#161616] overflow-hidden">
             {series.posterUrl && (
               <img
@@ -66,6 +120,7 @@ const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
               />
             )}
           </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-cream dark:from-[#0c0c0c] via-cream/40 dark:via-[#0c0c0c]/40 to-transparent" />
           <button
             onClick={onClose}

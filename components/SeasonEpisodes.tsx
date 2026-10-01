@@ -4,6 +4,7 @@ import { Movie, TvEpisodeEntry, TvProgress } from '../types';
 import { getSeasonEpisodes, TvEpisode } from '../services/tv';
 import { episodeKey, localDate, updateEpisode } from '../utils/tvProgress';
 import { seasonScores } from '../utils/rating';
+import { REACTION_EMOJI } from '../utils/seriesInsights';
 import { RatingProfileId } from '../config/ratingProfiles';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
@@ -239,6 +240,11 @@ const SeasonEpisodes: React.FC<Props> = ({ series, season, seasonMovie, onUpdate
                   <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-zinc-500">
                     {t('tv.episode', { number: episode.episodeNumber })}
                     {episode.runtime ? ` • ${episode.runtime} min` : ''}
+                    {visible && entry.reactions?.length ? (
+                      <span className="ml-1.5 normal-case tracking-normal" aria-hidden>
+                        {entry.reactions.map((r) => REACTION_EMOJI[r]).join(' ')}
+                      </span>
+                    ) : null}
                   </p>
                   <p
                     className={`text-sm font-semibold leading-snug text-charcoal line-clamp-2 dark:text-zinc-100 ${

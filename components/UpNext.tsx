@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, Check, ChevronRight, History, MoreHorizontal, Play, Star, Trash2, Users, X } from 'lucide-react';
+import { Bell, Check, ChevronRight, Clock, History, MoreHorizontal, Play, Star, Trash2, TrendingUp, Users, X } from 'lucide-react';
 import { Movie, TvProgress } from '../types';
 import { getSeriesDetails, TmdbSeasonSummary } from '../services/tmdb';
 import { getSeasonEpisodes, getWatchOffers, TvEpisode } from '../services/tv';
@@ -17,6 +17,7 @@ import {
   seasonRail,
 } from '../utils/upNext';
 import { markEpisodeWatched } from '../utils/episodeCompanion';
+import { catchUp, episodesThatFit, finishDate, watchPace } from '../utils/seriesInsights';
 import { CompanionPhase, EpisodeSession } from '../utils/episodeSession';
 import { useEpisodeSession } from '../utils/useEpisodeSession';
 import { groupWatchOffers, hasNetflix } from '../utils/watchOffers';
@@ -37,7 +38,7 @@ interface Props {
   onOpenSeries: (series: Movie) => void;
   onRateSeason: (series: Movie, season: TmdbSeasonSummary) => void;
   /** Ouvre le mode épisode : avant de lancer, ou au retour pour cocher. */
-  onOpenCompanion: (series: Movie, phase: CompanionPhase) => void;
+  onOpenCompanion: (series: Movie, phase: CompanionPhase, image?: string) => void;
   /** Retire la série de la collection, avec le même « Annuler » que le glissement. */
   onDeleteSeries: (series: Movie) => void;
 }
@@ -57,6 +58,14 @@ interface UpNextItem {
   /** L'image large de la série. Jamais celle de l'épisode à venir : elle en dévoilerait trop. */
   backdrop?: string;
   rail: RailStep[];
+  /** Les épisodes de la saison en cours : de quoi compter ce qui tient dans une soirée. */
+  queue: { episodeNumber: number; airDate?: string; runtime?: number }[];
+  /** La durée d'un épisode selon la fiche, pour ceux dont TMDB ignore la durée. */
+  typicalRuntime?: number;
+  /** « La S3 sort dans 12 j : 8 épisodes à rattraper. » */
+  catchUp: { season: number; days: number; episodes: number } | null;
+  /** « À ton rythme, fini le 14 oct. » */
+  finishBy: string | null;
 }
 
 interface LastAction {
@@ -66,6 +75,9 @@ interface LastAction {
   /** La saison que cet épisode vient de terminer, si elle attend encore un verdict. */
   finishedSeason?: TmdbSeasonSummary;
 }
+
+/** « Ce soir, j'ai… » : des durées qui correspondent à une vraie soirée. */
+const TONIGHT_BUDGETS = [30, 45, 60, 120];
 
 /** Au-delà, la liste devient un inventaire : on montre les plus récentes. */
 const MAX_FOLLOWED = 12;
@@ -106,6 +118,7 @@ async function loadItem(series: Movie, today: string): Promise<UpNextItem | null
   const last = lastWatchedAt(series.tvProgress);
   const daysSince = last ? (Date.parse(today) - Date.parse(last)) / 86_400_000 : Infinity;
   const furthest = furthestPosition(series.tvProgress, details.seasons);
+  const remaining = remainingInSeason(episodes, next.episode, today);
   const started = furthest != null && (furthest.episode > 0 || furthest.season > 1);
 
   return {
@@ -115,12 +128,16 @@ async function loadItem(series: Movie, today: string): Promise<UpNextItem | null
     next,
     episode,
     available,
-    remaining: remainingInSeason(episodes, next.episode, today),
+    remaining,
     netflixUrl,
     resuming:
       started && (daysSince >= RESUME_AFTER_DAYS || (next.episode === 1 && next.season > 1)),
     backdrop: details.backdropUrl,
     rail: seasonRail(episodes, next.episode, today),
+    queue: episodes.map(({ episodeNumber, airDate, runtime }) => ({ episodeNumber, airDate, runtime })),
+    typicalRuntime: details.episodeRuntime || undefined,
+    catchUp: available ? catchUp(details.seasons, next.season, remaining.count, today) : null,
+    finishBy: available ? finishDate(remaining.count, watchPace(series.tvProgress, today), today) : null,
   };
 }
 
@@ -157,6 +174,8 @@ interface CardProps {
   onMark: () => void;
   onRecap: () => void;
   onMore: () => void;
+  /** « Ce soir, j'ai… » choisi : combien d'épisodes de cette série y tiennent. */
+  fit: { count: number; minutes: number } | null;
 }
 
 /**
@@ -173,8 +192,9 @@ const UpNextCard: React.FC<CardProps> = ({
   onMark,
   onRecap,
   onMore,
+  fit,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const friends = useFriendsPlace(item);
   const { series, next, episode, remaining } = item;
   const watchingNow =
@@ -183,9 +203,9 @@ const UpNextCard: React.FC<CardProps> = ({
 
   return (
     <li
-      className={`relative h-[252px] shrink-0 snap-start overflow-hidden rounded-[1.75rem] bg-[#141414] shadow-lg shadow-black/10 ${
+      className={`relative h-[252px] shrink-0 snap-start overflow-hidden rounded-[1.75rem] bg-[#141414] shadow-lg shadow-black/10 transition-opacity duration-300 ${
         single ? 'w-full' : 'w-[86%] max-w-[340px]'
-      }`}
+      } ${fit && fit.count === 0 ? 'opacity-40' : ''}`}
     >
       {image && (
         <img
@@ -193,6 +213,7 @@ const UpNextCard: React.FC<CardProps> = ({
           alt=""
           loading="lazy"
           decoding="async"
+          data-episode-hero={series.id}
           className={`absolute inset-0 h-full w-full object-cover ${item.backdrop ? '' : 'object-[center_20%]'}`}
         />
       )}
@@ -206,6 +227,12 @@ const UpNextCard: React.FC<CardProps> = ({
               <span className="flex items-center gap-1.5 rounded-full bg-bitter-lime px-2 py-1 text-[9px] font-black uppercase tracking-wider text-black">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black" />
                 {t('upNext.watchingNow')}
+              </span>
+            )}
+            {fit && fit.count > 0 && (
+              <span className="flex items-center gap-1 rounded-full bg-bitter-lime px-2 py-1 text-[9px] font-black uppercase tracking-wider text-black">
+                <Clock size={10} strokeWidth={3} />
+                {t('upNext.fitsTonight', { count: fit.count })}
               </span>
             )}
             {next.episode === 1 && next.season > 1 && (
@@ -260,6 +287,25 @@ const UpNextCard: React.FC<CardProps> = ({
                   })
                 : t('upNext.leftCount', { count: remaining.count })}
           </p>
+          {(item.catchUp || item.finishBy) && (
+            <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-bitter-lime/90">
+              <TrendingUp size={11} strokeWidth={2.5} className="shrink-0" />
+              <span className="truncate">
+                {item.catchUp
+                  ? t(item.catchUp.days <= 1 ? 'upNext.catchUpTomorrow' : 'upNext.catchUp', {
+                      season: item.catchUp.season,
+                      days: item.catchUp.days,
+                      count: item.catchUp.episodes,
+                    })
+                  : t('upNext.finishBy', {
+                      date: new Date(`${item.finishBy}T12:00:00`).toLocaleDateString(
+                        language === 'fr' ? 'fr-FR' : 'en-US',
+                        { day: 'numeric', month: 'short' }
+                      ),
+                    })}
+              </span>
+            </p>
+          )}
 
           <div className="pointer-events-auto mt-3 flex items-center gap-2">
             <button
@@ -420,6 +466,9 @@ const UpNext: React.FC<Props> = ({
   const [recapFor, setRecapFor] = useState<UpNextItem | null>(null);
   const [bookmarkFor, setBookmarkFor] = useState<Movie | null>(null);
   const [actionsFor, setActionsFor] = useState<Movie | null>(null);
+  /** « Ce soir, j'ai… » : le temps dont on dispose, en minutes. */
+  const [budget, setBudget] = useState<number | null>(null);
+  const carouselRef = useRef<HTMLUListElement>(null);
   /** Les séries du dernier chargement, pour distinguer un ajout d'un épisode coché. */
   const loadedIds = useRef('');
 
@@ -539,7 +588,22 @@ const UpNext: React.FC<Props> = ({
 
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const today = todayInParis();
-  const available = (items ?? []).filter((item) => item.available);
+  const fits = new Map<string, { count: number; minutes: number } | null>(
+    (items ?? [])
+      .filter((item) => item.available)
+      .map((item) => [
+        item.series.id,
+        budget == null
+          ? null
+          : episodesThatFit(item.queue, item.next.episode, budget, today, item.typicalRuntime ?? 45),
+      ])
+  );
+  // Ce qui tient dans la soirée passe devant, dans l'ordre habituel ; le reste suit, estompé.
+  const available = (items ?? [])
+    .filter((item) => item.available)
+    .map((item, index) => ({ item, index, fit: fits.get(item.series.id) }))
+    .sort((a, b) => Number((b.fit?.count ?? 1) > 0) - Number((a.fit?.count ?? 1) > 0) || a.index - b.index)
+    .map(({ item }) => item);
   const upcoming = (items ?? [])
     .filter((item) => !item.available)
     .sort((a, b) => (a.episode?.airDate ?? '').localeCompare(b.episode?.airDate ?? ''))
@@ -640,7 +704,44 @@ const UpNext: React.FC<Props> = ({
         </div>
       ) : (
         (available.length > 0 || untracked.length > 0) && (
-          <ul className="-mx-6 flex snap-x snap-mandatory scroll-px-6 gap-3 overflow-x-auto no-scrollbar px-6 pb-1">
+          <>
+          {available.length > 0 && (
+            <div className="-mx-6 flex items-center gap-2 overflow-x-auto no-scrollbar px-6">
+              <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-stone-400 dark:text-stone-500">
+                <Clock size={12} strokeWidth={2.5} />
+                {t('upNext.tonightLabel')}
+              </span>
+              {TONIGHT_BUDGETS.map((minutes) => (
+                <button
+                  key={minutes}
+                  aria-pressed={budget === minutes}
+                  onClick={() => {
+                    haptics.soft();
+                    setBudget(budget === minutes ? null : minutes);
+                    carouselRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+                  }}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                    budget === minutes
+                      ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-black'
+                      : 'border border-stone-200 text-stone-500 dark:border-white/10 dark:text-stone-400'
+                  }`}
+                >
+                  {formatDuration(minutes)}
+                </button>
+              ))}
+            </div>
+          )}
+          {budget != null &&
+            available.length > 0 &&
+            available.every((item) => (fits.get(item.series.id)?.count ?? 0) === 0) && (
+              <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                {t('upNext.nothingFits', { duration: formatDuration(budget) })}
+              </p>
+            )}
+          <ul
+            ref={carouselRef}
+            className="-mx-6 flex snap-x snap-mandatory scroll-px-6 gap-3 overflow-x-auto no-scrollbar px-6 pb-1"
+          >
             {available.map((item) => (
               <UpNextCard
                 key={item.series.id}
@@ -650,11 +751,11 @@ const UpNext: React.FC<Props> = ({
                 onOpen={() => onOpenSeries(item.series)}
                 onLaunch={() => {
                   haptics.medium();
-                  onOpenCompanion(item.series, 'before');
+                  onOpenCompanion(item.series, 'before', item.backdrop ?? item.series.posterUrl);
                 }}
                 onFinish={() => {
                   haptics.soft();
-                  onOpenCompanion(item.series, 'after');
+                  onOpenCompanion(item.series, 'after', item.backdrop ?? item.series.posterUrl);
                 }}
                 onMark={() => markWatched(item)}
                 onRecap={() => {
@@ -665,6 +766,7 @@ const UpNext: React.FC<Props> = ({
                   haptics.soft();
                   setActionsFor(item.series);
                 }}
+                fit={fits.get(item.series.id) ?? null}
               />
             ))}
             {untracked.length > 0 && (
@@ -689,6 +791,7 @@ const UpNext: React.FC<Props> = ({
               </li>
             )}
           </ul>
+          </>
         )
       )}
 
