@@ -88,6 +88,32 @@ export async function getSeasonCast(id: number, season: number, language = 'fr-F
   return cast;
 }
 
+/**
+ * Qui a réalisé et écrit un épisode : des faits sûrs, sans IA, pour la
+ * première carte de « Le saviez-vous ? ». Les invités de l'épisode ne sont pas
+ * repris : une apparition surprise n'en serait plus une.
+ */
+export async function getEpisodeCrew(
+  id: number,
+  season: number,
+  episode: number,
+  language = 'fr-FR'
+): Promise<{ directors: string[]; writers: string[] }> {
+  const key = `tvEpisodeCrew:${id}:${season}:${episode}`;
+  const cached = getCachedData<{ directors: string[]; writers: string[] }>(key);
+  if (cached) return cached;
+  const data = await request(`tv/${id}/season/${season}/episode/${episode}`, language);
+  const crew: { job?: string; name?: string }[] = data.crew ?? [];
+  const names = (jobs: string[]) =>
+    [...new Set(crew.filter((c) => c.name && jobs.includes(c.job ?? '')).map((c) => c.name as string))].slice(0, 3);
+  const result = {
+    directors: names(['Director']),
+    writers: names(['Writer', 'Teleplay', 'Screenplay', 'Story']),
+  };
+  setCachedData(key, result);
+  return result;
+}
+
 /** Le résumé d'une saison entière, tel que TMDB l'écrit. Vide s'il n'en a pas. */
 export async function getSeasonOverview(id: number, season: number, language = 'fr-FR'): Promise<string> {
   const key = `tvSeasonOverview:${id}:${season}:${language}`;
