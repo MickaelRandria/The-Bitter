@@ -2933,11 +2933,14 @@ const App: React.FC = () => {
                   {mediaMode === 'tv' && (
                     <Suspense fallback={null}>
                       <UpNext
-                        movies={allMovies}
+                        /* Une série en cours de suppression quitte « À suivre » tout
+                           de suite, sans attendre la fin du délai d'annulation. */
+                        movies={pendingDelete ? allMovies.filter((m) => m.id !== pendingDelete.id) : allMovies}
                         onUpdateProgress={handleUpdateTvProgress}
                         onOpenSeries={setOpenSeries}
                         onRateSeason={handleRateSeason}
                         onOpenCompanion={(series, phase) => setCompanion({ seriesId: series.id, phase })}
+                        onDeleteSeries={(series) => handleDeleteMovie(series.id)}
                       />
                     </Suspense>
                   )}
@@ -3673,6 +3676,11 @@ const App: React.FC = () => {
               onClose={() => setOpenSeries(null)}
               onRateSeason={(season) => handleRateSeason(openSeries, season)}
               onUpdateProgress={(progress) => handleUpdateTvProgress(openSeries, progress)}
+              onDelete={() => {
+                const id = openSeries.id;
+                setOpenSeries(null);
+                handleDeleteMovie(id);
+              }}
             />
           </Suspense>
         )}

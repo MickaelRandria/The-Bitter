@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, History, Loader2, Pause, Play, Star, X } from 'lucide-react';
+import { Check, ChevronDown, History, Loader2, Pause, Play, Star, Trash2, X } from 'lucide-react';
 import { Movie, TvEpisodeEntry, TvProgress, TvWatchState } from '../types';
 import { TmdbSeasonSummary, TmdbSeriesDetails, getSeriesDetails } from '../services/tmdb';
 import { getDisplayWeightedRating, getSeriesRating, hasVerdict, seasonScores } from '../utils/rating';
@@ -27,6 +27,8 @@ interface Props {
   /** Ouvre la grille Bitter+ sur une saison, existante ou non. */
   onRateSeason: (season: TmdbSeasonSummary) => void;
   onUpdateProgress: (progress: TvProgress) => void;
+  /** Retire la série de la collection, avec le même « Annuler » que le geste de glissement. */
+  onDelete?: () => void;
 }
 
 const STATE_ORDER: TvWatchState[] = ['planned', 'watching', 'paused', 'dropped', 'completed'];
@@ -48,6 +50,7 @@ const SeriesDetailModal: React.FC<Props> = ({
   onClose,
   onRateSeason,
   onUpdateProgress,
+  onDelete,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, series.title);
@@ -428,6 +431,24 @@ const SeriesDetailModal: React.FC<Props> = ({
 
           {series.tmdbId != null && tmdb && tmdb.seasons.length > 0 && (
             <SeriesHeatmap tmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
+          )}
+
+          {/* Ajoutée par erreur : le glissement sur la carte n'était pas le seul
+              moyen qu'on cherche. Le bouton passe par la même suppression, avec
+              son « Annuler ». */}
+          {onDelete && (
+            <section className="border-t border-sand pt-5 dark:border-white/10">
+              <button
+                onClick={onDelete}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 py-3.5 text-[10px] font-black uppercase tracking-widest text-red-500 transition-transform active:scale-[0.98] dark:border-red-500/20 dark:text-red-400"
+              >
+                <Trash2 size={14} strokeWidth={2.5} />
+                {t('series.delete')}
+              </button>
+              <p className="mt-2 text-center text-[10px] text-stone-400 dark:text-stone-500">
+                {t('series.deleteHint')}
+              </p>
+            </section>
           )}
         </div>
       </div>

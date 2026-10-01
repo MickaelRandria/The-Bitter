@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, Check, History, Play, Star, Users } from 'lucide-react';
+import { Bell, Check, ChevronRight, History, MoreHorizontal, Play, Star, Trash2, Users, X } from 'lucide-react';
 import { Movie, TvProgress } from '../types';
 import { getSeriesDetails, TmdbSeasonSummary } from '../services/tmdb';
 import { getSeasonEpisodes, getWatchOffers, TvEpisode } from '../services/tv';
@@ -25,6 +25,7 @@ import { seasonsOf } from '../utils/workKey';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDialog } from '../utils/useDialog';
 import SeasonRail from './SeasonRail';
 import SeriesRecap from './SeriesRecap';
 import SeriesBookmarkSheet from './SeriesBookmarkSheet';
@@ -37,6 +38,8 @@ interface Props {
   onRateSeason: (series: Movie, season: TmdbSeasonSummary) => void;
   /** Ouvre le mode épisode : avant de lancer, ou au retour pour cocher. */
   onOpenCompanion: (series: Movie, phase: CompanionPhase) => void;
+  /** Retire la série de la collection, avec le même « Annuler » que le glissement. */
+  onDeleteSeries: (series: Movie) => void;
 }
 
 interface UpNextItem {
@@ -153,13 +156,24 @@ interface CardProps {
   onFinish: () => void;
   onMark: () => void;
   onRecap: () => void;
+  onMore: () => void;
 }
 
 /**
  * Une série à reprendre, en grand : son image, sa place dans la saison, et le
  * geste qui lance l'épisode. Le reste de la carte ouvre la fiche.
  */
-const UpNextCard: React.FC<CardProps> = ({ item, single, session, onOpen, onLaunch, onFinish, onMark, onRecap }) => {
+const UpNextCard: React.FC<CardProps> = ({
+  item,
+  single,
+  session,
+  onOpen,
+  onLaunch,
+  onFinish,
+  onMark,
+  onRecap,
+  onMore,
+}) => {
   const { t } = useLanguage();
   const friends = useFriendsPlace(item);
   const { series, next, episode, remaining } = item;
@@ -208,14 +222,23 @@ const UpNextCard: React.FC<CardProps> = ({ item, single, session, onOpen, onLaun
               </span>
             )}
           </div>
-          {item.netflixUrl && (
-            <span
-              aria-hidden
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#E50914] text-[13px] font-black text-white"
+          <div className="flex shrink-0 items-center gap-1.5">
+            {item.netflixUrl && (
+              <span
+                aria-hidden
+                className="flex h-6 w-6 items-center justify-center rounded-md bg-[#E50914] text-[13px] font-black text-white"
+              >
+                N
+              </span>
+            )}
+            <button
+              onClick={onMore}
+              aria-label={t('upNext.actions', { title: series.title })}
+              className="pointer-events-auto -mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition-transform active:scale-90"
             >
-              N
-            </span>
-          )}
+              <MoreHorizontal size={16} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
 
         <div>
@@ -269,6 +292,83 @@ const UpNextCard: React.FC<CardProps> = ({ item, single, session, onOpen, onLaun
   );
 };
 
+/**
+ * Ce qu'on fait d'une série qui n'a rien à faire dans « À suivre » : la retirer
+ * du suivi en la gardant, ou la supprimer quand elle a été ajoutée par erreur.
+ * Le glissement sur la carte de la collection n'était pas un geste qu'on trouve.
+ */
+const SeriesActionsSheet: React.FC<{
+  series: Movie;
+  onClose: () => void;
+  onOpen: () => void;
+  onUnfollow: () => void;
+  onDelete: () => void;
+}> = ({ series, onClose, onOpen, onUnfollow, onDelete }) => {
+  const { t } = useLanguage();
+  const dialog = useDialog(onClose, t('upNext.actions', { title: series.title }));
+  const row =
+    'flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-transform active:scale-[0.98]';
+  return (
+    <div
+      {...dialog.props}
+      onClick={onClose}
+      className="fixed inset-0 z-[290] flex items-end sm:items-center justify-center bg-charcoal/60 dark:bg-black/85 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] bg-cream dark:bg-[#0c0c0c] border-t border-white/20 dark:border-white/10 px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+      >
+        <div className="mb-3 flex items-center gap-3 px-1">
+          <span className="block h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-200 dark:bg-[#252525]">
+            {series.posterUrl && (
+              <img src={resizeTmdbImage(series.posterUrl, 'w185')} alt="" className="h-full w-full object-cover" />
+            )}
+          </span>
+          <p className="min-w-0 flex-1 truncate text-base font-black text-charcoal dark:text-white">
+            {series.title}
+          </p>
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-500 transition-transform active:scale-90 dark:bg-white/10 dark:text-stone-300"
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          <button onClick={onOpen} className={`${row} bg-white dark:bg-[#1a1a1a]`}>
+            <span className="min-w-0 flex-1 text-[13px] font-bold text-charcoal dark:text-white">
+              {t('seriesActions.open')}
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-stone-400" />
+          </button>
+          <button onClick={onUnfollow} className={`${row} bg-white dark:bg-[#1a1a1a]`}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-charcoal dark:text-white">
+                {t('seriesActions.unfollow')}
+              </span>
+              <span className="block text-[11px] text-stone-400 dark:text-stone-500">
+                {t('seriesActions.unfollowHint')}
+              </span>
+            </span>
+          </button>
+          <button onClick={onDelete} className={`${row} bg-red-50 dark:bg-red-500/10`}>
+            <Trash2 size={16} strokeWidth={2.5} className="shrink-0 text-red-500 dark:text-red-400" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-red-600 dark:text-red-400">
+                {t('seriesActions.delete')}
+              </span>
+              <span className="block text-[11px] text-red-400/80 dark:text-red-400/60">
+                {t('seriesActions.deleteHint')}
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /** Une affiche cliquable, pour dire où on en est dans une série pas encore suivie. */
 const PosterButton: React.FC<{ series: Movie; onClick: () => void; className?: string }> = ({
   series,
@@ -305,13 +405,21 @@ const PosterButton: React.FC<{ series: Movie; onClick: () => void; className?: s
  * reste pour qui a regardé sans passer par l'app. Le titre de l'épisode n'est
  * jamais affiché : il n'est pas encore vu, c'est donc un spoiler.
  */
-const UpNext: React.FC<Props> = ({ movies, onUpdateProgress, onOpenSeries, onRateSeason, onOpenCompanion }) => {
+const UpNext: React.FC<Props> = ({
+  movies,
+  onUpdateProgress,
+  onOpenSeries,
+  onRateSeason,
+  onOpenCompanion,
+  onDeleteSeries,
+}) => {
   const { t, language } = useLanguage();
   const session = useEpisodeSession();
   const [items, setItems] = useState<UpNextItem[] | null>(null);
   const [lastAction, setLastAction] = useState<LastAction | null>(null);
   const [recapFor, setRecapFor] = useState<UpNextItem | null>(null);
   const [bookmarkFor, setBookmarkFor] = useState<Movie | null>(null);
+  const [actionsFor, setActionsFor] = useState<Movie | null>(null);
   /** Les séries du dernier chargement, pour distinguer un ajout d'un épisode coché. */
   const loadedIds = useRef('');
 
@@ -553,6 +661,10 @@ const UpNext: React.FC<Props> = ({ movies, onUpdateProgress, onOpenSeries, onRat
                   haptics.soft();
                   setRecapFor(item);
                 }}
+                onMore={() => {
+                  haptics.soft();
+                  setActionsFor(item.series);
+                }}
               />
             ))}
             {untracked.length > 0 && (
@@ -640,6 +752,30 @@ const UpNext: React.FC<Props> = ({ movies, onUpdateProgress, onOpenSeries, onRat
         />
       )}
       {bookmarkSheet}
+      {actionsFor && (
+        <SeriesActionsSheet
+          series={actionsFor}
+          onClose={() => setActionsFor(null)}
+          onOpen={() => {
+            setActionsFor(null);
+            onOpenSeries(actionsFor);
+          }}
+          onUnfollow={() => {
+            haptics.soft();
+            setActionsFor(null);
+            // « À voir » : elle sort de « À suivre » et garde sa place, pour plus tard.
+            onUpdateProgress(actionsFor, {
+              ...actionsFor.tvProgress,
+              state: 'planned',
+              updatedAt: Date.now(),
+            });
+          }}
+          onDelete={() => {
+            setActionsFor(null);
+            onDeleteSeries(actionsFor);
+          }}
+        />
+      )}
     </section>
   );
 };
