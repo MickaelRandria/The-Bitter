@@ -77,7 +77,8 @@ test('séance : la date se lit à l’heure de Paris, et la bonne phrase selon l
   assert.equal(formatWhen('2026-10-03T18:30:00Z', now), 'samedi 3 octobre, 20 h 30');
   assert.equal(formatSlot({ starts_at: '2026-10-03T18:30:00Z', cinema_name: 'UGC Talence' }, now), 'samedi 3 octobre, 20 h 30 · UGC Talence');
 
-  const slots = [{ id: 'a', starts_at: '2026-10-03T18:30:00Z', cinema_name: 'UGC Talence' }, { id: 'b', starts_at: '2026-10-04T14:00:00Z' }];
+  // Créneaux loin dans le futur : `socialMessage` lit la date du jour, et une date proche finirait en « demain ».
+  const slots = [{ id: 'a', starts_at: '2099-10-03T18:30:00Z', cinema_name: 'UGC Talence' }, { id: 'b', starts_at: '2099-10-04T14:00:00Z' }];
   assert.equal(socialMessage({ kind: 'watch_invite', actor: 'Mika', title: 'Dune', payload: { slots } }).body, '2 créneaux au choix. Ça te dit ?');
   assert.equal(socialMessage({ kind: 'plan_proposed', actor: 'Léa', title: 'Dune', payload: { slots } }).title, 'Léa propose une séance pour Dune');
   const agreed = socialMessage({ kind: 'plan_agreed', actor: 'Léa', title: 'Dune', payload: { slots, chosen_slot_id: 'b' } });
