@@ -132,3 +132,20 @@ export const seriesTourSteps = ({ hasSeries, hasWatching }: { hasSeries: boolean
 
 /** Identifiant de « déjà vu » du parcours séries, stocké dans `seenTooltips`. */
 export const SERIES_TOUR_SEEN_ID = 'series_tour';
+
+/**
+ * Parcours de la fiche d'une série, proposé à sa première ouverture : ce qu'on
+ * y trouve, dans l'ordre où la fiche le montre. Les proches n'ont une étape que
+ * s'il y en a à montrer.
+ */
+export const seriesSheetTourSteps = ({ hasFriends }: { hasFriends: boolean }): TourStep[] => [
+  step('sheet-next', 'Feed', 'sheet-next', { bullets: 3 }),
+  step('sheet-place', 'Feed', 'sheet-place'),
+  step('sheet-state', 'Feed', 'sheet-state'),
+  step('sheet-map', 'Feed', 'sheet-map', { bullets: 2 }),
+  ...(hasFriends ? [step('sheet-friends', 'Feed', 'sheet-friends')] : []),
+  step('sheet-seasons', 'Feed', 'sheet-seasons', { bullets: 3 }),
+];
+
+/** Identifiant de « déjà vu » du parcours de la fiche série. */
+export const SERIES_SHEET_TOUR_SEEN_ID = 'series_sheet_tour';

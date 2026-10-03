@@ -50,7 +50,7 @@ const FriendsSeriesProgress: React.FC<Props> = ({ seriesTmdbId, seasons, progres
   };
 
   return (
-    <section>
+    <section data-tour="sheet-friends">
       <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
         {t('friendsProgress.title')}
       </p>

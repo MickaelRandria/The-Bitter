@@ -130,7 +130,7 @@ const SeriesHeatmap: React.FC<Props> = ({ tmdbId, seasons, progress }) => {
   };
 
   return (
-    <section>
+    <section data-tour="sheet-map">
       <button
         onClick={() => {
           haptics.soft();

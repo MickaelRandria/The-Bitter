@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles, X, MousePointe
 import type { TourStep } from '../constants/tour';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useDialog } from '../utils/useDialog';
+import { scrollLockedPageBy, useDialog } from '../utils/useDialog';
 
 /** Marge entre le contour lumineux et l'élément mis en avant. */
 const SPOTLIGHT_PADDING = 10;
@@ -92,7 +92,8 @@ const scrollIntoBand = (el: HTMLElement, bandTop: number, bandBottom: number) =>
 
   const scroller = findScroller(el);
   if (scroller) scroller.scrollBy({ top: delta, behavior: 'smooth' });
-  else window.scrollBy({ top: delta, behavior: 'smooth' });
+  // La carte du tuto est elle-même une modale : la page derrière est figée.
+  else if (!scrollLockedPageBy(delta)) window.scrollBy({ top: delta, behavior: 'smooth' });
 };
 
 /**
@@ -143,13 +144,22 @@ const useSpotlight = (target: string | null, cardHeightRef: React.RefObject<numb
         const first = el.getBoundingClientRect();
         const vh = window.innerHeight;
         const cardH = cardHeightRef.current || CARD_FALLBACK_HEIGHT;
+        /*
+         * La barre de navigation flottante couvre le bas de l'écran. Sur un
+         * téléphone, une cible amenée là passait dessous, et l'on croyait le tuto
+         * pointer la barre. La bande libre s'arrête donc au-dessus, sauf quand
+         * c'est la barre elle-même (un de ses boutons) qu'on éclaire.
+         */
+        const nav = document.querySelector<HTMLElement>('[data-tour="nav-feed"]')?.closest('nav');
+        const navTop = nav && !nav.contains(el) ? nav.getBoundingClientRect().top : vh;
+        const floor = Math.min(vh, navTop > 0 ? navTop : vh);
         // Cible dans la moitié basse : la carte va au-dessus, et inversement.
         const side: Placement = first.top + first.height / 2 > vh / 2 ? 'above' : 'below';
         setPlacement(side);
         scrollIntoBand(
           el,
           side === 'above' ? cardH + CARD_GAP * 2 : CARD_GAP,
-          side === 'above' ? vh - CARD_GAP : vh - cardH - CARD_GAP * 2
+          side === 'above' ? floor - CARD_GAP : Math.min(vh - cardH - CARD_GAP * 2, floor - CARD_GAP)
         );
       }
 
