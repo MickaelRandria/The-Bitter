@@ -206,9 +206,9 @@ const SeriesDetailModal: React.FC<Props> = ({
             </p>
 
             {tmdb && (
-              <div data-tour="sheet-next" className="rounded-3xl bg-charcoal p-4 text-white dark:bg-[#1a1a1a]">
+              <div className="rounded-3xl bg-charcoal p-4 text-white dark:bg-[#1a1a1a]">
                 {next && state !== 'completed' ? (
-                  <>
+                  <div data-tour="sheet-next">
                     <p className="text-[9px] font-black uppercase tracking-widest text-white/50">
                       {t(started ? 'series.nextEpisode' : 'series.firstEpisode')}
                     </p>
@@ -227,9 +227,9 @@ const SeriesDetailModal: React.FC<Props> = ({
                         {t('upNext.launch')}
                       </button>
                     )}
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-sm font-black">{t('series.upToDate')}</p>
+                  <p data-tour="sheet-next" className="text-sm font-black">{t('series.upToDate')}</p>
                 )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -353,7 +353,7 @@ const SeriesDetailModal: React.FC<Props> = ({
           </section>
 
           {/* 3 — Les saisons, repliées : on déplie celle qu'on veut. */}
-          <section data-tour="sheet-seasons">
+          <section>
             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
               {t('series.seasons')}
             </p>
@@ -370,7 +370,7 @@ const SeriesDetailModal: React.FC<Props> = ({
               </p>
             ) : (
               <ul className="space-y-1.5">
-                {tmdb.seasons.map((season) => {
+                {tmdb.seasons.map((season, index) => {
                   const mine = ratedByNumber.get(season.seasonNumber);
                   const watched = progress?.seasonsWatched?.includes(season.seasonNumber) ?? false;
                   /* La moyenne des épisodes se lit saison repliée : sans elle, une
@@ -384,6 +384,7 @@ const SeriesDetailModal: React.FC<Props> = ({
                   return (
                     <li
                       key={season.id}
+                      data-tour={index === 0 ? 'sheet-seasons' : undefined}
                       className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl px-3 py-2.5"
                     >
                       <div className="flex items-center gap-3">

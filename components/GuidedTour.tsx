@@ -79,7 +79,13 @@ const findScroller = (el: HTMLElement): HTMLElement | null => {
  * vise ici le centre de la bande libre, et si la cible est plus haute que la bande
  * on cale son début pour qu'on la lise depuis le haut.
  */
-const scrollIntoBand = (el: HTMLElement, bandTop: number, bandBottom: number) => {
+const scrollIntoBand = (el: HTMLElement, top: number, bottom: number) => {
+  // Dans une modale, la zone qui défile commence sous son en-tête fixe : une
+  // cible amenée plus haut passait dessous.
+  const scroller = findScroller(el);
+  const visible = scroller?.getBoundingClientRect();
+  const bandTop = visible ? Math.max(top, visible.top + 8) : top;
+  const bandBottom = visible ? Math.min(bottom, visible.bottom - 8) : bottom;
   const bandHeight = bandBottom - bandTop;
   if (bandHeight <= 0) return;
 
@@ -90,8 +96,10 @@ const scrollIntoBand = (el: HTMLElement, bandTop: number, bandBottom: number) =>
       : r.top + r.height / 2 - (bandTop + bandBottom) / 2;
   if (Math.abs(delta) < 2) return;
 
-  const scroller = findScroller(el);
   if (scroller) scroller.scrollBy({ top: delta, behavior: 'smooth' });
+  // Dans une modale qui ne défile pas, rien à faire : déplacer la page derrière
+  // la laisserait décalée à la fermeture.
+  else if (el.closest('[aria-modal="true"]')) return;
   // La carte du tuto est elle-même une modale : la page derrière est figée.
   else if (!scrollLockedPageBy(delta)) window.scrollBy({ top: delta, behavior: 'smooth' });
 };
@@ -156,10 +164,13 @@ const useSpotlight = (target: string | null, cardHeightRef: React.RefObject<numb
         // Cible dans la moitié basse : la carte va au-dessus, et inversement.
         const side: Placement = first.top + first.height / 2 > vh / 2 ? 'above' : 'below';
         setPlacement(side);
+        // Le halo déborde de la cible de SPOTLIGHT_PADDING : la bande en tient
+        // compte, sinon une cible plus haute que la bande rognait la carte d'autant.
+        const pad = SPOTLIGHT_PADDING;
         scrollIntoBand(
           el,
-          side === 'above' ? cardH + CARD_GAP * 2 : CARD_GAP,
-          side === 'above' ? floor - CARD_GAP : Math.min(vh - cardH - CARD_GAP * 2, floor - CARD_GAP)
+          side === 'above' ? cardH + CARD_GAP * 2 + pad : CARD_GAP + pad,
+          side === 'above' ? floor - CARD_GAP - pad : Math.min(vh - cardH - CARD_GAP * 2 - pad, floor - CARD_GAP - pad)
         );
       }
 
@@ -286,8 +297,11 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
       window.setTimeout(() => onNextRef.current(), ACTION_SETTLE_MS);
     };
 
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
+    // En capture : avant que l'app ne réagisse. Sinon un bouton dont l'icône
+    // change au clic (Mois / Année) détachait l'élément touché avant qu'on le
+    // lise, `closest` ne trouvait plus la cible et le tuto restait bloqué.
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
   }, [step.action, step.target]);
 
   const hole = rect

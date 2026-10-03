@@ -98,6 +98,11 @@ async function loadItem(series: Movie, today: string): Promise<UpNextItem | null
   if (series.tmdbId == null) return null;
   const details = await getSeriesDetails(series.tmdbId);
   if (!details) return null;
+  // « Terminée » sans aucune place connue (marquée vue d'un bloc) : tout est vu,
+  // et il n'y a rien à reprendre. Sans ce garde, elle revenait au S1 · É1.
+  if (series.tvProgress?.state === 'completed' && furthestPosition(series.tvProgress, details.seasons) == null) {
+    return null;
+  }
   const next = nextEpisode(series.tvProgress, details.seasons);
   if (!next) return null;
 
@@ -206,7 +211,6 @@ const UpNextCard: React.FC<CardProps> = ({
 
   return (
     <li
-      data-tour={first ? 'series-upnext' : undefined}
       className={`relative h-[252px] shrink-0 snap-start overflow-hidden rounded-[1.75rem] bg-[#141414] shadow-lg shadow-black/10 transition-opacity duration-300 ${
         single ? 'w-full' : 'w-[86%] max-w-[340px]'
       } ${fit && fit.count === 0 ? 'opacity-40' : ''}`}
@@ -272,7 +276,9 @@ const UpNextCard: React.FC<CardProps> = ({
           </div>
         </div>
 
-        <div>
+        {/* Le bas de la carte, et non la carte entière : avec la bulle du tuto
+            au-dessus, ses 252 px ne tiennent pas sur un petit téléphone. */}
+        <div data-tour={first ? 'series-upnext' : undefined}>
           <p className="text-[22px] font-black leading-none tracking-tight text-white line-clamp-1">
             {series.title}
           </p>
