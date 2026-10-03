@@ -679,7 +679,16 @@ const App: React.FC = () => {
    */
   const [remoteWorkKeys, setRemoteWorkKeys] = useState<Set<WorkKey>>(new Set());
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
-  const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
+  // Lu dès la création de l'état : lu dans un effet, il valait [] au premier
+  // rendu, et l'effet d'enregistrement pouvait écraser la liste avant sa lecture.
+  const [seenTooltips, setSeenTooltips] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SEEN_TOOLTIPS_KEY) ?? '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
   // 'rating' à la première ouverture de l'écran d'ajout (notation et Bitter+).
   const [activeTour, setActiveTour] = useState<'main' | 'rating' | 'series' | 'seriesSheet' | null>(null);
@@ -736,14 +745,6 @@ const App: React.FC = () => {
       setShowNewFeatures(true);
     }
 
-    const savedTooltips = localStorage.getItem(SEEN_TOOLTIPS_KEY);
-    if (savedTooltips) {
-      try {
-        setSeenTooltips(JSON.parse(savedTooltips));
-      } catch (e) {
-        if (import.meta.env.DEV) console.error('Error loading tooltips', e);
-      }
-    }
   }, []);
 
   useEffect(() => {
@@ -960,7 +961,9 @@ const App: React.FC = () => {
     const series = allMovies.filter(isSeries);
     return {
       hasSeries: series.length > 0,
-      hasWatching: series.some((m) => m.tvProgress?.state === 'watching'),
+      // Ce que l'écran montre vraiment : « À suivre » garde aussi les séries en
+      // pause ou à jour, et peut n'avoir encore rien chargé.
+      hasWatching: !!document.querySelector('[data-tour="series-upnext"]'),
     };
   };
 
@@ -3089,10 +3092,7 @@ const App: React.FC = () => {
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {!activeProfile || uniqueMovies.length === 0 ? (
-                <div
-                  data-tour="feed-empty"
-                  className="flex flex-col items-center justify-center py-12 text-center"
-                >
+                <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce">
                     {mediaMode === 'tv' ? <Tv size={40} /> : <Film size={40} />}
                   </div>
@@ -3103,7 +3103,9 @@ const App: React.FC = () => {
                     {t(mediaMode === 'tv' ? 'tv.startCollectionDesc' : 'feed.startCollectionDesc')}
                   </p>
 
-                  <div className="flex flex-col gap-3 w-full max-w-xs">
+                  {/* Le tuto éclaire les boutons et non tout l'écran vide : plus haut
+                      que la place laissée par sa carte, celui-ci la faisait déborder. */}
+                  <div data-tour="feed-empty" className="flex flex-col gap-3 w-full max-w-xs">
                     <button
                       onClick={() => {
                         // En mode Séries, on cherche une série et on la commence.

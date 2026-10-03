@@ -1438,13 +1438,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
   if (isLocked) {
     return (
-      <div
-        data-tour="analytics-locked"
-        className="flex flex-col items-center justify-center py-20 text-center animate-[fadeIn_0.5s_ease-out]"
-      >
+      <div className="flex flex-col items-center justify-center py-20 text-center animate-[fadeIn_0.5s_ease-out]">
         <div className="w-24 h-24 bg-stone-100 dark:bg-[#161616] rounded-full flex items-center justify-center mb-6 text-stone-300 dark:text-stone-600 transition-colors">
           <Lock size={40} />
         </div>
+        {/* Le tuto éclaire le titre et la jauge, pas tout l'écran : avec ses
+            marges, celui-ci ne laissait plus de place à la carte du tuto. */}
+        <div data-tour="analytics-locked" className="flex w-full flex-col items-center">
         <h2 className="text-2xl font-black text-charcoal dark:text-white mb-2">
           {t('analytics.locked')}
         </h2>
@@ -1460,6 +1460,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         <p className="mt-2 text-[10px] font-black uppercase text-stone-400 dark:text-stone-600 tracking-widest">
           {watchedCount} / {MIN_MOVIES_FOR_ANALYTICS} Films
         </p>
+        </div>
       </div>
     );
   }

@@ -120,7 +120,7 @@ export const seriesTourSteps = ({ hasSeries, hasWatching }: { hasSeries: boolean
   step('series-intro', 'Feed', null, { bullets: 3 }),
   step('series-switch', 'Feed', 'media-switch'),
   ...(hasWatching
-    ? [step('series-upnext', 'Feed', 'series-upnext', { bullets: 3 }), step('series-place', 'Feed', 'series-actions')]
+    ? [step('series-upnext', 'Feed', 'series-upnext', { bullets: 2 }), step('series-place', 'Feed', 'series-actions')]
     : []),
   ...(hasSeries
     ? [step('series-tabs', 'Feed', 'series-tabs'), step('series-states', 'Feed', 'series-states')]
@@ -139,10 +139,10 @@ export const SERIES_TOUR_SEEN_ID = 'series_tour';
  * s'il y en a à montrer.
  */
 export const seriesSheetTourSteps = ({ hasFriends }: { hasFriends: boolean }): TourStep[] => [
-  step('sheet-next', 'Feed', 'sheet-next', { bullets: 3 }),
+  step('sheet-next', 'Feed', 'sheet-next', { bullets: 2 }),
   step('sheet-place', 'Feed', 'sheet-place'),
   step('sheet-state', 'Feed', 'sheet-state'),
-  step('sheet-map', 'Feed', 'sheet-map', { bullets: 2 }),
+  step('sheet-map', 'Feed', 'sheet-map'),
   ...(hasFriends ? [step('sheet-friends', 'Feed', 'sheet-friends')] : []),
   step('sheet-seasons', 'Feed', 'sheet-seasons', { bullets: 3 }),
 ];
