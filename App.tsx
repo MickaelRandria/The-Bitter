@@ -156,8 +156,10 @@ import {
   RATING_TOUR_STEPS,
   RATING_TOUR_SEEN_ID,
   SERIES_TOUR_SEEN_ID,
+  SERIES_SHEET_TOUR_SEEN_ID,
   TourStep,
   seriesTourSteps,
+  seriesSheetTourSteps,
 } from './constants/tour';
 
 /** Une note IMDb bouge peu : une vérification par semaine suffit, le serveur fait de même. */
@@ -680,14 +682,18 @@ const App: React.FC = () => {
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
   // 'rating' à la première ouverture de l'écran d'ajout (notation et Bitter+).
-  const [activeTour, setActiveTour] = useState<'main' | 'rating' | 'series' | null>(null);
-  /** Le parcours séries, figé à son lancement : il dépend de ce que la collection contient. */
+  const [activeTour, setActiveTour] = useState<'main' | 'rating' | 'series' | 'seriesSheet' | null>(null);
+  /** Le parcours séries ou celui de la fiche, figé à son lancement : il dépend de ce qu'il y a à montrer. */
   const [seriesSteps, setSeriesSteps] = useState<TourStep[]>([]);
   // Les deux parcours démarrent tout seuls : on demande d'abord, on n'impose pas.
-  const [pendingTour, setPendingTour] = useState<'main' | 'rating' | 'series' | null>(null);
+  const [pendingTour, setPendingTour] = useState<'main' | 'rating' | 'series' | 'seriesSheet' | null>(null);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const tourSteps =
-    activeTour === 'rating' ? RATING_TOUR_STEPS : activeTour === 'series' ? seriesSteps : TOUR_STEPS;
+    activeTour === 'rating'
+      ? RATING_TOUR_STEPS
+      : activeTour === 'series' || activeTour === 'seriesSheet'
+        ? seriesSteps
+        : TOUR_STEPS;
   const tourStep = activeTour ? tourSteps[tourStepIndex] : null;
   const tourActive = activeTour !== null;
   const [activeTooltip, setActiveTooltip] = useState<{
@@ -982,10 +988,39 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [mediaMode, viewMode, showProfile, isModalOpen, activeProfile, activeTour, pendingTour, seenTooltips, activeTooltip]);
 
+  /** Les proches ne sont montrés que si la fiche en affiche. */
+  const seriesSheetShape = () => ({ hasFriends: !!document.querySelector('[data-tour="sheet-friends"]') });
+
+  // Première fiche de série ouverte : on propose d'en faire le tour.
+  useEffect(() => {
+    if (!openSeries || isModalOpen || activeTour !== null || pendingTour !== null) return;
+    if (seenTooltips.includes(SERIES_SHEET_TOUR_SEEN_ID)) return;
+    // Le temps que la fiche charge sa carte et ses saisons.
+    const timer = setTimeout(() => setPendingTour('seriesSheet'), 1200);
+    return () => clearTimeout(timer);
+  }, [openSeries, isModalOpen, activeTour, pendingTour, seenTooltips]);
+
+  // Fiche refermée : la proposition ou le parcours qui la concernait n'a plus d'objet.
+  useEffect(() => {
+    if (openSeries) return;
+    if (pendingTour === 'seriesSheet') setPendingTour(null);
+    if (activeTour === 'seriesSheet') {
+      setActiveTour(null);
+      setSeenTooltips((prev) => (prev.includes(SERIES_SHEET_TOUR_SEEN_ID) ? prev : [...prev, SERIES_SHEET_TOUR_SEEN_ID]));
+    }
+  }, [openSeries, pendingTour, activeTour]);
+
   const acceptTour = () => {
     const variant = pendingTour;
     setPendingTour(null);
     if (!variant) return;
+    if (variant === 'seriesSheet') {
+      setActiveTooltip(null);
+      setSeriesSteps(seriesSheetTourSteps(seriesSheetShape()));
+      setTourStepIndex(0);
+      setActiveTour('seriesSheet');
+      return;
+    }
     if (variant === 'series') {
       setShowNewFeatures(false);
       startSeriesTour();
@@ -1004,8 +1039,9 @@ const App: React.FC = () => {
     // Refuser le parcours notation le marque comme vu : sans ça, la proposition
     // reviendrait à chaque ouverture de l'écran d'ajout. Il reste relançable
     // depuis les paramètres du profil.
-    if (variant === 'rating' || variant === 'series') {
-      const id = variant === 'rating' ? RATING_TOUR_SEEN_ID : SERIES_TOUR_SEEN_ID;
+    if (variant === 'rating' || variant === 'series' || variant === 'seriesSheet') {
+      const id =
+        variant === 'rating' ? RATING_TOUR_SEEN_ID : variant === 'series' ? SERIES_TOUR_SEEN_ID : SERIES_SHEET_TOUR_SEEN_ID;
       setSeenTooltips((prev) => (prev.includes(id) ? prev : [...prev, id]));
     }
   };
@@ -1014,8 +1050,9 @@ const App: React.FC = () => {
     const finished = activeTour;
     setActiveTour(null);
 
-    if (finished === 'series') {
-      setSeenTooltips((prev) => (prev.includes(SERIES_TOUR_SEEN_ID) ? prev : [...prev, SERIES_TOUR_SEEN_ID]));
+    if (finished === 'series' || finished === 'seriesSheet') {
+      const id = finished === 'series' ? SERIES_TOUR_SEEN_ID : SERIES_SHEET_TOUR_SEEN_ID;
+      setSeenTooltips((prev) => (prev.includes(id) ? prev : [...prev, id]));
       return;
     }
 
@@ -1067,6 +1104,8 @@ const App: React.FC = () => {
   const handleStartSeriesTour = () => {
     setShowNewFeatures(false);
     setPendingTour(null);
+    // Comme le parcours notation pour le tuto principal : la fiche sera reproposée.
+    setSeenTooltips((prev) => prev.filter((id) => id !== SERIES_SHEET_TOUR_SEEN_ID));
     startSeriesTour();
   };
 
@@ -4286,7 +4325,9 @@ const App: React.FC = () => {
               ? RATING_TOUR_STEPS
               : pendingTour === 'series'
                 ? seriesTourSteps(seriesTourShape())
-                : TOUR_STEPS
+                : pendingTour === 'seriesSheet'
+                  ? seriesSheetTourSteps(seriesSheetShape())
+                  : TOUR_STEPS
             ).length
           }
           onAccept={acceptTour}

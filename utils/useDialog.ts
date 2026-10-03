@@ -40,6 +40,21 @@ const unlockScroll = () => {
   window.scrollTo(0, savedScrollY);
 };
 
+/**
+ * Fait défiler la page alors qu'elle est verrouillée : le tuto doit pouvoir
+ * amener sous les yeux un élément sous le pli, et `window.scrollBy` ne fait
+ * rien sur une page figée. On déplace la page figée, et la position retenue
+ * suit, pour que la fermeture rende bien ce qu'on voyait. Renvoie `false` si
+ * la page n'est pas verrouillée.
+ */
+export const scrollLockedPageBy = (delta: number): boolean => {
+  if (lockCount === 0) return false;
+  const max = Math.max(0, document.body.scrollHeight - window.innerHeight);
+  savedScrollY = Math.min(max, Math.max(0, savedScrollY + delta));
+  document.body.style.top = `-${savedScrollY}px`;
+  return true;
+};
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 

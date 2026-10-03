@@ -206,7 +206,7 @@ const SeriesDetailModal: React.FC<Props> = ({
             </p>
 
             {tmdb && (
-              <div className="rounded-3xl bg-charcoal p-4 text-white dark:bg-[#1a1a1a]">
+              <div data-tour="sheet-next" className="rounded-3xl bg-charcoal p-4 text-white dark:bg-[#1a1a1a]">
                 {next && state !== 'completed' ? (
                   <>
                     <p className="text-[9px] font-black uppercase tracking-widest text-white/50">
@@ -259,6 +259,7 @@ const SeriesDetailModal: React.FC<Props> = ({
                   )}
                   <button
                     onClick={openPlaceEditor}
+                    data-tour="sheet-place"
                     aria-expanded={editingPlace}
                     className="flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/80 transition-transform active:scale-95"
                   >
@@ -291,7 +292,7 @@ const SeriesDetailModal: React.FC<Props> = ({
               </div>
             )}
 
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <div data-tour="sheet-state" className="mt-3 flex flex-wrap gap-1.5">
               {STATE_ORDER.map((option) => (
                 <button
                   key={option}
@@ -352,7 +353,7 @@ const SeriesDetailModal: React.FC<Props> = ({
           </section>
 
           {/* 3 — Les saisons, repliées : on déplie celle qu'on veut. */}
-          <section>
+          <section data-tour="sheet-seasons">
             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
               {t('series.seasons')}
             </p>

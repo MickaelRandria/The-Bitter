@@ -4,7 +4,7 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 
-export type TourPromptVariant = 'main' | 'rating' | 'series';
+export type TourPromptVariant = 'main' | 'rating' | 'series' | 'seriesSheet';
 
 interface TourPromptProps {
   variant: TourPromptVariant;
