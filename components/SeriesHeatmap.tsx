@@ -41,70 +41,6 @@ const colorFor = (rating: number) => SCALE.find((step) => rating >= step.min)!.c
 const MIN_RATED_FOR_SEASON = 3;
 
 
-/**
- * La courbe de la série : la note du public, épisode après épisode, saison par
- * saison. La partie déjà vue est tracée en citron, la suite en gris, et un
- * point dit « tu es ici ». On voit d'un coup d'œil si la série décolle ou
- * s'effondre, sans rien lire de son histoire.
- */
-const SeriesCurve: React.FC<{
-  rows: { season: number; episodes: EpisodeScore[] }[];
-  isSeen: (score: EpisodeScore) => boolean;
-  today: string;
-  hereLabel: string;
-}> = ({ rows, isSeen, today, hereLabel }) => {
-  const points = rows.flatMap((row) =>
-    row.episodes.filter((e) => e.rating != null && e.airDate != null && e.airDate <= today)
-  );
-  if (points.length < 3) return null;
-  const W = 320;
-  const H = 120;
-  const PAD = 8;
-  const ratings = points.map((p) => p.rating!);
-  const low = Math.max(0, Math.min(...ratings) - 0.3);
-  const high = Math.min(10, Math.max(...ratings) + 0.3);
-  const x = (i: number) => PAD + (i * (W - 2 * PAD)) / Math.max(1, points.length - 1);
-  const y = (r: number) => H - PAD - ((r - low) / Math.max(0.5, high - low)) * (H - 2 * PAD);
-  const path = (list: { i: number; r: number }[]) => list.map((p, k) => `${k ? 'L' : 'M'}${x(p.i).toFixed(1)},${y(p.r).toFixed(1)}`).join(' ');
-  const indexed = points.map((p, i) => ({ i, r: p.rating!, seen: isSeen(p), season: p.season }));
-  const lastSeen = indexed.filter((p) => p.seen).pop();
-  const seenPath = lastSeen ? path(indexed.slice(0, lastSeen.i + 1)) : '';
-  const restPath = path(indexed.slice(lastSeen ? lastSeen.i : 0));
-  const boundaries = indexed.filter((p, k) => k > 0 && p.season !== indexed[k - 1].season);
-
-  return (
-    <div className="rounded-2xl bg-[#141414] px-3 pb-2 pt-3">
-      <svg viewBox={`0 0 ${W} ${H + 14}`} className="h-auto w-full" role="img" aria-hidden>
-        {boundaries.map((b) => (
-          <g key={b.i}>
-            <line x1={x(b.i) - 2} x2={x(b.i) - 2} y1={4} y2={H} stroke="rgba(255,255,255,0.12)" strokeDasharray="3 3" />
-            <text x={x(b.i) + 1} y={H + 11} fontSize="9" fontWeight="800" fill="rgba(255,255,255,0.4)">S{b.season}</text>
-          </g>
-        ))}
-        <text x={PAD} y={H + 11} fontSize="9" fontWeight="800" fill="rgba(255,255,255,0.4)">S{indexed[0].season}</text>
-        <path d={restPath} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {seenPath && (
-          <path d={seenPath} fill="none" stroke="#D9FF00" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        )}
-        {lastSeen && (
-          <g>
-            <circle cx={x(lastSeen.i)} cy={y(lastSeen.r)} r="6" fill="#D9FF00" opacity="0.25" />
-            <circle cx={x(lastSeen.i)} cy={y(lastSeen.r)} r="3.5" fill="#D9FF00" />
-            <text
-              x={Math.min(W - 40, Math.max(4, x(lastSeen.i) - 18))}
-              y={Math.max(10, y(lastSeen.r) - 13)}
-              fontSize="9"
-              fontWeight="900"
-              fill="#D9FF00"
-            >
-              {hereLabel}
-            </text>
-          </g>
-        )}
-      </svg>
-    </div>
-  );
-};
 
 const SeriesHeatmap: React.FC<Props> = ({ tmdbId, seasons, progress }) => {
   const { t, language } = useLanguage();
@@ -246,9 +182,6 @@ const SeriesHeatmap: React.FC<Props> = ({ tmdbId, seasons, progress }) => {
                   )}
                 </div>
               )}
-              <div className="mb-3">
-                <SeriesCurve rows={rows} isSeen={isSeen} today={today} hereLabel={t('heatmap.here')} />
-              </div>
               <div className="-mx-1 overflow-x-auto no-scrollbar px-1 pb-1">
                 <div className="space-y-[3px]">
                   {rows.map((row) => (

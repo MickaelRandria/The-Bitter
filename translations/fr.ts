@@ -970,7 +970,6 @@ export const fr: Record<string, string> = {
   'recap.until': 'Jusqu’à la saison {season}, épisode {episode}. Rien sur la suite.',
   'recap.aiNote': 'Rédigé à partir des résumés TMDB des seuls épisodes que tu as vus.',
   'recap.empty': 'Pas assez d’informations pour un récap : TMDB n’a pas de résumé pour les épisodes que tu as vus.',
-  'heatmap.here': 'Tu es ici',
   'heatmap.title': 'La carte de la série',
   'heatmap.subtitle': 'La note du public, épisode par épisode',
   'heatmap.unavailable': 'Notes des épisodes indisponibles pour le moment.',
