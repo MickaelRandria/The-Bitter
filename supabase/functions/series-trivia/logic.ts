@@ -186,15 +186,45 @@ export function parseTrivia(raw: unknown): TriviaItem[] {
 const textOf = (item: TriviaItem) =>
   item.type === 'fact' ? item.text : `${item.question} ${item.options.join(' ')} ${item.explanation}`;
 
+/** Des titres trop courants pour désigner un épisode en particulier. */
+const GENERIC_TITLES = new Set(['pilot', 'pilote', 'finale', 'final', 'part one', 'part two', 'premiere']);
+
+const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Les titres d'épisodes des saisons après `current`, qu'aucune saison atteinte
+ * ne partage. Le titre d'un épisode à venir est un spoiler à lui seul : le
+ * modèle a la consigne de n'en citer aucun, ce filtre le garantit.
+ */
+export function laterTitlesPattern(titles: Record<number, string[]>, current: number): RegExp | null {
+  const known = new Set<string>();
+  const later: string[] = [];
+  for (const [season, list] of Object.entries(titles)) {
+    for (const title of list) {
+      const t = title.trim();
+      if (t.length < 5 || GENERIC_TITLES.has(t.toLowerCase())) continue;
+      if (Number(season) <= current) known.add(t.toLowerCase());
+      else later.push(t);
+    }
+  }
+  const banned = [...new Set(later)].filter((t) => !known.has(t.toLowerCase()));
+  return banned.length
+    ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${banned.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}])`, 'iu')
+    : null;
+}
+
 /**
  * Ce qu'on peut montrer à quelqu'un qui en est à la saison `current` : rien
- * d'une saison plus loin, et rien qui nomme une personne arrivée plus tard.
+ * d'une saison plus loin, rien qui nomme une personne arrivée plus tard, rien
+ * qui cite le titre d'un épisode à venir.
  */
 export function visibleTrivia(
   items: TriviaItem[],
   introduced: Record<number, string[]>,
-  current: number
+  current: number,
+  titles: Record<number, string[]> = {}
 ): TriviaItem[] {
+  const titlePattern = laterTitlesPattern(titles, current);
   const known = new Set<string>();
   const later = new Set<string>();
   for (const [season, tokens] of Object.entries(introduced)) {
@@ -205,6 +235,9 @@ export function visibleTrivia(
   const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = banned.length ? new RegExp(`(?<![\\p{L}])(?:${banned.map(escape).join('|')})(?![\\p{L}])`, 'u') : null;
   return items.filter(
-    (item) => (item.season == null || item.season <= current) && !(pattern && pattern.test(textOf(item)))
+    (item) =>
+      (item.season == null || item.season <= current) &&
+      !(pattern && pattern.test(textOf(item))) &&
+      !(titlePattern && titlePattern.test(textOf(item)))
   );
 }

@@ -839,7 +839,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                     )}
                     {/* Action buttons */}
                     {!isInCollection && (
-                      <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 flex gap-2 z-20">
+                      <div className="absolute bottom-3 right-3 flex gap-2 z-20 transition-all duration-300 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:translate-y-2 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:translate-y-0">
                         {onQuickWatchlist && (
                           <button
                             onClick={(e) => {

@@ -1,4 +1,9 @@
 export const en: Record<string, string> = {
+  'tv.headerCounts': '{current} watching · {done} finished · {queue} to watch',
+  'tv.followedTab': 'Following',
+  'tv.startCollection': 'Start a show',
+  'tv.startCollectionDesc': 'Add the show you’re watching: it lands in Up next, ready to play.',
+  'tv.addFirstSeries': 'Add a show',
   'tv.manage': 'Seasons and episodes',
   'tv.seriesSingular': 'series',
   'tv.search': 'Title, creator, actor, genre…',

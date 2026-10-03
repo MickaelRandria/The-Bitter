@@ -2302,9 +2302,32 @@ const App: React.FC = () => {
     ];
   }, [uniqueMovies]);
 
+  /**
+   * Où ranger une œuvre dans la collection.
+   *
+   * Pour un film, c'est son statut. Pour une série, c'est aussi sa progression :
+   * une série commencée est enregistrée « à voir » tant qu'on ne l'a pas notée,
+   * et elle se retrouvait dans « À voir » alors qu'on la regarde. En cours, en
+   * pause ou terminée, elle va avec les séries suivies.
+   */
+  const collectionStatus = (m: Movie): MovieStatus =>
+    mediaMode === 'tv' && m.tvProgress && ['watching', 'paused', 'completed'].includes(m.tvProgress.state)
+      ? 'watched'
+      : m.status || 'watched';
+
+  /** En mode Séries, l'en-tête compte ce qui compte : en cours, terminées, à voir. */
+  const seriesCounts = useMemo(() => {
+    if (mediaMode !== 'tv') return null;
+    const current = uniqueMovies.filter((m) => m.tvProgress?.state === 'watching' || m.tvProgress?.state === 'paused').length;
+    const done = uniqueMovies.filter(
+      (m) => m.tvProgress?.state === 'completed' || (!m.tvProgress && m.status === 'watched')
+    ).length;
+    return { current, done, queue: uniqueMovies.length - current - done };
+  }, [uniqueMovies, mediaMode]);
+
   const feedStats = useMemo(() => {
     if (!activeProfile) return null;
-    const watched = uniqueMovies.filter((m) => (m.status || 'watched') === 'watched');
+    const watched = uniqueMovies.filter((m) => collectionStatus(m) === 'watched');
     const watchedCount = watched.length;
     if (watchedCount === 0) return null;
     const avgRating =
@@ -2314,9 +2337,11 @@ const App: React.FC = () => {
         0
       ) / watchedCount;
     const totalHours = totalWatchHours(watched);
-    const queueCount = uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist').length;
+    const queueCount = uniqueMovies.filter((m) => collectionStatus(m) === 'watchlist').length;
     return { watchedCount, avgRating, totalHours, queueCount };
-  }, [uniqueMovies, activeProfile]);
+    // `collectionStatus` ne dépend que de `mediaMode`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uniqueMovies, activeProfile, mediaMode]);
 
   const sortOptions = useMemo(
     () =>
@@ -2337,7 +2362,7 @@ const App: React.FC = () => {
   // Stats de la file d'attente : sur l'onglet « À voir », le nombre d'heures déjà
   // vues et la moyenne des notes n'ont rien à y faire.
   const queueStats = useMemo(() => {
-    const queue = uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist');
+    const queue = uniqueMovies.filter((m) => collectionStatus(m) === 'watchlist');
     if (queue.length === 0) return null;
     const oldest = queue.reduce((min, m) => Math.min(min, m.dateAdded), Date.now());
     return {
@@ -2387,7 +2412,7 @@ const App: React.FC = () => {
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
 
     let result = uniqueMovies.filter((m) => {
-      if ((m.status || 'watched') !== targetStatus) return false;
+      if (collectionStatus(m) !== targetStatus) return false;
       if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter)
         return false;
       if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter)
@@ -2947,21 +2972,26 @@ const App: React.FC = () => {
                   className="flex flex-col items-center justify-center py-12 text-center"
                 >
                   <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce">
-                    <Film size={40} />
+                    {mediaMode === 'tv' ? <Tv size={40} /> : <Film size={40} />}
                   </div>
                   <h2 className="text-2xl font-black mb-3 tracking-tighter">
-                    {t('feed.startCollection')}
+                    {t(mediaMode === 'tv' ? 'tv.startCollection' : 'feed.startCollection')}
                   </h2>
                   <p className="text-stone-400 dark:text-stone-500 font-medium mb-10 max-w-xs mx-auto text-sm leading-relaxed">
-                    {t('feed.startCollectionDesc')}
+                    {t(mediaMode === 'tv' ? 'tv.startCollectionDesc' : 'feed.startCollectionDesc')}
                   </p>
 
                   <div className="flex flex-col gap-3 w-full max-w-xs">
                     <button
-                      onClick={() => setIsModalOpen(true)}
+                      onClick={() => {
+                        // En mode Séries, on cherche une série et on la commence.
+                        setMediaTypeToLoad(mediaMode);
+                        setInitialStatusForAdd(mediaMode === 'tv' ? 'watching' : 'watched');
+                        setIsModalOpen(true);
+                      }}
                       className="bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"
                     >
-                      <Plus size={18} strokeWidth={3} /> {t('feed.addMovie')}
+                      <Plus size={18} strokeWidth={3} /> {t(mediaMode === 'tv' ? 'tv.addFirstSeries' : 'feed.addMovie')}
                     </button>
                     <button
                       onClick={() => setViewMode('Discover')}
@@ -2997,7 +3027,9 @@ const App: React.FC = () => {
                         {uniqueMovies.length} {t(mediaMode === 'tv' ? (uniqueMovies.length === 1 ? 'tv.seriesSingular' : 'tv.seriesLabel') : 'feed.filmsLabel')}
                       </h1>
                       <p className="mt-1 text-[11px] font-bold text-stone-400 dark:text-stone-500">
-                        {feedStats?.watchedCount ?? 0} {t('feed.watched').toLowerCase()} · {feedStats?.queueCount ?? queueStats?.count ?? 0} {t('feed.toWatch').toLowerCase()}
+                        {seriesCounts
+                          ? t('tv.headerCounts', seriesCounts)
+                          : `${feedStats?.watchedCount ?? 0} ${t('feed.watched').toLowerCase()} · ${feedStats?.queueCount ?? queueStats?.count ?? 0} ${t('feed.toWatch').toLowerCase()}`}
                       </p>
                     </div>
                     <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
@@ -3143,7 +3175,7 @@ const App: React.FC = () => {
                         }}
                         className={`relative z-10 flex-1 py-3 rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${feedTab === 'history' ? 'text-charcoal dark:text-white' : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400'}`}
                       >
-                        {t('feed.watched')} {feedStats ? `(${feedStats.watchedCount})` : ''}
+                        {t(mediaMode === 'tv' ? 'tv.followedTab' : 'feed.watched')} {feedStats ? `(${feedStats.watchedCount})` : ''}
                       </button>
                       <button
                         onClick={() => {

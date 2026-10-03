@@ -128,6 +128,29 @@ async function castBySeason(tmdbId: number, seasons: number[], tmdbKey: string) 
   return bySeason;
 }
 
+/**
+ * Les titres des épisodes, saison par saison, en anglais et en français : ceux
+ * d'une saison pas encore atteinte ne doivent jamais apparaître (logic.ts).
+ */
+async function episodeTitles(tmdbId: number, seasons: number[], tmdbKey: string) {
+  const titles: Record<number, string[]> = {};
+  const queue = [...seasons];
+  const worker = async () => {
+    for (let season = queue.shift(); season != null; season = queue.shift()) {
+      const names = await Promise.all(
+        ['en-US', 'fr-FR'].map((lang) =>
+          getJson(`${TMDB_BASE}/tv/${tmdbId}/season/${season}?api_key=${tmdbKey}&language=${lang}`)
+            .then((data) => (data?.episodes ?? []).map((e: { name?: string }) => e.name ?? ''))
+            .catch(() => [] as string[])
+        )
+      );
+      titles[season] = [...new Set(names.flat().filter((n: string) => n && !/^(Episode|Épisode) \d+$/i.test(n)))];
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return titles;
+}
+
 type TmdbSeries = {
   name?: string;
   first_air_date?: string;
@@ -231,14 +254,19 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const tmdbKey = Deno.env.get('TMDB_API_KEY');
-  const reply = (items: TriviaItem[], introduced: Record<number, string[]>, sources: unknown) => {
-    const visible = visibleTrivia(items, introduced, season);
+  const reply = (
+    items: TriviaItem[],
+    introduced: Record<number, string[]>,
+    sources: unknown,
+    titles: Record<number, string[]> = {}
+  ) => {
+    const visible = visibleTrivia(items, introduced, season, titles);
     return json({ status: visible.length ? 'ready' : 'empty', items: visible, sources: sources ?? {} });
   };
 
   const { data: cached } = await admin
     .from('series_trivia')
-    .select('items, introduced, sources, created_at, quiz_origin')
+    .select('items, introduced, sources, created_at, quiz_origin, episode_titles')
     .eq('tmdb_id', tmdbId)
     .eq('language', language)
     .maybeSingle();
@@ -273,7 +301,25 @@ Deno.serve(async (req: Request) => {
         console.error('[series-trivia] quiz des bases :', error instanceof Error ? error.message : error);
       }
     }
-    return reply(items, cached.introduced ?? {}, cached.sources);
+    /*
+     * Une série préparée avant le filtre des titres d'épisodes : au prochain
+     * geste, on les relève (TMDB seulement, sans Mistral) et on les garde.
+     */
+    let titles = (cached.episode_titles ?? null) as Record<number, string[]> | null;
+    if (generate && titles == null && tmdbKey) {
+      try {
+        const series: TmdbSeries = await getJson(`${TMDB_BASE}/tv/${tmdbId}?api_key=${tmdbKey}`);
+        titles = await episodeTitles(tmdbId, regularSeasons(series), tmdbKey);
+        await admin
+          .from('series_trivia')
+          .update({ episode_titles: titles })
+          .eq('tmdb_id', tmdbId)
+          .eq('language', language);
+      } catch (error) {
+        console.error('[series-trivia] titres :', error instanceof Error ? error.message : error);
+      }
+    }
+    return reply(items, cached.introduced ?? {}, cached.sources, titles ?? {});
   }
   if (!generate) return json({ status: 'missing', items: [], sources: {} });
 
@@ -295,10 +341,11 @@ Deno.serve(async (req: Request) => {
     return fail(502, 'upstream', 'Anecdotes momentanément indisponibles.');
   }
 
-  const [frText, enText, bySeason] = await Promise.all([
+  const [frText, enText, bySeason, episodeNames] = await Promise.all([
     titles.fr ? wikipediaExtract('fr', titles.fr).catch(() => '') : Promise.resolve(''),
     titles.en ? wikipediaExtract('en', titles.en).catch(() => '') : Promise.resolve(''),
     castBySeason(tmdbId, regularSeasons(series), tmdbKey),
+    episodeTitles(tmdbId, regularSeasons(series), tmdbKey),
   ]);
   const quiz = await dataQuiz(tmdbId, series, bySeason, language);
   const quizFromData = quiz.length >= MIN_DATA_QUESTIONS;
@@ -322,6 +369,7 @@ Deno.serve(async (req: Request) => {
       introduced,
       sources,
       quiz_origin: origin,
+      episode_titles: episodeNames,
       created_at: new Date().toISOString(),
     });
 
@@ -329,7 +377,7 @@ Deno.serve(async (req: Request) => {
   if (!frMaking && !enMaking) {
     const items = quizFromData ? quiz : [];
     await store(items, quizFromData ? 'data' : 'ai');
-    return reply(items, introduced, sources);
+    return reply(items, introduced, sources, episodeNames);
   }
 
   // Une génération coûte un appel Mistral : elle entre dans le quota du jour,
@@ -395,5 +443,5 @@ Deno.serve(async (req: Request) => {
   const { error: storeError } = await store(items, quizFromData ? 'data' : 'ai');
   if (storeError) console.error('[series-trivia] cache :', storeError.message);
 
-  return reply(items, introduced, sources);
+  return reply(items, introduced, sources, episodeNames);
 });

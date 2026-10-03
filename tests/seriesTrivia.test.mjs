@@ -106,3 +106,16 @@ test('nothing from a later season, nothing naming someone who arrives later', ()
   const s3 = visibleTrivia(items, introduced, 3);
   assert.equal(s3.length, 4);
 });
+
+test('an episode title from a later season never shows up', () => {
+  const { visibleTrivia: visible } = load('../supabase/functions/series-trivia/logic.ts');
+  const items = [
+    { type: 'fact', season: null, text: 'Les scénarios étaient longs (75 pages pour Search Committee).', source: 'en' },
+    { type: 'fact', season: null, text: 'Le pilote reprend la version britannique.', source: 'en' },
+  ];
+  const titles = { 1: ['Pilot', 'Diversity Day'], 7: ['Search Committee'] };
+  assert.equal(visible(items, {}, 3, titles).length, 1);
+  assert.equal(visible(items, {}, 7, titles).length, 2);
+  // « Pilot » est trop courant pour être banni, même s'il revenait plus tard.
+  assert.equal(visible([{ type: 'fact', season: null, text: 'Le Pilot a été tourné en 2004.', source: 'en' }], {}, 1, { 5: ['Pilot'] }).length, 1);
+});
