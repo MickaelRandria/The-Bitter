@@ -234,6 +234,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
           setOpen((v) => !v);
           if (!open) loadSocial();
         }}
+        data-tour="notif-bell"
         className="relative p-2 rounded-full text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
         aria-label="Notifications"
       >

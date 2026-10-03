@@ -151,7 +151,14 @@ const CinemaSubscriptionDetailsModal = lazy(
   () => import('./components/CinemaSubscriptionDetailsModal')
 );
 const FavoriteCinemaModal = lazy(() => import('./components/FavoriteCinemaModal'));
-import { TOUR_STEPS, RATING_TOUR_STEPS, RATING_TOUR_SEEN_ID } from './constants/tour';
+import {
+  TOUR_STEPS,
+  RATING_TOUR_STEPS,
+  RATING_TOUR_SEEN_ID,
+  SERIES_TOUR_SEEN_ID,
+  TourStep,
+  seriesTourSteps,
+} from './constants/tour';
 
 /** Une note IMDb bouge peu : une vérification par semaine suffit, le serveur fait de même. */
 const IMDB_RECHECK_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -673,11 +680,14 @@ const App: React.FC = () => {
   const [seenTooltips, setSeenTooltips] = useState<string[]>([]);
   // Deux visites guidées : 'main' à la création du profil (découverte des pages),
   // 'rating' à la première ouverture de l'écran d'ajout (notation et Bitter+).
-  const [activeTour, setActiveTour] = useState<'main' | 'rating' | null>(null);
+  const [activeTour, setActiveTour] = useState<'main' | 'rating' | 'series' | null>(null);
+  /** Le parcours séries, figé à son lancement : il dépend de ce que la collection contient. */
+  const [seriesSteps, setSeriesSteps] = useState<TourStep[]>([]);
   // Les deux parcours démarrent tout seuls : on demande d'abord, on n'impose pas.
-  const [pendingTour, setPendingTour] = useState<'main' | 'rating' | null>(null);
+  const [pendingTour, setPendingTour] = useState<'main' | 'rating' | 'series' | null>(null);
   const [tourStepIndex, setTourStepIndex] = useState(0);
-  const tourSteps = activeTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS;
+  const tourSteps =
+    activeTour === 'rating' ? RATING_TOUR_STEPS : activeTour === 'series' ? seriesSteps : TOUR_STEPS;
   const tourStep = activeTour ? tourSteps[tourStepIndex] : null;
   const tourActive = activeTour !== null;
   const [activeTooltip, setActiveTooltip] = useState<{
@@ -939,10 +949,48 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [isModalOpen, activeTour, pendingTour, editingMovie, initialStatusForAdd, mediaTypeToLoad, seenTooltips]);
 
+  /** Ce que le parcours séries montrera, selon la collection du moment. */
+  const seriesTourShape = () => {
+    const series = allMovies.filter(isSeries);
+    return {
+      hasSeries: series.length > 0,
+      hasWatching: series.some((m) => m.tvProgress?.state === 'watching'),
+    };
+  };
+
+  /** Le parcours séries se joue sur l'écran Séries, onglet « Suivies », sans filtre. */
+  const startSeriesTour = () => {
+    setSeriesSteps(seriesTourSteps(seriesTourShape()));
+    // Une bulle d'aide ouverte passerait par-dessus le tuto.
+    setActiveTooltip(null);
+    setShowProfile(false);
+    setViewMode('Feed');
+    setMediaMode('tv');
+    setFeedTab('history');
+    setSeriesStateFilter('all');
+    setTourStepIndex(0);
+    setActiveTour('series');
+  };
+
+  // Premier passage en mode Séries : on propose le parcours qui leur est propre.
+  useEffect(() => {
+    if (mediaMode !== 'tv' || viewMode !== 'Feed' || showProfile || isModalOpen) return;
+    // Une bulle d'aide à l'écran passe d'abord : la proposition attend qu'elle soit fermée.
+    if (!activeProfile || activeTour !== null || pendingTour !== null || activeTooltip) return;
+    if (seenTooltips.includes(SERIES_TOUR_SEEN_ID)) return;
+    const timer = setTimeout(() => setPendingTour('series'), 800);
+    return () => clearTimeout(timer);
+  }, [mediaMode, viewMode, showProfile, isModalOpen, activeProfile, activeTour, pendingTour, seenTooltips, activeTooltip]);
+
   const acceptTour = () => {
     const variant = pendingTour;
     setPendingTour(null);
     if (!variant) return;
+    if (variant === 'series') {
+      setShowNewFeatures(false);
+      startSeriesTour();
+      return;
+    }
     // « Quoi de neuf » s'ouvre aussi au tout premier lancement : les deux se
     // superposeraient sur le même écran.
     setShowNewFeatures(false);
@@ -956,16 +1004,20 @@ const App: React.FC = () => {
     // Refuser le parcours notation le marque comme vu : sans ça, la proposition
     // reviendrait à chaque ouverture de l'écran d'ajout. Il reste relançable
     // depuis les paramètres du profil.
-    if (variant === 'rating') {
-      setSeenTooltips((prev) =>
-        prev.includes(RATING_TOUR_SEEN_ID) ? prev : [...prev, RATING_TOUR_SEEN_ID]
-      );
+    if (variant === 'rating' || variant === 'series') {
+      const id = variant === 'rating' ? RATING_TOUR_SEEN_ID : SERIES_TOUR_SEEN_ID;
+      setSeenTooltips((prev) => (prev.includes(id) ? prev : [...prev, id]));
     }
   };
 
   const finishTour = () => {
     const finished = activeTour;
     setActiveTour(null);
+
+    if (finished === 'series') {
+      setSeenTooltips((prev) => (prev.includes(SERIES_TOUR_SEEN_ID) ? prev : [...prev, SERIES_TOUR_SEEN_ID]));
+      return;
+    }
 
     if (finished === 'rating') {
       // On ne referme pas l'écran d'ajout : l'utilisateur était en train de s'en servir.
@@ -1005,8 +1057,17 @@ const App: React.FC = () => {
     setPendingTour(null);
     // Relancer le tuto réarme aussi le parcours notation, reproposé au prochain ajout.
     setSeenTooltips((prev) => prev.filter((id) => id !== RATING_TOUR_SEEN_ID));
+    // Le parcours principal parle de films : les séries ont le leur.
+    setMediaMode('movie');
     setTourStepIndex(0);
     setActiveTour('main');
+  };
+
+  /** Relance du parcours séries depuis le profil. */
+  const handleStartSeriesTour = () => {
+    setShowNewFeatures(false);
+    setPendingTour(null);
+    startSeriesTour();
   };
 
   const loadOrCreateProfile = async (user: any) => {
@@ -2830,6 +2891,7 @@ const App: React.FC = () => {
           <div className="max-w-2xl mx-auto w-full pb-3">
             <div
               role="tablist"
+              data-tour="media-switch"
               aria-label={t('nav.modeMovies') + ' / ' + t('nav.modeSeries')}
               className="relative flex bg-sand/60 dark:bg-[#1a1a1a] rounded-full p-1 w-fit"
             >
@@ -3010,6 +3072,7 @@ const App: React.FC = () => {
                         setInitialStatusForAdd(mediaMode === 'tv' ? 'watching' : 'watched');
                         setIsModalOpen(true);
                       }}
+                      data-tour={mediaMode === 'tv' ? 'series-add' : undefined}
                       className="bg-charcoal dark:bg-forest text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all hover:scale-105"
                     >
                       <Plus size={18} strokeWidth={3} /> {t(mediaMode === 'tv' ? 'tv.addFirstSeries' : 'feed.addMovie')}
@@ -3179,7 +3242,7 @@ const App: React.FC = () => {
                     </div>
                   )}
                   <div className="flex justify-center w-full mb-2">
-                    <div className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
+                    <div data-tour="series-tabs" className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
                       <div
                         className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-[#2a2a2a] rounded-full shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
                         style={{
@@ -3341,7 +3404,7 @@ const App: React.FC = () => {
 
                   {/* Séries suivies : le tri par état, dans l'ordre où on les regarde. */}
                   {mediaMode === 'tv' && feedTab === 'history' && (
-                    <div className="-mx-6 flex gap-2 overflow-x-auto no-scrollbar px-6 pb-1 animate-[fadeIn_0.3s_ease-out]">
+                    <div data-tour="series-states" className="-mx-6 flex gap-2 overflow-x-auto no-scrollbar px-6 pb-1 animate-[fadeIn_0.3s_ease-out]">
                       {(['all', 'watching', 'planned', 'paused', 'dropped', 'completed'] as const).map((state) => (
                         <button
                           key={state}
@@ -4014,6 +4077,7 @@ const App: React.FC = () => {
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}
             onReplayTour={handleStartTour}
+            onReplaySeriesTour={handleStartSeriesTour}
             onSendFeedback={() => {
               setShowProfile(false);
               setShowFeedbackModal(true);
@@ -4217,7 +4281,14 @@ const App: React.FC = () => {
       {pendingTour && !activeTour && (
         <TourPrompt
           variant={pendingTour}
-          stepCount={(pendingTour === 'rating' ? RATING_TOUR_STEPS : TOUR_STEPS).length}
+          stepCount={
+            (pendingTour === 'rating'
+              ? RATING_TOUR_STEPS
+              : pendingTour === 'series'
+                ? seriesTourSteps(seriesTourShape())
+                : TOUR_STEPS
+            ).length
+          }
           onAccept={acceptTour}
           onDecline={declineTour}
         />

@@ -35,6 +35,7 @@ import {
   ScanEye,
   Trash2,
   MapPin,
+  Tv,
 } from 'lucide-react';
 import { CinemaSubscription, FavoriteCinema, UserProfile } from '../types';
 import { formatCurrency } from '../utils/cinemaSubscription';
@@ -69,6 +70,8 @@ interface ProfileModalProps {
   onLetterboxdImport?: () => void;
   /** Lance la visite guidée. Absent, le bouton correspondant n'est pas rendu. */
   onReplayTour?: () => void;
+  /** Le parcours des séries, à part de celui des films. */
+  onReplaySeriesTour?: () => void;
   /**
    * Ouvre le formulaire de retour. Déplacé du header vers les paramètres pour
    * dégager de la place en haut de l'écran.
@@ -126,6 +129,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onOpenSpaces,
   onLetterboxdImport,
   onReplayTour,
+  onReplaySeriesTour,
   onSendFeedback,
   accountEmail,
   isSignedIn = false,
@@ -488,6 +492,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                   <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
                     {t('profileModal.replayTour')}
+                  </span>
+                </div>
+              </button>
+            )}
+            {onReplaySeriesTour && (
+              <button
+                onClick={() => { haptics.soft(); onReplaySeriesTour(); }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform">
+                    <Tv size={14} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                    {t('profileModal.replaySeriesTour')}
                   </span>
                 </div>
               </button>
