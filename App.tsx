@@ -3787,6 +3787,11 @@ const App: React.FC = () => {
                 setOpenSeries(null);
                 handleDeleteMovie(id);
               }}
+              onLaunch={() => {
+                const series = openSeries;
+                setOpenSeries(null);
+                void openCompanion(series, 'before');
+              }}
             />
           </Suspense>
         )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, History, Loader2, Pause, Play, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, History, Loader2, Pencil, Play, Star, Trash2, X } from 'lucide-react';
 import { Movie, TvEpisodeEntry, TvProgress, TvWatchState } from '../types';
 import { TmdbSeasonSummary, TmdbSeriesDetails, getSeriesDetails } from '../services/tmdb';
 import { getDisplayWeightedRating, getSeriesRating, hasVerdict, seasonScores } from '../utils/rating';
@@ -15,7 +15,9 @@ import FriendsSeriesProgress from './FriendsSeriesProgress';
 import { getWatchOffers } from '../services/tv';
 import { getNetflixUrl } from '../services/streamingLinks';
 import { groupWatchOffers, hasNetflix } from '../utils/watchOffers';
-import { furthestPosition } from '../utils/upNext';
+import { EpisodePosition, furthestPosition, nextEpisode } from '../utils/upNext';
+import { progressFromLastSeen } from '../utils/episodeCompanion';
+import EpisodePicker from './EpisodePicker';
 
 interface Props {
   initialSeason?: number;
@@ -29,6 +31,8 @@ interface Props {
   onUpdateProgress: (progress: TvProgress) => void;
   /** Retire la série de la collection, avec le même « Annuler » que le geste de glissement. */
   onDelete?: () => void;
+  /** Ouvre le mode épisode sur le prochain épisode, comme la carte « À suivre ». */
+  onLaunch?: () => void;
 }
 
 const STATE_ORDER: TvWatchState[] = ['planned', 'watching', 'paused', 'dropped', 'completed'];
@@ -36,12 +40,11 @@ const STATE_ORDER: TvWatchState[] = ['planned', 'watching', 'paused', 'dropped',
 /**
  * La fiche d'une série.
  *
- * Elle répond dans cet ordre à trois questions : où j'en suis, ce que j'en
- * pense, et ce que valent les saisons. La progression passe donc avant la note —
- * c'est ce qu'on vient chercher quand on rouvre une série en cours, alors qu'un
- * verdict se consulte rarement deux fois.
+ * Dans l'ordre : où j'en suis et le bouton pour lancer la suite, la carte des
+ * épisodes, puis les saisons, repliées. C'est ce qu'on vient chercher quand on
+ * rouvre une série en cours ; un verdict se consulte rarement deux fois.
  *
- * Les épisodes de la saison ouverte sont chargés à la demande.
+ * Les épisodes d'une saison sont chargés quand on la déplie.
  */
 const SeriesDetailModal: React.FC<Props> = ({
   series,
@@ -51,17 +54,19 @@ const SeriesDetailModal: React.FC<Props> = ({
   onRateSeason,
   onUpdateProgress,
   onDelete,
+  onLaunch,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, series.title);
 
   const [tmdb, setTmdb] = useState<TmdbSeriesDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedSeason, setExpandedSeason] = useState<number | null>(initialSeason ?? series.tvProgress?.lastSeason ?? 1);
+  const [expandedSeason, setExpandedSeason] = useState<number | null>(initialSeason ?? null);
 
   const progress: TvProgress | undefined = series.tvProgress;
-  const [draftSeason, setDraftSeason] = useState(progress?.lastSeason ?? 1);
-  const [draftEpisode, setDraftEpisode] = useState(progress?.lastEpisode ?? 1);
+  /** « Changer ma place » : le même choix d'épisode que « Tu en es où ? ». */
+  const [editingPlace, setEditingPlace] = useState(false);
+  const [picked, setPicked] = useState<EpisodePosition | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [netflixUrl, setNetflixUrl] = useState<string | null>(null);
 
@@ -137,8 +142,30 @@ const SeriesDetailModal: React.FC<Props> = ({
   };
 
   const state: TvWatchState = progress?.state ?? 'planned';
+  const furthest = tmdb ? furthestPosition(progress, tmdb.seasons) : null;
   // Le récap n'a de sens qu'une fois la série commencée.
-  const started = tmdb != null && furthestPosition(progress, tmdb.seasons) != null;
+  const started = furthest != null && furthest.episode > 0;
+  const next = tmdb ? nextEpisode(progress, tmdb.seasons) : null;
+  const ended = tmdb?.productionStatus === 'Ended' || tmdb?.productionStatus === 'Canceled';
+
+  /** Une saison se note une fois vue : cochée, dépassée, ou la série finie. */
+  const seasonSeen = (seasonNumber: number) =>
+    state === 'completed' ||
+    (progress?.seasonsWatched ?? []).includes(seasonNumber) ||
+    (furthest != null && furthest.season > seasonNumber);
+
+  const openPlaceEditor = () => {
+    haptics.soft();
+    setPicked(started ? furthest : null);
+    setEditingPlace((open) => !open);
+  };
+
+  const savePlace = () => {
+    if (!tmdb) return;
+    haptics.success();
+    onUpdateProgress(progressFromLastSeen(progress, picked, tmdb.seasons, { ended }));
+    setEditingPlace(false);
+  };
 
   return (
     <div
@@ -172,11 +199,159 @@ const SeriesDetailModal: React.FC<Props> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-5 space-y-6">
-          {/* La carte de la série d'abord : la note du public, épisode par épisode. */}
+          {/* 1 — Où j'en suis, et la suite à lancer. C'est ce qu'on vient chercher. */}
+          <section>
+            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
+              {t('series.progress')}
+            </p>
+
+            {tmdb && (
+              <div className="rounded-3xl bg-charcoal p-4 text-white dark:bg-[#1a1a1a]">
+                {next && state !== 'completed' ? (
+                  <>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/50">
+                      {t(started ? 'series.nextEpisode' : 'series.firstEpisode')}
+                    </p>
+                    <p className="mt-0.5 text-xl font-black tabular-nums">
+                      {t('series.episodeLabel', { season: next.season, episode: next.episode })}
+                    </p>
+                    {onLaunch && (
+                      <button
+                        onClick={() => {
+                          haptics.medium();
+                          onLaunch();
+                        }}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-bitter-lime py-3.5 text-[11px] font-black uppercase tracking-widest text-black transition-transform active:scale-[0.98]"
+                      >
+                        <Play size={14} fill="currentColor" />
+                        {t('upNext.launch')}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm font-black">{t('series.upToDate')}</p>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {netflixUrl && (
+                    <a
+                      href={netflixUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => haptics.medium()}
+                      className="flex items-center gap-1.5 rounded-xl bg-[#E50914] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-transform active:scale-95"
+                    >
+                      <Play size={12} fill="currentColor" />
+                      {t('series.watchOnNetflix')}
+                    </a>
+                  )}
+                  {started && (
+                    <button
+                      onClick={() => {
+                        haptics.soft();
+                        setRecapOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/80 transition-transform active:scale-95"
+                    >
+                      <History size={12} strokeWidth={2.5} />
+                      {t('upNext.previously')}
+                    </button>
+                  )}
+                  <button
+                    onClick={openPlaceEditor}
+                    aria-expanded={editingPlace}
+                    className="flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/80 transition-transform active:scale-95"
+                  >
+                    <Pencil size={12} strokeWidth={2.5} />
+                    {t('series.editPlace')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Le marque-page : le dernier épisode vu, d'un geste, sans titre qui
+                gâcherait la suite. Le même choix que « Tu en es où ? ». */}
+            {editingPlace && tmdb && (
+              <div className="mt-3 rounded-3xl border border-sand bg-white px-6 py-4 dark:border-white/10 dark:bg-[#141414]">
+                <p className="mb-3 text-[11px] text-stone-500 dark:text-stone-400">{t('bookmark.hint')}</p>
+                <EpisodePicker
+                  seasons={tmdb.seasons}
+                  value={picked}
+                  onChange={setPicked}
+                  initialSeason={furthest?.season ?? progress?.lastSeason}
+                />
+                <button
+                  onClick={savePlace}
+                  className="mt-4 w-full rounded-2xl bg-forest py-3 text-[10px] font-black uppercase tracking-widest text-white transition-transform active:scale-[0.98]"
+                >
+                  {picked
+                    ? t('bookmark.save', { season: picked.season, episode: picked.episode })
+                    : t('bookmark.notStarted')}
+                </button>
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {STATE_ORDER.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => commitProgress({ state: option })}
+                  aria-pressed={state === option}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                    state === option
+                      ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                      : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-500 border border-sand dark:border-white/10'
+                  }`}
+                >
+                  {t(`series.state.${option}`)}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* 2 — La carte de la série : la note du public, épisode par épisode. */}
           {series.tmdbId != null && tmdb && tmdb.seasons.length > 0 && (
             <SeriesHeatmap tmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
           )}
-          {/* 3 — Les saisons. */}
+          {series.tmdbId != null && tmdb && (
+            <FriendsSeriesProgress seriesTmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
+          )}
+
+          {/* Ce que j'en pense. */}
+          <section>
+            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
+              {t('series.myVerdict')}
+            </p>
+            {seriesRating ? (
+              <div>
+                <p className="text-3xl font-black text-charcoal dark:text-white tabular-nums leading-none">
+                  {seriesRating.average.toFixed(1)}
+                  <span className="text-base text-stone-400 dark:text-stone-600">/10</span>
+                </p>
+                {/* Le libellé n'est pas décoratif : sans lui, cette moyenne se
+                    lirait comme une note posée par la personne. */}
+                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+                  {t('series.averageOf', { count: seriesRating.ratedSeasons })}
+                </p>
+              </div>
+            ) : legacyVerdict != null ? (
+              <div>
+                <p className="text-3xl font-black text-charcoal dark:text-white tabular-nums leading-none">
+                  {legacyVerdict.toFixed(1)}
+                  <span className="text-base text-stone-400 dark:text-stone-600">/10</span>
+                </p>
+                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+                  {t('series.globalVerdict')}
+                </p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-stone-400 dark:text-stone-600">
+                {t('series.noVerdictYet')}
+              </p>
+            )}
+          </section>
+
+          {/* 3 — Les saisons, repliées : on déplie celle qu'on veut. */}
           <section>
             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
               {t('series.seasons')}
@@ -261,7 +436,9 @@ const SeriesDetailModal: React.FC<Props> = ({
                         className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
                           mine && hasVerdict(mine)
                             ? 'bg-sand/70 dark:bg-[#252525] text-charcoal dark:text-white'
-                            : 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                            : seasonSeen(season.seasonNumber)
+                              ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                              : 'border border-sand dark:border-white/10 text-stone-400 dark:text-stone-500'
                         }`}
                       >
                         {mine && hasVerdict(mine) ? (
@@ -293,147 +470,6 @@ const SeriesDetailModal: React.FC<Props> = ({
               </ul>
             )}
           </section>
-          {/* 1 — Où j'en suis. En premier : c'est ce qu'on vient chercher. */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
-              {t('series.progress')}
-            </p>
-
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {STATE_ORDER.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => commitProgress({ state: option })}
-                  aria-pressed={state === option}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                    state === option
-                      ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
-                      : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-500 border border-sand dark:border-white/10'
-                  }`}
-                >
-                  {t(`series.state.${option}`)}
-                </button>
-              ))}
-            </div>
-
-            {/* Le marque-page. Deux champs et non une liste d'épisodes :
-                « j'en suis là » se saisit en trois secondes. */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl p-3 flex items-end gap-3">
-              <label className="flex-1">
-                <span className="block text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-1">
-                  {t('series.season')}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={draftSeason}
-                  onChange={(e) => setDraftSeason(Number(e.target.value))}
-                  className="w-full bg-transparent text-lg font-black text-charcoal dark:text-white tabular-nums outline-none"
-                />
-              </label>
-              <label className="flex-1">
-                <span className="block text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-1">
-                  {t('series.episode')}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={draftEpisode}
-                  onChange={(e) => setDraftEpisode(Number(e.target.value))}
-                  className="w-full bg-transparent text-lg font-black text-charcoal dark:text-white tabular-nums outline-none"
-                />
-              </label>
-              <button
-                onClick={() =>
-                  commitProgress({ lastSeason: Math.max(0, Math.floor(draftSeason)), lastEpisode: Math.max(1, Math.floor(draftEpisode)) })
-                }
-                className="px-4 py-2 rounded-xl bg-forest text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform"
-              >
-                {t('series.saveProgress')}
-              </button>
-            </div>
-
-            {progress?.lastSeason != null && (
-              <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
-                {state === 'paused' ? <Pause size={12} /> : <Play size={12} />}
-                {t('series.resumeAt', {
-                  season: progress.lastSeason,
-                  episode: progress.lastEpisode ?? 1,
-                })}
-              </p>
-            )}
-
-            {(netflixUrl || started) && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {netflixUrl && (
-                  <a
-                    href={netflixUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => haptics.medium()}
-                    className="flex items-center gap-1.5 rounded-xl bg-[#E50914] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-transform active:scale-95"
-                  >
-                    <Play size={12} fill="currentColor" />
-                    {t('series.watchOnNetflix')}
-                  </a>
-                )}
-                {started && (
-                  <button
-                    onClick={() => {
-                      haptics.soft();
-                      setRecapOpen(true);
-                    }}
-                    className="flex items-center gap-1.5 rounded-xl border border-sand px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 transition-transform active:scale-95 dark:border-white/10 dark:text-stone-300"
-                  >
-                    <History size={12} strokeWidth={2.5} />
-                    {t('upNext.previously')}
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-
-          {series.tmdbId != null && tmdb && (
-            <FriendsSeriesProgress seriesTmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
-          )}
-
-          {/* 2 — Ce que j'en pense. */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
-              {t('series.myVerdict')}
-            </p>
-            {seriesRating ? (
-              <div>
-                <p className="text-3xl font-black text-charcoal dark:text-white tabular-nums leading-none">
-                  {seriesRating.average.toFixed(1)}
-                  <span className="text-base text-stone-400 dark:text-stone-600">/10</span>
-                </p>
-                {/* Le libellé n'est pas décoratif : sans lui, cette moyenne se
-                    lirait comme une note posée par la personne. */}
-                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
-                  {t('series.averageOf', { count: seriesRating.ratedSeasons })}
-                </p>
-              </div>
-            ) : legacyVerdict != null ? (
-              <div>
-                <p className="text-3xl font-black text-charcoal dark:text-white tabular-nums leading-none">
-                  {legacyVerdict.toFixed(1)}
-                  <span className="text-base text-stone-400 dark:text-stone-600">/10</span>
-                </p>
-                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
-                  {t('series.globalVerdict')}
-                </p>
-              </div>
-            ) : (
-              <p className="text-[11px] text-stone-400 dark:text-stone-600">
-                {t('series.noVerdictYet')}
-              </p>
-            )}
-          </section>
-
-
           {/* Ajoutée par erreur : le glissement sur la carte n'était pas le seul
               moyen qu'on cherche. Le bouton passe par la même suppression, avec
               son « Annuler ». */}
