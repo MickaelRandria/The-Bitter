@@ -965,7 +965,6 @@ export const en: Record<string, string> = {
   'recap.until': 'Up to season {season}, episode {episode}. Nothing about what comes next.',
   'recap.aiNote': 'Written from the TMDB summaries of the episodes you watched, and only those.',
   'recap.empty': 'Not enough to go on: TMDB has no summary for the episodes you watched.',
-  'heatmap.here': 'You are here',
   'heatmap.title': 'Series map',
   'heatmap.subtitle': 'Audience rating, episode by episode',
   'heatmap.unavailable': 'Episode ratings are unavailable right now.',
