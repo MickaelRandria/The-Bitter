@@ -797,6 +797,11 @@ export const en: Record<string, string> = {
   'app.notes': 'Notes',
   'app.recosFABLabel': 'Personalized recommendations',
   // Series
+  'series.nextEpisode': 'Next episode',
+  'series.firstEpisode': 'To start',
+  'series.episodeLabel': 'Season {season} · Episode {episode}',
+  'series.upToDate': 'You’re all caught up for now.',
+  'series.editPlace': 'Change my spot',
   'series.progress': 'Where I am',
   'series.season': 'Season',
   'series.episode': 'Episode',
