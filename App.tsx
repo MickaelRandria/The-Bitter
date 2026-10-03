@@ -66,6 +66,7 @@ import {
   MovieStatus,
   MovieWatch,
   TvProgress,
+  TvWatchState,
   UserProfile,
   ViewingContext,
 } from './types';
@@ -463,6 +464,8 @@ const App: React.FC = () => {
   const [tonightPick, setTonightPick] = useState<Movie | null>(null);
   const [isPickAnimating, setIsPickAnimating] = useState(false);
   const [historyGenreFilter, setHistoryGenreFilter] = useState<string>('all');
+  /** Mode Séries, onglet « Suivies » : n'afficher qu'un état (en cours, en pause…). */
+  const [seriesStateFilter, setSeriesStateFilter] = useState<TvWatchState | 'all'>('all');
   const [selectedMood, setSelectedMood] = useState<MoodPreset>(null);
   const [activeVibeSort, setActiveVibeSort] = useState<VibeAxis | null>(null);
   const [showTonightControls, setShowTonightControls] = useState(false);
@@ -2325,6 +2328,19 @@ const App: React.FC = () => {
     return { current, done, queue: uniqueMovies.length - current - done };
   }, [uniqueMovies, mediaMode]);
 
+  /**
+   * L'état d'une série, pour le tri des séries suivies. Une série ajoutée avant
+   * le suivi de progression n'a que son statut : vue, elle est terminée.
+   */
+  const seriesState = (m: Movie): TvWatchState =>
+    m.tvProgress?.state ?? (m.status === 'watched' ? 'completed' : 'planned');
+
+  const seriesStateCounts = useMemo(() => {
+    const counts: Record<TvWatchState, number> = { watching: 0, planned: 0, paused: 0, dropped: 0, completed: 0 };
+    if (mediaMode === 'tv') uniqueMovies.forEach((m) => counts[seriesState(m)]++);
+    return counts;
+  }, [uniqueMovies, mediaMode]);
+
   const feedStats = useMemo(() => {
     if (!activeProfile) return null;
     const watched = uniqueMovies.filter((m) => collectionStatus(m) === 'watched');
@@ -2411,8 +2427,11 @@ const App: React.FC = () => {
     if (!activeProfile) return [];
     const targetStatus: MovieStatus = feedTab === 'history' ? 'watched' : 'watchlist';
 
+    // Un état choisi dans « Suivies » montre toutes les séries de cet état,
+    // y compris celles à voir ou abandonnées, rangées ailleurs par défaut.
+    const byState = mediaMode === 'tv' && feedTab === 'history' && seriesStateFilter !== 'all';
     let result = uniqueMovies.filter((m) => {
-      if (collectionStatus(m) !== targetStatus) return false;
+      if (byState ? seriesState(m) !== seriesStateFilter : collectionStatus(m) !== targetStatus) return false;
       if (feedTab === 'queue' && watchlistGenreFilter !== 'all' && m.genre !== watchlistGenreFilter)
         return false;
       if (feedTab === 'history' && historyGenreFilter !== 'all' && m.genre !== historyGenreFilter)
@@ -2475,6 +2494,8 @@ const App: React.FC = () => {
     minRatingFilter,
     yearMinFilter,
     yearMaxFilter,
+    mediaMode,
+    seriesStateFilter,
   ]);
 
   const visibleMovies = useMemo(
@@ -2490,7 +2511,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setFeedPage(1);
-  }, [feedTab, debouncedSearch, historyGenreFilter, watchlistGenreFilter, minRatingFilter, yearMinFilter, yearMaxFilter, sortBy, selectedMood, activeVibeSort]);
+  }, [feedTab, debouncedSearch, historyGenreFilter, watchlistGenreFilter, minRatingFilter, yearMinFilter, yearMaxFilter, sortBy, selectedMood, activeVibeSort, seriesStateFilter]);
 
   const handleTonightPick = () => {
     if (!activeProfile) return;
@@ -3318,6 +3339,27 @@ const App: React.FC = () => {
                       </div>
                     )}
 
+                  {/* Séries suivies : le tri par état, dans l'ordre où on les regarde. */}
+                  {mediaMode === 'tv' && feedTab === 'history' && (
+                    <div className="-mx-6 flex gap-2 overflow-x-auto no-scrollbar px-6 pb-1 animate-[fadeIn_0.3s_ease-out]">
+                      {(['all', 'watching', 'planned', 'paused', 'dropped', 'completed'] as const).map((state) => (
+                        <button
+                          key={state}
+                          onClick={() => {
+                            haptics.soft();
+                            setSeriesStateFilter(state);
+                          }}
+                          aria-pressed={seriesStateFilter === state}
+                          className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${seriesStateFilter === state ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}
+                        >
+                          {state === 'all' ? t('tv.followedTab') : t(`series.state.${state}`)}
+                          {state !== 'all' && (
+                            <span className="ml-1.5 tabular-nums opacity-60">{seriesStateCounts[state]}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {false && feedTab === 'history' && historyGenres.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 animate-[fadeIn_0.3s_ease-out]">
                       <button
@@ -3542,6 +3584,7 @@ const App: React.FC = () => {
                   (searchQuery ||
                     watchlistGenreFilter !== 'all' ||
                     historyGenreFilter !== 'all' ||
+                    (mediaMode === 'tv' && feedTab === 'history' && seriesStateFilter !== 'all') ||
                     activeAdvancedFilterCount > 0) ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center animate-[fadeIn_0.3s_ease-out]">
                       <div className="w-16 h-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-5 shadow-sm transition-colors">
@@ -3556,6 +3599,7 @@ const App: React.FC = () => {
                           setSearchQuery('');
                           setWatchlistGenreFilter('all');
                           setHistoryGenreFilter('all');
+                          setSeriesStateFilter('all');
                           setMinRatingFilter(0);
                           setYearMinFilter(null);
                           setYearMaxFilter(null);
