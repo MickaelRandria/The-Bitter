@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { History, Loader2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, History, List, Loader2, Play, RotateCcw, X } from 'lucide-react';
 import { Movie } from '../types';
 import { TmdbSeasonSummary } from '../services/tmdb';
 import { buildRecapSource, getRecap, SeriesRecapResult } from '../services/seriesRecap';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -13,17 +14,58 @@ interface Props {
   onClose: () => void;
 }
 
+/** Une étape du récap : une idée, lisible d'un coup d'œil. */
+interface Beat {
+  label?: string;
+  text: string;
+}
+
+/** Au-delà, une étape redevient un paragraphe : on coupe à la fin d'une phrase. */
+const MAX_BEAT = 260;
+
 /**
- * « Précédemment dans… », pour reprendre une série sans tout revoir.
+ * Le récap rédigé, découpé phrase par phrase. Une phrase très courte rejoint la
+ * suivante : « Tout bascule. » seule sur un écran ne dit rien.
+ */
+export function recapBeats(text: string): Beat[] {
+  const sentences = (text.match(/[^.!?…]+[.!?…]+["»”)]*|[^.!?…]+$/g) ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const beats: string[] = [];
+  for (const sentence of sentences) {
+    const last = beats[beats.length - 1];
+    if (last && (last.length < 50 || sentence.length < 30)) beats[beats.length - 1] = `${last} ${sentence}`;
+    else beats.push(sentence);
+  }
+  return beats.map((b) => ({ text: b }));
+}
+
+const clip = (text: string) => {
+  if (text.length <= MAX_BEAT) return text;
+  const cut = text.slice(0, MAX_BEAT);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  return end > 80 ? cut.slice(0, end + 1) : `${cut.trimEnd()}…`;
+};
+
+/**
+ * « Précédemment dans… », en stories.
  *
- * Deux niveaux : le récap rédigé quand l'assistant est joignable, sinon les
- * résumés des derniers épisodes vus, tels quels. Les deux s'arrêtent au dernier
- * épisode vu — voir services/seriesRecap.ts.
+ * Un paragraphe de sept phrases ne se lit pas sur un téléphone. Chaque idée a
+ * donc son écran, en gros, sur l'image d'un épisode déjà vu ; on touche pour
+ * avancer, et le tout se lit en vingt secondes. Un dernier écran rappelle
+ * jusqu'où va le récap, et « Tout lire » remet les étapes en liste.
+ *
+ * Deux sources : le récap rédigé quand l'assistant est joignable, sinon les
+ * résumés des derniers épisodes vus. Les deux s'arrêtent au dernier épisode vu
+ * (voir services/seriesRecap.ts) : rien sur la suite.
  */
 const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
   const { t, language } = useLanguage();
   const dialog = useDialog(onClose, t('recap.title', { title: series.title }));
   const [result, setResult] = useState<SeriesRecapResult | null | undefined>(undefined);
+  const [stills, setStills] = useState<{ label: string; url: string }[]>([]);
+  const [index, setIndex] = useState(0);
+  const [list, setList] = useState(false);
 
   useEffect(() => {
     if (series.tmdbId == null) {
@@ -45,11 +87,7 @@ const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
     };
   }, [series.tmdbId, series.title, series.tvProgress, seasons, language]);
 
-  /* Le générique : les images des derniers épisodes vus, sans attendre le
-     récap rédigé, qui peut prendre quelques secondes. */
-  const [stills, setStills] = useState<{ label: string; url: string }[]>([]);
-  const [slide, setSlide] = useState(0);
-
+  // Les images des épisodes vus arrivent vite : le générique tourne pendant que le récap s'écrit.
   useEffect(() => {
     if (series.tmdbId == null) return;
     let active = true;
@@ -63,135 +101,167 @@ const SeriesRecap: React.FC<Props> = ({ series, seasons, onClose }) => {
     };
   }, [series.tmdbId, series.tvProgress, seasons, language]);
 
-  useEffect(() => {
-    if (stills.length < 2) return;
-    const timer = window.setInterval(() => setSlide((n) => (n + 1) % stills.length), 3800);
-    return () => window.clearInterval(timer);
-  }, [stills.length]);
+  const beats: Beat[] = useMemo(() => {
+    if (!result) return [];
+    if (result.recap) return recapBeats(result.recap);
+    return [...result.source.seasons.slice(-1), ...result.source.episodes.slice(-3)].map((part) => ({
+      label: part.label,
+      text: clip(part.text),
+    }));
+  }, [result]);
 
   const seen = result?.source.lastSeen;
-  const fallback = result
-    ? [...result.source.seasons.slice(-1), ...result.source.episodes.slice(-3)]
-    : [];
+  const done = beats.length > 0 && index >= beats.length;
+  const still = stills.length ? stills[Math.min(index, beats.length - 1, stills.length - 1) % stills.length] : null;
+  const image = still?.url ?? series.posterUrl;
+
+  const next = () => {
+    haptics.soft();
+    setIndex((i) => Math.min(beats.length, i + 1));
+  };
+  const previous = () => {
+    haptics.soft();
+    setIndex((i) => Math.max(0, i - 1));
+  };
+
+  const primary =
+    'flex w-full items-center justify-center gap-2 rounded-2xl bg-bitter-lime py-4 text-[11px] font-black uppercase tracking-widest text-black transition-transform active:scale-[0.98]';
+  const quiet = 'flex items-center justify-center gap-1.5 py-2 text-[10px] font-black uppercase tracking-widest text-white/50';
 
   return (
     <div
       {...dialog.props}
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-charcoal/60 dark:bg-black/85 backdrop-blur-sm animate-[fadeIn_0.25s_ease-out]"
+      className="fixed inset-0 z-[300] flex justify-center bg-black text-white animate-[fadeIn_0.3s_ease-out]"
     >
-      <div className="relative w-full sm:max-w-md bg-cream dark:bg-[#0c0c0c] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden animate-[slideUp_0.35s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/20 dark:border-white/10">
-        <div className="relative shrink-0">
-          {stills.length > 0 ? (
-            <div className="relative h-56 overflow-hidden bg-black">
-              {stills.map((still, index) => (
-                <img
-                  key={still.url}
-                  src={resizeTmdbImage(still.url, 'w780')}
-                  alt=""
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 motion-safe:animate-[kenburns_9s_ease-out_infinite_alternate] ${
-                    index === slide ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  style={{ animationDelay: `${-index * 2.5}s` }}
-                />
-              ))}
-              <span className="absolute left-5 top-4 rounded-md bg-black/50 px-2 py-1 text-[10px] font-black tracking-wider text-white backdrop-blur">
-                {stills[slide]?.label}
-              </span>
-              {stills.length > 1 && (
-                <div className="absolute inset-x-5 top-12 flex gap-1" aria-hidden>
-                  {stills.map((still, index) => (
-                    <span
-                      key={still.url}
-                      className={`h-0.5 flex-1 rounded-full transition-colors duration-500 ${
-                        index <= slide ? 'bg-white/90' : 'bg-white/25'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-          <div className="h-28 bg-stone-200 dark:bg-[#161616] overflow-hidden">
-            {series.posterUrl && (
-              <img
-                src={resizeTmdbImage(series.posterUrl, 'w500')}
-                alt=""
-                className="w-full h-full object-cover opacity-60"
+      {image && (
+        <img
+          key={image}
+          src={resizeTmdbImage(image, 'w780')}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-55 animate-[fadeIn_0.8s_ease-out] motion-safe:animate-[kenburns_12s_ease-out_infinite_alternate]"
+        />
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/90" />
+
+      <div className="relative flex h-full w-full max-w-md flex-col px-6 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+        {/* Les barres de progression, comme une story. */}
+        {beats.length > 0 && !list && (
+          <div className="flex gap-1" aria-hidden>
+            {beats.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-colors duration-300 ${i < index || done ? 'bg-white' : i === index ? 'bg-bitter-lime' : 'bg-white/25'}`}
               />
-            )}
+            ))}
           </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-cream dark:from-[#0c0c0c] via-cream/40 dark:via-[#0c0c0c]/40 to-transparent" />
+        )}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/70">
+            <History size={12} strokeWidth={3} className="shrink-0" />
+            <span className="truncate">{t('recap.kicker')} {series.title}</span>
+          </p>
           <button
             onClick={onClose}
             aria-label={t('common.close')}
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/40 backdrop-blur flex items-center justify-center text-white active:scale-90 transition-transform"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-transform active:scale-90"
           >
             <X size={16} strokeWidth={2.5} />
           </button>
-          <div className="absolute inset-x-0 bottom-0 px-6 pb-3">
-            <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
-              <History size={11} strokeWidth={3} />
-              {t('recap.kicker')}
-            </p>
-            <p className="text-lg font-black text-charcoal dark:text-white leading-tight line-clamp-2">
-              {series.title}
-            </p>
-          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-2 pb-8 space-y-4">
-          {result === undefined ? (
-            <div role="status" className="flex items-center gap-2 py-8 text-[12px] text-stone-400">
-              <Loader2 size={16} className="animate-spin" />
-              {t('recap.loading')}
+        {result === undefined ? (
+          <div className="flex flex-1 flex-col justify-end pb-10">
+            <Loader2 size={20} className="animate-spin text-bitter-lime" />
+            <p className="mt-3 text-[22px] font-black leading-tight tracking-tight">{t('recap.loading')}</p>
+          </div>
+        ) : result === null || beats.length === 0 ? (
+          <div className="flex flex-1 flex-col justify-end gap-6 pb-6">
+            <p className="text-[17px] font-bold leading-snug text-white/85">{t('recap.empty')}</p>
+            <button onClick={onClose} className={primary}>
+              {t('recap.close')}
+            </button>
+          </div>
+        ) : list ? (
+          // « Tout lire » : les mêmes étapes, en liste courte.
+          <div className="mt-4 flex-1 overflow-y-auto no-scrollbar">
+            <ol className="space-y-3 pb-4">
+              {beats.map((beat, i) => (
+                <li key={i} className="flex gap-3 rounded-2xl bg-black/50 p-4 backdrop-blur">
+                  <span className="text-[12px] font-black tabular-nums text-bitter-lime">{i + 1}</span>
+                  <span className="min-w-0">
+                    {beat.label && (
+                      <span className="block text-[10px] font-black uppercase tracking-widest text-white/50">{beat.label}</span>
+                    )}
+                    <span className="block text-[14px] leading-relaxed text-white/90">{beat.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <button onClick={onClose} className={primary}>
+              <Play size={13} fill="currentColor" />
+              {t('recap.resume')}
+            </button>
+          </div>
+        ) : done ? (
+          <div className="flex flex-1 flex-col justify-end gap-3 pb-2 animate-[fadeIn_0.4s_ease-out]">
+            <p className="text-[30px] font-black leading-tight tracking-tight">{t('recap.ready')}</p>
+            {seen && (
+              <p className="text-[13px] leading-relaxed text-white/65">
+                {t('recap.until', { season: seen.season, episode: seen.episode })}
+              </p>
+            )}
+            {result.recap && <p className="text-[11px] text-white/40">{t('recap.aiNote')}</p>}
+            <div className="mt-4 space-y-1">
+              <button onClick={onClose} className={primary}>
+                <Play size={13} fill="currentColor" />
+                {t('recap.resume')}
+              </button>
+              <div className="flex justify-between">
+                <button
+                  onClick={() => {
+                    haptics.soft();
+                    setIndex(0);
+                  }}
+                  className={quiet}
+                >
+                  <RotateCcw size={12} strokeWidth={2.5} />
+                  {t('recap.again')}
+                </button>
+                <button onClick={() => setList(true)} className={quiet}>
+                  <List size={12} strokeWidth={2.5} />
+                  {t('recap.readAll')}
+                </button>
+              </div>
             </div>
-          ) : result === null ? (
-            <p className="py-6 text-[13px] leading-relaxed text-stone-500 dark:text-stone-400">
-              {t('recap.empty')}
-            </p>
-          ) : (
-            <>
-              {seen && (
-                <p className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
-                  {t('recap.until', { season: seen.season, episode: seen.episode })}
+          </div>
+        ) : (
+          <>
+            {/* Toucher à droite avance, à gauche revient. */}
+            <div className="relative flex flex-1 flex-col justify-end pb-6">
+              <button aria-label={t('recap.previous')} onClick={previous} className="absolute inset-y-0 left-0 w-1/3" />
+              <button aria-label={t('recap.next')} onClick={next} className="absolute inset-y-0 right-0 w-2/3" />
+              <div key={index} className="pointer-events-none animate-[fadeIn_0.45s_ease-out]">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+                  {beats[index].label ?? still?.label ?? t('recap.step', { index: index + 1, total: beats.length })}
                 </p>
-              )}
-              {result.recap ? (
-                <>
-                  <p className="whitespace-pre-line text-[15px] leading-relaxed text-charcoal dark:text-stone-100">
-                    {result.recap}
-                  </p>
-                  <p className="text-[10px] text-stone-400 dark:text-stone-500">
-                    {t('recap.aiNote')}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-[12px] leading-relaxed text-stone-500 dark:text-stone-400">
-                    {result.error ? `${result.error} ` : ''}
-                    {t('recap.fallbackIntro')}
-                  </p>
-                  <ul className="space-y-3">
-                    {fallback.map((part) => (
-                      <li
-                        key={part.label}
-                        className="rounded-2xl border border-stone-200/80 bg-white p-3.5 dark:border-white/[0.06] dark:bg-white/[0.03]"
-                      >
-                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
-                          {part.label}
-                        </p>
-                        <p className="mt-1 text-[13px] leading-relaxed text-charcoal dark:text-stone-200">
-                          {part.text}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </>
-          )}
-        </div>
+                <p className="mt-3 text-[25px] font-black leading-[1.22] tracking-tight [text-shadow:0_2px_16px_rgba(0,0,0,0.6)]">
+                  {beats[index].text}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setList(true)} className={`${quiet} px-2`}>
+                <List size={12} strokeWidth={2.5} />
+                {t('recap.readAll')}
+              </button>
+              <button onClick={next} className={`${primary} flex-1`}>
+                {index < beats.length - 1 ? t('recap.next') : t('recap.finish')}
+                <ChevronRight size={14} strokeWidth={3} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
