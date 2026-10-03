@@ -176,6 +176,8 @@ interface CardProps {
   onMore: () => void;
   /** « Ce soir, j'ai… » choisi : combien d'épisodes de cette série y tiennent. */
   fit: { count: number; minutes: number } | null;
+  /** La première carte : celle que le parcours séries éclaire. */
+  first?: boolean;
 }
 
 /**
@@ -193,6 +195,7 @@ const UpNextCard: React.FC<CardProps> = ({
   onRecap,
   onMore,
   fit,
+  first,
 }) => {
   const { t, language } = useLanguage();
   const friends = useFriendsPlace(item);
@@ -203,6 +206,7 @@ const UpNextCard: React.FC<CardProps> = ({
 
   return (
     <li
+      data-tour={first ? 'series-upnext' : undefined}
       className={`relative h-[252px] shrink-0 snap-start overflow-hidden rounded-[1.75rem] bg-[#141414] shadow-lg shadow-black/10 transition-opacity duration-300 ${
         single ? 'w-full' : 'w-[86%] max-w-[340px]'
       } ${fit && fit.count === 0 ? 'opacity-40' : ''}`}
@@ -307,7 +311,7 @@ const UpNextCard: React.FC<CardProps> = ({
             </p>
           )}
 
-          <div className="pointer-events-auto mt-3 flex items-center gap-2">
+          <div data-tour={first ? 'series-actions' : undefined} className="pointer-events-auto mt-3 flex items-center gap-2">
             <button
               onClick={watchingNow ? onFinish : onLaunch}
               className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-bitter-lime px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black transition-transform active:scale-95"
@@ -742,9 +746,10 @@ const UpNext: React.FC<Props> = ({
             ref={carouselRef}
             className="-mx-6 flex snap-x snap-mandatory scroll-px-6 gap-3 overflow-x-auto no-scrollbar px-6 pb-1"
           >
-            {available.map((item) => (
+            {available.map((item, index) => (
               <UpNextCard
                 key={item.series.id}
+                first={index === 0}
                 item={item}
                 single={single}
                 session={session}

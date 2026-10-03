@@ -104,3 +104,31 @@ export const RATING_TOUR_STEPS: TourStep[] = [
 
 /** Identifiant de « déjà vu » du parcours notation, stocké dans `seenTooltips`. */
 export const RATING_TOUR_SEEN_ID = 'rating_tour';
+
+/**
+ * Parcours des séries, à part du parcours principal qui parle de films.
+ *
+ * Proposé au premier passage en mode Séries, quand la question se pose. Une
+ * série ne se note pas une fois : elle se suit, épisode après épisode. Le
+ * parcours montre donc d'abord comment on suit (« À suivre », le mode épisode,
+ * sa place), puis comment on range et comment on est prévenu.
+ *
+ * Il s'adapte à ce que la personne a déjà : sans série, on montre l'écran vide
+ * et comment en ajouter une ; sans série en cours, pas d'« À suivre » à éclairer.
+ */
+export const seriesTourSteps = ({ hasSeries, hasWatching }: { hasSeries: boolean; hasWatching: boolean }): TourStep[] => [
+  step('series-intro', 'Feed', null, { bullets: 3 }),
+  step('series-switch', 'Feed', 'media-switch'),
+  ...(hasWatching
+    ? [step('series-upnext', 'Feed', 'series-upnext', { bullets: 3 }), step('series-place', 'Feed', 'series-actions')]
+    : []),
+  ...(hasSeries
+    ? [step('series-tabs', 'Feed', 'series-tabs'), step('series-states', 'Feed', 'series-states')]
+    : [step('series-empty', 'Feed', 'series-add', { bullets: 2 })]),
+  step('series-sheet', 'Feed', null, { bullets: 3 }),
+  step('series-alerts', 'Feed', 'notif-bell'),
+  step('series-outro', 'Feed', null),
+];
+
+/** Identifiant de « déjà vu » du parcours séries, stocké dans `seenTooltips`. */
+export const SERIES_TOUR_SEEN_ID = 'series_tour';
