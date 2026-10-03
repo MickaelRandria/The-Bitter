@@ -172,6 +172,10 @@ const SeriesDetailModal: React.FC<Props> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-5 space-y-6">
+          {/* La carte de la série d'abord : la note du public, épisode par épisode. */}
+          {series.tmdbId != null && tmdb && tmdb.seasons.length > 0 && (
+            <SeriesHeatmap tmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
+          )}
           {/* 3 — Les saisons. */}
           <section>
             <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mb-2">
@@ -429,9 +433,6 @@ const SeriesDetailModal: React.FC<Props> = ({
             )}
           </section>
 
-          {series.tmdbId != null && tmdb && tmdb.seasons.length > 0 && (
-            <SeriesHeatmap tmdbId={series.tmdbId} seasons={tmdb.seasons} progress={progress} />
-          )}
 
           {/* Ajoutée par erreur : le glissement sur la carte n'était pas le seul
               moyen qu'on cherche. Le bouton passe par la même suppression, avec
