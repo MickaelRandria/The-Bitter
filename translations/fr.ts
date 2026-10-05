@@ -1399,6 +1399,8 @@ export const fr: Record<string, string> = {
   'spaces.noticeControl': 'Tu gardes la main : décoche « Partager dans le fil » en notant un film pour le garder pour toi, ou quitte l’espace quand tu veux.',
   'spaces.noticeAck': 'J’ai compris',
   'avatar.title': 'Choisis ton avatar',
+  'notifications.markAllRead': 'Tout marquer lu',
+  'createProfile.language': 'Langue',
   'avatar.photoTitle': 'Ta photo',
   'avatar.pickPhoto': 'Choisir dans ma galerie',
   'avatar.changePhoto': 'Changer de photo',

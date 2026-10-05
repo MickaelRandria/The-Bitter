@@ -74,8 +74,17 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
   onOpenAccountSync,
   invite,
 }) => {
-  const { t } = useLanguage();
-  const [step, setStep] = useState<'landing' | 'select' | 'create'>('landing');
+  const { t, language, setLanguage, hasChosenLanguage, deviceLanguage } = useLanguage();
+  /**
+   * Toute première arrivée (aucun profil, aucune langue choisie) : on demande la
+   * langue avant tout le reste. Ceux qui ont déjà l'app ne la voient jamais.
+   */
+  const [step, setStep] = useState<'language' | 'landing' | 'select' | 'create'>(() =>
+    !hasChosenLanguage && existingProfiles.length === 0 ? 'language' : 'landing'
+  );
+  /** Les deux langues, celle du téléphone en premier. */
+  const languages = (deviceLanguage === 'en' ? ['en', 'fr'] : ['fr', 'en']) as ('fr' | 'en')[];
+  const languageNames = { fr: 'Français', en: 'English' };
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -160,7 +169,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
         style={{ animationDelay: '-5s' }}
       />
 
-      {step !== 'landing' && (
+      {step !== 'landing' && step !== 'language' && (
         <button
           onClick={goBack}
           className="absolute top-8 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-white/10 backdrop-blur-md rounded-full border border-sand dark:border-white/10 shadow-sm active:scale-95 transition-all group"
@@ -178,7 +187,44 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 relative z-10 w-full max-w-xl mx-auto">
-        {invite && step !== 'select' && (
+        {step === 'language' && (
+          <div className="w-full max-w-sm text-center animate-[slideUp_0.5s_ease-out]">
+            <div className="mx-auto mb-10 w-20 h-20 bg-charcoal text-white rounded-[1.75rem] rotate-3 flex items-center justify-center shadow-2xl">
+              <Film size={34} strokeWidth={1.4} />
+            </div>
+            <h1 className="text-[32px] leading-[1.05] font-black tracking-tighter text-charcoal dark:text-white">
+              Choisis ta langue
+              <span className="block text-stone-400 dark:text-stone-500">Choose your language</span>
+            </h1>
+            <div className="mt-10 space-y-3">
+              {languages.map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => {
+                    haptics.medium();
+                    setLanguage(lang);
+                    setStep('landing');
+                  }}
+                  lang={lang}
+                  className={`w-full h-16 px-6 rounded-[1.5rem] flex items-center justify-between font-black text-lg active:scale-[0.98] transition-transform ${
+                    lang === deviceLanguage
+                      ? 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal shadow-xl'
+                      : 'bg-white dark:bg-[#1a1a1a] border-2 border-sand dark:border-white/10 text-charcoal dark:text-white'
+                  }`}
+                >
+                  <span>{languageNames[lang]}</span>
+                  <span className={`text-xs font-black tracking-[0.2em] ${lang === deviceLanguage ? 'opacity-70' : 'text-stone-400'}`}>
+                    {lang.toUpperCase()}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-6 text-[11px] font-semibold text-stone-400 dark:text-stone-500">
+              Modifiable plus tard dans ton profil · You can change it later in your profile
+            </p>
+          </div>
+        )}
+        {invite && step !== 'select' && step !== 'language' && (
           <div className="w-full max-w-sm sm:max-w-md mb-8 mt-16 flex items-center gap-3 rounded-[1.75rem] bg-lime-400 text-charcoal p-3 pr-5 shadow-xl shadow-lime-400/20 animate-[slideUp_0.5s_ease-out]">
             {invite.posterUrl && (
               <img src={invite.posterUrl} alt="" className="w-11 h-16 rounded-xl object-cover shrink-0" />
@@ -392,13 +438,33 @@ const WelcomePage: React.FC<WelcomePageProps> = ({
               <div className="p-5 bg-forest text-white rounded-[1.5rem] shadow-xl shadow-forest/20">
                 <Sparkles size={32} />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="text-4xl font-black text-charcoal dark:text-white tracking-tighter leading-none">
                   {t('createProfile.title')}
                 </h2>
                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-2">
                   {t('createProfile.subtitle')}
                 </p>
+              </div>
+              <div role="group" aria-label={t('createProfile.language')} className="shrink-0 self-start flex p-1 rounded-full bg-sand dark:bg-white/10">
+                {(['fr', 'en'] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => {
+                      haptics.soft();
+                      setLanguage(lang);
+                    }}
+                    aria-pressed={language === lang}
+                    className={`h-9 w-11 rounded-full text-[11px] font-black transition-colors ${
+                      language === lang
+                        ? 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'
+                        : 'text-stone-500 dark:text-stone-400'
+                    }`}
+                  >
+                    {lang.toUpperCase()}
+                  </button>
+                ))}
               </div>
             </div>
 

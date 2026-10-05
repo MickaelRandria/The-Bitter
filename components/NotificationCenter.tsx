@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell, Loader2, X } from 'lucide-react';
 import { Movie } from '../types';
 import {
   AppNotification,
@@ -134,8 +134,16 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         setOpen(false);
       }
     };
+    // Échap ferme aussi, comme les autres fenêtres de l'app.
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   const socialUnread = social.filter((n) => !n.read_at).length;
@@ -252,14 +260,25 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
             <span className="font-bold text-stone-900 dark:text-stone-100 text-sm">
               Notifications
             </span>
-            {unreadCount > 0 && (
+            {/* Sur téléphone la fenêtre couvre l'écran : toucher à côté ne
+                suffisait pas toujours à la refermer, il fallait une croix. */}
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAll}
+                  className="h-9 px-2 text-xs text-stone-500 dark:text-stone-400 hover:text-forest dark:hover:text-bitter-lime transition-colors font-semibold"
+                >
+                  {t('notifications.markAllRead')}
+                </button>
+              )}
               <button
-                onClick={handleMarkAll}
-                className="text-xs text-stone-400 hover:text-bitter-lime transition-colors font-medium"
+                onClick={() => setOpen(false)}
+                aria-label={t('common.close')}
+                className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
               >
-                Tout marquer lu
+                <X size={18} strokeWidth={2.5} />
               </button>
-            )}
+            </div>
           </div>
 
           <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
