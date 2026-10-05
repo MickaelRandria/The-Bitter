@@ -138,8 +138,8 @@ import {
   verdictFromMovie,
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
-import SpaceBubbles from './components/SpaceBubbles';
-import { loadTodoCounts } from './services/spaceTodo';
+import SpaceTickets from './components/SpaceTickets';
+import { SpaceOverview, loadSpaceOverview } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
@@ -645,8 +645,8 @@ const App: React.FC = () => {
    * souvent que l'onglet des sorties, et n'a pas à dépendre de lui.
    */
   const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
-  /** Demandes en attente par espace, pour la pastille des bulles de l'accueil. */
-  const [spaceTodoCounts, setSpaceTodoCounts] = useState<Map<string, number>>(new Map());
+  /** Ce que montre le billet de chaque espace à l'accueil : demandes, affiches, membres. */
+  const [spaceOverview, setSpaceOverview] = useState<Map<string, SpaceOverview>>(new Map());
   /** Relit la liste des espaces : après en avoir créé, rejoint ou quitté un. */
   const [spacesReload, setSpacesReload] = useState(0);
   /** Incrémenté quand un lien `?join=` arrive, pour le traiter sans attendre. */
@@ -1414,7 +1414,7 @@ const App: React.FC = () => {
   }, [session?.user?.id, spacesReload]);
 
   /**
-   * Les pastilles des bulles : relues en revenant sur l'accueil, et après un
+   * Les billets des espaces : relus en revenant sur l'accueil, et après un
    * geste dans un espace. Les films perso passent par une ref : relire à
    * chaque note posée ne changerait presque jamais le chiffre.
    */
@@ -1424,8 +1424,8 @@ const App: React.FC = () => {
     const userId = session?.user?.id;
     if (!userId || bootstrapping || mySpaces.length === 0 || viewMode !== 'Feed') return;
     let cancelled = false;
-    loadTodoCounts(userId, myMoviesRef.current).then((counts) => {
-      if (!cancelled) setSpaceTodoCounts(counts);
+    loadSpaceOverview(userId, myMoviesRef.current).then((overview) => {
+      if (!cancelled) setSpaceOverview(overview);
     });
     return () => {
       cancelled = true;
@@ -3297,9 +3297,10 @@ const App: React.FC = () => {
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
               {session?.user?.email && mySpaces.length > 0 && (
-                <SpaceBubbles
+                <SpaceTickets
                   spaces={mySpaces}
-                  counts={spaceTodoCounts}
+                  overview={spaceOverview}
+                  currentUserId={session.user.id}
                   onOpen={(space) => {
                     setActiveSharedSpace(space);
                     setViewMode('SharedSpace');

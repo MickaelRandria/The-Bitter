@@ -48,7 +48,7 @@ import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, sub
 import SpaceTodoStack from './SpaceTodoStack';
 import SwipeRow from './SwipeRow';
 import { backdropKey, useBackdrops } from '../services/backdrops';
-import { monogramOf, tintOf } from './SpaceBubbles';
+import { monogramOf, tintOf } from '../utils/spaceLook';
 import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
 import { publishVerdictToSpaces } from '../services/spaceSync';
 import { formatRating, formatSlot } from '../supabase/functions/notify/messages.ts';
