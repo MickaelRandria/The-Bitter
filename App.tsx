@@ -83,6 +83,7 @@ import {
 } from './services/movieSync';
 import RewatchModal from './components/RewatchModal';
 import { MovieDisplayMode } from './utils/movieDisplay';
+import { getDisplayWeightedRating } from './utils/rating';
 import { resizeTmdbImage } from './utils/tmdbImage';
 import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
@@ -129,6 +130,14 @@ import {
   wishKey,
 } from './services/social';
 import { formatRating } from './supabase/functions/notify/messages.ts';
+import {
+  SpaceCopy,
+  findSpacesToUpdate,
+  joinSpaceNames,
+  publishVerdictToSpaces,
+  verdictFromMovie,
+} from './services/spaceSync';
+import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
@@ -647,6 +656,9 @@ const App: React.FC = () => {
   /** La question posée juste après un ajout ou une note, sous forme de barre. */
   const [socialNudge, setSocialNudge] = useState<{ kind: ShareKind; movie: Movie } | null>(null);
   const dismissSocialNudge = useCallback(() => setSocialNudge(null), []);
+  /** Note donnée depuis l'accueil sur un film qui est aussi dans un de mes espaces. */
+  const [spacePrompt, setSpacePrompt] = useState<{ movie: Movie; copies: SpaceCopy[] } | null>(null);
+  const dismissSpacePrompt = useCallback(() => setSpacePrompt(null), []);
   /** Incrémenté pour ouvrir la cloche : notification push touchée. */
   const [notifOpenSignal, setNotifOpenSignal] = useState(0);
   /** Film à ouvrir en arrivant dans un espace depuis une notification. */
@@ -1495,7 +1507,7 @@ const App: React.FC = () => {
     setSharedSpaceRefreshTrigger((n) => n + 1);
     if (rate && loaded.movie) {
       setSharedMovieToRate(loaded.movie);
-      setSharedRatingToEdit(null);
+      setSharedRatingToEdit(personalVerdictFor(loaded.movie));
       setIsModalOpen(true);
     }
   };
@@ -1660,8 +1672,18 @@ const App: React.FC = () => {
         }
       : null;
 
-  const handleSaveMovie = (data: MovieFormData, viewingContext?: ViewingContext) => {
+  /**
+   * `opts.target` désigne la fiche à modifier quand ce n'est pas celle ouverte
+   * dans le formulaire : un verdict donné dans un espace se pose sur la fiche
+   * personnelle du même film. `opts.toast` remplace le message habituel.
+   */
+  const handleSaveMovie = (
+    data: MovieFormData,
+    viewingContext?: ViewingContext,
+    opts: { target?: Movie | null; toast?: string } = {}
+  ) => {
     if (!activeProfileId) return;
+    const editing = opts.target !== undefined ? opts.target : editingMovie;
     const hasRatings =
       data.ratings &&
       (data.ratings.story > 0 ||
@@ -1683,8 +1705,8 @@ const App: React.FC = () => {
       hasRatings && !ratesWholeSeries ? 'watched' : data.status || 'watchlist';
     const newMovieId = crypto.randomUUID();
     const newMovieTimestamp = Date.now();
-    let finalMovie: Movie = editingMovie
-      ? { ...editingMovie, ...data, status: determinedStatus }
+    let finalMovie: Movie = editing
+      ? { ...editing, ...data, status: determinedStatus }
       : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
 
     // Le contexte de visionnage appartient à la séance : on le pose sur la première,
@@ -1695,7 +1717,7 @@ const App: React.FC = () => {
     const currentProfile = profiles.find((p) => p.id === activeProfileId);
     let newRole: string | undefined;
     if (currentProfile) {
-      const updatedMovies = editingMovie
+      const updatedMovies = editing
         ? currentProfile.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
         : [finalMovie, ...currentProfile.movies];
       /**
@@ -1746,7 +1768,7 @@ const App: React.FC = () => {
     setProfiles((prev) =>
       prev.map((p) => {
         if (p.id !== activeProfileId) return p;
-        let updatedMovies = editingMovie
+        let updatedMovies = editing
           ? p.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
           : [finalMovie, ...p.movies];
         return { ...p, movies: updatedMovies, ...(newRole ? { role: newRole } : {}) };
@@ -1757,29 +1779,64 @@ const App: React.FC = () => {
      * pour un ajout à la liste, « demander son avis ? » pour une première note.
      * Pas dans un espace (on y est déjà à plusieurs), pas pour une saison.
      */
-    const previous = editingMovie ? activeProfile?.movies.find((m) => m.id === editingMovie.id) : undefined;
+    const previous = editing ? activeProfile?.movies.find((m) => m.id === editing.id) : undefined;
     const firstVerdict =
       finalMovie.status === 'watched' &&
       hasRating(finalMovie) &&
       !(previous && previous.status === 'watched' && hasRating(previous));
     /* Une série qu'on commence file dans « À suivre » : on le dit, plutôt que
        « ajouté à ta watchlist », et on ne pose pas la question du partage. */
-    const startedSeries = !editingMovie && data.mediaType === 'tv' && data.tvProgress != null;
+    const startedSeries = !editing && data.mediaType === 'tv' && data.tvProgress != null;
     const nudgeKind: ShareKind | null =
       !newRole && !startedSeries && session?.user?.id && viewMode !== 'SharedSpace' && canShare(finalMovie)
-        ? !editingMovie && finalMovie.status === 'watchlist'
+        ? !editing && finalMovie.status === 'watchlist'
           ? 'watch'
           : firstVerdict
             ? 'verdict'
             : null
         : null;
+    /**
+     * Le film est peut-être aussi dans un de mes espaces, où le groupe attend
+     * mon verdict, ou en lit un ancien. La question passe alors avant « demander
+     * son avis ? » : le groupe existe déjà, il est le premier concerné.
+     */
+    const userId = session?.user?.id;
+    // Seulement quand le verdict change : retoucher la date d'un film ne doit
+    // pas reposer une question à laquelle on a déjà répondu non.
+    const verdictChanged =
+      firstVerdict ||
+      !previous ||
+      getDisplayWeightedRating(previous) !== getDisplayWeightedRating(finalMovie) ||
+      (previous.comment?.trim() || '') !== (finalMovie.comment?.trim() || '');
+    const checkSpaces =
+      !!userId &&
+      verdictChanged &&
+      viewMode !== 'SharedSpace' &&
+      mySpaces.length > 0 &&
+      finalMovie.status === 'watched' &&
+      hasRating(finalMovie) &&
+      canShare(finalMovie);
+    if (checkSpaces) {
+      setSpacePrompt(null);
+      void findSpacesToUpdate(finalMovie, userId).then((copies) => {
+        if (copies.length) {
+          setSocialNudge(null);
+          setSpacePrompt({ movie: finalMovie, copies });
+        } else if (nudgeKind) {
+          setSocialNudge({ kind: nudgeKind, movie: finalMovie });
+        }
+      });
+    }
     if (nudgeKind) {
-      setSocialNudge({ kind: nudgeKind, movie: finalMovie });
+      // Avec des espaces à vérifier, la barre attend leur réponse.
+      if (!checkSpaces) setSocialNudge({ kind: nudgeKind, movie: finalMovie });
+    } else if (opts.toast && !newRole) {
+      setToastMessage(opts.toast);
     } else {
       setToastMessage(
         newRole
           ? t('archetype.evolved', { title: newRole })
-          : editingMovie
+          : editing
             ? t('feed.movieEdited')
             : startedSeries
               ? t('feed.seriesStarted', { title: finalMovie.title })
@@ -1794,6 +1851,80 @@ const App: React.FC = () => {
     setIsModalOpen(false);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
+  };
+
+  /** La fiche personnelle d'une œuvre entière, si elle est dans la collection. */
+  const findPersonalWork = (tmdbId: number | undefined, mediaType: string | undefined): Movie | undefined =>
+    tmdbId == null
+      ? undefined
+      : (activeProfile?.movies ?? []).find(
+          (m) =>
+            m.seasonNumber == null &&
+            m.tmdbId === tmdbId &&
+            (m.mediaType ?? 'movie') === (mediaType === 'tv' ? 'tv' : 'movie')
+        );
+
+  /**
+   * Mon verdict personnel sur un film d'espace, pour préremplir la grille quand
+   * je n'y ai pas encore noté le film : publier ce que j'en pense déjà ne doit
+   * pas obliger à tout ressaisir.
+   */
+  const personalVerdictFor = (movie: { tmdb_id?: number; media_type?: string }) => {
+    const mine = findPersonalWork(movie.tmdb_id, movie.media_type);
+    return mine && mine.status === 'watched' && hasRating(mine) ? verdictFromMovie(mine) : null;
+  };
+
+  /**
+   * Ce qu'un geste fait dans un espace laisse dans la collection personnelle.
+   *
+   * Le formulaire appelait `handleSaveMovie` comme pour un ajout : un film déjà
+   * dans la collection y entrait une seconde fois. On pose donc le verdict sur
+   * la fiche existante, sans toucher au reste (séances, abonnement, progression
+   * d'une série). Une simple proposition ne change rien à un film déjà là.
+   */
+  const handleSaveFromSpace = (data: MovieFormData, viewingContext?: ViewingContext) => {
+    const existing = findPersonalWork(data.tmdbId, data.mediaType);
+    const verdict = data.status === 'watched' && hasRating(data);
+    const toast = verdict && activeSharedSpace ? t('spaceSync.savedBoth', { space: activeSharedSpace.name }) : undefined;
+    if (!existing) {
+      handleSaveMovie(data, viewingContext, { target: null, toast });
+      return;
+    }
+    if (!verdict) return;
+    const alreadySeen = existing.status === 'watched' && existing.dateWatched != null;
+    handleSaveMovie(
+      {
+        ...existing,
+        // Une série notée en groupe ne se termine pas pour autant : c'est sa
+        // progression qui le dit (voir `handleSaveMovie`).
+        status: isSeries(existing) ? existing.status : 'watched',
+        ratings: data.ratings,
+        adaptiveRating: data.adaptiveRating,
+        qualityMetrics: data.qualityMetrics,
+        comment: data.comment?.trim() ? data.comment : existing.comment,
+        // Corriger son verdict n'est pas revoir le film : la date reste celle
+        // de la séance déjà enregistrée.
+        dateWatched: alreadySeen ? existing.dateWatched : data.dateWatched,
+      },
+      alreadySeen ? undefined : viewingContext,
+      { target: existing, toast }
+    );
+  };
+
+  /** « Oui » à la question de la barre : la note part dans les espaces. */
+  const confirmSpacePrompt = async () => {
+    const userId = session?.user?.id;
+    if (!spacePrompt || !userId) return;
+    const done = await publishVerdictToSpaces(spacePrompt.movie, userId, spacePrompt.copies);
+    setSpacePrompt(null);
+    if (done.length) {
+      haptics.success();
+      setToastMessage(t('spaceSync.published', { spaces: joinSpaceNames(done, t('spaceSync.and')) }));
+      setSharedSpaceRefreshTrigger((n) => n + 1);
+    } else {
+      haptics.error();
+      setToastMessage(t('spaceSync.failed'));
+    }
   };
 
   /**
@@ -3008,7 +3139,7 @@ const App: React.FC = () => {
               onAddMovie={() => setIsModalOpen(true)}
               onRateMovie={(movie, existingRating) => {
                 setSharedMovieToRate(movie);
-                setSharedRatingToEdit(existingRating);
+                setSharedRatingToEdit(existingRating ?? personalVerdictFor(movie));
                 setIsModalOpen(true);
               }}
               myMovies={activeProfile?.movies ?? []}
@@ -3818,7 +3949,15 @@ const App: React.FC = () => {
           onToast={setToastMessage}
         />
       )}
-      {socialNudge && !shareSheet && (
+      {spacePrompt && !shareSheet && (
+        <SpaceVerdictPrompt
+          title={spacePrompt.movie.title}
+          copies={spacePrompt.copies}
+          onConfirm={confirmSpacePrompt}
+          onDismiss={dismissSpacePrompt}
+        />
+      )}
+      {socialNudge && !shareSheet && !spacePrompt && (
         <SocialNudge
           kind={socialNudge.kind}
           title={socialNudge.movie.title}
@@ -3901,7 +4040,7 @@ const App: React.FC = () => {
               setSharedMovieToRate(null);
               setSharedRatingToEdit(null);
             }}
-            onSave={handleSaveMovie}
+            onSave={viewMode === 'SharedSpace' ? handleSaveFromSpace : handleSaveMovie}
             /* Le brouillon de saison ne fait que préremplir : c'est
                `editingMovie` qui décide si l'on modifie ou si l'on ajoute. */
             initialData={editingMovie ?? seasonDraft}

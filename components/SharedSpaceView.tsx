@@ -45,7 +45,8 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import PlanPanel from './PlanPanel';
 import { WatchPlan, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
-import { formatSlot } from '../supabase/functions/notify/messages.ts';
+import { formatRating, formatSlot } from '../supabase/functions/notify/messages.ts';
+import { getDisplayWeightedRating, hasVerdict } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FavoriteCinema, Movie } from '../types';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
@@ -516,6 +517,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
 
 
+
+  /**
+   * Mes verdicts personnels, par œuvre entière. Le bouton de notation d'un film
+   * que j'ai déjà noté seul propose de publier cette note, préremplie, plutôt
+   * que de la redemander.
+   */
+  const personalVerdicts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of myMovies) {
+      if (m.tmdbId == null || m.seasonNumber != null || m.status !== 'watched' || !hasVerdict(m)) continue;
+      map.set(`${m.mediaType === 'tv' ? 'tv' : 'movie'}:${m.tmdbId}`, getDisplayWeightedRating(m));
+    }
+    return map;
+  }, [myMovies]);
 
   const calculateAverageRating = (ratings: MovieRating[]) => {
     if (ratings.length === 0) return null;
@@ -1002,6 +1017,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
               const avgRating = calculateAverageRating(activeRatings);
               const myRating = ratings.find((r) => r.profile_id === currentUserId);
+              /** Ma note personnelle sur ce film, à publier ici d'un geste si je ne l'ai pas encore fait. */
+              const mine = myRating ? undefined : personalVerdicts.get(`${movie.media_type === 'tv' ? 'tv' : 'movie'}:${movie.tmdb_id}`);
+              const rateLabel = (fallback: string) =>
+                myRating
+                  ? t('shared.editVerdict')
+                  : mine != null
+                    ? t('shared.publishMine', { rating: formatRating(mine) ?? '' })
+                    : fallback;
               const plan = currentPlanFor(plans, movie.id);
               const planSlot = chosenSlotOf(plan);
               /**
@@ -1318,7 +1341,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             }}
                             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400' : 'bg-charcoal dark:bg-forest text-white shadow-xl dark:shadow-none'}`}
                           >
-                            {myRating ? t('shared.editVerdict') : t('shared.submitVerdict')}
+                            {rateLabel(t('shared.submitVerdict'))}
                           </button>
                         </>
                       ) : (
@@ -1404,7 +1427,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               className="w-full bg-bitter-lime text-charcoal py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
                             >
                               <Star size={18} strokeWidth={2.5} fill="currentColor" />
-                              {myRating ? t('shared.editVerdict') : t('shared.seenAndRate')}
+                              {rateLabel(t('shared.seenAndRate'))}
                             </button>
 
                             {/* Conservé pour le cas où le groupe a vu le film

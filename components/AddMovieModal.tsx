@@ -92,7 +92,22 @@ interface AddMovieModalProps {
    * ici la ligne `shared_movies` existe déjà, il ne faut surtout pas la recréer,
    * seulement publier le verdict dessus.
    */
-  sharedMovieToRate?: { id: string; title: string; director?: string; year?: number; genre?: string; poster_url?: string; tmdb_id?: number } | null;
+  sharedMovieToRate?: {
+    id: string;
+    title: string;
+    director?: string;
+    year?: number;
+    genre?: string;
+    poster_url?: string;
+    tmdb_id?: number;
+    status?: 'watched' | 'watchlist';
+    media_type?: 'movie' | 'tv';
+    synopsis?: string;
+    runtime?: number;
+    actors?: string;
+    tmdb_rating?: number;
+    number_of_seasons?: number;
+  } | null;
   /** Verdict déjà donné sur ce film, à restaurer dans la grille. */
   sharedRatingToEdit?: { story: number; visuals: number; acting: number; sound: number; review?: string; adaptive_rating?: AdaptiveRatingData | null } | null;
   /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
@@ -423,6 +438,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       genre: sharedMovieToRate.genre ?? '',
       posterUrl: sharedMovieToRate.poster_url ?? undefined,
       tmdbId: sharedMovieToRate.tmdb_id ?? undefined,
+      // Le verdict rejoint aussi la collection personnelle : il faut que la
+      // fiche y arrive complète, et sous le bon type. Sans `mediaType`, une
+      // série notée dans l'espace serait rangée parmi les films.
+      mediaType: sharedMovieToRate.media_type === 'tv' ? 'tv' : 'movie',
+      review: sharedMovieToRate.synopsis ?? prev.review,
+      runtime: sharedMovieToRate.runtime ?? prev.runtime,
+      actors: sharedMovieToRate.actors ?? prev.actors,
+      tmdbRating: sharedMovieToRate.tmdb_rating ?? prev.tmdbRating,
+      numberOfSeasons: sharedMovieToRate.number_of_seasons ?? prev.numberOfSeasons,
       comment: sharedRatingToEdit?.review ?? '',
     }));
 
@@ -718,6 +742,16 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       finalAdaptiveRating = undefined;
     }
     const finalDateWatched = isWatchlist ? undefined : new Date(selectedDate).getTime();
+    /** Ce que reçoit la collection personnelle, d'où que vienne le geste. */
+    const personalEntry: MovieFormData = {
+      ...formData,
+      status: mode === 'watching' ? 'watchlist' : mode,
+      ratings: finalRatings,
+      dateWatched: finalDateWatched,
+      qualityMetrics: finalQualityMetrics,
+      adaptiveRating: finalAdaptiveRating,
+      shareToFeed,
+    };
     // Film déjà dans l'espace : on ne touche pas à `shared_movies`, on publie
     // seulement le verdict. Le recréer produirait une seconde ligne pour le même film.
     if (sharedMovieToRate && currentUserId) {
@@ -761,6 +795,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             console.warn('[Espace] Bascule en vu après le verdict :', moved.error);
           }
         }
+
+        // Noter dans un espace, c'est noter : le verdict rejoint l'accueil. App
+        // le pose sur la fiche personnelle si le film y est déjà, plutôt que de
+        // créer un doublon.
+        onSave(personalEntry, viewingContext);
 
         haptics.success();
         onSharedMovieAdded?.();
@@ -829,18 +868,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // terminait par un `return` sec : un film vu en groupe ne comptait ni dans les
         // statistiques, ni dans les économies d'abonnement, et n'existait nulle part
         // ailleurs que dans l'espace.
-        onSave(
-          {
-            ...formData,
-            status: mode,
-            ratings: finalRatings,
-            dateWatched: finalDateWatched,
-            qualityMetrics: finalQualityMetrics,
-            adaptiveRating: finalAdaptiveRating,
-            shareToFeed,
-          },
-          isWatchlist ? undefined : viewingContext
-        );
+        onSave(personalEntry, isWatchlist ? undefined : viewingContext);
 
         haptics.success();
         onSharedMovieAdded?.();
