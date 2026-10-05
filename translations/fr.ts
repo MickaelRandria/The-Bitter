@@ -1785,6 +1785,7 @@ export const fr: Record<string, string> = {
   'spaces.youAlone': 'Juste toi pour l’instant',
   'spaces.toWatchTogether': 'À voir ensemble',
   'spaces.byWish': 'par envie',
+  'spaces.swipeRowHint': 'Glisse un film : à droite partant, à gauche pas envie.',
   'spaces.seenTogether': 'Vus ensemble',
   'spaces.filmsCount': '{count} films',
   'spaces.everyoneKeen': 'tous partants',

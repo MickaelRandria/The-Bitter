@@ -1779,6 +1779,7 @@ export const en: Record<string, string> = {
   'spaces.youAlone': 'Just you for now',
   'spaces.toWatchTogether': 'To watch together',
   'spaces.byWish': 'by interest',
+  'spaces.swipeRowHint': 'Swipe a film: right if you’re in, left if not.',
   'spaces.seenTogether': 'Seen together',
   'spaces.filmsCount': '{count} films',
   'spaces.everyoneKeen': 'all in',

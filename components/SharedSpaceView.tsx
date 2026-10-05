@@ -46,6 +46,7 @@ import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import PlanPanel from './PlanPanel';
 import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
 import SpaceTodoStack from './SpaceTodoStack';
+import SwipeRow from './SwipeRow';
 import { monogramOf, tintOf } from './SpaceBubbles';
 import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
 import { publishVerdictToSpaces } from '../services/spaceSync';
@@ -809,6 +810,37 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         ? t('shared.publishMine', { rating: formatRating(mine) ?? '' })
         : fallback;
 
+  /**
+   * Glisser un film de la liste : répondre, ou changer d'avis. Redonner la même
+   * réponse ne fait rien (`setMovieVote` l'annulerait). Le vote s'affiche tout
+   * de suite, la relecture confirme.
+   */
+  const swipeVote = async (movieId: string, interested: boolean) => {
+    const current = votes.find((v) => v.movie_id === movieId && v.profile_id === currentUserId);
+    if (current?.interested === interested) return;
+    haptics.medium();
+    setActionError(null);
+    setVotes((prev) => [
+      ...prev.filter((v) => !(v.movie_id === movieId && v.profile_id === currentUserId)),
+      {
+        id: current?.id ?? `pending-${movieId}`,
+        movie_id: movieId,
+        profile_id: currentUserId,
+        interested,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    const result = await setMovieVote(movieId, currentUserId, interested);
+    if (!result.ok) {
+      haptics.error();
+      setActionError(result.error ?? t('shared.voteFailed'));
+    } else {
+      onToast?.(interested ? t('todo.answeredYes') : t('social.answeredNo'));
+    }
+    const refreshed = await getSpaceMovieVotes(space.id);
+    if (!refreshed.error) setVotes(refreshed.data);
+  };
+
   /** « On se le fait ? » : la séance se propose dans le panneau du film, qu'on ouvre. */
   const openPlan = (movieId: string) => {
     haptics.medium();
@@ -983,7 +1015,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto w-full pb-32 animate-[fadeIn_0.3s_ease-out]">
+    <div className="max-w-2xl mx-auto w-full pb-48 animate-[fadeIn_0.3s_ease-out]">
       <style>{`
         .slider::-webkit-slider-thumb {
           appearance: none;
@@ -1179,6 +1211,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   </h2>
                   <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">{t('spaces.byWish')}</span>
                 </div>
+                <p className="px-1 -mt-1.5 text-[11px] font-semibold text-stone-500 dark:text-stone-500">
+                  {t('spaces.swipeRowHint')}
+                </p>
                 <div className="space-y-2.5">
                   {watchlistMovies.map((movie) => {
                     const ctx = watchContext(movie);
@@ -1189,6 +1224,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                         id={`space-movie-${movie.id}`}
                         className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[1.4rem] overflow-hidden"
                       >
+                        <SwipeRow
+                          rightLabel={t('todo.keen')}
+                          leftLabel={t('todo.notKeen')}
+                          onSwipeRight={() => void swipeVote(movie.id, true)}
+                          onSwipeLeft={() => void swipeVote(movie.id, false)}
+                        >
                         <div className="flex items-center gap-3 p-3">
                           <button
                             onClick={() => handleExpandMovie(movie.id)}
@@ -1218,6 +1259,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                           </button>
                           {ctx.action}
                         </div>
+                        </SwipeRow>
 
                         {isExpanded && (
                           <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-4">
