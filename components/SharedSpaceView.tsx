@@ -47,6 +47,7 @@ import PlanPanel from './PlanPanel';
 import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
 import SpaceTodoStack from './SpaceTodoStack';
 import SwipeRow from './SwipeRow';
+import { backdropKey, useBackdrops } from '../services/backdrops';
 import { monogramOf, tintOf } from './SpaceBubbles';
 import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
 import { publishVerdictToSpaces } from '../services/spaceSync';
@@ -727,6 +728,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     [todo]
   );
 
+  /** Images de fond TMDB des films de l'espace (voir `services/backdrops`). */
+  const backdrops = useBackdrops(movies.map((m) => ({ tmdbId: m.tmdb_id, mediaType: m.media_type })));
+
   const memberColors = useMemo(() => {
     const colors: Record<string, string> = {};
     members
@@ -914,9 +918,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           hidden: hideOthers && !isMe,
         };
       });
-    const average = activeRatings.length
-      ? formatRating(activeRatings.reduce((sum, r) => sum + ratingValue(r), 0) / activeRatings.length)
+    const averageValue = activeRatings.length
+      ? activeRatings.reduce((sum, r) => sum + ratingValue(r), 0) / activeRatings.length
       : null;
+    const average = averageValue == null ? null : formatRating(averageValue);
     return {
       ratings,
       activeRatings,
@@ -925,69 +930,473 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       hideOthers,
       scores,
       average,
+      averageValue,
       criteriaAvg: calculateCriteriaAverages(activeRatings),
       isConsensus: members.length > 1 && activeRatings.length >= members.length,
     };
   };
 
-  /** Le carrousel « ce que dit le groupe », en tête de « Vus ensemble ». */
-  const groupCards: {
-    key: string;
-    kicker: string;
-    title: string;
-    value: string;
-    note: string;
-    className: string;
-    kickerClass: string;
-    noteClass: string;
-  }[] = [];
-  if (groupStats) {
-    if (groupStats.meaningful) {
-      groupCards.push({
-        key: 'consensus',
-        kicker: t('group.consensus'),
-        title: groupStats.consensus.movie?.title ?? '',
-        value: formatRating(groupStats.consensus.average) ?? '',
-        note: t('group.spread', { value: formatRating(groupStats.consensus.spread) ?? '0' }),
-        className: 'bg-charcoal text-white dark:bg-white dark:text-charcoal',
-        kickerClass: 'text-bitter-lime dark:text-forest',
-        noteClass: 'text-stone-300 dark:text-stone-600',
-      });
-      groupCards.push({
-        key: 'divisive',
-        kicker: t('group.divisive'),
-        title: groupStats.divisive.movie?.title ?? '',
-        value: `${formatRating(groupStats.divisive.low)}→${formatRating(groupStats.divisive.high)}`,
-        note: t('group.spread', { value: formatRating(groupStats.divisive.spread) ?? '0' }),
-        className: 'bg-forest text-white',
-        kickerClass: 'text-bitter-lime',
-        noteClass: 'text-white/80',
-      });
-    } else {
-      groupCards.push({
-        key: 'average',
-        kicker: t('group.groupAverage'),
-        title: t('spaces.judgedCount', { count: String(groupStats.judged) }),
-        value: formatRating(groupStats.average) ?? '',
-        note: '',
-        className: 'bg-charcoal text-white dark:bg-white dark:text-charcoal',
-        kickerClass: 'text-bitter-lime dark:text-forest',
-        noteClass: 'text-stone-300',
-      });
-    }
-    if (groupStats.companion) {
-      groupCards.push({
-        key: 'companion',
-        kicker: t('group.companion'),
-        title: groupStats.companion.name,
-        value: formatRating(groupStats.companion.gap) ?? '0',
-        note: t('spaces.companionNote', { count: String(groupStats.companion.shared) }),
-        className: 'bg-sand text-charcoal dark:bg-[#1a1a1a] dark:text-white',
-        kickerClass: 'text-forest dark:text-lime-400',
-        noteClass: 'text-stone-500 dark:text-stone-400',
-      });
-    }
-  }
+  /** L'image d'un bandeau : le fond TMDB, sinon l'affiche recadrée. */
+  const imageOf = (movie: SharedMovie): { src?: string; poster: boolean } => {
+    const backdrop = backdrops.get(backdropKey({ tmdbId: movie.tmdb_id, mediaType: movie.media_type }));
+    if (backdrop) return { src: backdrop, poster: false };
+    return { src: resizeTmdbImage(movie.poster_url, 'w500'), poster: true };
+  };
+
+  /** Tête d'affiche : seulement si au moins deux membres le veulent, sinon « N°1 » ne veut rien dire. */
+  const isHeadliner = (movie: SharedMovie) => {
+    const ctx = watchContext(movie);
+    return ctx.everyone || ctx.keenIds.length >= 2;
+  };
+
+  /** Un film de « À voir ensemble » : en tête d'affiche ou en bandeau, toujours à glisser. */
+  const renderWatchItem = (movie: SharedMovie, headliner: boolean) => {
+    const ctx = watchContext(movie);
+    const isExpanded = expandedMovie === movie.id;
+    const image = imageOf(movie);
+    const proposer =
+      movie.added_by === currentUserId
+        ? t('spaces.proposedByYou')
+        : t('todo.proposedBy', { name: memberNames[movie.added_by ?? ''] || t('shared.member') });
+    // « tous partants » est déjà dit sous le titre : le surtitre n'a pas à le répéter.
+    const kicker = headliner ? t('spaces.topWish') : proposer;
+    const cta = ctx.planSlot ? null : ctx.everyone && !ctx.plan ? (
+      <button
+        onClick={() => openPlan(movie.id)}
+        className="h-11 px-4 rounded-full bg-bitter-lime text-charcoal text-xs font-black whitespace-nowrap active:scale-95 transition-transform"
+      >
+        {t('spaces.letsGo')}
+      </button>
+    ) : !ctx.myVote ? (
+      <button
+        onClick={(e) => handleVote(e, movie.id, true)}
+        className="h-11 px-4 rounded-full border-[1.5px] border-white/80 text-white text-xs font-black whitespace-nowrap active:scale-95 transition-transform"
+      >
+        {t('spaces.keenQ')}
+      </button>
+    ) : null;
+    return (
+      <div
+        key={movie.id}
+        id={`space-movie-${movie.id}`}
+        className="rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)]"
+      >
+        <SwipeRow
+          rightLabel={t('todo.keen')}
+          leftLabel={t('todo.notKeen')}
+          onSwipeRight={() => void swipeVote(movie.id, true)}
+          onSwipeLeft={() => void swipeVote(movie.id, false)}
+          surfaceClassName="bg-charcoal"
+        >
+          <div className={`relative text-white ${headliner ? 'h-[280px]' : 'h-[136px]'}`}>
+            {image.src && (
+              <img
+                src={image.src}
+                alt=""
+                draggable={false}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={image.poster ? { objectPosition: 'center 22%' } : undefined}
+                loading="lazy"
+                decoding="async"
+                onError={hideBroken}
+              />
+            )}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: headliner
+                  ? 'linear-gradient(180deg, rgba(12,12,12,0) 25%, rgba(12,12,12,0.92) 100%)'
+                  : 'linear-gradient(90deg, rgba(12,12,12,0.9) 0%, rgba(12,12,12,0.55) 58%, rgba(12,12,12,0.15) 100%)',
+              }}
+            />
+            {ctx.myVote?.interested && !headliner && (
+              <span className="absolute left-0 top-[18px] bottom-[18px] w-1 rounded-r bg-bitter-lime" />
+            )}
+            <button
+              onClick={() => handleExpandMovie(movie.id)}
+              aria-expanded={isExpanded}
+              aria-label={t('spaces.openFilm', { title: movie.title })}
+              className="absolute inset-0"
+            />
+            <div
+              className={`pointer-events-none absolute left-5 right-4 bottom-4 top-[18px] flex flex-col ${headliner ? 'justify-end' : 'justify-between'}`}
+            >
+              <div>
+                <p
+                  className={`text-[10px] font-black uppercase tracking-[0.18em] truncate ${headliner || ctx.everyone ? 'text-bitter-lime' : 'text-stone-200'}`}
+                >
+                  {kicker}
+                </p>
+                <p
+                  className={`mt-1.5 font-black tracking-[-0.05em] leading-none line-clamp-2 ${headliner ? 'text-[34px]' : 'text-[24px]'}`}
+                >
+                  {movie.title}
+                </p>
+              </div>
+              <div className={`flex items-center justify-between gap-3 ${headliner ? 'mt-3.5' : ''}`}>
+                <span className="flex items-center gap-2 min-w-0">
+                  {ctx.keenIds.length > 0 && (
+                    <span className="flex shrink-0">
+                      {members
+                        .filter((m) => ctx.keenIds.includes(m.profile_id))
+                        .map((member, i) => (
+                          <MemberDot
+                            key={member.id}
+                            member={member}
+                            color={memberColors[member.profile_id]}
+                            isMe={member.profile_id === currentUserId}
+                            className={`w-6 h-6 text-[10px] border-2 border-charcoal ${i ? '-ml-2' : ''} ${member.profile_id === currentUserId ? '!bg-bitter-lime !text-charcoal' : ''}`}
+                          />
+                        ))}
+                    </span>
+                  )}
+                  <span className="truncate text-[11px] font-extrabold text-stone-200">{ctx.status}</span>
+                </span>
+                {cta && <span className="pointer-events-auto shrink-0">{cta}</span>}
+              </div>
+            </div>
+          </div>
+        </SwipeRow>
+        {isExpanded && <div className="bg-cream dark:bg-[#0c0c0c]">{renderWatchDetail(movie, ctx)}</div>}
+      </div>
+    );
+  };
+
+  /** Un film vu, en bandeau : son rang ou rien, et à droite la note ou « Noter ». */
+  const renderSeenBand = (
+    movie: SharedMovie,
+    ctx: ReturnType<typeof seenContext>,
+    kicker: string | null,
+    right: React.ReactNode
+  ) => {
+    const isExpanded = expandedMovie === movie.id;
+    const image = imageOf(movie);
+    return (
+      <div
+        key={movie.id}
+        id={`space-movie-${movie.id}`}
+        className="rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)]"
+      >
+        <div className="relative h-[124px] text-white">
+          {image.src && (
+            <img
+              src={image.src}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              style={image.poster ? { objectPosition: 'center 22%' } : undefined}
+              loading="lazy"
+              decoding="async"
+              onError={hideBroken}
+            />
+          )}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(90deg, rgba(12,12,12,0.92) 0%, rgba(12,12,12,0.62) 60%, rgba(12,12,12,0.35) 100%)' }}
+          />
+          <button
+            onClick={() => handleExpandMovie(movie.id)}
+            aria-expanded={isExpanded}
+            aria-label={t('spaces.openFilm', { title: movie.title })}
+            className="absolute inset-0"
+          />
+          <div className="pointer-events-none absolute inset-0 pl-5 pr-4 py-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              {kicker && (
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-300">{kicker}</p>
+              )}
+              <p className="mt-1 text-[20px] font-black tracking-[-0.04em] leading-[1.05] line-clamp-2">{movie.title}</p>
+              <p className="mt-1.5 text-[11px] font-bold text-stone-200 truncate">
+                {ctx.scores.length === 0
+                  ? t('spaces.noVerdictYet')
+                  : ctx.scores.map((sc, i) => (
+                      <React.Fragment key={sc.id}>
+                        {i > 0 && ' · '}
+                        {sc.name}{' '}
+                        <span className={sc.hidden ? 'blur-[4px] select-none' : undefined}>{sc.hidden ? '0,0' : sc.value}</span>
+                      </React.Fragment>
+                    ))}
+              </p>
+            </div>
+            <span className="pointer-events-auto">{right}</span>
+          </div>
+        </div>
+        {isExpanded && <div className="bg-cream dark:bg-[#0c0c0c]">{renderSeenDetail(movie, ctx)}</div>}
+      </div>
+    );
+  };
+
+  const renderWatchDetail = (movie: SharedMovie, ctx: ReturnType<typeof watchContext>) => (
+      <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-4">
+        <div id={`space-plan-${movie.id}`}>
+          <PlanPanel
+            plan={ctx.plan}
+            sharedMovieId={movie.id}
+            title={movie.title}
+            currentUserId={currentUserId}
+            names={memberNames}
+            favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
+            onChanged={() => {
+              reloadPlans();
+              loadData(true);
+            }}
+            onToast={onToast}
+          />
+        </div>
+        {/* Avant de demander un avis, dire à qui le film
+            s'adresse. Un titre posé sans un mot ne dit pas
+            s'il nous concerne, et dans le doute on passe. */}
+        <SpacePitchPanel
+          film={{
+            title: movie.title,
+            year: movie.year ?? undefined,
+            // `synopsis`, et non `review` : c'est le nom de la
+            // colonne dans shared_movies.
+            overview: movie.synopsis ?? undefined,
+          }}
+          members={memberTastes}
+        />
+
+        {/* Deux réponses possibles. Réappuyer sur son propre
+            choix l'annule. */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={(e) => handleVote(e, movie.id, true)}
+            aria-pressed={ctx.myVote?.interested === true}
+            className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
+              ctx.myVote?.interested === true
+                ? 'bg-forest border-forest text-white'
+                : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            <UserCheck size={16} />
+            <span className="font-black text-[11px]">{t('todo.keen')}</span>
+          </button>
+          <button
+            onClick={(e) => handleVote(e, movie.id, false)}
+            aria-pressed={ctx.myVote?.interested === false}
+            className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
+              ctx.myVote?.interested === false
+                ? 'bg-stone-500 border-stone-500 dark:bg-stone-700 dark:border-stone-700 text-white'
+                : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            <UserMinus size={16} />
+            <span className="font-black text-[11px]">{t('todo.notKeen')}</span>
+          </button>
+        </div>
+
+        {/* Noter fait passer le film dans « Vus ensemble » : la
+            bascule suit la note. */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            haptics.medium();
+            onRateMovie(movie, ctx.myRating ?? null);
+          }}
+          className="w-full h-12 bg-bitter-lime text-charcoal rounded-2xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all"
+        >
+          <Star size={16} strokeWidth={2.5} fill="currentColor" />
+          {rateLabel(ctx.myRating, ctx.mine, t('shared.seenAndRate'))}
+        </button>
+
+        {/* Pour un film vu ensemble et noté plus tard. */}
+        <button
+          onClick={(e) => handleMarkAsWatched(e, movie.id)}
+          className="w-full h-11 rounded-2xl font-black text-[11px] text-stone-500 dark:text-stone-400 active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <Ticket size={13} strokeWidth={2.5} />
+          {t('shared.markWatchedOnly')}
+        </button>
+
+        {movie.added_by === currentUserId && (
+          <button
+            onClick={(e) => handleDeleteMovie(e, movie.id)}
+            className="w-full h-11 rounded-2xl text-stone-500 dark:text-stone-500 font-black text-[11px] flex items-center justify-center gap-2 active:scale-95 transition-all hover:text-orange-500"
+          >
+            <Trash2 size={13} />
+            {t('shared.removeSuggestion')}
+          </button>
+        )}
+      </div>
+  );
+
+  const renderSeenDetail = (movie: SharedMovie, ctx: ReturnType<typeof seenContext>) => (
+      <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-5">
+        {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
+          <div className="space-y-2">
+            {movie.synopsis && (
+              <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-500 dark:text-stone-500">
+              {movie.runtime && <span>{movie.runtime} min</span>}
+              {movie.genres && movie.genres.length > 0 && <span>{movie.genres.join(', ')}</span>}
+              {publicRatingOf(movie) && (
+                <PublicRatingBadge
+                  rating={publicRatingOf(movie)}
+                  className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
+                />
+              )}
+            </div>
+            {movie.actors && (
+              <p className="text-[10px] text-stone-500 dark:text-stone-500">Avec {movie.actors}</p>
+            )}
+          </div>
+        )}
+
+        {ctx.isConsensus && (
+          <div
+            className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 border-2 border-charcoal/5"
+            style={{ animation: 'celebrate 2s infinite ease-in-out' }}
+          >
+            <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
+            <span className="text-xs font-black uppercase tracking-widest text-charcoal">
+              {t('shared.completeVerdict')}
+            </span>
+            <PartyPopper size={20} className="text-charcoal scale-x-[-1]" strokeWidth={2.5} />
+          </div>
+        )}
+
+        {ctx.criteriaAvg && !ctx.hideOthers && (
+          <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10">
+            <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
+              <BarChart3 size={16} />
+              <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">{t('shared.groupAvg')}</h4>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { l: t('criteria.story'), v: ctx.criteriaAvg.story },
+                { l: t('criteria.visuals'), v: ctx.criteriaAvg.visuals },
+                { l: t('criteria.acting'), v: ctx.criteriaAvg.acting },
+                { l: t('criteria.sound'), v: ctx.criteriaAvg.sound },
+              ].map((c) => (
+                <div key={c.l} className="space-y-1">
+                  <div className="flex justify-between text-[9px] font-bold text-stone-500 dark:text-stone-500 uppercase">
+                    <span>{c.l}</span>
+                    <span>{c.v.toFixed(1)}</span>
+                  </div>
+                  <div className="h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-charcoal dark:bg-white" style={{ width: `${c.v * 10}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
+            {t('shared.verdictDetail')} ({ctx.activeRatings.length}/{members.length})
+          </h4>
+          {movie.added_by === currentUserId && (
+            <button
+              onClick={(e) => handleDeleteMovie(e, movie.id)}
+              aria-label={t('shared.removeSuggestion')}
+              className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+
+        {ctx.hideOthers && ctx.ratings.length > 0 && (
+          <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
+            {t('spaces.rateToReveal')}
+          </p>
+        )}
+        {ctx.ratings.length > 0 ? (
+          <div className="grid gap-3">
+            {ctx.ratings.map((rating) => {
+              const isMe = rating.profile_id === currentUserId;
+              const hidden = ctx.hideOthers && !isMe;
+              return (
+                <div
+                  key={rating.id}
+                  className={`bg-white dark:bg-[#252525] rounded-2xl p-4 border ${isMe ? 'border-forest/20 dark:border-forest/40 ring-2 ring-forest/5' : 'border-stone-100 dark:border-white/5'}`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
+                        style={{ background: isMe ? '#1A1A1A' : memberColors[rating.profile_id] ?? '#78716C' }}
+                      >
+                        {(rating.profile?.first_name || '?')[0].toUpperCase()}
+                      </span>
+                      <span className="font-bold text-sm text-charcoal dark:text-white">
+                        {rating.profile?.first_name || t('shared.member')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isMe && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            haptics.soft();
+                            setReporting({
+                              contentType: 'review',
+                              contentId: rating.id,
+                              reportedUserId: rating.profile_id,
+                              reportedName: rating.profile?.first_name || t('shared.member'),
+                              snapshot: rating.review,
+                            });
+                          }}
+                          aria-label={t('moderation.report')}
+                          className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
+                        >
+                          <Flag size={12} />
+                        </button>
+                      )}
+                      <div
+                        className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg ${hidden ? 'blur-[5px] select-none' : ''}`}
+                        aria-label={hidden ? t('plan.hiddenScore') : undefined}
+                      >
+                        <Star size={12} fill="currentColor" />
+                        <span className="text-xs font-black">{hidden ? '?.?' : ratingValue(rating).toFixed(1)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
+                    <p className="text-[11px] text-stone-500 dark:text-stone-500 italic">{t('moderation.hiddenReview')}</p>
+                  ) : rating.review ? (
+                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
+                      "{rating.review}"
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
+            <p className="text-[10px] font-bold text-stone-500 dark:text-stone-500 uppercase tracking-widest">
+              {t('shared.beFirst')}
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            haptics.medium();
+            // Même formulaire qu'en solo, grille Bitter+ comprise.
+            onRateMovie(movie, ctx.myRating ?? null);
+          }}
+          className={`w-full h-12 rounded-2xl font-black text-xs transition-all active:scale-95 ${ctx.myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-600 dark:text-stone-300' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
+        >
+          {rateLabel(ctx.myRating, ctx.mine, t('shared.submitVerdict'))}
+        </button>
+      </div>
+  );
+
+  /** « Vus ensemble » : le palmarès de ce que j'ai noté, le reste, puis ce qui attend ma note. */
+  const seenList = feedMovies.map((movie) => ({ movie, ctx: seenContext(movie) }));
+  const ranked = seenList
+    .filter(({ ctx }) => ctx.myRating && ctx.averageValue != null)
+    .sort((a, b) => (b.ctx.averageValue ?? 0) - (a.ctx.averageValue ?? 0));
+  const podium = ranked.slice(0, 3);
+  const others = ranked.slice(3);
+  const pending = seenList.filter(({ ctx }) => !ctx.myRating);
+  const consensusId = groupStats?.meaningful ? groupStats.consensus.movie?.id : undefined;
+  const divisiveId = groupStats?.meaningful ? groupStats.divisive.movie?.id : undefined;
 
   /**
    * « Inviter » envoie un lien qui fait rejoindre l'espace d'un appui
@@ -1201,429 +1610,155 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         ) : (
           <>
             {/* ─── À voir ensemble ─────────────────────────────────────────
-                Classé par envie : ce que tout le monde veut voir passe devant,
-                avec la question suivante posée sur la ligne même. */}
+                Le film le plus attendu en tête d'affiche, les autres en
+                bandeaux sur leur image de fond. Tous se glissent : à droite
+                partant, à gauche pas envie. */}
             {watchlistMovies.length > 0 && (
               <section aria-label={t('spaces.toWatchTogether')} className="space-y-3">
-                <div className="flex items-baseline justify-between px-1">
-                  <h2 className="text-lg font-black tracking-tight text-charcoal dark:text-white">
-                    {t('spaces.toWatchTogether')}
-                  </h2>
-                  <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">{t('spaces.byWish')}</span>
+                <div className="px-1">
+                  <div className="flex items-baseline justify-between">
+                    <h2 className="text-[22px] font-black tracking-tighter text-charcoal dark:text-white">
+                      {t('spaces.toWatchTogether')}
+                    </h2>
+                    <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">{t('spaces.byWish')}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-semibold text-stone-500 dark:text-stone-500">{t('spaces.swipeRowHint')}</p>
                 </div>
-                <p className="px-1 -mt-1.5 text-[11px] font-semibold text-stone-500 dark:text-stone-500">
-                  {t('spaces.swipeRowHint')}
-                </p>
                 <div className="space-y-2.5">
-                  {watchlistMovies.map((movie) => {
-                    const ctx = watchContext(movie);
-                    const isExpanded = expandedMovie === movie.id;
-                    return (
-                      <div
-                        key={movie.id}
-                        id={`space-movie-${movie.id}`}
-                        className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[1.4rem] overflow-hidden"
-                      >
-                        <SwipeRow
-                          rightLabel={t('todo.keen')}
-                          leftLabel={t('todo.notKeen')}
-                          onSwipeRight={() => void swipeVote(movie.id, true)}
-                          onSwipeLeft={() => void swipeVote(movie.id, false)}
-                        >
-                        <div className="flex items-center gap-3 p-3">
-                          <button
-                            onClick={() => handleExpandMovie(movie.id)}
-                            aria-expanded={isExpanded}
-                            className="flex-1 min-w-0 flex items-center gap-3 text-left"
-                          >
-                            <MoviePoster url={movie.poster_url} />
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-black text-charcoal dark:text-white truncate">{movie.title}</span>
-                              <span className="mt-1.5 flex items-center gap-1.5">
-                                <span className="flex shrink-0">
-                                  {members.map((member, i) => (
-                                    <span
-                                      key={member.id}
-                                      className={`w-[18px] h-[18px] rounded-full border-2 border-white dark:border-[#1a1a1a] ${i ? '-ml-1.5' : ''} ${ctx.keenIds.includes(member.profile_id) ? (member.profile_id === currentUserId ? 'dark:!bg-bitter-lime' : '') : 'bg-stone-200 dark:bg-white/15'}`}
-                                      style={ctx.keenIds.includes(member.profile_id) ? { background: memberColors[member.profile_id] } : undefined}
-                                    />
-                                  ))}
-                                </span>
-                                <span
-                                  className={`truncate text-[11px] font-extrabold ${ctx.everyone || ctx.planSlot ? 'text-forest dark:text-lime-400' : 'text-stone-500 dark:text-stone-400'}`}
-                                >
-                                  {ctx.status}
-                                </span>
-                              </span>
-                            </span>
-                          </button>
-                          {ctx.action}
-                        </div>
-                        </SwipeRow>
-
-                        {isExpanded && (
-                          <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-4">
-                            <div id={`space-plan-${movie.id}`}>
-                              <PlanPanel
-                                plan={ctx.plan}
-                                sharedMovieId={movie.id}
-                                title={movie.title}
-                                currentUserId={currentUserId}
-                                names={memberNames}
-                                favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
-                                onChanged={() => {
-                                  reloadPlans();
-                                  loadData(true);
-                                }}
-                                onToast={onToast}
-                              />
-                            </div>
-                            {/* Avant de demander un avis, dire à qui le film
-                                s'adresse. Un titre posé sans un mot ne dit pas
-                                s'il nous concerne, et dans le doute on passe. */}
-                            <SpacePitchPanel
-                              film={{
-                                title: movie.title,
-                                year: movie.year ?? undefined,
-                                // `synopsis`, et non `review` : c'est le nom de la
-                                // colonne dans shared_movies.
-                                overview: movie.synopsis ?? undefined,
-                              }}
-                              members={memberTastes}
-                            />
-
-                            {/* Deux réponses possibles. Réappuyer sur son propre
-                                choix l'annule. */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <button
-                                onClick={(e) => handleVote(e, movie.id, true)}
-                                aria-pressed={ctx.myVote?.interested === true}
-                                className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
-                                  ctx.myVote?.interested === true
-                                    ? 'bg-forest border-forest text-white'
-                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
-                                }`}
-                              >
-                                <UserCheck size={16} />
-                                <span className="font-black text-[11px]">{t('todo.keen')}</span>
-                              </button>
-                              <button
-                                onClick={(e) => handleVote(e, movie.id, false)}
-                                aria-pressed={ctx.myVote?.interested === false}
-                                className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
-                                  ctx.myVote?.interested === false
-                                    ? 'bg-stone-500 border-stone-500 dark:bg-stone-700 dark:border-stone-700 text-white'
-                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
-                                }`}
-                              >
-                                <UserMinus size={16} />
-                                <span className="font-black text-[11px]">{t('todo.notKeen')}</span>
-                              </button>
-                            </div>
-
-                            {/* Noter fait passer le film dans « Vus ensemble » : la
-                                bascule suit la note. */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                haptics.medium();
-                                onRateMovie(movie, ctx.myRating ?? null);
-                              }}
-                              className="w-full h-12 bg-bitter-lime text-charcoal rounded-2xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all"
-                            >
-                              <Star size={16} strokeWidth={2.5} fill="currentColor" />
-                              {rateLabel(ctx.myRating, ctx.mine, t('shared.seenAndRate'))}
-                            </button>
-
-                            {/* Pour un film vu ensemble et noté plus tard. */}
-                            <button
-                              onClick={(e) => handleMarkAsWatched(e, movie.id)}
-                              className="w-full h-11 rounded-2xl font-black text-[11px] text-stone-500 dark:text-stone-400 active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                              <Ticket size={13} strokeWidth={2.5} />
-                              {t('shared.markWatchedOnly')}
-                            </button>
-
-                            {movie.added_by === currentUserId && (
-                              <button
-                                onClick={(e) => handleDeleteMovie(e, movie.id)}
-                                className="w-full h-11 rounded-2xl text-stone-500 dark:text-stone-500 font-black text-[11px] flex items-center justify-center gap-2 active:scale-95 transition-all hover:text-orange-500"
-                              >
-                                <Trash2 size={13} />
-                                {t('shared.removeSuggestion')}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {watchlistMovies.map((movie, index) => renderWatchItem(movie, index === 0 && isHeadliner(movie)))}
                 </div>
               </section>
             )}
 
             {/* ─── Vus ensemble ────────────────────────────────────────────
-                Ce que dit le groupe d'abord, puis les films, chacun avec la
-                note de chaque membre. */}
+                Le palmarès des films que j'ai notés, puis les autres, puis
+                ceux qui attendent ma note. */}
             {feedMovies.length > 0 && (
-              <section aria-label={t('spaces.seenTogether')} className="space-y-3">
+              <section aria-label={t('spaces.seenTogether')} className="space-y-4">
                 <div className="flex items-baseline justify-between px-1">
-                  <h2 className="text-lg font-black tracking-tight text-charcoal dark:text-white">
-                    {t('spaces.seenTogether')}
+                  <h2 className="text-[22px] font-black tracking-tighter text-charcoal dark:text-white">
+                    {podium.length ? t('spaces.palmares') : t('spaces.seenTogether')}
                   </h2>
                   <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">
-                    {t('spaces.filmsCount', { count: String(feedMovies.length) })}
+                    {t('spaces.seenCount', { count: String(feedMovies.length) })}
                   </span>
                 </div>
 
-                {groupCards.length > 0 && (
-                  <div className="-mx-6 flex gap-3 overflow-x-auto no-scrollbar px-6 pb-1 snap-x snap-mandatory">
-                    {groupCards.map((card) => (
-                      <div
-                        key={card.key}
-                        className={`w-[232px] shrink-0 snap-start rounded-[1.6rem] p-[18px] ${card.className}`}
-                      >
-                        <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${card.kickerClass}`}>{card.kicker}</p>
-                        <p className="mt-2.5 text-[15px] font-black leading-tight truncate">{card.title}</p>
-                        <p
-                          className={`mt-1.5 font-black tracking-tighter leading-none tabular-nums whitespace-nowrap ${card.value.length > 5 ? 'text-[30px]' : 'text-[38px]'}`}
-                        >
-                          {card.value}
-                        </p>
-                        <p className={`mt-1.5 text-[11px] font-semibold ${card.noteClass}`}>{card.note}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-2.5">
-                  {feedMovies.map((movie) => {
-                    const ctx = seenContext(movie);
-                    const isExpanded = expandedMovie === movie.id;
-                    return (
-                      <div
-                        key={movie.id}
-                        id={`space-movie-${movie.id}`}
-                        className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[1.4rem] overflow-hidden"
-                      >
-                        <div className="flex items-center gap-3 p-3">
+                {podium.length > 0 && (
+                  <div className="space-y-4">
+                    {podium.map(({ movie, ctx }, i) => {
+                      const isExpanded = expandedMovie === movie.id;
+                      const tag =
+                        movie.id === consensusId
+                          ? { text: t('group.consensus'), className: 'text-forest dark:text-lime-400' }
+                          : movie.id === divisiveId
+                            ? { text: t('group.divisive'), className: 'text-orange-700 dark:text-orange-400' }
+                            : null;
+                      return (
+                        <div key={movie.id} id={`space-movie-${movie.id}`}>
                           <button
                             onClick={() => handleExpandMovie(movie.id)}
                             aria-expanded={isExpanded}
-                            className="flex-1 min-w-0 flex items-center gap-3 text-left"
+                            className="w-full flex items-end gap-1 text-left active:scale-[0.99] transition-transform"
                           >
-                            <MoviePoster url={movie.poster_url} />
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-black text-charcoal dark:text-white truncate">{movie.title}</span>
-                              <span className="mt-1.5 block text-[11px] font-bold text-stone-500 dark:text-stone-400 truncate">
-                                {ctx.scores.length === 0 && !ctx.myRating
-                                  ? t('spaces.noVerdictYet')
-                                  : ctx.scores.map((s, i) => (
-                                      <React.Fragment key={s.id}>
-                                        {i > 0 && ' · '}
-                                        {s.name}{' '}
-                                        <span
-                                          className={s.hidden ? 'blur-[4px] select-none' : undefined}
-                                          aria-label={s.hidden ? t('plan.hiddenScore') : undefined}
-                                        >
-                                          {s.hidden ? '0,0' : s.value}
-                                        </span>
-                                      </React.Fragment>
-                                    ))}
-                                {!ctx.myRating && ctx.scores.length > 0 && ` · ${t('spaces.you')} —`}
+                            <span
+                              aria-hidden
+                              className="w-[58px] shrink-0 text-[84px] font-black leading-[0.8] tracking-[-0.08em] text-cream dark:text-[#0c0c0c] [-webkit-text-stroke:2px_#1A1A1A] dark:[-webkit-text-stroke:2px_#FFFFFF]"
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="relative w-[104px] aspect-[2/3] shrink-0 rounded-2xl overflow-hidden bg-stone-200 dark:bg-[#1a1a1a] shadow-[0_14px_24px_-14px_rgba(26,26,26,0.6)]">
+                              {(movie.poster_url || imageOf(movie).src) && (
+                                <img
+                                  src={movie.poster_url ? resizeTmdbImage(movie.poster_url, 'w342') : imageOf(movie).src}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={hideBroken}
+                                />
+                              )}
+                            </span>
+                            <span className="flex-1 min-w-0 pl-3.5 pb-1">
+                              <span className="block text-[44px] font-black tracking-[-0.06em] leading-[0.9] tabular-nums text-charcoal dark:text-white">
+                                {ctx.average}
                               </span>
+                              <span className="block mt-2 text-sm font-black leading-tight line-clamp-2 text-charcoal dark:text-white">
+                                {movie.title}
+                              </span>
+                              <span className="block mt-1.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 truncate">
+                                {ctx.scores.map((s) => `${s.name} ${s.value}`).join(' · ')}
+                              </span>
+                              {tag && (
+                                <span
+                                  className={`inline-block mt-2 px-2 py-1 rounded-[10px] bg-sand dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wide ${tag.className}`}
+                                >
+                                  {tag.text}
+                                </span>
+                              )}
                             </span>
                           </button>
-                          {!ctx.myRating ? (
-                            <button
-                              onClick={() => {
-                                haptics.medium();
-                                onRateMovie(movie, null);
-                              }}
-                              className="shrink-0 h-11 px-4 rounded-2xl bg-bitter-lime text-charcoal text-[11px] font-black active:scale-95 transition-transform"
-                            >
-                              {t('todo.rate')}
-                            </button>
-                          ) : (
-                            <span
-                              className="shrink-0 min-w-[52px] h-11 px-2 rounded-2xl bg-charcoal dark:bg-white text-bitter-lime dark:text-charcoal flex items-center justify-center text-[15px] font-black tabular-nums"
-                              aria-label={t('spaces.groupScore')}
-                            >
-                              {ctx.average}
-                            </span>
-                          )}
+                          {isExpanded && <div className="mt-3 rounded-[1.4rem] overflow-hidden border border-sand dark:border-white/10">{renderSeenDetail(movie, ctx)}</div>}
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        {isExpanded && (
-                          <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-5">
-                            {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
-                              <div className="space-y-2">
-                                {movie.synopsis && (
-                                  <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
-                                )}
-                                <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-500 dark:text-stone-500">
-                                  {movie.runtime && <span>{movie.runtime} min</span>}
-                                  {movie.genres && movie.genres.length > 0 && <span>{movie.genres.join(', ')}</span>}
-                                  {publicRatingOf(movie) && (
-                                    <PublicRatingBadge
-                                      rating={publicRatingOf(movie)}
-                                      className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
-                                    />
-                                  )}
-                                </div>
-                                {movie.actors && (
-                                  <p className="text-[10px] text-stone-500 dark:text-stone-500">Avec {movie.actors}</p>
-                                )}
-                              </div>
-                            )}
+                {groupStats?.companion && podium.length > 0 && (
+                  <div className="rounded-[1.6rem] bg-charcoal dark:bg-[#1a1a1a] text-white p-[18px] flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bitter-lime">{t('group.companion')}</p>
+                      <p className="mt-1.5 text-lg font-black truncate">{groupStats.companion.name}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold text-stone-300">
+                        {formatRating(groupStats.companion.gap)} {t('spaces.companionNote', { count: String(groupStats.companion.shared) })}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-                            {ctx.isConsensus && (
-                              <div
-                                className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 border-2 border-charcoal/5"
-                                style={{ animation: 'celebrate 2s infinite ease-in-out' }}
-                              >
-                                <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
-                                <span className="text-xs font-black uppercase tracking-widest text-charcoal">
-                                  {t('shared.completeVerdict')}
-                                </span>
-                                <PartyPopper size={20} className="text-charcoal scale-x-[-1]" strokeWidth={2.5} />
-                              </div>
-                            )}
+                {others.length > 0 && (
+                  <div className="space-y-2.5">
+                    {others.map(({ movie, ctx }, i) =>
+                      renderSeenBand(
+                        movie,
+                        ctx,
+                        movie.id === consensusId
+                          ? t('group.consensus')
+                          : movie.id === divisiveId
+                            ? t('group.divisive')
+                            : t('spaces.rankN', { n: String(i + 4) }),
+                        <span className="shrink-0 text-[44px] font-black tracking-[-0.07em] leading-none tabular-nums text-white">
+                          {ctx.average}
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
 
-                            {ctx.criteriaAvg && !ctx.hideOthers && (
-                              <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10">
-                                <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
-                                  <BarChart3 size={16} />
-                                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">{t('shared.groupAvg')}</h4>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  {[
-                                    { l: t('criteria.story'), v: ctx.criteriaAvg.story },
-                                    { l: t('criteria.visuals'), v: ctx.criteriaAvg.visuals },
-                                    { l: t('criteria.acting'), v: ctx.criteriaAvg.acting },
-                                    { l: t('criteria.sound'), v: ctx.criteriaAvg.sound },
-                                  ].map((c) => (
-                                    <div key={c.l} className="space-y-1">
-                                      <div className="flex justify-between text-[9px] font-bold text-stone-500 dark:text-stone-500 uppercase">
-                                        <span>{c.l}</span>
-                                        <span>{c.v.toFixed(1)}</span>
-                                      </div>
-                                      <div className="h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
-                                        <div className="h-full bg-charcoal dark:bg-white" style={{ width: `${c.v * 10}%` }} />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
-                                {t('shared.verdictDetail')} ({ctx.activeRatings.length}/{members.length})
-                              </h4>
-                              {movie.added_by === currentUserId && (
-                                <button
-                                  onClick={(e) => handleDeleteMovie(e, movie.id)}
-                                  aria-label={t('shared.removeSuggestion')}
-                                  className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 transition-colors"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-
-                            {ctx.hideOthers && ctx.ratings.length > 0 && (
-                              <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
-                                {t('spaces.rateToReveal')}
-                              </p>
-                            )}
-                            {ctx.ratings.length > 0 ? (
-                              <div className="grid gap-3">
-                                {ctx.ratings.map((rating) => {
-                                  const isMe = rating.profile_id === currentUserId;
-                                  const hidden = ctx.hideOthers && !isMe;
-                                  return (
-                                    <div
-                                      key={rating.id}
-                                      className={`bg-white dark:bg-[#252525] rounded-2xl p-4 border ${isMe ? 'border-forest/20 dark:border-forest/40 ring-2 ring-forest/5' : 'border-stone-100 dark:border-white/5'}`}
-                                    >
-                                      <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                          <span
-                                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
-                                            style={{ background: isMe ? '#1A1A1A' : memberColors[rating.profile_id] ?? '#78716C' }}
-                                          >
-                                            {(rating.profile?.first_name || '?')[0].toUpperCase()}
-                                          </span>
-                                          <span className="font-bold text-sm text-charcoal dark:text-white">
-                                            {rating.profile?.first_name || t('shared.member')}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          {!isMe && (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                haptics.soft();
-                                                setReporting({
-                                                  contentType: 'review',
-                                                  contentId: rating.id,
-                                                  reportedUserId: rating.profile_id,
-                                                  reportedName: rating.profile?.first_name || t('shared.member'),
-                                                  snapshot: rating.review,
-                                                });
-                                              }}
-                                              aria-label={t('moderation.report')}
-                                              className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
-                                            >
-                                              <Flag size={12} />
-                                            </button>
-                                          )}
-                                          <div
-                                            className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg ${hidden ? 'blur-[5px] select-none' : ''}`}
-                                            aria-label={hidden ? t('plan.hiddenScore') : undefined}
-                                          >
-                                            <Star size={12} fill="currentColor" />
-                                            <span className="text-xs font-black">{hidden ? '?.?' : ratingValue(rating).toFixed(1)}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
-                                        <p className="text-[11px] text-stone-500 dark:text-stone-500 italic">{t('moderation.hiddenReview')}</p>
-                                      ) : rating.review ? (
-                                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
-                                          "{rating.review}"
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
-                                <p className="text-[10px] font-bold text-stone-500 dark:text-stone-500 uppercase tracking-widest">
-                                  {t('shared.beFirst')}
-                                </p>
-                              </div>
-                            )}
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                haptics.medium();
-                                // Même formulaire qu'en solo, grille Bitter+ comprise.
-                                onRateMovie(movie, ctx.myRating ?? null);
-                              }}
-                              className={`w-full h-12 rounded-2xl font-black text-xs transition-all active:scale-95 ${ctx.myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-600 dark:text-stone-300' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
-                            >
-                              {rateLabel(ctx.myRating, ctx.mine, t('shared.submitVerdict'))}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                {pending.length > 0 && (
+                  <div className="space-y-2.5">
+                    <p className="px-1 pt-2 text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
+                      {t('spaces.waitingYourRating')}
+                    </p>
+                    {pending.map(({ movie, ctx }) =>
+                      renderSeenBand(
+                        movie,
+                        ctx,
+                        null,
+                        <button
+                          onClick={() => {
+                            haptics.medium();
+                            onRateMovie(movie, null);
+                          }}
+                          className="shrink-0 h-11 px-4 rounded-2xl bg-bitter-lime text-charcoal text-xs font-black active:scale-95 transition-transform whitespace-nowrap"
+                        >
+                          {ctx.mine != null ? t('spaces.publishShort', { rating: formatRating(ctx.mine) ?? '' }) : t('todo.rate')}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
               </section>
             )}
           </>

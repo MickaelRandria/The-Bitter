@@ -542,6 +542,25 @@ demandait trois appuis.
 - Les notes de l'espace viennent toutes de `getSpaceRatings` : la lecture film
   par film au dépliage (`getMovieRatings`) n'est plus utilisée ici.
 
+### 5.7 La liste des films, version « affiche + programme » (5 octobre 2026)
+
+Piste choisie par le propriétaire sur la maquette (A + C), la liste en lignes
+étant jugée « cheap ».
+
+- **À voir ensemble** : le film le plus voulu (au moins deux partants) en tête
+  d'affiche sur son image de fond, les autres en bandeaux. Tous se glissent
+  (`SwipeRow`) : à droite partant, à gauche pas envie, aussi pour changer
+  d'avis. La pile « À toi de jouer » ne montre que les films sans réponse : qui
+  a déjà tout voté n'y voyait jamais le geste.
+- **Vus ensemble** : palmarès des films que j'ai notés (grands numéros 1-3,
+  étiquettes consensus / clivant), mon binôme, les suivants en bandeaux, puis
+  « Attend ta note » (notes des autres floutées, « Publier · 7,4 » si je l'ai
+  noté seul).
+- **Images de fond** : `services/backdrops.ts` les demande à TMDB à
+  l'affichage (`/movie/{id}`, `backdrop_path`) et garde le chemin trente jours
+  dans `localStorage` (`bitter_backdrops_v1`). Sans image, l'affiche recadrée.
+  Aucune colonne en base. `api.themoviedb.org` est déjà dans le CSP.
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code
