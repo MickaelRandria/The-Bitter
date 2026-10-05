@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Settings,
   Flag,
+  UserPlus,
 } from 'lucide-react';
 import {
   SharedSpace,
@@ -30,7 +31,6 @@ import {
   MovieRating,
   getSpaceMovies,
   getSpaceMembers,
-  getMovieRatings,
   getSpaceRatings,
   getSpaceMovieVotes,
   setMovieVote,
@@ -44,7 +44,11 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import PlanPanel from './PlanPanel';
-import { WatchPlan, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import SpaceTodoStack from './SpaceTodoStack';
+import { monogramOf, tintOf } from './SpaceBubbles';
+import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
+import { publishVerdictToSpaces } from '../services/spaceSync';
 import { formatRating, formatSlot } from '../supabase/functions/notify/messages.ts';
 import { getDisplayWeightedRating, hasVerdict } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -82,7 +86,46 @@ interface SharedSpaceViewProps {
   onToast?: (message: string) => void;
 }
 
-type SpaceTab = 'feed' | 'watchlist' | 'members';
+/** Teintes des membres, dans l'ordre de la liste ; la mienne est l'anthracite. */
+const MEMBER_TINTS = ['#B45309', '#3E5238', '#3D405B', '#7F5539', '#2F3E46', '#6B705C'];
+
+/** Avatar d'un membre : sa photo, sinon son initiale sur sa teinte. */
+const MemberDot: React.FC<{ member: SpaceMember; color?: string; isMe: boolean; className?: string }> = ({
+  member,
+  color,
+  isMe,
+  className = '',
+}) => {
+  const src = avatarSrc(member.profile?.avatar_url);
+  return (
+    <span
+      className={`rounded-full overflow-hidden flex items-center justify-center font-black shrink-0 ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''} ${className}`}
+      style={{ background: isMe ? '#1A1A1A' : color ?? '#78716C', color: isMe ? '#D9FF00' : '#FFFFFF' }}
+    >
+      {src ? (
+        <img src={src} alt="" className="w-full h-full object-cover" />
+      ) : (
+        (member.profile?.first_name || '?')[0].toUpperCase()
+      )}
+    </span>
+  );
+};
+
+/** Une affiche introuvable laisse voir le fond plutôt qu'une icône d'image cassée. */
+const hideBroken = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  e.currentTarget.style.visibility = 'hidden';
+};
+
+/** Affiche d'une ligne de film. */
+const MoviePoster: React.FC<{ url?: string }> = ({ url }) => (
+  <span className="w-11 h-[66px] shrink-0 rounded-[10px] overflow-hidden bg-stone-200 dark:bg-[#161616] flex items-center justify-center">
+    {url ? (
+      <img src={resizeTmdbImage(url, 'w185')} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={hideBroken} />
+    ) : (
+      <Film size={14} className="text-stone-400" />
+    )}
+  </span>
+);
 
 const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   space: initialSpace,
@@ -98,7 +141,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   onToast,
 }) => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<SpaceTab>('feed');
+  /** La liste des membres, ouverte depuis la rangée d'avatars de l'en-tête. */
+  const [showMembers, setShowMembers] = useState(false);
   const [movies, setMovies] = useState<SharedMovie[]>([]);
   const [members, setMembers] = useState<SpaceMember[]>([]);
   const [votes, setVotes] = useState<MovieVote[]>([]);
@@ -114,8 +158,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   );
   const [loading, setLoading] = useState(true);
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
-  const [movieRatings, setMovieRatings] = useState<Record<string, MovieRating[]>>({});
-  const [copiedCode, setCopiedCode] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     message: string;
@@ -254,38 +296,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     }
   };
 
-  const loadRatings = async (movieId: string) => {
-    const result = await getMovieRatings(movieId);
-    if (result.error) setActionError(result.error);
-    setMovieRatings((prev) => ({ ...prev, [movieId]: result.data }));
-  };
-
   const handleExpandMovie = (movieId: string) => {
     if (expandedMovie === movieId) {
       setExpandedMovie(null);
     } else {
       setExpandedMovie(movieId);
-      loadRatings(movieId);
     }
     haptics.soft();
-  };
-
-  /**
-   * `writeText` rend une promesse. Sans `await` ni `catch`, la coche verte
-   * s'affichait même quand la copie échouait, et l'utilisateur collait un
-   * presse-papier vide dans sa conversation.
-   */
-  const handleCopyCode = async () => {
-    if (!space.invite_code) return;
-    try {
-      await navigator.clipboard.writeText(space.invite_code);
-      setCopiedCode(true);
-      haptics.success();
-      setTimeout(() => setCopiedCode(false), 2000);
-    } catch {
-      haptics.error();
-      setActionError(t('shared.copyFailed', { code: space.invite_code }));
-    }
   };
 
   const handleLeaveSpace = () => {
@@ -352,7 +369,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         }
         haptics.success();
         loadData();
-        setActiveTab('feed');
       },
     });
   };
@@ -440,6 +456,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         const low = Math.min(...values);
         return {
           movie: movies.find((m) => m.id === movieId),
+          low,
+          high,
           spread: high - low,
           average: values.reduce((a, b) => a + b, 0) / values.length,
           voters: list.length,
@@ -597,6 +615,77 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     [members]
   );
 
+  /** Demandes écartées (« Pas vu », « Pas dispo ») : elles ne reviennent pas. */
+  const [skipped, setSkipped] = useState<Set<string>>(() => readSkipped(currentUserId));
+  const myWorks = useMemo(() => personalWorks(myMovies), [myMovies]);
+  /** « À toi de jouer » : ce que le groupe attend de moi, une carte par demande. */
+  const todo = useMemo(
+    () =>
+      buildTodo({
+        movies,
+        votes,
+        ratings: allRatings,
+        plans,
+        userId: currentUserId,
+        personal: myWorks,
+        skipped,
+        blocked,
+      }),
+    [movies, votes, allRatings, plans, currentUserId, myWorks, skipped, blocked]
+  );
+
+  const answerWatch = async (item: TodoItem, interested: boolean): Promise<boolean> => {
+    setActionError(null);
+    const result = await setMovieVote(item.movie.id, currentUserId, interested);
+    if (!result.ok) {
+      setActionError(result.error ?? t('shared.voteFailed'));
+      return false;
+    }
+    onToast?.(interested ? t('todo.answeredYes') : t('social.answeredNo'));
+    const refreshed = await getSpaceMovieVotes(space.id);
+    if (!refreshed.error) setVotes(refreshed.data);
+    return true;
+  };
+
+  const publishMine = async (item: TodoItem): Promise<boolean> => {
+    if (!item.mine) return false;
+    setActionError(null);
+    const done = await publishVerdictToSpaces(item.mine, currentUserId, [
+      {
+        sharedMovieId: item.movie.id,
+        spaceId: space.id,
+        spaceName: space.name,
+        status: item.movie.status,
+        myRating: null,
+      },
+    ]);
+    if (!done.length) {
+      setActionError(t('spaceSync.failed'));
+      return false;
+    }
+    onToast?.(t('todo.published'));
+    void loadData(true);
+    return true;
+  };
+
+  const acceptPlanSlot = async (_item: TodoItem, slotId: string): Promise<boolean> => {
+    setActionError(null);
+    const result = await acceptSlot(slotId);
+    if (!result.ok) {
+      setActionError(result.error ?? t('social.failed'));
+      void reloadPlans();
+      return false;
+    }
+    onToast?.(t('todo.planAgreed'));
+    void reloadPlans();
+    return true;
+  };
+
+  const skipItem = (item: TodoItem) => {
+    skipTodo(currentUserId, item.key);
+    setSkipped((prev) => new Set(prev).add(item.key));
+  };
+
   /**
    * Notification touchée : on ouvre l'espace sur SON film, dans le bon onglet,
    * déplié. Sinon la personne arrive sur un espace et doit chercher de quoi il
@@ -607,21 +696,46 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const target = movies.find((m) => m.id === focusMovieId);
     onFocusHandled?.();
     if (!target) return;
-    setActiveTab(target.status === 'watched' ? 'feed' : 'watchlist');
     setExpandedMovie(target.id);
-    loadRatings(target.id);
     window.setTimeout(() => {
       document.getElementById(`space-movie-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 250);
   }, [focusMovieId, movies]);
+  /**
+   * « À voir ensemble », classé par envie : le nombre de partants d'abord, puis
+   * le plus récent. Les « pas envie » comptaient jusqu'ici comme des voix.
+   */
   const watchlistMovies = useMemo(() => {
-    const list = movies.filter((m) => m.status === 'watchlist');
-    return list.sort((a, b) => {
-      const vA = votes.filter((v) => v.movie_id === a.id).length;
-      const vB = votes.filter((v) => v.movie_id === b.id).length;
-      return vB - vA;
-    });
-  }, [movies, votes]);
+    const keen = (id: string) =>
+      votes.filter((v) => v.movie_id === id && v.interested && activeMemberIds.has(v.profile_id)).length;
+    return movies
+      .filter((m) => m.status === 'watchlist')
+      .sort((a, b) => keen(b.id) - keen(a.id) || (b.added_at ?? '').localeCompare(a.added_at ?? ''));
+  }, [movies, votes, members]);
+
+  /** Les notes de chaque film, déjà toutes chargées avec l'espace. */
+  const ratingsByMovie = useMemo(() => {
+    const map = new Map<string, MovieRating[]>();
+    for (const r of allRatings) map.set(r.movie_id, [...(map.get(r.movie_id) ?? []), r]);
+    return map;
+  }, [allRatings]);
+
+  /** Films qu'on attend que je note : leurs notes restent floutées pour moi. */
+  const rateTodoIds = useMemo(
+    () => new Set(todo.filter((i) => i.kind === 'rate').map((i) => i.movie.id)),
+    [todo]
+  );
+
+  const memberColors = useMemo(() => {
+    const colors: Record<string, string> = {};
+    members
+      .filter((m) => m.profile_id !== currentUserId)
+      .forEach((m, i) => {
+        colors[m.profile_id] = MEMBER_TINTS[i % MEMBER_TINTS.length];
+      });
+    colors[currentUserId] = '#1A1A1A';
+    return colors;
+  }, [members, currentUserId]);
 
   if (loading && movies.length === 0) {
     return (
@@ -660,6 +774,214 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     );
   }
 
+  const tint = tintOf(space);
+  /** Les cinq dernières affiches de l'espace, pour le bandeau de l'en-tête. */
+  const bandPosters: (string | null)[] = [
+    ...[...movies]
+      .filter((m) => m.poster_url)
+      .sort((a, b) => (b.added_at ?? '').localeCompare(a.added_at ?? ''))
+      .slice(0, 5)
+      .map((m) => m.poster_url as string),
+    null,
+    null,
+    null,
+    null,
+    null,
+  ].slice(0, 5);
+
+  /** « Léa, Tom et toi ». */
+  const membersLabel = (() => {
+    const others = members
+      .filter((m) => m.profile_id !== currentUserId)
+      .map((m) => m.profile?.first_name || t('shared.member'));
+    if (!others.length) return t('spaces.youAlone');
+    const names = [...others, t('spaces.you')];
+    return `${names.slice(0, -1).join(', ')} ${t('spaceSync.and')} ${names[names.length - 1]}`;
+  })();
+
+  const personalScoreOf = (movie: SharedMovie) =>
+    personalVerdicts.get(`${movie.media_type === 'tv' ? 'tv' : 'movie'}:${movie.tmdb_id}`);
+
+  const rateLabel = (myRating: MovieRating | undefined, mine: number | undefined, fallback: string) =>
+    myRating
+      ? t('shared.editVerdict')
+      : mine != null
+        ? t('shared.publishMine', { rating: formatRating(mine) ?? '' })
+        : fallback;
+
+  /** « On se le fait ? » : la séance se propose dans le panneau du film, qu'on ouvre. */
+  const openPlan = (movieId: string) => {
+    haptics.medium();
+    setExpandedMovie(movieId);
+    window.setTimeout(() => {
+      document.getElementById(`space-plan-${movieId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+  };
+
+  const watchContext = (movie: SharedMovie) => {
+    const movieVotes = votes.filter((v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id));
+    const keenIds = movieVotes.filter((v) => v.interested).map((v) => v.profile_id);
+    const myVote = movieVotes.find((v) => v.profile_id === currentUserId) ?? null;
+    const everyone = members.length > 1 && keenIds.length >= members.length;
+    const plan = currentPlanFor(plans, movie.id);
+    const planSlot = plan?.status === 'agreed' ? chosenSlotOf(plan) : null;
+    const myRating = (ratingsByMovie.get(movie.id) ?? []).find((r) => r.profile_id === currentUserId);
+    const status = planSlot
+      ? formatSlot(planSlot)
+      : plan
+        ? t('plan.pending', { count: String(plan.slots.length) })
+        : everyone
+          ? t('spaces.everyoneKeen')
+          : myVote?.interested === false
+            ? t('spaces.notForYou')
+            : keenIds.length
+              ? t(keenIds.length === 1 ? 'spaces.keenOne' : 'spaces.keenCount', {
+                  count: String(keenIds.length),
+                  total: String(members.length),
+                })
+              : t('spaces.noKeenYet');
+    const action = planSlot ? null : everyone && !plan ? (
+      <button
+        onClick={() => openPlan(movie.id)}
+        className="shrink-0 h-11 px-3.5 rounded-2xl bg-bitter-lime text-charcoal text-[11px] font-black whitespace-nowrap active:scale-95 transition-transform"
+      >
+        {t('spaces.letsGo')}
+      </button>
+    ) : !myVote ? (
+      <button
+        onClick={(e) => handleVote(e, movie.id, true)}
+        className="shrink-0 h-11 px-3.5 rounded-2xl border-[1.5px] border-charcoal dark:border-white text-charcoal dark:text-white text-[11px] font-black whitespace-nowrap active:scale-95 transition-transform"
+      >
+        {t('spaces.keenQ')}
+      </button>
+    ) : null;
+    return { keenIds, myVote, everyone, plan, planSlot, status, action, myRating, mine: personalScoreOf(movie) };
+  };
+
+  const seenContext = (movie: SharedMovie) => {
+    const ratings = ratingsByMovie.get(movie.id) ?? [];
+    const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
+    const myRating = ratings.find((r) => r.profile_id === currentUserId);
+    const plan = currentPlanFor(plans, movie.id);
+    /**
+     * Tant que je n'ai pas noté un film qu'on attend de moi (vu ensemble, ou
+     * noté seul), les notes des autres restent floutées : c'est ce qui donne
+     * envie de noter, et ce qui garde ma note à moi.
+     */
+    const hideOthers =
+      !myRating &&
+      ((plan?.status === 'agreed' && plan.participant_ids.includes(currentUserId)) || rateTodoIds.has(movie.id));
+    const scores = [...activeRatings]
+      .sort((a, b) => Number(a.profile_id === currentUserId) - Number(b.profile_id === currentUserId))
+      .map((r) => {
+        const isMe = r.profile_id === currentUserId;
+        return {
+          id: r.id,
+          name: isMe ? t('spaces.you') : r.profile?.first_name || t('shared.member'),
+          value: formatRating(ratingValue(r)) ?? '',
+          hidden: hideOthers && !isMe,
+        };
+      });
+    const average = activeRatings.length
+      ? formatRating(activeRatings.reduce((sum, r) => sum + ratingValue(r), 0) / activeRatings.length)
+      : null;
+    return {
+      ratings,
+      activeRatings,
+      myRating,
+      mine: personalScoreOf(movie),
+      hideOthers,
+      scores,
+      average,
+      criteriaAvg: calculateCriteriaAverages(activeRatings),
+      isConsensus: members.length > 1 && activeRatings.length >= members.length,
+    };
+  };
+
+  /** Le carrousel « ce que dit le groupe », en tête de « Vus ensemble ». */
+  const groupCards: {
+    key: string;
+    kicker: string;
+    title: string;
+    value: string;
+    note: string;
+    className: string;
+    kickerClass: string;
+    noteClass: string;
+  }[] = [];
+  if (groupStats) {
+    if (groupStats.meaningful) {
+      groupCards.push({
+        key: 'consensus',
+        kicker: t('group.consensus'),
+        title: groupStats.consensus.movie?.title ?? '',
+        value: formatRating(groupStats.consensus.average) ?? '',
+        note: t('group.spread', { value: formatRating(groupStats.consensus.spread) ?? '0' }),
+        className: 'bg-charcoal text-white dark:bg-white dark:text-charcoal',
+        kickerClass: 'text-bitter-lime dark:text-forest',
+        noteClass: 'text-stone-300 dark:text-stone-600',
+      });
+      groupCards.push({
+        key: 'divisive',
+        kicker: t('group.divisive'),
+        title: groupStats.divisive.movie?.title ?? '',
+        value: `${formatRating(groupStats.divisive.low)}→${formatRating(groupStats.divisive.high)}`,
+        note: t('group.spread', { value: formatRating(groupStats.divisive.spread) ?? '0' }),
+        className: 'bg-forest text-white',
+        kickerClass: 'text-bitter-lime',
+        noteClass: 'text-white/80',
+      });
+    } else {
+      groupCards.push({
+        key: 'average',
+        kicker: t('group.groupAverage'),
+        title: t('spaces.judgedCount', { count: String(groupStats.judged) }),
+        value: formatRating(groupStats.average) ?? '',
+        note: '',
+        className: 'bg-charcoal text-white dark:bg-white dark:text-charcoal',
+        kickerClass: 'text-bitter-lime dark:text-forest',
+        noteClass: 'text-stone-300',
+      });
+    }
+    if (groupStats.companion) {
+      groupCards.push({
+        key: 'companion',
+        kicker: t('group.companion'),
+        title: groupStats.companion.name,
+        value: formatRating(groupStats.companion.gap) ?? '0',
+        note: t('spaces.companionNote', { count: String(groupStats.companion.shared) }),
+        className: 'bg-sand text-charcoal dark:bg-[#1a1a1a] dark:text-white',
+        kickerClass: 'text-forest dark:text-lime-400',
+        noteClass: 'text-stone-500 dark:text-stone-400',
+      });
+    }
+  }
+
+  /**
+   * « Inviter » envoie un lien qui fait rejoindre l'espace d'un appui
+   * (`?join=`), le code reste dans le texte pour qui l'ouvre ailleurs.
+   */
+  const handleInvite = async () => {
+    haptics.medium();
+    const { origin, protocol, hostname } = window.location;
+    const base = protocol === 'https:' && hostname !== 'localhost' ? origin : 'https://thebitter.watch';
+    const text = `${t('spaces.inviteText', { name: space.name, code: space.invite_code })} ${base}/?join=${encodeURIComponent(space.invite_code)}`;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (e) {
+        if ((e as { name?: string })?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      onToast?.(t('spaces.inviteCopied'));
+    } catch {
+      setActionError(t('shared.copyFailed', { code: space.invite_code }));
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto w-full pb-32 animate-[fadeIn_0.3s_ease-out]">
       <style>{`
@@ -680,134 +1002,105 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         }
       `}</style>
 
-      {/* Header Capsule */}
-      <div className="mb-10 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-        <div className="flex items-center gap-2 mb-6">
-          <button
-            onClick={onBack}
-            className="shrink-0 w-10 h-10 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center shadow-soft dark:shadow-none active:scale-90 transition-all"
-          >
-            <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
-          </button>
-          <div className="flex-1 bg-stone-100 dark:bg-[#161616] p-1 rounded-full border border-stone-200/50 dark:border-white/5 shadow-inner overflow-x-auto no-scrollbar transition-colors">
-            <div className="flex min-w-max">
-              <button
-                onClick={() => {
-                  haptics.soft();
-                  setActiveTab('feed');
-                }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-              >
-                <History size={14} /> {t('shared.tabFeed')}
-              </button>
-              <button
-                onClick={() => {
-                  haptics.soft();
-                  setActiveTab('watchlist');
-                }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'watchlist' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-              >
-                <Bookmark size={14} /> {t('shared.tabWatchlist')}
-                {watchlistMovies.length > 0 && (
-                  <span className="w-1.5 h-1.5 bg-forest rounded-full"></span>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  haptics.soft();
-                  setActiveTab('members');
-                }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'members' ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-md dark:shadow-black/30' : 'text-stone-400 dark:text-stone-600'}`}
-              >
-                <Users size={14} /> {t('shared.tabMembers')}
-              </button>
-            </div>
-          </div>
-          {/* Un seul bouton plutôt que trois : actualiser et quitter sont des gestes
-              rares, ils n'ont pas à disputer sa largeur à la pilule d'onglets, qui
-              elle sert à chaque consultation. */}
-          <button
-            onClick={() => {
-              haptics.soft();
-              setShowSettings(true);
-            }}
-            aria-label={t('spaceSettings.open')}
-            className="shrink-0 w-10 h-10 bg-stone-50 dark:bg-[#161616] border border-sand dark:border-white/10 rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500 active:scale-90 transition-all hover:text-charcoal dark:hover:text-white"
-          >
-            {loading ? (
-              <Loader2 size={17} className="animate-spin" />
+      {/* En-tête : le bandeau des dernières affiches, puis qui est là. Le code
+          d'invitation n'occupe plus le haut de l'écran à chaque visite : il
+          vit dans les réglages, « Inviter » envoie un lien. */}
+      <header className="mb-8 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+        <div className="relative h-[150px] rounded-[2rem] overflow-hidden grid grid-cols-5 gap-[3px]" style={{ background: tint }}>
+          {bandPosters.map((poster, i) =>
+            poster ? (
+              <img
+                key={i}
+                src={resizeTmdbImage(poster, 'w185')}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                onError={hideBroken}
+              />
             ) : (
-              <Settings size={18} />
-            )}
-          </button>
-        </div>
-
-        <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[2.5rem] p-6 shadow-sm dark:shadow-black/20 transition-all">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center shadow-lg shadow-forest/20">
-                <Users size={24} className="text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl font-black tracking-tight text-charcoal dark:text-white truncate">
-                  {space.name}
-                </h1>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                    {members.length} {t('shared.members')}
-                  </span>
-                  <div className="w-1 h-1 bg-stone-200 dark:bg-stone-800 rounded-full" />
-                  <span className="text-[9px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                    {movies.length} {t('shared.films')}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div
-              onClick={handleCopyCode}
-              className="flex items-center justify-between bg-stone-50 dark:bg-[#161616] border border-dashed border-stone-300 dark:border-white/10 rounded-xl p-3 cursor-pointer hover:bg-stone-100 dark:hover:bg-[#202020] transition-colors"
+              <div key={i} style={{ background: tint }} className="opacity-80" />
+            )
+          )}
+          <div className="absolute inset-x-0 top-0 p-4 flex justify-between">
+            <button
+              onClick={onBack}
+              aria-label={t('common.back')}
+              className="w-11 h-11 rounded-2xl bg-cream dark:bg-[#0c0c0c] flex items-center justify-center active:scale-90 transition-transform shadow-sm"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest">
-                  {t('shared.codeLabel')}
-                </span>
-                <span className="text-sm font-black font-mono text-charcoal dark:text-white tracking-widest">
-                  {space.invite_code}
-                </span>
-              </div>
-              <div
-                className={`p-1.5 rounded-lg transition-colors ${copiedCode ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-white dark:bg-[#202020] text-stone-400 dark:text-stone-500 shadow-sm'}`}
-              >
-                {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-            {activeTab === 'feed'
-              ? t('shared.feedTitle')
-              : activeTab === 'watchlist'
-                ? t('shared.watchlistTitle')
-                : t('shared.membersTitle')}
-          </h2>
-          {activeTab !== 'members' && (
+              <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
+            </button>
             <button
               onClick={() => {
-                haptics.medium();
-                onAddMovie();
+                haptics.soft();
+                setShowSettings(true);
               }}
-              className="bg-charcoal dark:bg-forest text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg"
+              aria-label={t('spaceSettings.open')}
+              className="w-11 h-11 rounded-2xl bg-cream dark:bg-[#0c0c0c] flex items-center justify-center active:scale-90 transition-transform shadow-sm text-charcoal dark:text-white"
             >
-              <Plus size={14} strokeWidth={3} /> {activeTab === 'feed' ? t('shared.addMovie') : t('shared.suggestMovie')}
+              {loading ? <Loader2 size={17} className="animate-spin" /> : <Settings size={18} />}
             </button>
-          )}
+          </div>
         </div>
+
+        <div className="px-1 -mt-9 relative">
+          <span
+            className="w-[72px] h-[72px] rounded-full border-4 border-cream dark:border-[#0c0c0c] flex items-center justify-center text-white text-[22px] font-black tracking-tight"
+            style={{ background: tint }}
+          >
+            {monogramOf(space.name)}
+          </span>
+          <h1 className="mt-2.5 text-[30px] leading-tight font-black tracking-tighter text-charcoal dark:text-white break-words">
+            {space.name}
+          </h1>
+          <div className="mt-2.5 flex items-center justify-between gap-3">
+            <button
+              onClick={() => {
+                haptics.soft();
+                setShowMembers(true);
+              }}
+              aria-label={t('spaces.seeMembers')}
+              className="min-w-0 h-11 flex items-center gap-2.5 active:scale-[0.98] transition-transform"
+            >
+              <span className="flex shrink-0">
+                {members.slice(0, 4).map((member, i) => (
+                  <MemberDot
+                    key={member.id}
+                    member={member}
+                    color={memberColors[member.profile_id]}
+                    isMe={member.profile_id === currentUserId}
+                    className={`w-[30px] h-[30px] text-xs border-2 border-cream dark:border-[#0c0c0c] ${i ? '-ml-2.5' : ''}`}
+                  />
+                ))}
+              </span>
+              <span className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">{membersLabel}</span>
+            </button>
+            <button
+              onClick={handleInvite}
+              className="shrink-0 h-11 px-[18px] rounded-full bg-bitter-lime text-charcoal text-xs font-black flex items-center gap-2 active:scale-95 transition-transform"
+            >
+              <UserPlus size={15} strokeWidth={2.6} />
+              {t('spaces.invite')}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="space-y-8">
+        {!loadError && (
+          <SpaceTodoStack
+            items={todo}
+            currentUserId={currentUserId}
+            memberNames={memberNames}
+            votes={votes}
+            ratings={allRatings}
+            onWatch={answerWatch}
+            onPublish={publishMine}
+            onRate={(item) => onRateMovie(item.movie, null)}
+            onAcceptSlot={acceptPlanSlot}
+            onSkip={skipItem}
+          />
+        )}
 
         {!noticeSeen && (
           <div className="space-y-3">
@@ -863,503 +1156,86 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         )}
 
-        {activeTab === 'members' ? (
-          <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
-            {/* Ce que dit le groupe, avant qui le compose. Un espace à plusieurs a
-                une opinion propre, que la liste des membres ne montre pas. */}
-            {groupStats && (
-              <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.8rem] p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <BarChart3 size={13} className="text-forest dark:text-lime-400" />
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">
-                    {t('group.title')}
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 text-center border border-stone-100 dark:border-white/5">
-                    <p className="text-2xl font-black text-charcoal dark:text-white tabular-nums">
-                      {groupStats.judged}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
-                      {t('group.judgedTogether')}
-                    </p>
-                  </div>
-                  <div className="bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 text-center border border-stone-100 dark:border-white/5">
-                    <p className="text-2xl font-black text-charcoal dark:text-white tabular-nums">
-                      {groupStats.average.toFixed(1)}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 mt-1">
-                      {t('group.groupAverage')}
-                    </p>
-                  </div>
-                </div>
-
-                {groupStats.meaningful && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5">
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
-                          {t('group.consensus')}
-                        </p>
-                        <p className="text-xs font-bold text-charcoal dark:text-white truncate mt-0.5">
-                          {groupStats.consensus.movie?.title}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 shrink-0 tabular-nums">
-                        {t('group.spread', { value: groupStats.consensus.spread.toFixed(1) })}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5">
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-orange-400">
-                          {t('group.divisive')}
-                        </p>
-                        <p className="text-xs font-bold text-charcoal dark:text-white truncate mt-0.5">
-                          {groupStats.divisive.movie?.title}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black text-stone-400 dark:text-stone-600 shrink-0 tabular-nums">
-                        {t('group.spread', { value: groupStats.divisive.spread.toFixed(1) })}
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed pt-1">
-                      {t('group.harshestKindest', {
-                        harsh: groupStats.harshest.name,
-                        kind: groupStats.kindest.name,
-                      })}
-                    </p>
-                  </div>
-                )}
-
-                {groupStats.companion && (
-                  <div className="bg-forest/5 dark:bg-lime-400/5 border border-forest/20 dark:border-lime-400/20 rounded-2xl p-4">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
-                      {t('group.companion')}
-                    </p>
-                    <p className="text-sm font-black text-charcoal dark:text-white mt-1">
-                      {groupStats.companion.name}
-                    </p>
-                    <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed mt-1">
-                      {t('group.companionHint', {
-                        name: groupStats.companion.name,
-                        gap: groupStats.companion.gap.toFixed(1),
-                        count: String(groupStats.companion.shared),
-                      })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {members.map((member) => (
-              <div
-                key={member.id}
-                onClick={() => {
-                  haptics.medium();
-                  setSelectedMember(member);
-                }}
-                className="flex items-center gap-4 bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-4 rounded-[1.8rem] cursor-pointer hover:border-forest dark:hover:border-forest/50 hover:shadow-sm transition-all"
-              >
-                <div className="w-12 h-12 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white font-black text-sm shrink-0 border-2 border-white dark:border-white/10 shadow-sm overflow-hidden">
-                  {avatarSrc(member.profile?.avatar_url) ? (
-                    <img
-                      src={avatarSrc(member.profile?.avatar_url) as string}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span>{(member.profile?.first_name || '?')[0].toUpperCase()}</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-black text-charcoal dark:text-white truncate">
-                      {member.profile?.first_name}
-                    </span>
-                    {member.role === 'owner' && (
-                      <span className="text-[8px] bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                        {t('shared.founder')}
-                      </span>
-                    )}
-                  </div>
-                  {/* La pastille actif/inactif était du code mort : la requête ne
-                      ramène que les membres actifs, donc la branche grise était
-                      inatteignable et tout le monde paraissait vert par construction.
-                      On affiche le rôle, qui lui distingue vraiment quelque chose. */}
-                  <span className="text-[10px] font-medium text-stone-400 dark:text-stone-600">
-                    {member.role === 'owner' ? t('shared.roleOwner') : t('shared.roleMember')}
-                  </span>
-                </div>
-                <ChevronRight size={16} className="text-stone-300 dark:text-stone-700" />
-              </div>
-            ))}
-          </div>
-        ) : (activeTab === 'feed' ? feedMovies : watchlistMovies).length === 0 ? (
-          <div className="py-24 text-center bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-stone-100 dark:border-white/5 shadow-sm dark:shadow-none flex flex-col items-center">
+        {movies.length === 0 && !loadError ? (
+          <div className="py-16 px-6 text-center bg-white dark:bg-[#1a1a1a] rounded-[2rem] border border-stone-100 dark:border-white/5 flex flex-col items-center">
             <div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6">
-              {activeTab === 'feed' ? <History size={24} /> : <Bookmark size={24} />}
+              <Film size={24} />
             </div>
-            <h3 className="font-black text-charcoal dark:text-white text-base mb-1">
-              {t('shared.emptyTitle')}
-            </h3>
-            <p className="text-xs text-stone-500 dark:text-stone-600 max-w-[200px] leading-relaxed">
-              {activeTab === 'feed' ? t('shared.emptyFeed') : t('shared.emptyWatchlist')}
+            <h3 className="font-black text-charcoal dark:text-white text-base mb-1">{t('shared.emptyTitle')}</h3>
+            <p className="text-xs text-stone-500 dark:text-stone-500 max-w-[220px] leading-relaxed">
+              {t('spaces.emptyBody')}
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {(activeTab === 'feed' ? feedMovies : watchlistMovies).map((movie) => {
-              const isExpanded = expandedMovie === movie.id;
-              const ratings = movieRatings[movie.id] || [];
-              const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
-              const avgRating = calculateAverageRating(activeRatings);
-              const myRating = ratings.find((r) => r.profile_id === currentUserId);
-              /** Ma note personnelle sur ce film, à publier ici d'un geste si je ne l'ai pas encore fait. */
-              const mine = myRating ? undefined : personalVerdicts.get(`${movie.media_type === 'tv' ? 'tv' : 'movie'}:${movie.tmdb_id}`);
-              const rateLabel = (fallback: string) =>
-                myRating
-                  ? t('shared.editVerdict')
-                  : mine != null
-                    ? t('shared.publishMine', { rating: formatRating(mine) ?? '' })
-                    : fallback;
-              const plan = currentPlanFor(plans, movie.id);
-              const planSlot = chosenSlotOf(plan);
-              /**
-               * Vous y étiez ensemble et tu n'as pas encore noté : les notes des
-               * autres restent cachées. C'est ce qui donne envie de noter, et ce
-               * qui garde ta note à toi.
-               */
-              const blind =
-                !myRating &&
-                plan?.status === 'agreed' &&
-                plan.participant_ids.includes(currentUserId);
-              const criteriaAvg = calculateCriteriaAverages(activeRatings);
-              const isConsensus = members.length > 1 && activeRatings.length >= members.length;
-              const participationRate = members.length
-                ? (activeRatings.length / members.length) * 100
-                : 0;
-              const movieVotes = votes.filter(
-                (v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id)
-              );
-              const myVote = movieVotes.find((v) => v.profile_id === currentUserId) ?? null;
-              // Seuls les avis positifs alimentent la jauge : compter les refus
-              // dedans ferait grimper la barre a mesure que l envie tombe.
-              const voteCount = movieVotes.filter((v) => v.interested).length;
-              const againstCount = movieVotes.filter((v) => !v.interested).length;
-              const votePercentage = members.length ? (voteCount / members.length) * 100 : 0;
-
-              return (
-                <div
-                  key={movie.id}
-                  id={`space-movie-${movie.id}`}
-                  className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[2.5rem] overflow-hidden transition-all shadow-soft dark:shadow-black/20 animate-[fadeIn_0.3s_ease-out]"
-                >
-                  <div
-                    onClick={() => handleExpandMovie(movie.id)}
-                    className="p-6 cursor-pointer hover:bg-stone-50 dark:hover:bg-[#252525] transition-colors"
-                  >
-                    <div className="flex gap-5">
-                      <div className="w-16 aspect-[2/3] bg-stone-200 dark:bg-[#161616] rounded-2xl overflow-hidden shadow-md shrink-0 border border-white dark:border-white/10">
-                        {movie.poster_url ? (
-                          <img
-                            src={resizeTmdbImage(movie.poster_url, 'w185')}
-                            className="w-full h-full object-cover"
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-stone-400 dark:text-stone-700">
-                            <Film size={16} />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0 pt-1">
-                        <h3 className="font-black text-lg text-charcoal dark:text-white leading-tight mb-1 truncate">
-                          {movie.title}
-                        </h3>
-                        <p className="text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-wide mb-3">
-                          {movie.director} • {movie.year}
-                        </p>
-                        {activeTab === 'watchlist' && plan && (
-                          <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-forest/10 dark:bg-lime-400/10 px-2.5 py-1 text-[10px] font-black text-forest dark:text-lime-400">
-                            <Ticket size={11} />
-                            {plan.status === 'agreed' && planSlot
-                              ? formatSlot(planSlot)
-                              : t('plan.pending', { count: String(plan.slots.length) })}
-                          </p>
-                        )}
-
-                        {activeTab === 'feed' ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-stone-100 dark:bg-[#252525] text-[9px] font-black flex items-center justify-center text-stone-500 dark:text-stone-400">
-                                  {(movie.added_by_profile?.first_name || '?')[0].toUpperCase()}
-                                </div>
-                                <span className="text-[10px] font-bold text-stone-400 dark:text-stone-600">
-                                  {movie.added_by_profile?.first_name || t('shared.unknown')}
-                                </span>
-                              </div>
-                              <div className="w-px h-3 bg-stone-200 dark:bg-stone-800" />
-                              {avgRating && !blind ? (
-                                <div className="flex items-center gap-1.5 text-forest dark:text-lime-500">
-                                  <Star size={12} fill="currentColor" />
-                                  <span className="text-xs font-black">{avgRating}</span>
-                                </div>
-                              ) : (
-                                <span className="text-[10px] font-bold text-stone-300 dark:text-stone-800">
-                                  {t('shared.notRated')}
-                                </span>
-                              )}
-                            </div>
-                            {activeRatings.length > 0 && activeRatings.length < members.length && (
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 flex-1 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden max-w-[80px]">
-                                  <div
-                                    className="h-full bg-stone-300 dark:bg-stone-700"
-                                    style={{ width: `${participationRate}%` }}
-                                  />
-                                </div>
-                                <span className="text-[9px] font-bold text-stone-300 dark:text-stone-700">
-                                  {activeRatings.length}/{members.length}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-[10px] font-black text-forest dark:text-lime-500">
-                                <Users size={12} />
-                                <span>
-                                  {voteCount} / {members.length} {t('shared.interested')}
-                                  {againstCount > 0 && (
-                                    <span className="text-stone-400 dark:text-stone-600">
-                                      {' '}
-                                      · {t('shared.notInterestedCount', { count: String(againstCount) })}
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-bold text-stone-400 dark:text-stone-600">
-                                {Math.round(votePercentage)}%
-                              </span>
-                            </div>
-                            <div className="h-2 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden border border-sand dark:border-white/5 transition-colors">
-                              <div
-                                className="h-full bg-forest dark:bg-lime-500 transition-all duration-700"
-                                style={{ width: `${votePercentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="border-t border-sand dark:border-white/5 p-6 bg-stone-50/50 dark:bg-[#1a1a1a]/50 animate-[fadeIn_0.3s_ease-out] space-y-6">
-                      {activeTab === 'feed' ? (
-                        <>
-                          {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
-                            <div className="space-y-2">
-                              {movie.synopsis && (
-                                <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
-                              )}
-                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-400 dark:text-stone-500">
-                                {movie.runtime && <span>{movie.runtime} min</span>}
-                                {movie.genres && movie.genres.length > 0 && (
-                                  <span>{movie.genres.join(', ')}</span>
-                                )}
-                                {publicRatingOf(movie) && (
-                                  <PublicRatingBadge
-                                    rating={publicRatingOf(movie)}
-                                    className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
-                                  />
-                                )}
-                              </div>
-                              {movie.actors && (
-                                <p className="text-[10px] text-stone-400 dark:text-stone-500">Avec {movie.actors}</p>
-                              )}
-                            </div>
-                          )}
-
-                          {isConsensus && (
-                            <div
-                              className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-bitter-lime/20 border-2 border-charcoal/5"
-                              style={{ animation: 'celebrate 2s infinite ease-in-out' }}
-                            >
-                              <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
-                              <span className="text-xs font-black uppercase tracking-widest text-charcoal">
-                                {t('shared.completeVerdict')}
-                              </span>
-                              <PartyPopper
-                                size={20}
-                                className="text-charcoal scale-x-[-1]"
-                                strokeWidth={2.5}
-                              />
-                            </div>
-                          )}
-
-                          {criteriaAvg && !blind && (
-                            <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10 shadow-sm transition-colors">
-                              <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
-                                <BarChart3 size={16} />
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">
-                                  {t('shared.groupAvg')}
-                                </h4>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                {[
-                                  { l: t('criteria.story'), v: criteriaAvg.story },
-                                  { l: t('criteria.visuals'), v: criteriaAvg.visuals },
-                                  { l: t('criteria.acting'), v: criteriaAvg.acting },
-                                  { l: t('criteria.sound'), v: criteriaAvg.sound },
-                                ].map((c) => (
-                                  <div key={c.l} className="space-y-1">
-                                    <div className="flex justify-between text-[9px] font-bold text-stone-400 dark:text-stone-600 uppercase">
-                                      <span>{c.l}</span>
-                                      <span>{c.v.toFixed(1)}</span>
-                                    </div>
-                                    <div className="h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden transition-colors">
-                                      <div
-                                        className="h-full bg-charcoal dark:bg-white"
-                                        style={{ width: `${c.v * 10}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between mt-2">
-                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                              {t('shared.verdictDetail')} ({activeRatings.length}/{members.length})
-                            </h4>
-                            {movie.added_by === currentUserId && (
-                              <button
-                                onClick={(e) => handleDeleteMovie(e, movie.id)}
-                                className="text-red-400 hover:text-red-600 transition-colors"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-
-                          {blind && ratings.length > 0 && (
-                            <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
-                              {t('plan.blindHint')}
-                            </p>
-                          )}
-                          {ratings.length > 0 ? (
-                            <div className="grid gap-3">
-                              {ratings.map((rating) => {
-                                const avg = ratingValue(rating).toFixed(1);
-                                const isMe = rating.profile_id === currentUserId;
-                                const hidden = blind && !isMe;
-                                return (
-                                  <div
-                                    key={rating.id}
-                                    className={`bg-white dark:bg-[#252525] rounded-2xl p-4 border transition-all ${isMe ? 'border-forest/20 dark:border-forest/40 ring-2 ring-forest/5 shadow-sm' : 'border-stone-100 dark:border-white/5'}`}
-                                  >
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-2">
-                                        <div
-                                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${isMe ? 'bg-forest text-white' : 'bg-stone-100 dark:bg-[#202020] dark:text-stone-400'}`}
-                                        >
-                                          {(rating.profile?.first_name || '?')[0].toUpperCase()}
-                                        </div>
-                                        <span className="font-bold text-sm text-charcoal dark:text-white">
-                                          {rating.profile?.first_name || t('shared.member')}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {!isMe && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              haptics.soft();
-                                              setReporting({
-                                                contentType: 'review',
-                                                contentId: rating.id,
-                                                reportedUserId: rating.profile_id,
-                                                reportedName: rating.profile?.first_name || t('shared.member'),
-                                                snapshot: rating.review,
-                                              });
-                                            }}
-                                            aria-label={t('moderation.report')}
-                                            className="p-1.5 rounded-lg text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400"
-                                          >
-                                            <Flag size={12} />
-                                          </button>
-                                        )}
-                                        <div
-                                          className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg shadow-sm ${hidden ? 'blur-[5px] select-none' : ''}`}
-                                          aria-label={hidden ? t('plan.hiddenScore') : undefined}
-                                        >
-                                          <Star size={12} fill="currentColor" />
-                                          <span className="text-xs font-black">{hidden ? '?.?' : avg}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
-                                      <p className="text-[11px] text-stone-400 dark:text-stone-500 italic">
-                                        {t('moderation.hiddenReview')}
-                                      </p>
-                                    ) : rating.review ? (
-                                      <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
-                                        "{rating.review}"
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
-                              <p className="text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">
-                                {t('shared.beFirst')}
-                              </p>
-                            </div>
-                          )}
-
+          <>
+            {/* ─── À voir ensemble ─────────────────────────────────────────
+                Classé par envie : ce que tout le monde veut voir passe devant,
+                avec la question suivante posée sur la ligne même. */}
+            {watchlistMovies.length > 0 && (
+              <section aria-label={t('spaces.toWatchTogether')} className="space-y-3">
+                <div className="flex items-baseline justify-between px-1">
+                  <h2 className="text-lg font-black tracking-tight text-charcoal dark:text-white">
+                    {t('spaces.toWatchTogether')}
+                  </h2>
+                  <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">{t('spaces.byWish')}</span>
+                </div>
+                <div className="space-y-2.5">
+                  {watchlistMovies.map((movie) => {
+                    const ctx = watchContext(movie);
+                    const isExpanded = expandedMovie === movie.id;
+                    return (
+                      <div
+                        key={movie.id}
+                        id={`space-movie-${movie.id}`}
+                        className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[1.4rem] overflow-hidden"
+                      >
+                        <div className="flex items-center gap-3 p-3">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              haptics.medium();
-                              // Même formulaire qu'en solo, grille Bitter+ comprise.
-                              // L'ancienne modale à quatre curseurs vivait ici et
-                              // produisait une note sur une autre échelle que le reste
-                              // de l'app.
-                              onRateMovie(movie, myRating ?? null);
-                            }}
-                            className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400' : 'bg-charcoal dark:bg-forest text-white shadow-xl dark:shadow-none'}`}
+                            onClick={() => handleExpandMovie(movie.id)}
+                            aria-expanded={isExpanded}
+                            className="flex-1 min-w-0 flex items-center gap-3 text-left"
                           >
-                            {rateLabel(t('shared.submitVerdict'))}
+                            <MoviePoster url={movie.poster_url} />
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-black text-charcoal dark:text-white truncate">{movie.title}</span>
+                              <span className="mt-1.5 flex items-center gap-1.5">
+                                <span className="flex shrink-0">
+                                  {members.map((member, i) => (
+                                    <span
+                                      key={member.id}
+                                      className={`w-[18px] h-[18px] rounded-full border-2 border-white dark:border-[#1a1a1a] ${i ? '-ml-1.5' : ''} ${ctx.keenIds.includes(member.profile_id) ? (member.profile_id === currentUserId ? 'dark:!bg-bitter-lime' : '') : 'bg-stone-200 dark:bg-white/15'}`}
+                                      style={ctx.keenIds.includes(member.profile_id) ? { background: memberColors[member.profile_id] } : undefined}
+                                    />
+                                  ))}
+                                </span>
+                                <span
+                                  className={`truncate text-[11px] font-extrabold ${ctx.everyone || ctx.planSlot ? 'text-forest dark:text-lime-400' : 'text-stone-500 dark:text-stone-400'}`}
+                                >
+                                  {ctx.status}
+                                </span>
+                              </span>
+                            </span>
                           </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="grid gap-4">
-                            <PlanPanel
-                              plan={plan}
-                              sharedMovieId={movie.id}
-                              title={movie.title}
-                              currentUserId={currentUserId}
-                              names={memberNames}
-                              favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
-                              onChanged={() => {
-                                reloadPlans();
-                                loadData(true);
-                              }}
-                              onToast={onToast}
-                            />
+                          {ctx.action}
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-4">
+                            <div id={`space-plan-${movie.id}`}>
+                              <PlanPanel
+                                plan={ctx.plan}
+                                sharedMovieId={movie.id}
+                                title={movie.title}
+                                currentUserId={currentUserId}
+                                names={memberNames}
+                                favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
+                                onChanged={() => {
+                                  reloadPlans();
+                                  loadData(true);
+                                }}
+                                onToast={onToast}
+                              />
+                            </div>
                             {/* Avant de demander un avis, dire à qui le film
                                 s'adresse. Un titre posé sans un mot ne dit pas
                                 s'il nous concerne, et dans le doute on passe. */}
@@ -1368,104 +1244,436 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                                 title: movie.title,
                                 year: movie.year ?? undefined,
                                 // `synopsis`, et non `review` : c'est le nom de la
-                                // colonne dans shared_movies. L'argumentaire partait
-                                // sans résumé, donc sur la seule mémoire du modèle.
+                                // colonne dans shared_movies.
                                 overview: movie.synopsis ?? undefined,
                               }}
                               members={memberTastes}
                             />
 
-                            {/* Deux réponses possibles, et non plus une seule.
-                                Avec un unique bouton, « ça ne me dit rien » était
-                                indiscernable de « je n'ai pas encore vu la
-                                suggestion », ce qui est précisément ce qu'un groupe
-                                a besoin de départager. Réappuyer sur son propre
+                            {/* Deux réponses possibles. Réappuyer sur son propre
                                 choix l'annule. */}
                             <div className="grid grid-cols-2 gap-3">
                               <button
                                 onClick={(e) => handleVote(e, movie.id, true)}
-                                aria-pressed={myVote?.interested === true}
-                                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all active:scale-95 ${
-                                  myVote?.interested === true
-                                    ? 'bg-forest border-forest text-white shadow-lg'
-                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-600'
+                                aria-pressed={ctx.myVote?.interested === true}
+                                className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
+                                  ctx.myVote?.interested === true
+                                    ? 'bg-forest border-forest text-white'
+                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
                                 }`}
                               >
-                                <UserCheck size={18} />
-                                <span className="font-black text-[10px] uppercase tracking-widest">
-                                  {t('shared.imIn')}
-                                </span>
+                                <UserCheck size={16} />
+                                <span className="font-black text-[11px]">{t('todo.keen')}</span>
                               </button>
                               <button
                                 onClick={(e) => handleVote(e, movie.id, false)}
-                                aria-pressed={myVote?.interested === false}
-                                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all active:scale-95 ${
-                                  myVote?.interested === false
-                                    ? 'bg-stone-400 border-stone-400 dark:bg-stone-700 dark:border-stone-700 text-white shadow-lg'
-                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-400 dark:text-stone-600'
+                                aria-pressed={ctx.myVote?.interested === false}
+                                className={`flex items-center justify-center gap-2 h-12 rounded-2xl border-2 transition-all active:scale-95 ${
+                                  ctx.myVote?.interested === false
+                                    ? 'bg-stone-500 border-stone-500 dark:bg-stone-700 dark:border-stone-700 text-white'
+                                    : 'bg-white dark:bg-[#202020] border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400'
                                 }`}
                               >
-                                <UserMinus size={18} />
-                                <span className="font-black text-[10px] uppercase tracking-widest">
-                                  {t('shared.imOut')}
-                                </span>
+                                <UserMinus size={16} />
+                                <span className="font-black text-[11px]">{t('todo.notKeen')}</span>
                               </button>
                             </div>
 
-                            {/* Noter passe devant basculer. Il fallait jusqu'ici
-                                qu'une personne pense à marquer le film comme vu
-                                avant que quiconque puisse dire ce qu'il en avait
-                                pensé : le groupe attendait un geste au lieu
-                                d'attendre un avis. Le film bascule maintenant
-                                tout seul quand le premier verdict arrive. */}
+                            {/* Noter fait passer le film dans « Vus ensemble » : la
+                                bascule suit la note. */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 haptics.medium();
-                                onRateMovie(movie, myRating ?? null);
+                                onRateMovie(movie, ctx.myRating ?? null);
                               }}
-                              className="w-full bg-bitter-lime text-charcoal py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
+                              className="w-full h-12 bg-bitter-lime text-charcoal rounded-2xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all"
                             >
-                              <Star size={18} strokeWidth={2.5} fill="currentColor" />
-                              {rateLabel(t('shared.seenAndRate'))}
+                              <Star size={16} strokeWidth={2.5} fill="currentColor" />
+                              {rateLabel(ctx.myRating, ctx.mine, t('shared.seenAndRate'))}
                             </button>
 
-                            {/* Conservé pour le cas où le groupe a vu le film
-                                ensemble et note plus tard : sans lui, un film vu
-                                resterait coincé dans « à voir » tant que
-                                personne n'ouvre l'écran de notation. */}
+                            {/* Pour un film vu ensemble et noté plus tard. */}
                             <button
                               onClick={(e) => handleMarkAsWatched(e, movie.id)}
-                              className="w-full py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-stone-400 dark:text-stone-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              className="w-full h-11 rounded-2xl font-black text-[11px] text-stone-500 dark:text-stone-400 active:scale-95 transition-all flex items-center justify-center gap-2"
                             >
                               <Ticket size={13} strokeWidth={2.5} />
                               {t('shared.markWatchedOnly')}
                             </button>
 
-                            {/* La suppression n'existait que dans l'onglet des verdicts :
-                                une suggestion ajoutée par erreur restait dans la liste
-                                d'envies à vie, y compris pour son auteur, alors que la
-                                base autorise parfaitement l'opération. */}
                             {movie.added_by === currentUserId && (
                               <button
                                 onClick={(e) => handleDeleteMovie(e, movie.id)}
-                                className="w-full py-3 rounded-2xl text-stone-400 dark:text-stone-600 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all hover:text-orange-400"
+                                className="w-full h-11 rounded-2xl text-stone-500 dark:text-stone-500 font-black text-[11px] flex items-center justify-center gap-2 active:scale-95 transition-all hover:text-orange-500"
                               >
                                 <Trash2 size={13} />
                                 {t('shared.removeSuggestion')}
                               </button>
                             )}
                           </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </section>
+            )}
+
+            {/* ─── Vus ensemble ────────────────────────────────────────────
+                Ce que dit le groupe d'abord, puis les films, chacun avec la
+                note de chaque membre. */}
+            {feedMovies.length > 0 && (
+              <section aria-label={t('spaces.seenTogether')} className="space-y-3">
+                <div className="flex items-baseline justify-between px-1">
+                  <h2 className="text-lg font-black tracking-tight text-charcoal dark:text-white">
+                    {t('spaces.seenTogether')}
+                  </h2>
+                  <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">
+                    {t('spaces.filmsCount', { count: String(feedMovies.length) })}
+                  </span>
+                </div>
+
+                {groupCards.length > 0 && (
+                  <div className="-mx-6 flex gap-3 overflow-x-auto no-scrollbar px-6 pb-1 snap-x snap-mandatory">
+                    {groupCards.map((card) => (
+                      <div
+                        key={card.key}
+                        className={`w-[232px] shrink-0 snap-start rounded-[1.6rem] p-[18px] ${card.className}`}
+                      >
+                        <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${card.kickerClass}`}>{card.kicker}</p>
+                        <p className="mt-2.5 text-[15px] font-black leading-tight truncate">{card.title}</p>
+                        <p
+                          className={`mt-1.5 font-black tracking-tighter leading-none tabular-nums whitespace-nowrap ${card.value.length > 5 ? 'text-[30px]' : 'text-[38px]'}`}
+                        >
+                          {card.value}
+                        </p>
+                        <p className={`mt-1.5 text-[11px] font-semibold ${card.noteClass}`}>{card.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2.5">
+                  {feedMovies.map((movie) => {
+                    const ctx = seenContext(movie);
+                    const isExpanded = expandedMovie === movie.id;
+                    return (
+                      <div
+                        key={movie.id}
+                        id={`space-movie-${movie.id}`}
+                        className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 rounded-[1.4rem] overflow-hidden"
+                      >
+                        <div className="flex items-center gap-3 p-3">
+                          <button
+                            onClick={() => handleExpandMovie(movie.id)}
+                            aria-expanded={isExpanded}
+                            className="flex-1 min-w-0 flex items-center gap-3 text-left"
+                          >
+                            <MoviePoster url={movie.poster_url} />
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-black text-charcoal dark:text-white truncate">{movie.title}</span>
+                              <span className="mt-1.5 block text-[11px] font-bold text-stone-500 dark:text-stone-400 truncate">
+                                {ctx.scores.length === 0 && !ctx.myRating
+                                  ? t('spaces.noVerdictYet')
+                                  : ctx.scores.map((s, i) => (
+                                      <React.Fragment key={s.id}>
+                                        {i > 0 && ' · '}
+                                        {s.name}{' '}
+                                        <span
+                                          className={s.hidden ? 'blur-[4px] select-none' : undefined}
+                                          aria-label={s.hidden ? t('plan.hiddenScore') : undefined}
+                                        >
+                                          {s.hidden ? '0,0' : s.value}
+                                        </span>
+                                      </React.Fragment>
+                                    ))}
+                                {!ctx.myRating && ctx.scores.length > 0 && ` · ${t('spaces.you')} —`}
+                              </span>
+                            </span>
+                          </button>
+                          {!ctx.myRating ? (
+                            <button
+                              onClick={() => {
+                                haptics.medium();
+                                onRateMovie(movie, null);
+                              }}
+                              className="shrink-0 h-11 px-4 rounded-2xl bg-bitter-lime text-charcoal text-[11px] font-black active:scale-95 transition-transform"
+                            >
+                              {t('todo.rate')}
+                            </button>
+                          ) : (
+                            <span
+                              className="shrink-0 min-w-[52px] h-11 px-2 rounded-2xl bg-charcoal dark:bg-white text-bitter-lime dark:text-charcoal flex items-center justify-center text-[15px] font-black tabular-nums"
+                              aria-label={t('spaces.groupScore')}
+                            >
+                              {ctx.average}
+                            </span>
+                          )}
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-5">
+                            {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
+                              <div className="space-y-2">
+                                {movie.synopsis && (
+                                  <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-500 dark:text-stone-500">
+                                  {movie.runtime && <span>{movie.runtime} min</span>}
+                                  {movie.genres && movie.genres.length > 0 && <span>{movie.genres.join(', ')}</span>}
+                                  {publicRatingOf(movie) && (
+                                    <PublicRatingBadge
+                                      rating={publicRatingOf(movie)}
+                                      className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
+                                    />
+                                  )}
+                                </div>
+                                {movie.actors && (
+                                  <p className="text-[10px] text-stone-500 dark:text-stone-500">Avec {movie.actors}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {ctx.isConsensus && (
+                              <div
+                                className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 border-2 border-charcoal/5"
+                                style={{ animation: 'celebrate 2s infinite ease-in-out' }}
+                              >
+                                <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
+                                <span className="text-xs font-black uppercase tracking-widest text-charcoal">
+                                  {t('shared.completeVerdict')}
+                                </span>
+                                <PartyPopper size={20} className="text-charcoal scale-x-[-1]" strokeWidth={2.5} />
+                              </div>
+                            )}
+
+                            {ctx.criteriaAvg && !ctx.hideOthers && (
+                              <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10">
+                                <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
+                                  <BarChart3 size={16} />
+                                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">{t('shared.groupAvg')}</h4>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  {[
+                                    { l: t('criteria.story'), v: ctx.criteriaAvg.story },
+                                    { l: t('criteria.visuals'), v: ctx.criteriaAvg.visuals },
+                                    { l: t('criteria.acting'), v: ctx.criteriaAvg.acting },
+                                    { l: t('criteria.sound'), v: ctx.criteriaAvg.sound },
+                                  ].map((c) => (
+                                    <div key={c.l} className="space-y-1">
+                                      <div className="flex justify-between text-[9px] font-bold text-stone-500 dark:text-stone-500 uppercase">
+                                        <span>{c.l}</span>
+                                        <span>{c.v.toFixed(1)}</span>
+                                      </div>
+                                      <div className="h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                        <div className="h-full bg-charcoal dark:bg-white" style={{ width: `${c.v * 10}%` }} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
+                                {t('shared.verdictDetail')} ({ctx.activeRatings.length}/{members.length})
+                              </h4>
+                              {movie.added_by === currentUserId && (
+                                <button
+                                  onClick={(e) => handleDeleteMovie(e, movie.id)}
+                                  aria-label={t('shared.removeSuggestion')}
+                                  className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+
+                            {ctx.hideOthers && ctx.ratings.length > 0 && (
+                              <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
+                                {t('spaces.rateToReveal')}
+                              </p>
+                            )}
+                            {ctx.ratings.length > 0 ? (
+                              <div className="grid gap-3">
+                                {ctx.ratings.map((rating) => {
+                                  const isMe = rating.profile_id === currentUserId;
+                                  const hidden = ctx.hideOthers && !isMe;
+                                  return (
+                                    <div
+                                      key={rating.id}
+                                      className={`bg-white dark:bg-[#252525] rounded-2xl p-4 border ${isMe ? 'border-forest/20 dark:border-forest/40 ring-2 ring-forest/5' : 'border-stone-100 dark:border-white/5'}`}
+                                    >
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
+                                            style={{ background: isMe ? '#1A1A1A' : memberColors[rating.profile_id] ?? '#78716C' }}
+                                          >
+                                            {(rating.profile?.first_name || '?')[0].toUpperCase()}
+                                          </span>
+                                          <span className="font-bold text-sm text-charcoal dark:text-white">
+                                            {rating.profile?.first_name || t('shared.member')}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {!isMe && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                haptics.soft();
+                                                setReporting({
+                                                  contentType: 'review',
+                                                  contentId: rating.id,
+                                                  reportedUserId: rating.profile_id,
+                                                  reportedName: rating.profile?.first_name || t('shared.member'),
+                                                  snapshot: rating.review,
+                                                });
+                                              }}
+                                              aria-label={t('moderation.report')}
+                                              className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
+                                            >
+                                              <Flag size={12} />
+                                            </button>
+                                          )}
+                                          <div
+                                            className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg ${hidden ? 'blur-[5px] select-none' : ''}`}
+                                            aria-label={hidden ? t('plan.hiddenScore') : undefined}
+                                          >
+                                            <Star size={12} fill="currentColor" />
+                                            <span className="text-xs font-black">{hidden ? '?.?' : ratingValue(rating).toFixed(1)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
+                                        <p className="text-[11px] text-stone-500 dark:text-stone-500 italic">{t('moderation.hiddenReview')}</p>
+                                      ) : rating.review ? (
+                                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
+                                          "{rating.review}"
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
+                                <p className="text-[10px] font-bold text-stone-500 dark:text-stone-500 uppercase tracking-widest">
+                                  {t('shared.beFirst')}
+                                </p>
+                              </div>
+                            )}
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                haptics.medium();
+                                // Même formulaire qu'en solo, grille Bitter+ comprise.
+                                onRateMovie(movie, ctx.myRating ?? null);
+                              }}
+                              className={`w-full h-12 rounded-2xl font-black text-xs transition-all active:scale-95 ${ctx.myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-600 dark:text-stone-300' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
+                            >
+                              {rateLabel(ctx.myRating, ctx.mine, t('shared.submitVerdict'))}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
+
+      {/* Un seul bouton pour ajouter : le formulaire demande ensuite « vu » ou
+          « à voir ». Il y en avait deux, selon l'onglet ouvert. */}
+      <button
+        onClick={() => {
+          haptics.medium();
+          onAddMovie();
+        }}
+        className="fixed right-5 z-40 h-14 pl-5 pr-6 rounded-full bg-charcoal dark:bg-white text-white dark:text-charcoal text-[13px] font-black flex items-center gap-2.5 shadow-[0_14px_30px_-10px_rgba(26,26,26,0.5)] active:scale-95 transition-transform"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7.5rem)' }}
+      >
+        <Plus size={18} strokeWidth={3} className="text-bitter-lime dark:text-forest" />
+        {t('spaces.addFilm')}
+      </button>
+
+      {/* Les membres : ouverts depuis la rangée d'avatars de l'en-tête. */}
+      {showMembers && (
+        <div
+          className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowMembers(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('shared.tabMembers')}
+            className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto bg-cream dark:bg-[#0c0c0c] rounded-t-[2rem] sm:rounded-[2rem] p-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-black tracking-tight text-charcoal dark:text-white">{t('shared.tabMembers')}</h2>
+              <button
+                onClick={() => setShowMembers(false)}
+                aria-label={t('common.close')}
+                className="w-10 h-10 rounded-full bg-sand dark:bg-[#1a1a1a] flex items-center justify-center text-charcoal dark:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {groupStats?.meaningful && (
+              <p className="mb-4 text-xs font-semibold text-stone-500 dark:text-stone-400 leading-relaxed">
+                {t('group.harshestKindest', { harsh: groupStats.harshest.name, kind: groupStats.kindest.name })}
+              </p>
+            )}
+            <div className="space-y-2.5">
+              {members.map((member) => (
+                <button
+                  key={member.id}
+                  onClick={() => {
+                    haptics.medium();
+                    setShowMembers(false);
+                    setSelectedMember(member);
+                  }}
+                  className="w-full flex items-center gap-4 bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 p-3.5 rounded-[1.4rem] text-left active:scale-[0.98] transition-transform"
+                >
+                  <MemberDot
+                    member={member}
+                    color={memberColors[member.profile_id]}
+                    isMe={member.profile_id === currentUserId}
+                    className="w-11 h-11 text-sm"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="font-black text-charcoal dark:text-white truncate">{member.profile?.first_name}</span>
+                      {member.role === 'owner' && (
+                        <span className="text-[8px] bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                          {t('shared.founder')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[11px] font-medium text-stone-500 dark:text-stone-500">
+                      {member.role === 'owner' ? t('shared.roleOwner') : t('shared.roleMember')}
+                    </span>
+                  </span>
+                  <ChevronRight size={16} className="text-stone-400 dark:text-stone-600" />
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleInvite}
+              className="mt-5 w-full h-12 rounded-2xl bg-bitter-lime text-charcoal text-xs font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
+              <UserPlus size={15} strokeWidth={2.6} />
+              {t('spaces.invite')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal Fiche Profil */}
       {selectedMember && (

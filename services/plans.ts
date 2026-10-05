@@ -56,14 +56,18 @@ export const planError = (error: unknown): string => {
 };
 
 /** Propositions en cours ou calées de l'espace, les plus récentes d'abord. */
-export async function getSpacePlans(spaceId: string): Promise<WatchPlan[]> {
-  if (!supabase || !spaceId) return [];
-  const { data, error } = await supabase
-    .from('watch_plans')
-    .select('id, proposer_id, space_id, shared_movie_id, status, chosen_slot_id, participant_ids, created_at, slots:watch_plan_slots!watch_plan_slots_plan_id_fkey(id, position, starts_at, cinema_name, version, booking_url)')
-    .eq('space_id', spaceId)
-    .in('status', ['open', 'agreed'])
-    .order('created_at', { ascending: false });
+const PLAN_COLUMNS =
+  'id, proposer_id, space_id, shared_movie_id, status, chosen_slot_id, participant_ids, created_at, slots:watch_plan_slots!watch_plan_slots_plan_id_fkey(id, position, starts_at, cinema_name, version, booking_url)';
+
+/**
+ * Propositions ouvertes ou calées. Sans `spaceId`, celles de tous mes espaces :
+ * la RLS ne rend que les espaces dont je suis membre.
+ */
+export async function getSpacePlans(spaceId?: string): Promise<WatchPlan[]> {
+  if (!supabase || spaceId === '') return [];
+  let query = supabase.from('watch_plans').select(PLAN_COLUMNS).in('status', ['open', 'agreed']);
+  if (spaceId) query = query.eq('space_id', spaceId);
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) {
     console.warn('[Séance] Lecture impossible', error);
     return [];

@@ -107,7 +107,7 @@ import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
-import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
+import { SharedSpace, supabase, getUserSpaces, addMovieToSpace, joinSpaceByCode } from './services/supabase';
 import NotificationCenter from './components/NotificationCenter';
 import WatchWithSheet from './components/WatchWithSheet';
 import SocialNudge from './components/SocialNudge';
@@ -138,6 +138,8 @@ import {
   verdictFromMovie,
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
+import SpaceBubbles from './components/SpaceBubbles';
+import { loadTodoCounts } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
@@ -204,6 +206,8 @@ const canMorph = () =>
   typeof document.startViewTransition === 'function' &&
   !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
+/** Code d'espace reçu par un lien « Inviter », en attente d'un compte. */
+const PENDING_JOIN_KEY = 'bitter_pending_join';
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
@@ -641,6 +645,12 @@ const App: React.FC = () => {
    * souvent que l'onglet des sorties, et n'a pas à dépendre de lui.
    */
   const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
+  /** Demandes en attente par espace, pour la pastille des bulles de l'accueil. */
+  const [spaceTodoCounts, setSpaceTodoCounts] = useState<Map<string, number>>(new Map());
+  /** Relit la liste des espaces : après en avoir créé, rejoint ou quitté un. */
+  const [spacesReload, setSpacesReload] = useState(0);
+  /** Incrémenté quand un lien `?join=` arrive, pour le traiter sans attendre. */
+  const [pendingJoinTick, setPendingJoinTick] = useState(0);
   /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
@@ -1401,7 +1411,57 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, spacesReload]);
+
+  /**
+   * Les pastilles des bulles : relues en revenant sur l'accueil, et après un
+   * geste dans un espace. Les films perso passent par une ref : relire à
+   * chaque note posée ne changerait presque jamais le chiffre.
+   */
+  const myMoviesRef = useRef<Movie[]>([]);
+  myMoviesRef.current = activeProfile?.movies ?? [];
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || bootstrapping || mySpaces.length === 0 || viewMode !== 'Feed') return;
+    let cancelled = false;
+    loadTodoCounts(userId, myMoviesRef.current).then((counts) => {
+      if (!cancelled) setSpaceTodoCounts(counts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, bootstrapping, mySpaces, viewMode, sharedSpaceRefreshTrigger]);
+
+  /**
+   * Lien « Inviter » reçu : on rejoint l'espace et on l'ouvre. Sans compte, le
+   * code attend dans le stockage local qu'on en ait un.
+   */
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || !session?.user?.email || bootstrapping) return;
+    let code: string | null = null;
+    try {
+      code = localStorage.getItem(PENDING_JOIN_KEY);
+    } catch {
+      return;
+    }
+    if (!code) return;
+    try {
+      localStorage.removeItem(PENDING_JOIN_KEY);
+    } catch {
+      // rien à faire
+    }
+    joinSpaceByCode(code, userId).then((result) => {
+      if (!result.success || !result.space) {
+        setToastMessage(t('spaces.joinFailed'));
+        return;
+      }
+      setSpacesReload((n) => n + 1);
+      setActiveSharedSpace(result.space);
+      setViewMode('SharedSpace');
+      setToastMessage(t('spaces.joinedToast', { name: result.space.name }));
+    });
+  }, [session?.user?.id, session?.user?.email, bootstrapping, pendingJoinTick]);
 
   /**
    * Propose une sortie dans un espace, en liste d'envies.
@@ -1566,11 +1626,21 @@ const App: React.FC = () => {
     }
     if (url.searchParams.get('notif')) setPendingNotifOpen(true);
     if (url.searchParams.get('screening')) setViewMode('Calendar');
+    // Lien « Inviter » d'un espace : rejoint dès qu'un compte est là (voir plus bas).
+    const join = url.searchParams.get('join');
+    if (join && /^[A-Za-z0-9_-]{4,32}$/.test(join)) {
+      try {
+        localStorage.setItem(PENDING_JOIN_KEY, join);
+      } catch {
+        // Stockage indisponible : le lien n'aura servi qu'à ouvrir l'app.
+      }
+      setPendingJoinTick((n) => n + 1);
+    }
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       handleIncomingUrl(window.location.href);
@@ -2773,7 +2843,11 @@ const App: React.FC = () => {
 
   const handleBackToFeed = () => {
     haptics.soft();
-    if (viewMode === 'SharedSpace') setActiveSharedSpace(null);
+    if (viewMode === 'SharedSpace') {
+      setActiveSharedSpace(null);
+      // L'espace a pu être quitté, renommé ou supprimé : les bulles se relisent.
+      setSpacesReload((n) => n + 1);
+    }
     setViewMode('Feed');
   };
 
@@ -3222,6 +3296,18 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+              {session?.user?.email && mySpaces.length > 0 && (
+                <SpaceBubbles
+                  spaces={mySpaces}
+                  counts={spaceTodoCounts}
+                  onOpen={(space) => {
+                    setActiveSharedSpace(space);
+                    setViewMode('SharedSpace');
+                    haptics.medium();
+                  }}
+                  onCreate={() => setShowSharedSpaces(true)}
+                />
+              )}
               {!activeProfile || uniqueMovies.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce">
@@ -4176,7 +4262,10 @@ const App: React.FC = () => {
         {showSharedSpaces && activeProfile && (
           <SharedSpacesModal
             isOpen={showSharedSpaces}
-            onClose={() => setShowSharedSpaces(false)}
+            onClose={() => {
+              setShowSharedSpaces(false);
+              setSpacesReload((n) => n + 1);
+            }}
             userId={session?.user?.id || ''}
             onSelectSpace={(space) => {
               setActiveSharedSpace(space);
