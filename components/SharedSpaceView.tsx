@@ -1316,10 +1316,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
+                        className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
                         style={{ background: isMe ? '#1A1A1A' : memberColors[rating.profile_id] ?? '#78716C' }}
                       >
-                        {(rating.profile?.first_name || '?')[0].toUpperCase()}
+                        {avatarSrc(rating.profile?.avatar_url) ? (
+                          <img src={avatarSrc(rating.profile?.avatar_url) as string} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          (rating.profile?.first_name || '?')[0].toUpperCase()
+                        )}
                       </span>
                       <span className="font-bold text-sm text-charcoal dark:text-white">
                         {rating.profile?.first_name || t('shared.member')}

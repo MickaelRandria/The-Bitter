@@ -1,3 +1,4 @@
+import { removeAvatarPhotos } from './avatarUpload';
 import { supabase } from './supabase';
 
 /**
@@ -30,6 +31,11 @@ interface DeleteAccountResponse {
  */
 export const deleteAccount = async (): Promise<DeleteAccountResult> => {
   if (!supabase) return { ok: false, message: 'Le compte en ligne n’est pas configuré.' };
+
+  // Les photos de profil vivent dans le stockage, que la suppression des
+  // lignes n'atteint pas : on vide son dossier tant que la session existe.
+  const { data: auth } = await supabase.auth.getUser();
+  if (auth.user?.id) await removeAvatarPhotos(auth.user.id).catch(() => undefined);
 
   const { data, error } = await supabase.functions.invoke('delete-account', {
     body: { confirm: DELETE_CONFIRMATION },

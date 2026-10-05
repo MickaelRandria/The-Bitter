@@ -87,6 +87,7 @@ export interface MovieRating {
   rated_at: string;
   profile?: {
     first_name: string;
+    avatar_url?: string | null;
   };
 }
 
@@ -646,7 +647,7 @@ export async function getSpaceRatings(
     'Lecture des notes de l’espace',
     supabase
       .from('movie_ratings')
-      .select('*, shared_movies!inner(space_id), profile:profiles(first_name)')
+      .select('*, shared_movies!inner(space_id), profile:profiles(first_name, avatar_url)')
       .eq('shared_movies.space_id', spaceId)
   );
 }

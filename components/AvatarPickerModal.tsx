@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { X, Check, Loader2, Shuffle, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Check, Loader2, Shuffle, Trash2, ImagePlus } from 'lucide-react';
+import { UploadError, isUploadedAvatar } from '../services/avatarUpload';
 import {
   AVATAR_STYLES,
   AvatarStyle,
@@ -17,7 +18,15 @@ interface Props {
   current?: string | null;
   onChoose: (descriptor: string | null) => Promise<void> | void;
   onClose: () => void;
+  /**
+   * Envoie une photo de la galerie et rend son adresse. Absent sans compte :
+   * la photo vit sur le serveur, pour que les membres des espaces la voient.
+   */
+  onUploadPhoto?: (file: File) => Promise<{ url?: string; error?: UploadError }>;
 }
+
+/** Valeur de sélection d'une photo choisie mais pas encore envoyée. */
+const NEW_PHOTO = 'photo:new';
 
 /**
  * Choix d'un avatar dans une grille.
@@ -27,13 +36,35 @@ interface Props {
  * de propositions sans y penser, là où une banque d'images distante imposerait de
  * paginer.
  */
-const AvatarPickerModal: React.FC<Props> = ({ profileId, current, onChoose, onClose }) => {
+const AvatarPickerModal: React.FC<Props> = ({ profileId, current, onChoose, onClose, onUploadPhoto }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('avatar.title'));
 
   const [round, setRound] = useState(0);
   const [selected, setSelected] = useState<string | null>(current ?? null);
   const [saving, setSaving] = useState(false);
+  /** Photo choisie dans la galerie, montrée tout de suite, envoyée à la confirmation. */
+  const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  useEffect(
+    () => () => {
+      if (photo) URL.revokeObjectURL(photo.preview);
+    },
+    [photo]
+  );
+  const uploadedCurrent = isUploadedAvatar(current) ? (current as string) : null;
+  const photoShown = photo?.preview ?? uploadedCurrent;
+  const photoSelected = selected === NEW_PHOTO || (!!uploadedCurrent && selected === uploadedCurrent);
+
+  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    haptics.soft();
+    setPhotoError(null);
+    setPhoto({ file, preview: URL.createObjectURL(file) });
+    setSelected(NEW_PHOTO);
+  };
 
   /**
    * Un style par ligne, six graines par style. Grouper par style plutôt que de tout
@@ -54,8 +85,19 @@ const AvatarPickerModal: React.FC<Props> = ({ profileId, current, onChoose, onCl
   const confirm = async () => {
     if (saving) return;
     setSaving(true);
+    let choice = selected;
+    if (selected === NEW_PHOTO && photo && onUploadPhoto) {
+      const result = await onUploadPhoto(photo.file);
+      if (!result.url) {
+        haptics.error();
+        setPhotoError(t(`avatar.err.${result.error ?? 'failed'}`));
+        setSaving(false);
+        return;
+      }
+      choice = result.url;
+    }
     haptics.success();
-    await onChoose(selected);
+    await onChoose(choice);
     setSaving(false);
     onClose();
   };
@@ -92,6 +134,44 @@ const AvatarPickerModal: React.FC<Props> = ({ profileId, current, onChoose, onCl
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
+          {/* Une vraie photo d'abord : c'est ce qui fait reconnaître quelqu'un
+              dans un espace. Les dessins restent en dessous. */}
+          <div className="space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
+              {t('avatar.photoTitle')}
+            </p>
+            {onUploadPhoto ? (
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => photoShown && setSelected(photo ? NEW_PHOTO : uploadedCurrent)}
+                  aria-pressed={photoSelected}
+                  aria-label={t('avatar.photoTitle')}
+                  className={`w-20 h-20 shrink-0 rounded-full overflow-hidden border-[3px] transition-all ${photoSelected ? 'border-charcoal dark:border-bitter-lime' : 'border-transparent'} bg-stone-100 dark:bg-[#202020] flex items-center justify-center`}
+                >
+                  {photoShown ? (
+                    <img src={photoShown} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImagePlus size={24} className="text-stone-400" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <label className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal text-xs font-black cursor-pointer active:scale-95 transition-transform">
+                    <ImagePlus size={15} strokeWidth={2.5} />
+                    {photoShown ? t('avatar.changePhoto') : t('avatar.pickPhoto')}
+                    <input type="file" accept="image/*" onChange={pickPhoto} className="sr-only" />
+                  </label>
+                  <p className="text-[11px] font-semibold text-stone-500 dark:text-stone-500">{t('avatar.photoHint')}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs font-semibold text-stone-500 dark:text-stone-400">{t('avatar.err.no-account')}</p>
+            )}
+            {photoError && <p className="text-xs font-bold text-orange-600 dark:text-orange-400">{photoError}</p>}
+          </div>
+
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500 -mb-3">
+            {t('avatar.drawnTitle')}
+          </p>
           {grid.map(({ style, options }) => (
             <div key={style} className="space-y-2">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">

@@ -139,6 +139,7 @@ import {
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import SpaceTickets from './components/SpaceTickets';
+import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
 import { SpaceOverview, loadSpaceOverview } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
@@ -1188,7 +1189,8 @@ const App: React.FC = () => {
           // appareil ignore, typiquement un abonnement réglé ailleurs.
           if (
             (existingProfile.cinema_subscription && !linkedLocal.cinemaSubscription) ||
-            (existingProfile.favorite_cinema && !linkedLocal.favoriteCinema)
+            (existingProfile.favorite_cinema && !linkedLocal.favoriteCinema) ||
+            (existingProfile.avatar_url && existingProfile.avatar_url !== linkedLocal.avatarUrl)
           ) {
             setProfiles((prev) =>
               prev.map((p) =>
@@ -1197,6 +1199,9 @@ const App: React.FC = () => {
                       ...p,
                       cinemaSubscription: p.cinemaSubscription ?? existingProfile.cinema_subscription,
                       favoriteCinema: p.favoriteCinema ?? existingProfile.favorite_cinema,
+                      // L'avatar en ligne est celui que voient les espaces : il
+                      // gagne, pour qu'un autre appareil ne montre pas l'ancien.
+                      avatarUrl: existingProfile.avatar_url || p.avatarUrl,
                     }
                   : p
               )
@@ -1235,6 +1240,7 @@ const App: React.FC = () => {
                     cinemaSubscription:
                       existingProfile.cinema_subscription ?? p.cinemaSubscription,
                     favoriteCinema: existingProfile.favorite_cinema ?? p.favoriteCinema,
+                    avatarUrl: existingProfile.avatar_url || p.avatarUrl,
                     movies: p.movies,
                   }
                 : p
@@ -1263,6 +1269,7 @@ const App: React.FC = () => {
                 streamingPlatforms: existingProfile.streaming_platforms || undefined,
                 cinemaSubscription: existingProfile.cinema_subscription ?? undefined,
                 favoriteCinema: existingProfile.favorite_cinema ?? undefined,
+                avatarUrl: existingProfile.avatar_url || undefined,
               },
             ];
           }
@@ -4370,7 +4377,11 @@ const App: React.FC = () => {
                 .from('profiles')
                 .update({ avatar_url: descriptor, updated_at: new Date().toISOString() })
                 .eq('id', userId);
+              // Revenir à un dessin ou à l'initiale : l'ancienne photo n'a plus à
+              // rester en ligne.
+              if (!isUploadedAvatar(descriptor)) void removeAvatarPhotos(userId);
             }}
+            onUploadAvatar={session?.user ? uploadAvatarPhoto : undefined}
             cinemaSubscription={activeProfile.cinemaSubscription}
             onManageCinemaSubscription={() => {
               setShowProfile(false);
