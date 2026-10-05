@@ -1393,6 +1393,8 @@ export const en: Record<string, string> = {
   'spaces.noticeControl': 'You stay in control: untick “Share in the feed” when rating a film to keep it to yourself, or leave the space whenever you want.',
   'spaces.noticeAck': 'Got it',
   'avatar.title': 'Pick your avatar',
+  'notifications.markAllRead': 'Mark all as read',
+  'createProfile.language': 'Language',
   'avatar.photoTitle': 'Your photo',
   'avatar.pickPhoto': 'Choose from gallery',
   'avatar.changePhoto': 'Change photo',
