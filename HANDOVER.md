@@ -479,6 +479,36 @@ et sa migration `20260806_add_ai_quota.sql`.
 (`get_edge_function`) au dépôt, ou chercher la branche qui le contient
 (`git log --all -S "<extrait>"`).
 
+### 5.5 Un seul verdict, seul ou en groupe (5 octobre 2026)
+
+Constat en prod : le verdict personnel (`user_movies`) et celui d'un espace
+(`movie_ratings`) ne se parlaient pas. 10 verdicts perso sur des films d'un
+espace de leur auteur, sans note dans l'espace ; une note d'espace absente de
+la collection.
+
+- **Espace → accueil, automatique.** Le formulaire de notation d'un espace
+  appelle aussi `onSave`. Dans App, `handleSaveFromSpace` pose le verdict sur la
+  fiche personnelle existante (même œuvre entière) au lieu d'en créer une
+  seconde — l'ajout d'un film à un espace dupliquait déjà la fiche. Corriger un
+  verdict ne change pas la date de séance ; une série ne passe pas en « vue ».
+- **Accueil → espace, sur demande.** Après une note dont le verdict change,
+  `findSpacesToUpdate` (`services/spaceSync.ts`) cherche le film dans mes
+  espaces ; s'il y attend mon verdict ou en porte un autre, la barre
+  `SpaceVerdictPrompt` demande « Ta note dans « Ciné pote » aussi ? ». Elle passe
+  avant « Demander son avis ? ». Sans réponse en 15 s, elle vaut un non.
+- **Dans l'espace**, un film déjà noté seul affiche « Publier ma note · 7,4 » et
+  la grille s'ouvre préremplie (`personalVerdictFor`).
+- **Piège** : `policy_update_movies` ne laisse modifier `shared_movies` qu'à
+  l'auteur de la proposition ou à un admin. L'UPDATE client de bascule en « vu »
+  ne touchait aucune ligne pour les autres membres. La bascule est faite par le
+  trigger `movie_ratings_marks_watched` (`20261005_verdict_bascule_le_film`),
+  qui exige que la personne soit membre active de l'espace.
+- **Pas synchronisé, à dessein** : supprimer un film de sa collection ne retire
+  pas son verdict de l'espace ; « Juste marquer comme vu » n'a pas de note à
+  recopier. « Partant » → liste perso reste à faire : le trigger
+  `user_movies_common_wish` enverrait un « Léa aussi » en doublon de
+  `watch_accepted`.
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code
