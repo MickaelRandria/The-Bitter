@@ -564,6 +564,31 @@ Piste choisie par le propriétaire sur la maquette (A + C), la liste en lignes
   dans `localStorage` (`bitter_backdrops_v1`). Sans image, l'affiche recadrée.
   Aucune colonne en base. `api.themoviedb.org` est déjà dans le CSP.
 
+### 5.8 Photos de profil (5 octobre 2026)
+
+Constat : 2 profils sur 20 avaient un avatar, tous dessinés (DiceBear) ; aucun
+stockage de photos n'existait, et dans les espaces les autres membres
+n'apparaissaient qu'en initiale.
+
+- **Photo de la galerie** : « Ta photo » en tête du sélecteur d'avatar
+  (`AvatarPickerModal`, compte requis). `services/avatarUpload.ts` recadre au
+  centre en 400 × 400 sur l'appareil, réencode en JPEG (ce qui efface l'EXIF et
+  la position GPS) et dépose dans `avatars/<uid>/<horodatage>.jpg`. Les
+  anciennes photos du dossier sont retirées ; revenir à un dessin ou à
+  l'initiale vide le dossier.
+- **Migration** `20261005_photos_de_profil.sql` : seau `avatars` public en
+  lecture (2 Mo, JPEG/PNG/WebP), écriture / liste / retrait dans son seul
+  dossier. Contrainte `profiles_avatar_url_source` : `avatar_url` n'accepte que
+  `dicebear:…` ou une photo de ce seau (sinon un pixel de suivi s'afficherait
+  chez les autres membres).
+- **Synchro** : un avatar choisi avant d'avoir un compte monte à la connexion si
+  le serveur n'en a pas (`syncProfileFieldsToSupabase`) ; sinon l'avatar en
+  ligne redescend sur l'appareil (c'est celui que voient les espaces).
+- **Espaces** : `getSpaceRatings` lit aussi `avatar_url`, le détail des notes
+  montre la photo.
+- **Suppression du compte** : le dossier de photos est vidé avant l'appel à
+  `delete-account`, la suppression des lignes n'atteignant pas le stockage.
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code

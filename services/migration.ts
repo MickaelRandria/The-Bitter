@@ -1,3 +1,5 @@
+import { isGeneratedAvatar } from '../utils/avatar';
+import { isUploadedAvatar } from './avatarUpload';
 import { supabase } from './supabase';
 import { CinemaSubscription, FavoriteCinema, UserProfile, Movie } from '../types';
 import { WORK_KEY_COLUMNS, movieToRow } from './movieSync';
@@ -284,6 +286,14 @@ export async function syncProfileFieldsToSupabase(
   }
   if (local.isOnboarded && !remote.is_onboarded) {
     patch.is_onboarded = true;
+  }
+  // Un avatar choisi avant la création du compte restait sur l'appareil : les
+  // membres des espaces ne voyaient que l'initiale. Il ne monte que si le serveur
+  // n'en a pas, pour ne pas écraser celui choisi depuis un autre appareil.
+  // Seules les deux formes acceptées par la contrainte `profiles_avatar_url_source` :
+  // une autre ferait rejeter tout le lot, prénom compris.
+  if (local.avatarUrl && !remote.avatar_url && (isGeneratedAvatar(local.avatarUrl) || isUploadedAvatar(local.avatarUrl))) {
+    patch.avatar_url = local.avatarUrl;
   }
 
   const changed = Object.keys(patch);

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { avatarSrc } from '../utils/avatar';
 import AvatarPickerModal from './AvatarPickerModal';
+import type { UploadError } from '../services/avatarUpload';
 import BlockedPeopleSection from './BlockedPeopleSection';
 import {
   X,
@@ -86,6 +87,8 @@ interface ProfileModalProps {
   onOpenAccountSync?: () => void;
   /** Enregistre l'avatar choisi, localement et sur le compte. */
   onAvatarChange?: (descriptor: string | null) => Promise<void> | void;
+  /** Envoi d'une photo de la galerie ; absent sans compte. */
+  onUploadAvatar?: (file: File) => Promise<{ url?: string; error?: UploadError }>;
   /** Abonnement cinéma actif, pour afficher le résumé dans les paramètres. */
   cinemaSubscription?: CinemaSubscription;
   onManageCinemaSubscription?: () => void;
@@ -136,6 +139,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   pendingSyncCount = 0,
   onOpenAccountSync,
   onAvatarChange,
+  onUploadAvatar,
   cinemaSubscription,
   onManageCinemaSubscription,
   favoriteCinema,
@@ -1101,6 +1105,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             await onAvatarChange?.(descriptor);
           }}
           onClose={() => setShowAvatarPicker(false)}
+          onUploadPhoto={onUploadAvatar}
         />
       )}
     </div>
