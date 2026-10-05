@@ -44,7 +44,10 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import PlanPanel from './PlanPanel';
-import { WatchPlan, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import SpaceTodoStack from './SpaceTodoStack';
+import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
+import { publishVerdictToSpaces } from '../services/spaceSync';
 import { formatRating, formatSlot } from '../supabase/functions/notify/messages.ts';
 import { getDisplayWeightedRating, hasVerdict } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -597,6 +600,77 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     [members]
   );
 
+  /** Demandes écartées (« Pas vu », « Pas dispo ») : elles ne reviennent pas. */
+  const [skipped, setSkipped] = useState<Set<string>>(() => readSkipped(currentUserId));
+  const myWorks = useMemo(() => personalWorks(myMovies), [myMovies]);
+  /** « À toi de jouer » : ce que le groupe attend de moi, une carte par demande. */
+  const todo = useMemo(
+    () =>
+      buildTodo({
+        movies,
+        votes,
+        ratings: allRatings,
+        plans,
+        userId: currentUserId,
+        personal: myWorks,
+        skipped,
+        blocked,
+      }),
+    [movies, votes, allRatings, plans, currentUserId, myWorks, skipped, blocked]
+  );
+
+  const answerWatch = async (item: TodoItem, interested: boolean): Promise<boolean> => {
+    setActionError(null);
+    const result = await setMovieVote(item.movie.id, currentUserId, interested);
+    if (!result.ok) {
+      setActionError(result.error ?? t('shared.voteFailed'));
+      return false;
+    }
+    onToast?.(interested ? t('todo.answeredYes') : t('social.answeredNo'));
+    const refreshed = await getSpaceMovieVotes(space.id);
+    if (!refreshed.error) setVotes(refreshed.data);
+    return true;
+  };
+
+  const publishMine = async (item: TodoItem): Promise<boolean> => {
+    if (!item.mine) return false;
+    setActionError(null);
+    const done = await publishVerdictToSpaces(item.mine, currentUserId, [
+      {
+        sharedMovieId: item.movie.id,
+        spaceId: space.id,
+        spaceName: space.name,
+        status: item.movie.status,
+        myRating: null,
+      },
+    ]);
+    if (!done.length) {
+      setActionError(t('spaceSync.failed'));
+      return false;
+    }
+    onToast?.(t('todo.published'));
+    void loadData(true);
+    return true;
+  };
+
+  const acceptPlanSlot = async (_item: TodoItem, slotId: string): Promise<boolean> => {
+    setActionError(null);
+    const result = await acceptSlot(slotId);
+    if (!result.ok) {
+      setActionError(result.error ?? t('social.failed'));
+      void reloadPlans();
+      return false;
+    }
+    onToast?.(t('todo.planAgreed'));
+    void reloadPlans();
+    return true;
+  };
+
+  const skipItem = (item: TodoItem) => {
+    skipTodo(currentUserId, item.key);
+    setSkipped((prev) => new Set(prev).add(item.key));
+  };
+
   /**
    * Notification touchée : on ouvre l'espace sur SON film, dans le bon onglet,
    * déplié. Sinon la personne arrive sur un espace et doit chercher de quoi il
@@ -788,6 +862,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
       {/* Main Content */}
       <div className="space-y-6">
+        {activeTab !== 'members' && !loadError && (
+          <SpaceTodoStack
+            items={todo}
+            currentUserId={currentUserId}
+            memberNames={memberNames}
+            votes={votes}
+            ratings={allRatings}
+            onWatch={answerWatch}
+            onPublish={publishMine}
+            onRate={(item) => onRateMovie(item.movie, null)}
+            onAcceptSlot={acceptPlanSlot}
+            onSkip={skipItem}
+          />
+        )}
         <div className="flex items-center justify-between px-1">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
             {activeTab === 'feed'

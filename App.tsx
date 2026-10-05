@@ -138,6 +138,8 @@ import {
   verdictFromMovie,
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
+import SpaceBubbles from './components/SpaceBubbles';
+import { loadTodoCounts } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
@@ -641,6 +643,10 @@ const App: React.FC = () => {
    * souvent que l'onglet des sorties, et n'a pas à dépendre de lui.
    */
   const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
+  /** Demandes en attente par espace, pour la pastille des bulles de l'accueil. */
+  const [spaceTodoCounts, setSpaceTodoCounts] = useState<Map<string, number>>(new Map());
+  /** Relit la liste des espaces : après en avoir créé, rejoint ou quitté un. */
+  const [spacesReload, setSpacesReload] = useState(0);
   /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
@@ -1401,7 +1407,26 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, spacesReload]);
+
+  /**
+   * Les pastilles des bulles : relues en revenant sur l'accueil, et après un
+   * geste dans un espace. Les films perso passent par une ref : relire à
+   * chaque note posée ne changerait presque jamais le chiffre.
+   */
+  const myMoviesRef = useRef<Movie[]>([]);
+  myMoviesRef.current = activeProfile?.movies ?? [];
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || bootstrapping || mySpaces.length === 0 || viewMode !== 'Feed') return;
+    let cancelled = false;
+    loadTodoCounts(userId, myMoviesRef.current).then((counts) => {
+      if (!cancelled) setSpaceTodoCounts(counts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, bootstrapping, mySpaces, viewMode, sharedSpaceRefreshTrigger]);
 
   /**
    * Propose une sortie dans un espace, en liste d'envies.
@@ -2773,7 +2798,11 @@ const App: React.FC = () => {
 
   const handleBackToFeed = () => {
     haptics.soft();
-    if (viewMode === 'SharedSpace') setActiveSharedSpace(null);
+    if (viewMode === 'SharedSpace') {
+      setActiveSharedSpace(null);
+      // L'espace a pu être quitté, renommé ou supprimé : les bulles se relisent.
+      setSpacesReload((n) => n + 1);
+    }
     setViewMode('Feed');
   };
 
@@ -3222,6 +3251,18 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+              {session?.user?.email && mySpaces.length > 0 && (
+                <SpaceBubbles
+                  spaces={mySpaces}
+                  counts={spaceTodoCounts}
+                  onOpen={(space) => {
+                    setActiveSharedSpace(space);
+                    setViewMode('SharedSpace');
+                    haptics.medium();
+                  }}
+                  onCreate={() => setShowSharedSpaces(true)}
+                />
+              )}
               {!activeProfile || uniqueMovies.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-24 h-24 bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] border border-sand dark:border-white/5 flex items-center justify-center text-stone-300 dark:text-stone-700 mb-8 shadow-sm transition-colors transition-all animate-bounce">
@@ -4176,7 +4217,10 @@ const App: React.FC = () => {
         {showSharedSpaces && activeProfile && (
           <SharedSpacesModal
             isOpen={showSharedSpaces}
-            onClose={() => setShowSharedSpaces(false)}
+            onClose={() => {
+              setShowSharedSpaces(false);
+              setSpacesReload((n) => n + 1);
+            }}
             userId={session?.user?.id || ''}
             onSelectSpace={(space) => {
               setActiveSharedSpace(space);

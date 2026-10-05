@@ -509,6 +509,27 @@ la collection.
   `user_movies_common_wish` enverrait un « Léa aussi » en doublon de
   `watch_accepted`.
 
+### 5.6 Les bulles et « À toi de jouer » (5 octobre 2026)
+
+Première tranche de la refonte des espaces (maquette validée par le
+propriétaire : bulles sur l'accueil, pile de cartes, deux sections, lignes
+compactes). On n'entrait dans un espace que par Profil → Espaces ; agir y
+demandait trois appuis.
+
+- **Bulles** (`SpaceBubbles`) en haut de l'accueil, comptes avec e-mail et au
+  moins un espace. Anneau et pastille = nombre de demandes en attente
+  (`loadTodoCounts`, quatre lectures pour tous les espaces, relues au retour
+  sur l'accueil). Le « + » ouvre la liste des espaces.
+- **« À toi de jouer »** (`SpaceTodoStack`, calcul dans `services/spaceTodo.ts`,
+  testé par `tests/spaceTodo.test.mjs`) : séance proposée par un autre, puis
+  film proposé sans réponse de ma part, puis film vu à noter — seulement si je
+  l'ai noté seul, si j'étais partant ou si une séance a été calée avec moi.
+  Appui ou glissé (droite = réponse principale). « Pas vu » / « Pas dispo »
+  écartent la carte sur l'appareil (`localStorage`, par compte), sans prévenir
+  personne.
+- Reste à faire : deux sections au lieu de trois onglets, lignes compactes,
+  en-tête à l'identité de l'espace, bouton d'ajout unique.
+
 ---
 
 ## 6. Les pièges déjà payés — à lire avant de toucher au code
