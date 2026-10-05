@@ -1792,6 +1792,8 @@ export const fr: Record<string, string> = {
   'spaces.ticketWaitingMany': 't’attendent',
   'spaces.ticketUpToDate': 'à jour',
   'spaces.ticketNew': 'Créer ou rejoindre',
+  'spaces.totalWaitingOne': '1 t’attend',
+  'spaces.totalWaitingMany': '{count} t’attendent',
   'spaces.seeMembers': 'Voir les membres',
   'spaces.invite': 'Inviter',
   'spaces.inviteText': 'Rejoins « {name} » sur The Bitter, on y choisit nos films ensemble (code {code}) :',

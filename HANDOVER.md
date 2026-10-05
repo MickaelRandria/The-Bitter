@@ -523,6 +523,9 @@ demandait trois appuis.
   « à jour ». `loadSpaceOverview` : cinq lectures pour tous les espaces,
   relues au retour sur l'accueil. Le billet en pointillés ouvre la liste des
   espaces (créer, rejoindre). Teinte et monogramme : `utils/spaceLook.ts`.
+  Repliés par défaut derrière une barre « Tes espaces » (monogrammes, noms,
+  total en attente) ; un appui déplie, et le choix est gardé sur l'appareil
+  (`bitter_spaces_expanded`).
 - **« À toi de jouer »** (`SpaceTodoStack`, calcul dans `services/spaceTodo.ts`,
   testé par `tests/spaceTodo.test.mjs`) : séance proposée par un autre, puis
   film proposé sans réponse de ma part, puis film vu à noter — seulement si je

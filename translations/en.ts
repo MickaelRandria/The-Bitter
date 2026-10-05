@@ -1786,6 +1786,8 @@ export const en: Record<string, string> = {
   'spaces.ticketWaitingMany': 'waiting',
   'spaces.ticketUpToDate': 'all set',
   'spaces.ticketNew': 'Create or join',
+  'spaces.totalWaitingOne': '1 waiting',
+  'spaces.totalWaitingMany': '{count} waiting',
   'spaces.seeMembers': 'See members',
   'spaces.invite': 'Invite',
   'spaces.inviteText': 'Join “{name}” on The Bitter, we pick our films together there (code {code}):',
