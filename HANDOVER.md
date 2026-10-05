@@ -527,8 +527,20 @@ demandait trois appuis.
   Appui ou glissé (droite = réponse principale). « Pas vu » / « Pas dispo »
   écartent la carte sur l'appareil (`localStorage`, par compte), sans prévenir
   personne.
-- Reste à faire : deux sections au lieu de trois onglets, lignes compactes,
-  en-tête à l'identité de l'espace, bouton d'ajout unique.
+- **Écran de l'espace** (même PR) : plus d'onglets Chrono / À voir / Membres.
+  En-tête = bandeau des cinq dernières affiches, monogramme à la teinte de
+  l'espace (`tintOf`, `shared_spaces.color` sinon une teinte tirée de l'id),
+  rangée d'avatars (ouvre la feuille des membres) et « Inviter ». Puis
+  « À voir ensemble » classé par nombre de partants (« On se le fait ? » ouvre
+  le panneau de séance) et « Vus ensemble » : carrousel consensus / clivant /
+  binôme, puis une ligne par film avec la note de chacun. Les notes des autres
+  sont floutées tant que je n'ai pas noté un film qu'on attend de moi. Le
+  détail déplié d'un film est inchangé. Un seul bouton « Ajouter un film ».
+- **« Inviter »** partage `https://thebitter.watch/?join=<code>`. App garde le
+  code (`bitter_pending_join`) jusqu'à ce qu'un compte avec e-mail soit là,
+  puis `join_space_by_code` (idempotente) et ouvre l'espace.
+- Les notes de l'espace viennent toutes de `getSpaceRatings` : la lecture film
+  par film au dépliage (`getMovieRatings`) n'est plus utilisée ici.
 
 ---
 

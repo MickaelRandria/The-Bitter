@@ -107,7 +107,7 @@ import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
-import { SharedSpace, supabase, getUserSpaces, addMovieToSpace } from './services/supabase';
+import { SharedSpace, supabase, getUserSpaces, addMovieToSpace, joinSpaceByCode } from './services/supabase';
 import NotificationCenter from './components/NotificationCenter';
 import WatchWithSheet from './components/WatchWithSheet';
 import SocialNudge from './components/SocialNudge';
@@ -206,6 +206,8 @@ const canMorph = () =>
   typeof document.startViewTransition === 'function' &&
   !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
+/** Code d'espace reçu par un lien « Inviter », en attente d'un compte. */
+const PENDING_JOIN_KEY = 'bitter_pending_join';
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
@@ -647,6 +649,8 @@ const App: React.FC = () => {
   const [spaceTodoCounts, setSpaceTodoCounts] = useState<Map<string, number>>(new Map());
   /** Relit la liste des espaces : après en avoir créé, rejoint ou quitté un. */
   const [spacesReload, setSpacesReload] = useState(0);
+  /** Incrémenté quand un lien `?join=` arrive, pour le traiter sans attendre. */
+  const [pendingJoinTick, setPendingJoinTick] = useState(0);
   /** Film d'un espace que l'on vient noter, avec le verdict déjà donné s'il existe. */
   const [sharedMovieToRate, setSharedMovieToRate] = useState<any | null>(null);
   const [sharedRatingToEdit, setSharedRatingToEdit] = useState<any | null>(null);
@@ -1429,6 +1433,37 @@ const App: React.FC = () => {
   }, [session?.user?.id, bootstrapping, mySpaces, viewMode, sharedSpaceRefreshTrigger]);
 
   /**
+   * Lien « Inviter » reçu : on rejoint l'espace et on l'ouvre. Sans compte, le
+   * code attend dans le stockage local qu'on en ait un.
+   */
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || !session?.user?.email || bootstrapping) return;
+    let code: string | null = null;
+    try {
+      code = localStorage.getItem(PENDING_JOIN_KEY);
+    } catch {
+      return;
+    }
+    if (!code) return;
+    try {
+      localStorage.removeItem(PENDING_JOIN_KEY);
+    } catch {
+      // rien à faire
+    }
+    joinSpaceByCode(code, userId).then((result) => {
+      if (!result.success || !result.space) {
+        setToastMessage(t('spaces.joinFailed'));
+        return;
+      }
+      setSpacesReload((n) => n + 1);
+      setActiveSharedSpace(result.space);
+      setViewMode('SharedSpace');
+      setToastMessage(t('spaces.joinedToast', { name: result.space.name }));
+    });
+  }, [session?.user?.id, session?.user?.email, bootstrapping, pendingJoinTick]);
+
+  /**
    * Propose une sortie dans un espace, en liste d'envies.
    *
    * C'est ce raccourci qui empêche les sorties d'être une liste que l'on regarde
@@ -1591,11 +1626,21 @@ const App: React.FC = () => {
     }
     if (url.searchParams.get('notif')) setPendingNotifOpen(true);
     if (url.searchParams.get('screening')) setViewMode('Calendar');
+    // Lien « Inviter » d'un espace : rejoint dès qu'un compte est là (voir plus bas).
+    const join = url.searchParams.get('join');
+    if (join && /^[A-Za-z0-9_-]{4,32}$/.test(join)) {
+      try {
+        localStorage.setItem(PENDING_JOIN_KEY, join);
+      } catch {
+        // Stockage indisponible : le lien n'aura servi qu'à ouvrir l'app.
+      }
+      setPendingJoinTick((n) => n + 1);
+    }
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       handleIncomingUrl(window.location.href);

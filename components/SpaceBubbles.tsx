@@ -15,7 +15,7 @@ interface Props {
 /** Teintes sombres, lisibles sous un monogramme blanc, attribuées par espace. */
 const TINTS = ['#3E5238', '#B45309', '#44403C', '#3D405B', '#7F5539', '#2F3E46'];
 
-const tintOf = (space: SharedSpace): string => {
+export const tintOf = (space: SharedSpace): string => {
   if (space.color && /^#[0-9a-f]{6}$/i.test(space.color)) return space.color;
   let hash = 0;
   for (const ch of space.id) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
