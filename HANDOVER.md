@@ -516,10 +516,13 @@ propriétaire : bulles sur l'accueil, pile de cartes, deux sections, lignes
 compactes). On n'entrait dans un espace que par Profil → Espaces ; agir y
 demandait trois appuis.
 
-- **Bulles** (`SpaceBubbles`) en haut de l'accueil, comptes avec e-mail et au
-  moins un espace. Anneau et pastille = nombre de demandes en attente
-  (`loadTodoCounts`, quatre lectures pour tous les espaces, relues au retour
-  sur l'accueil). Le « + » ouvre la liste des espaces.
+- **Billets** (`SpaceTickets`) en haut de l'accueil, comptes avec e-mail et au
+  moins un espace. Ils ont remplacé les bulles façon stories (jugées trop
+  « Instagram ») : un billet par espace avec son nom, ses trois dernières
+  affiches et ses membres ; sur le talon, le nombre de demandes en attente ou
+  « à jour ». `loadSpaceOverview` : cinq lectures pour tous les espaces,
+  relues au retour sur l'accueil. Le billet en pointillés ouvre la liste des
+  espaces (créer, rejoindre). Teinte et monogramme : `utils/spaceLook.ts`.
 - **« À toi de jouer »** (`SpaceTodoStack`, calcul dans `services/spaceTodo.ts`,
   testé par `tests/spaceTodo.test.mjs`) : séance proposée par un autre, puis
   film proposé sans réponse de ma part, puis film vu à noter — seulement si je

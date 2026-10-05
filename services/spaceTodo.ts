@@ -135,30 +135,58 @@ export function skipTodo(userId: string, key: string): void {
   }
 }
 
+/** Ce que le billet d'un espace montre à l'accueil. */
+export interface SpaceOverview {
+  /** Demandes qui m'attendent (voir `buildTodo`). */
+  pending: number;
+  /** Les trois dernières affiches de l'espace, la plus récente d'abord. */
+  posters: string[];
+  /** Membres actifs, les autres d'abord, moi en dernier. */
+  members: { profile_id: string; first_name: string; avatar_url: string | null }[];
+}
+
 /**
- * Le nombre de demandes en attente, espace par espace, pour les bulles de
- * l'accueil. Quatre lectures pour tous mes espaces à la fois ; la RLS ne rend
- * que ceux dont je suis membre actif.
+ * L'aperçu de chacun de mes espaces, pour les billets de l'accueil. Cinq
+ * lectures pour tous les espaces à la fois ; la RLS ne rend que ceux dont je
+ * suis membre actif, et les profils de ceux qui les partagent avec moi.
  */
-export async function loadTodoCounts(userId: string, myMovies: Movie[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (!supabase || !userId) return counts;
-  const [moviesRes, votesRes, ratingsRes, plans] = await Promise.all([
-    supabase.from('shared_movies').select('id, space_id, status, added_by, tmdb_id, media_type, added_at, title'),
+export async function loadSpaceOverview(userId: string, myMovies: Movie[]): Promise<Map<string, SpaceOverview>> {
+  const overview = new Map<string, SpaceOverview>();
+  if (!supabase || !userId) return overview;
+  const [moviesRes, votesRes, ratingsRes, plans, membersRes] = await Promise.all([
+    supabase
+      .from('shared_movies')
+      .select('id, space_id, status, added_by, tmdb_id, media_type, added_at, title, poster_url')
+      .order('added_at', { ascending: false }),
     supabase.from('space_movie_votes').select('movie_id, profile_id, interested').eq('profile_id', userId),
     supabase.from('movie_ratings').select('movie_id, profile_id').eq('profile_id', userId),
     getSpacePlans(),
+    supabase
+      .from('space_members')
+      .select('space_id, profile_id, profile:profiles(first_name, avatar_url)')
+      .eq('is_active', true),
   ]);
-  if (moviesRes.error) return counts;
+  if (moviesRes.error) return overview;
+
+  const entry = (spaceId: string): SpaceOverview => {
+    let e = overview.get(spaceId);
+    if (!e) {
+      e = { pending: 0, posters: [], members: [] };
+      overview.set(spaceId, e);
+    }
+    return e;
+  };
 
   const bySpace = new Map<string, SharedMovie[]>();
   for (const m of (moviesRes.data || []) as SharedMovie[]) {
     bySpace.set(m.space_id, [...(bySpace.get(m.space_id) ?? []), m]);
+    const e = entry(m.space_id);
+    if (m.poster_url && e.posters.length < 3) e.posters.push(m.poster_url);
   }
   const personal = personalVerdicts(myMovies);
   const skipped = readSkipped(userId);
   for (const [spaceId, movies] of bySpace) {
-    const items = buildTodo({
+    entry(spaceId).pending = buildTodo({
       movies,
       votes: (votesRes.data || []) as VoteLike[],
       ratings: (ratingsRes.data || []) as RatingLike[],
@@ -166,8 +194,23 @@ export async function loadTodoCounts(userId: string, myMovies: Movie[]): Promise
       userId,
       personal,
       skipped,
-    });
-    if (items.length) counts.set(spaceId, items.length);
+    }).length;
   }
-  return counts;
+  type MemberRow = {
+    space_id: string;
+    profile_id: string;
+    profile: { first_name: string | null; avatar_url: string | null } | { first_name: string | null; avatar_url: string | null }[] | null;
+  };
+  for (const row of (membersRes.data || []) as MemberRow[]) {
+    const profile = Array.isArray(row.profile) ? row.profile[0] : row.profile;
+    entry(row.space_id).members.push({
+      profile_id: row.profile_id,
+      first_name: profile?.first_name || '',
+      avatar_url: profile?.avatar_url ?? null,
+    });
+  }
+  for (const e of overview.values()) {
+    e.members.sort((a, b) => Number(a.profile_id === userId) - Number(b.profile_id === userId));
+  }
+  return overview;
 }
