@@ -2280,7 +2280,8 @@ const App: React.FC = () => {
     if (!session?.user?.id) return;
     localStorage.setItem(linkedProfileKey(session.user.id), profileId);
     setShowProfileLinking(false);
-    const count = await resyncAllMoviesToSupabase(session.user.id, profileId);
+    // Rattacher un profil est un geste explicite : sa collection fait foi.
+    const count = await resyncAllMoviesToSupabase(session.user.id, profileId, 'all');
     if (count > 0) setToastMessage(`${count} film${count > 1 ? 's' : ''} synchronisé${count > 1 ? 's' : ''} avec ton compte`);
   };
 
