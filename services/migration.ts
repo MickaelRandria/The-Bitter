@@ -182,10 +182,50 @@ export async function syncCinemaSubscriptionToSupabase(
     })
     .eq('id', userId);
 
-  if (error && import.meta.env.DEV) {
-    console.error('[Cinema subscription] Unable to sync subscription:', error);
+  if (error) {
+    console.warn('[Cinema subscription] Unable to sync subscription:', error.message);
+    return;
+  }
+  if (subscription) markSubscriptionSynced(subscription.id);
+}
+
+/**
+ * Abonnements déjà enregistrés au moins une fois sur le serveur, par appareil.
+ *
+ * Un abonnement créé avant la colonne `profiles.cinema_subscription` n'a jamais
+ * quitté le téléphone : l'écriture échouait sans bruit, et le chargement gardait
+ * la copie locale sans la renvoyer. On la renvoie donc — mais seulement si elle
+ * n'a jamais été enregistrée. Une fois passée par le serveur, une absence là-bas
+ * veut dire qu'elle a été supprimée depuis un autre appareil, pas qu'elle manque.
+ */
+const SYNCED_SUBSCRIPTIONS_KEY = 'bitter_synced_cinema_subscriptions';
+
+const readSyncedSubscriptions = (): string[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SYNCED_SUBSCRIPTIONS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+function markSubscriptionSynced(id: string): void {
+  try {
+    const ids = readSyncedSubscriptions();
+    if (!ids.includes(id)) localStorage.setItem(SYNCED_SUBSCRIPTIONS_KEY, JSON.stringify([...ids, id]));
+  } catch {
+    // Stockage indisponible : au pire, l'abonnement sera renvoyé une fois de plus.
   }
 }
+
+/** Le serveur connaît cet abonnement : il a donc bien été enregistré. */
+export const markSubscriptionSyncedFromServer = (subscription: { id?: string } | null | undefined): void => {
+  if (subscription?.id) markSubscriptionSynced(subscription.id);
+};
+
+/** Vrai si cet abonnement local n'a encore jamais atteint le serveur. */
+export const isSubscriptionUnsynced = (subscription?: CinemaSubscription): subscription is CinemaSubscription =>
+  !!subscription && !readSyncedSubscriptions().includes(subscription.id);
 
 /**
  * Persiste le cinéma favori dans le profil Supabase.

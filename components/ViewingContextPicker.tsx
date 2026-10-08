@@ -10,6 +10,7 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaProviderBadge from './CinemaProviderBadge';
 import { getCinemaProviderBrand } from '../utils/cinemaBrand';
+import { buildSubscriptionContext } from '../utils/cinemaSubscription';
 
 interface ViewingContextPickerProps {
   value?: ViewingContext;
@@ -57,9 +58,21 @@ const ViewingContextPicker: React.FC<ViewingContextPickerProps> = ({
       onChange(undefined);
       return;
     }
+    /**
+     * Avec un abonnement, « Cinéma » vaut « avec mon abonnement » d'emblée.
+     *
+     * Le paiement se choisissait dans une seconde rangée, et l'oublier laissait
+     * la séance hors de l'abonnement : « 0 séance ce mois-ci » pour quelqu'un qui
+     * en avait vu quatre. C'est de loin le cas le plus courant ; « Payé » ou
+     * « Invitation » restent à un geste.
+     */
+    if (id === 'cinema' && subscription) {
+      onChange(buildSubscriptionContext(subscription));
+      return;
+    }
     onChange(
       id === 'cinema'
-        ? { locationType: 'cinema', cinemaProvider: subscription?.provider ?? 'other' }
+        ? { locationType: 'cinema', cinemaProvider: 'other' }
         : { locationType: id }
     );
   };
