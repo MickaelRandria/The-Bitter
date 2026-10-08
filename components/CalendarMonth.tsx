@@ -104,18 +104,7 @@ export default function CalendarMonth({
           );
         })}
       </div>
-      <div className="mt-4 flex flex-wrap gap-x-3 gap-y-2 text-[10px] font-bold text-stone-500 dark:text-stone-400">
-        {(['watched', 'screening', 'plan', 'watchlist-release', 'release'] as const).map((kind) => (
-          <span key={kind} className="flex items-center gap-1">
-            <i
-              className="h-2 w-2 rounded-full ring-1 ring-black/15"
-              style={{ background: eventColors[kind] }}
-            />
-            {t(`agenda.legend.${kind}`)}
-          </span>
-        ))}
-      </div>
-      <p className="mt-4 rounded-2xl bg-white p-4 text-xs font-medium leading-relaxed text-stone-500 dark:bg-[#151514] dark:text-stone-400">
+      <p className="mt-3 text-center text-[11px] font-medium text-stone-400 dark:text-stone-500">
         {t('agenda.monthHint')}
       </p>
     </>

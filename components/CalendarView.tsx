@@ -385,7 +385,7 @@ export default function CalendarView(props: CalendarViewProps) {
         <div
           role="radiogroup"
           aria-label={t('agenda.filterLabel')}
-          className="mt-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {CALENDAR_FILTERS.filter((f) => tab === 'month' || f !== 'watched').map((f) => {
             const active = (tab === 'month' ? filter : upcomingFilter) === f;
