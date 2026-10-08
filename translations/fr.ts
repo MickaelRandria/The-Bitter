@@ -2207,4 +2207,9 @@ export const fr: Record<string, string> = {
   'agenda.cancelSession': "Annuler la séance",
   'agenda.cancelConfirmation': "Annuler la séance « {title} » ? Elle sera annulée pour tout le groupe.",
   'agenda.sessionCancelled': "Séance annulée, le groupe est prévenu.",
+  'agenda.atTheCinema': "Au cinéma",
+  'releases.feedSubtitle': "Les films qui arrivent en salle, dans l’ordre de sortie.",
+  'releases.today': "aujourd’hui",
+  'releases.tomorrow': "demain",
+  'releases.inDays': "dans {days} j",
 };

@@ -3421,6 +3421,13 @@ const App: React.FC = () => {
               onReview={(movie) => { setEditingMovie(movie); setCalendarWatchedDay(undefined); setIsModalOpen(true); }}
               onAddWatched={(day) => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
               onToast={setToastMessage}
+              onPreviewMovie={(id) => {
+                setPreviewTmdbId(id);
+                setPreviewMediaType('movie');
+              }}
+              spaces={mySpaces}
+              onProposeToSpace={handleProposeToSpace}
+              onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
             />
           ) : viewMode === 'Deck' ? (
             <MovieDeck

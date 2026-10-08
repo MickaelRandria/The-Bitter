@@ -2201,4 +2201,9 @@ export const en: Record<string, string> = {
   'agenda.cancelSession': "Cancel screening",
   'agenda.cancelConfirmation': "Cancel the “{title}” screening? It will be cancelled for the whole group.",
   'agenda.sessionCancelled': "Screening cancelled, the group has been told.",
+  'agenda.atTheCinema': "At the cinema",
+  'releases.feedSubtitle': "Films coming to cinemas, in release order.",
+  'releases.today': "today",
+  'releases.tomorrow': "tomorrow",
+  'releases.inDays': "in {days} d",
 };
