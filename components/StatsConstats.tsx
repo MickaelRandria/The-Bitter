@@ -75,9 +75,12 @@ const ScaleBar: React.FC<{ label: string; value: number; color: string; max?: nu
   </div>
 );
 
-/** Le fond de carte : l'affiche en noir et blanc, teintée, qui se dissout dans le noir. */
+/**
+ * Le fond de carte, façon jaquette : l'affiche occupe toute la carte, en noir
+ * et blanc teinté de la couleur du constat, et s'efface vers le bas pour
+ * laisser lire la phrase. Coupée en deux pour les émotions.
+ */
 const PosterBackdrop: React.FC<{ url?: string; tint: string } | { split: [string | undefined, string | undefined] }> = (props) => {
-  const fadeMask = 'linear-gradient(200deg, #000 30%, transparent 78%)';
   const grain =
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
   const layer = (url: string | undefined, tint: string, box: React.CSSProperties, mask: string) =>
@@ -90,25 +93,20 @@ const PosterBackdrop: React.FC<{ url?: string; tint: string } | { split: [string
         <div className="absolute" style={{ ...box, background: tint, mixBlendMode: 'multiply', WebkitMaskImage: mask, maskImage: mask }} />
       </>
     ) : null;
-  const isSplit = 'split' in props;
-  const downMask = 'linear-gradient(180deg, #000 35%, transparent 90%)';
   return (
     <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
-      {isSplit ? (
+      {'split' in props ? (
         <>
-          {layer(poster(props.split[0], 'w342'), LIME, { top: 0, left: 0, right: '50%', bottom: '22%' }, downMask)}
-          {layer(poster(props.split[1], 'w342'), BURNT, { top: 0, left: '50%', right: 0, bottom: '22%' }, downMask)}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(11,11,11,.7) 0%, rgba(11,11,11,.5) 45%, rgba(11,11,11,.96) 75%)' }} />
+          {layer(poster(props.split[0], 'w342'), LIME, { top: 0, left: 0, right: '50%', bottom: 0 }, 'linear-gradient(180deg, #000 50%, transparent 100%)')}
+          {layer(poster(props.split[1], 'w342'), BURNT, { top: 0, left: '50%', right: 0, bottom: 0 }, 'linear-gradient(180deg, #000 50%, transparent 100%)')}
         </>
       ) : (
-        <>
-          {layer(poster(props.url, 'w342'), props.tint, { top: 0, right: 0, bottom: '18%', left: '22%' }, fadeMask)}
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(180deg, rgba(11,11,11,.7) 0%, rgba(11,11,11,0) 38%), linear-gradient(90deg, rgba(11,11,11,.92) 0%, rgba(11,11,11,.35) 55%, rgba(11,11,11,0) 100%)' }}
-          />
-        </>
+        layer(poster(props.url, 'w342'), props.tint, { inset: 0 }, 'linear-gradient(180deg, #000 60%, transparent 100%)')
       )}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(180deg, rgba(11,11,11,.35) 0%, rgba(11,11,11,0) 25%, rgba(11,11,11,0) 45%, rgba(11,11,11,.95) 92%)' }}
+      />
       <div className="absolute inset-0 opacity-[0.12] mix-blend-overlay" style={{ backgroundImage: grain }} />
     </div>
   );
@@ -174,12 +172,12 @@ const VersusBlocks: React.FC<{ left: [string, string, string]; right: [string, s
 /* ───────────────────────── Ce que chaque carte affiche ───────────────────────── */
 
 interface CardModel {
-  question: string;
-  answer: string;
+  /** La phrase de la carte. */
+  line: string;
+  /** Ce que dit la pastille : le chiffre, ou le mot (« Scénario »). */
+  sticker: string;
   hero: string;
   heroColor: string;
-  unit: string;
-  visual: React.ReactNode;
   /** Ce qu'il y a en fond et pourquoi. */
   source: string;
   backdrop: { url?: string; tint: string } | { split: [string | undefined, string | undefined] };
@@ -213,17 +211,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       if (!k.unlocked) return null;
       const tint = k.tone === 'below' ? BURNT : LIME;
       return {
-        question: t('constats.public.q'),
-        answer: t(`constats.public.title.${k.tone}`),
+        line: t(`constats.public.line.${k.tone}`),
+        sticker: signed(k.gap, fmt),
         hero: signed(k.gap, fmt),
         heroColor: k.tone === 'below' ? BURNT : k.tone === 'above' ? LIME : INK,
-        unit: t('constats.public.unit'),
-        visual: (
-          <>
-            <ScaleBar label={t('constats.public.you')} value={k.you} color={tint} text={fmt(k.you)} />
-            <ScaleBar label={t('constats.public.crowd')} value={k.crowd} color={PALE} text={fmt(k.crowd)} />
-          </>
-        ),
         source: t('constats.public.src', { title: short(k.feature.title), you: fmt(k.feature.rating), crowd: fmt(k.feature.crowd) }),
         backdrop: { url: k.feature.poster, tint },
       };
@@ -233,12 +224,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       if (!k.unlocked) return null;
       const filled = k.buckets.filter((b) => b.count > 0);
       return {
-        question: t('constats.phone.q'),
-        answer: t(`constats.phone.head.${k.tone}`),
+        line: t(`constats.phone.line.${k.tone}`),
+        sticker: signed((filled[filled.length - 1].avg ?? 0) - (filled[0].avg ?? 0), fmt),
         hero: signed((filled[filled.length - 1].avg ?? 0) - (filled[0].avg ?? 0), fmt),
         heroColor: k.tone === 'strong' ? BURNT : INK,
-        unit: t('constats.phone.unit'),
-        visual: <PhoneGauges k={k} t={t} fmt={fmt} />,
         source: t('constats.phone.src', { title: short(k.feature.title), phone: k.feature.phone }),
         backdrop: { url: k.feature.poster, tint: BURNT },
       };
@@ -249,14 +238,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       const order = [...CRITERIA].sort((a, b) => k.weakest[b] - k.weakest[a]);
       const max = k.weakest[order[0]] || 1;
       return {
-        question: t('constats.maillon.q'),
-        answer: t('constats.maillon.head', { crit: t(`constats.crit.${k.lead}`) }),
+        line: t('constats.maillon.head', { crit: t(`constats.crit.${k.lead}`) }),
+        sticker: t(`constats.critShort.${k.lead}`),
         hero: String(Math.round(k.weakest[k.lead])),
         heroColor: INK,
-        unit: t('constats.maillon.unit', { total: k.total }),
-        visual: order.map((key) => (
-          <ScaleBar key={key} label={t(`constats.critShort.${key}`)} value={k.weakest[key]} max={max} color={key === k.lead ? BURNT : PALE} text={String(Math.round(k.weakest[key]))} />
-        )),
         source: t('constats.maillon.src', { title: short(k.feature.title), crit: t(`constats.critShort.${k.lead}`).toLowerCase(), value: fmt(k.feature.value) }),
         backdrop: { url: k.feature.poster, tint: BURNT },
       };
@@ -266,24 +251,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       if (!k.unlocked) return null;
       const top = t(`addMovie.${k.top.key}`), low = t(`addMovie.${k.low.key}`);
       return {
-        question: t('constats.emotions.q'),
-        answer: t('constats.emotions.answer', { top, low }),
+        line: t('constats.emotions.answer', { top, low }),
+        sticker: t('constats.emotions.pts', { n: fmt(k.top.avg - k.low.avg) }),
         hero: fmt(k.top.avg - k.low.avg),
         heroColor: INK,
-        unit: t('constats.emotions.unit'),
-        visual: (
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { label: top, v: k.top.avg, color: LIME, bg: 'rgba(217,255,0,.16)' },
-              { label: low, v: k.low.avg, color: BURNT, bg: 'rgba(240,138,36,.2)' },
-            ].map((b) => (
-              <div key={b.label} className="grid gap-0.5 rounded-2xl p-2.5 backdrop-blur-md" style={{ background: b.bg }}>
-                <small className="truncate text-[10px] font-extrabold" style={{ color: b.color }}>{b.label}</small>
-                <strong className="text-[26px] font-black leading-none tracking-tight">{fmt(b.v)}</strong>
-              </div>
-            ))}
-          </div>
-        ),
         source: t('constats.emotions.src', { top: short(k.topFilm.title), low: short(k.lowFilm.title) }),
         backdrop: { split: [k.topFilm.poster, k.lowFilm.poster] },
       };
@@ -294,17 +265,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       const s = k.bands[0].avg ?? 0, l = k.bands[3].avg ?? 0;
       const good = l >= s;
       return {
-        question: t('constats.duree.q'),
-        answer: t(`constats.duree.head.${k.tone}`),
+        line: t(`constats.duree.head.${k.tone}`),
+        sticker: signed(l - s, fmt),
         hero: signed(l - s, fmt),
         heroColor: k.tone === 'flat' ? INK : good ? LIME : BURNT,
-        unit: t('constats.duree.unit'),
-        visual: (
-          <>
-            <ScaleBar label="< 1h35" value={s} color={good ? BURNT : LIME} text={fmt(s)} />
-            <ScaleBar label="2h15 +" value={l} color={good ? LIME : BURNT} text={fmt(l)} />
-          </>
-        ),
         source: t('constats.duree.src', { title: short(k.feature.title), runtime: runtimeLabel(k.feature.runtime), rating: fmt(k.feature.rating) }),
         backdrop: { url: k.feature.poster, tint: LIME },
       };
@@ -314,17 +278,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       if (!k.unlocked) return null;
       const oldWins = k.old >= k.fresh;
       return {
-        question: t('constats.classiques.q'),
-        answer: t(`constats.classiques.head.${k.tone}`),
+        line: t(`constats.classiques.head.${k.tone}`),
+        sticker: signed(k.old - k.fresh, fmt),
         hero: signed(k.old - k.fresh, fmt),
         heroColor: k.tone === 'flat' ? INK : oldWins ? LIME : BURNT,
-        unit: t('constats.classiques.unit'),
-        visual: (
-          <>
-            <ScaleBar label={t('constats.classiques.oldLabel')} value={k.old} color={oldWins ? LIME : BURNT} text={fmt(k.old)} />
-            <ScaleBar label={t('constats.classiques.freshLabel')} value={k.fresh} color={oldWins ? BURNT : LIME} text={fmt(k.fresh)} />
-          </>
-        ),
         source: t('constats.classiques.src', { title: short(k.feature.title), year: k.feature.year ?? '', rating: fmt(k.feature.rating) }),
         backdrop: { url: k.feature.poster, tint: LIME },
       };
@@ -335,17 +292,10 @@ const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null
       const top = k.changes[0];
       const up = top.to > top.from;
       return {
-        question: t('constats.revirements.q'),
-        answer: t('constats.revirements.answer'),
+        line: t('constats.revirements.answer'),
+        sticker: signed(top.to - top.from, fmt),
         hero: String(k.changes.length),
         heroColor: INK,
-        unit: t('constats.revirements.unit'),
-        visual: (
-          <div className="flex items-baseline gap-2 text-2xl font-black tabular-nums">
-            <span className="text-stone-500">{fmt(top.from)}</span>
-            <span style={{ color: up ? LIME : BURNT }}>→ {fmt(top.to)}</span>
-          </div>
-        ),
         source: t('constats.revirements.src', { title: short(top.title), from: fmt(top.from), to: fmt(top.to) }),
         backdrop: { url: top.poster, tint: up ? LIME : BURNT },
       };
@@ -670,6 +620,10 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
               <strong className="text-[46px] font-black leading-[0.9] tracking-tighter tabular-nums" style={{ color: model.heroColor }}>{model.hero}</strong>
               <span className="text-[12.5px] font-semibold leading-snug text-stone-400">{detailLede(id, c, t, fmt)}</span>
             </div>
+            <p className="-mt-2 text-[11px] font-bold text-stone-500">
+              {t('constats.bg', { what: '' })}
+              <span className="text-stone-300">{model.source}</span>
+            </p>
             {chart}
             <p className="border-t border-white/10 pt-3 text-[11.5px] leading-relaxed text-stone-500">{t(`constats.${id}.foot`)}</p>
           </div>
@@ -682,23 +636,31 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
 
 /* ───────────────────────── La rangée ───────────────────────── */
 
-const ConstatCard: React.FC<{ model: CardModel; t: T; onOpen: () => void }> = ({ model, t, onOpen }) => (
+/** La couleur de la pastille ; le blanc des chiffres neutres devient un papier clair. */
+const stickerBg = (color: string) => (color === INK ? '#F5F4F0' : color);
+
+const ConstatCard: React.FC<{ id: ConstatId; model: CardModel; t: T; onOpen: () => void }> = ({ id, model, t, onOpen }) => (
   <button
     type="button"
     onClick={onOpen}
-    className="relative isolate snap-start shrink-0 w-[264px] min-h-[340px] overflow-hidden rounded-[1.75rem] bg-[#0B0B0B] p-[18px] pb-4 grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr_auto_auto] gap-2 text-left text-[#F5F4F0] shadow-[0_18px_40px_-22px_rgba(0,0,0,.7)] active:scale-[0.98] transition-transform"
+    aria-label={`${t(`constats.${id}.eyebrow`)} : ${model.line}. ${t('constats.seeDetail')}`}
+    className="relative isolate snap-start shrink-0 w-[236px] h-[320px] overflow-hidden rounded-[1.6rem] bg-[#0B0B0B] p-4 flex flex-col justify-between text-left text-[#F5F4F0] shadow-[0_18px_40px_-22px_rgba(0,0,0,.7)] active:scale-[0.98] transition-transform"
   >
     <PosterBackdrop {...model.backdrop} />
-    <span className="relative z-10 max-w-[72%] text-[11.5px] font-bold text-white/60">{model.question}</span>
-    <span className="relative z-10 max-w-[90%] text-[21px] font-black leading-[1.04] tracking-tight text-balance [text-shadow:0_2px_18px_rgba(0,0,0,.6)]">{model.answer}</span>
-    <span className="relative z-10 flex flex-wrap items-baseline gap-2 self-end">
-      <strong className="text-[52px] font-black leading-[0.85] tracking-tighter tabular-nums" style={{ color: model.heroColor }}>{model.hero}</strong>
-      <span className="max-w-[124px] text-[11.5px] font-bold leading-tight text-white/70">{model.unit}</span>
+    <span
+      className="relative z-10 self-start -rotate-3 rounded-[14px] px-[11px] py-1.5 text-[22px] font-black leading-none tracking-tight tabular-nums text-[#111] shadow-[0_8px_18px_rgba(0,0,0,.35)]"
+      style={{ background: stickerBg(model.heroColor) }}
+    >
+      {model.sticker}
     </span>
-    <span className="relative z-10 grid gap-1.5">{model.visual}</span>
-    <span className="relative z-10 flex items-center justify-between gap-2 border-t border-white/[0.08] pt-2 text-[10px] font-bold text-white/50">
-      <span className="min-w-0 line-clamp-2 leading-snug">{t('constats.bg', { what: '' })}<em className="not-italic text-white/80">{model.source}</em></span>
-      <span className="shrink-0 font-black uppercase tracking-[0.1em] text-bitter-lime">{t('constats.detail')} →</span>
+    <span className="absolute right-4 top-5 z-10 max-w-[38%] text-right text-[9px] font-black uppercase leading-[1.3] tracking-[0.16em] text-white/60">
+      {t(`constats.${id}.eyebrow`)}
+    </span>
+    <span className="relative z-10 mr-11 text-[22px] font-black leading-[1.05] tracking-tight text-balance [text-shadow:0_2px_16px_rgba(0,0,0,.7)]">
+      {model.line}
+    </span>
+    <span className="absolute bottom-3.5 right-3.5 z-10 grid h-[30px] w-[30px] place-items-center rounded-full bg-white/[0.12] text-sm font-black text-white backdrop-blur-md" aria-hidden="true">
+      →
     </span>
   </button>
 );
@@ -729,6 +691,7 @@ const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
           return model ? (
             <ConstatCard
               key={id}
+              id={id}
               model={model}
               t={t}
               onOpen={() => {
@@ -743,7 +706,7 @@ const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
           return (
             <div
               key={id}
-              className="snap-start shrink-0 w-[264px] min-h-[340px] rounded-[1.75rem] border-[1.5px] border-dashed border-stone-300 dark:border-white/15 p-[18px] grid grid-rows-[auto_auto_1fr_auto] gap-2"
+              className="snap-start shrink-0 w-[236px] h-[320px] rounded-[1.6rem] border-[1.5px] border-dashed border-stone-300 dark:border-white/15 p-[18px] grid grid-rows-[auto_auto_1fr_auto] gap-2"
             >
               <span className="text-[11.5px] font-bold text-stone-400 dark:text-stone-500">{t('constats.locked')}</span>
               <span className="text-[21px] font-black tracking-tight leading-[1.04] text-stone-500 dark:text-stone-400">{t(`constats.${id}.q`)}</span>
