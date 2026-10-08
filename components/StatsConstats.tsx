@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, Lock, X } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
+import { resizeTmdbImage } from '../utils/tmdbImage';
 import {
   CONSTAT_ORDER,
   CRITERIA,
@@ -13,9 +14,11 @@ import {
   Constats,
   DureeConstat,
   EmotionsConstat,
+  FilmRef,
   MaillonConstat,
   PhoneConstat,
   PublicConstat,
+  PublicPoint,
   RevirementsConstat,
   computeConstats,
   filmPointsFrom,
@@ -24,20 +27,26 @@ import {
 /**
  * « Tes constats » — l'onglet Profil des stats, sous l'archétype.
  *
- * Deux niveaux de lecture au même endroit : la carte dit le constat en une
- * phrase avec un visuel sans axes, pour tout le monde ; la toucher ouvre le
- * graphique complet, pour qui veut comprendre. Les cartes restent sombres dans
- * les deux thèmes, comme celle de l'archétype juste au-dessus.
+ * Deux niveaux de lecture. La carte pose une question, y répond, donne un
+ * chiffre avec son unité, et l'affiche d'un des films de la personne se fond
+ * dans son fond (noir et blanc, teinté de la couleur du constat) : on la devine
+ * avant de la reconnaître, ce qui donne envie de toucher. Le détail se
+ * construit autour des affiches : l'affiche du film clé en tête, puis des
+ * étagères de films qui prouvent le constat.
+ *
+ * Vert : ce qui fait monter la note. Orange : ce qui la fait baisser. Les
+ * chiffres portent leur signe, pour que la couleur ne soit jamais seule à dire
+ * le sens. Les cartes restent sombres dans les deux thèmes, comme l'archétype.
  */
 
 const LIME = '#D9FF00';
 const BURNT = '#F08A24';
 const NEUTRAL = '#8A8A85';
+const PALE = '#BDBAB2';
 const GRID = '#2A2A28';
 const INK = '#F5F4F0';
 const INK2 = '#A9A69E';
 const INK3 = '#6F6C66';
-const CARD = '#161615';
 
 type Fmt = (x: number) => string;
 type T = (key: string, params?: Record<string, string | number>) => string;
@@ -47,204 +56,307 @@ const useFmt = (): Fmt => {
   return (x: number) => (language === 'en' ? x.toFixed(1) : x.toFixed(1).replace('.', ','));
 };
 
-/* ───────────────────────── Phrases ───────────────────────── */
+/** −0,7 / +1,6 : le signe dit le sens, la couleur ne fait que le souligner. */
+const signed = (x: number, fmt: Fmt) => `${x > 0.04 ? '+' : x < -0.04 ? '−' : ''}${fmt(Math.abs(x))}`;
+const short = (title: string) => title.split(' :')[0];
+const poster = (url: string | undefined, size: 'w154' | 'w342' = 'w154') => resizeTmdbImage(url, size);
+const runtimeLabel = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
 
-const headline = (id: ConstatId, c: Constats, t: T, fmt: Fmt): string | null => {
+/* ───────────────────────── Pièces communes ───────────────────────── */
+
+/** Barre horizontale sur une échelle de 0 à 10 : un libellé, une jauge, la valeur. */
+const ScaleBar: React.FC<{ label: string; value: number; color: string; max?: number; text?: string }> = ({ label, value, color, max = 10, text }) => (
+  <div className="grid grid-cols-[66px_1fr_30px] items-center gap-2 text-[11.5px] font-extrabold text-white/70">
+    <span className="truncate">{label}</span>
+    <span className="relative h-2.5 rounded-full bg-white/10 overflow-hidden">
+      <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(3, (value / max) * 100)}%`, background: color }} />
+    </span>
+    <span className="text-right font-black text-white tabular-nums">{text ?? value}</span>
+  </div>
+);
+
+/** Le fond de carte : l'affiche en noir et blanc, teintée, qui se dissout dans le noir. */
+const PosterBackdrop: React.FC<{ url?: string; tint: string } | { split: [string | undefined, string | undefined] }> = (props) => {
+  const fadeMask = 'linear-gradient(200deg, #000 30%, transparent 78%)';
+  const grain =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
+  const layer = (url: string | undefined, tint: string, box: React.CSSProperties, mask: string) =>
+    url ? (
+      <>
+        <div
+          className="absolute bg-cover"
+          style={{ ...box, backgroundImage: `url(${url})`, backgroundPosition: 'center 20%', filter: 'grayscale(1) contrast(1.25) brightness(1.05)', WebkitMaskImage: mask, maskImage: mask }}
+        />
+        <div className="absolute" style={{ ...box, background: tint, mixBlendMode: 'multiply', WebkitMaskImage: mask, maskImage: mask }} />
+      </>
+    ) : null;
+  const isSplit = 'split' in props;
+  const downMask = 'linear-gradient(180deg, #000 35%, transparent 90%)';
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
+      {isSplit ? (
+        <>
+          {layer(poster(props.split[0], 'w342'), LIME, { top: 0, left: 0, right: '50%', bottom: '22%' }, downMask)}
+          {layer(poster(props.split[1], 'w342'), BURNT, { top: 0, left: '50%', right: 0, bottom: '22%' }, downMask)}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(11,11,11,.7) 0%, rgba(11,11,11,.5) 45%, rgba(11,11,11,.96) 75%)' }} />
+        </>
+      ) : (
+        <>
+          {layer(poster(props.url, 'w342'), props.tint, { top: 0, right: 0, bottom: '18%', left: '22%' }, fadeMask)}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(180deg, rgba(11,11,11,.7) 0%, rgba(11,11,11,0) 38%), linear-gradient(90deg, rgba(11,11,11,.92) 0%, rgba(11,11,11,.35) 55%, rgba(11,11,11,0) 100%)' }}
+          />
+        </>
+      )}
+      <div className="absolute inset-0 opacity-[0.12] mix-blend-overlay" style={{ backgroundImage: grain }} />
+    </div>
+  );
+};
+
+/** Étagère d'affiches avec une pastille : l'écart, la note, le temps sur le téléphone… */
+const Shelf: React.FC<{ title: string; films: (FilmRef & { badge: string; color: string })[] }> = ({ title, films }) =>
+  films.length === 0 ? null : (
+    <div className="space-y-2">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">{title}</p>
+      <div className="-mx-6 flex gap-2.5 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {films.map((f) => (
+          <figure key={f.id} className="m-0 w-[74px] shrink-0 space-y-1.5">
+            <div
+              className="relative h-[111px] w-[74px] rounded-[10px] bg-[#222] bg-cover bg-center shadow-[0_8px_18px_rgba(0,0,0,.45)]"
+              style={{ backgroundImage: f.poster ? `url(${poster(f.poster)})` : undefined }}
+            >
+              {!f.poster && <span className="absolute inset-0 p-1.5 text-[10px] font-bold leading-tight text-stone-400">{short(f.title)}</span>}
+              <i className="absolute bottom-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-black not-italic text-[#111]" style={{ background: f.color }}>
+                {f.badge}
+              </i>
+            </div>
+            <figcaption className="line-clamp-2 text-[10.5px] font-bold leading-tight text-stone-400">{short(f.title)}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+
+/** Le film touché dans un graphique, avec son affiche. */
+const Callout: React.FC<{ film: FilmRef | null; line: string; hint: string }> = ({ film, line, hint }) => (
+  <div className="flex min-h-[76px] items-center gap-3 rounded-2xl bg-white/[0.06] p-2.5">
+    {film ? (
+      <>
+        <div className="h-[57px] w-[38px] shrink-0 rounded-[7px] bg-[#222] bg-cover bg-center" style={{ backgroundImage: film.poster ? `url(${poster(film.poster)})` : undefined }} />
+        <div className="min-w-0 text-xs leading-snug text-stone-400">
+          <b className="block truncate text-[13.5px] font-black text-white">{film.title}</b>
+          {line}
+        </div>
+      </>
+    ) : (
+      <p className="px-1 text-xs font-bold text-stone-500">{hint}</p>
+    )}
+  </div>
+);
+
+/** Deux blocs face à face : ce qui fait monter, ce qui fait baisser. */
+const VersusBlocks: React.FC<{ left: [string, string, string]; right: [string, string, string] }> = ({ left, right }) => (
+  <div className="grid grid-cols-2 gap-2.5">
+    {[
+      { v: left, color: LIME, bg: 'rgba(217,255,0,.12)' },
+      { v: right, color: BURNT, bg: 'rgba(240,138,36,.14)' },
+    ].map(({ v: [label, value, sub], color, bg }) => (
+      <div key={label} className="grid gap-1 rounded-[18px] p-3" style={{ background: bg }}>
+        <small className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color }}>{label}</small>
+        <strong className="text-[30px] font-black tracking-tight text-white leading-none">{value}</strong>
+        <em className="not-italic text-[11px] leading-snug text-stone-400">{sub}</em>
+      </div>
+    ))}
+  </div>
+);
+
+/* ───────────────────────── Ce que chaque carte affiche ───────────────────────── */
+
+interface CardModel {
+  question: string;
+  answer: string;
+  hero: string;
+  heroColor: string;
+  unit: string;
+  visual: React.ReactNode;
+  /** Ce qu'il y a en fond et pourquoi. */
+  source: string;
+  backdrop: { url?: string; tint: string } | { split: [string | undefined, string | undefined] };
+}
+
+const phoneColor = (i: number, last: number) => (i === 0 ? LIME : i === last ? BURNT : PALE);
+
+const PhoneGauges: React.FC<{ k: PhoneConstat; t: T; fmt: Fmt; big?: boolean }> = ({ k, t, fmt, big }) => {
+  const shown = k.buckets.filter((b) => b.count > 0);
+  const h = big ? 112 : 60, w = big ? 52 : 34;
+  return (
+    <div className="grid items-end gap-2" style={{ gridTemplateColumns: `repeat(${shown.length}, 1fr)` }}>
+      {shown.map((b, i) => (
+        <div key={b.key} className="grid justify-items-center gap-1 text-center text-[10px] font-extrabold leading-tight text-stone-400">
+          <span className={`${big ? 'text-base' : 'text-[13px]'} font-black text-white tabular-nums`}>{fmt(b.avg ?? 0)}</span>
+          <div className="relative rounded-lg border-2 border-[#2A2A28] bg-black/55" style={{ width: w, height: h }}>
+            <div className="absolute inset-x-[3px] bottom-[3px] rounded" style={{ height: ((h - 8) * (b.avg ?? 0)) / 10, background: phoneColor(i, shown.length - 1) }} />
+          </div>
+          {t(`constats.phone.bucket.${b.key}`)}
+          {big && <span className="font-bold text-stone-500">{t('constats.films', { n: b.count })}</span>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const cardModel = (id: ConstatId, c: Constats, t: T, fmt: Fmt): CardModel | null => {
   switch (id) {
     case 'public': {
       const k = c.public;
-      return k.unlocked ? t(`constats.public.head.${k.tone}`, { gap: fmt(Math.abs(k.gap)) }) : null;
+      if (!k.unlocked) return null;
+      const tint = k.tone === 'below' ? BURNT : LIME;
+      return {
+        question: t('constats.public.q'),
+        answer: t(`constats.public.title.${k.tone}`),
+        hero: signed(k.gap, fmt),
+        heroColor: k.tone === 'below' ? BURNT : k.tone === 'above' ? LIME : INK,
+        unit: t('constats.public.unit'),
+        visual: (
+          <>
+            <ScaleBar label={t('constats.public.you')} value={k.you} color={tint} text={fmt(k.you)} />
+            <ScaleBar label={t('constats.public.crowd')} value={k.crowd} color={PALE} text={fmt(k.crowd)} />
+          </>
+        ),
+        source: t('constats.public.src', { title: short(k.feature.title), you: fmt(k.feature.rating), crowd: fmt(k.feature.crowd) }),
+        backdrop: { url: k.feature.poster, tint },
+      };
     }
-    case 'phone':
-      return c.phone.unlocked ? t(`constats.phone.head.${c.phone.tone}`) : null;
-    case 'maillon':
-      return c.maillon.unlocked ? t('constats.maillon.head', { crit: t(`constats.crit.${c.maillon.lead}`) }) : null;
+    case 'phone': {
+      const k = c.phone;
+      if (!k.unlocked) return null;
+      const filled = k.buckets.filter((b) => b.count > 0);
+      return {
+        question: t('constats.phone.q'),
+        answer: t(`constats.phone.head.${k.tone}`),
+        hero: signed((filled[filled.length - 1].avg ?? 0) - (filled[0].avg ?? 0), fmt),
+        heroColor: k.tone === 'strong' ? BURNT : INK,
+        unit: t('constats.phone.unit'),
+        visual: <PhoneGauges k={k} t={t} fmt={fmt} />,
+        source: t('constats.phone.src', { title: short(k.feature.title), phone: k.feature.phone }),
+        backdrop: { url: k.feature.poster, tint: BURNT },
+      };
+    }
+    case 'maillon': {
+      const k = c.maillon;
+      if (!k.unlocked) return null;
+      const order = [...CRITERIA].sort((a, b) => k.weakest[b] - k.weakest[a]);
+      const max = k.weakest[order[0]] || 1;
+      return {
+        question: t('constats.maillon.q'),
+        answer: t('constats.maillon.head', { crit: t(`constats.crit.${k.lead}`) }),
+        hero: String(Math.round(k.weakest[k.lead])),
+        heroColor: INK,
+        unit: t('constats.maillon.unit', { total: k.total }),
+        visual: order.map((key) => (
+          <ScaleBar key={key} label={t(`constats.critShort.${key}`)} value={k.weakest[key]} max={max} color={key === k.lead ? BURNT : PALE} text={String(Math.round(k.weakest[key]))} />
+        )),
+        source: t('constats.maillon.src', { title: short(k.feature.title), crit: t(`constats.critShort.${k.lead}`).toLowerCase(), value: fmt(k.feature.value) }),
+        backdrop: { url: k.feature.poster, tint: BURNT },
+      };
+    }
     case 'emotions': {
       const k = c.emotions;
-      return k.unlocked
-        ? t('constats.emotions.head', { top: t(`addMovie.${k.top.key}`), low: t(`addMovie.${k.low.key}`), gap: fmt(k.top.avg - k.low.avg) })
-        : null;
+      if (!k.unlocked) return null;
+      const top = t(`addMovie.${k.top.key}`), low = t(`addMovie.${k.low.key}`);
+      return {
+        question: t('constats.emotions.q'),
+        answer: t('constats.emotions.answer', { top, low }),
+        hero: fmt(k.top.avg - k.low.avg),
+        heroColor: INK,
+        unit: t('constats.emotions.unit'),
+        visual: (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: top, v: k.top.avg, color: LIME, bg: 'rgba(217,255,0,.16)' },
+              { label: low, v: k.low.avg, color: BURNT, bg: 'rgba(240,138,36,.2)' },
+            ].map((b) => (
+              <div key={b.label} className="grid gap-0.5 rounded-2xl p-2.5 backdrop-blur-md" style={{ background: b.bg }}>
+                <small className="truncate text-[10px] font-extrabold" style={{ color: b.color }}>{b.label}</small>
+                <strong className="text-[26px] font-black leading-none tracking-tight">{fmt(b.v)}</strong>
+              </div>
+            ))}
+          </div>
+        ),
+        source: t('constats.emotions.src', { top: short(k.topFilm.title), low: short(k.lowFilm.title) }),
+        backdrop: { split: [k.topFilm.poster, k.lowFilm.poster] },
+      };
     }
-    case 'duree':
-      return c.duree.unlocked ? t(`constats.duree.head.${c.duree.tone}`) : null;
-    case 'classiques':
-      return c.classiques.unlocked ? t(`constats.classiques.head.${c.classiques.tone}`) : null;
+    case 'duree': {
+      const k = c.duree;
+      if (!k.unlocked) return null;
+      const s = k.bands[0].avg ?? 0, l = k.bands[3].avg ?? 0;
+      const good = l >= s;
+      return {
+        question: t('constats.duree.q'),
+        answer: t(`constats.duree.head.${k.tone}`),
+        hero: signed(l - s, fmt),
+        heroColor: k.tone === 'flat' ? INK : good ? LIME : BURNT,
+        unit: t('constats.duree.unit'),
+        visual: (
+          <>
+            <ScaleBar label="< 1h35" value={s} color={good ? BURNT : LIME} text={fmt(s)} />
+            <ScaleBar label="2h15 +" value={l} color={good ? LIME : BURNT} text={fmt(l)} />
+          </>
+        ),
+        source: t('constats.duree.src', { title: short(k.feature.title), runtime: runtimeLabel(k.feature.runtime), rating: fmt(k.feature.rating) }),
+        backdrop: { url: k.feature.poster, tint: LIME },
+      };
+    }
+    case 'classiques': {
+      const k = c.classiques;
+      if (!k.unlocked) return null;
+      const oldWins = k.old >= k.fresh;
+      return {
+        question: t('constats.classiques.q'),
+        answer: t(`constats.classiques.head.${k.tone}`),
+        hero: signed(k.old - k.fresh, fmt),
+        heroColor: k.tone === 'flat' ? INK : oldWins ? LIME : BURNT,
+        unit: t('constats.classiques.unit'),
+        visual: (
+          <>
+            <ScaleBar label={t('constats.classiques.oldLabel')} value={k.old} color={oldWins ? LIME : BURNT} text={fmt(k.old)} />
+            <ScaleBar label={t('constats.classiques.freshLabel')} value={k.fresh} color={oldWins ? BURNT : LIME} text={fmt(k.fresh)} />
+          </>
+        ),
+        source: t('constats.classiques.src', { title: short(k.feature.title), year: k.feature.year ?? '', rating: fmt(k.feature.rating) }),
+        backdrop: { url: k.feature.poster, tint: LIME },
+      };
+    }
     case 'revirements': {
       const k = c.revirements;
       if (!k.unlocked) return null;
-      return k.changes.length === 1 ? t('constats.revirements.head.one') : t('constats.revirements.head.many', { n: k.changes.length });
+      const top = k.changes[0];
+      const up = top.to > top.from;
+      return {
+        question: t('constats.revirements.q'),
+        answer: t('constats.revirements.answer'),
+        hero: String(k.changes.length),
+        heroColor: INK,
+        unit: t('constats.revirements.unit'),
+        visual: (
+          <div className="flex items-baseline gap-2 text-2xl font-black tabular-nums">
+            <span className="text-stone-500">{fmt(top.from)}</span>
+            <span style={{ color: up ? LIME : BURNT }}>→ {fmt(top.to)}</span>
+          </div>
+        ),
+        source: t('constats.revirements.src', { title: short(top.title), from: fmt(top.from), to: fmt(top.to) }),
+        backdrop: { url: top.poster, tint: up ? LIME : BURNT },
+      };
     }
   }
 };
 
-/* ───────────────────────── Mini-visuels (niveau 1) ───────────────────────── */
-
-const MiniText: React.FC<React.SVGProps<SVGTextElement>> = (props) => (
-  <text fontFamily="inherit" fontWeight={900} {...props} />
-);
-
-const MiniPublic: React.FC<{ k: PublicConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const lo = Math.min(5, Math.floor(Math.min(k.you, k.crowd)));
-  const hi = Math.max(9, Math.ceil(Math.max(k.you, k.crowd)));
-  const x = (v: number) => 14 + ((v - lo) / (hi - lo)) * 176;
-  const youColor = k.tone === 'above' ? LIME : k.tone === 'below' ? BURNT : INK;
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      <line x1={x(lo)} x2={x(hi)} y1={70} y2={70} stroke={GRID} strokeWidth={6} strokeLinecap="round" />
-      <line x1={x(k.you)} x2={x(k.crowd)} y1={70} y2={70} stroke={youColor} strokeWidth={6} strokeLinecap="round" opacity={0.5} />
-      <circle cx={x(k.crowd)} cy={70} r={9} fill={NEUTRAL} stroke={CARD} strokeWidth={3} />
-      <circle cx={x(k.you)} cy={70} r={9} fill={youColor} stroke={CARD} strokeWidth={3} />
-      <MiniText x={x(k.crowd)} y={30} textAnchor="middle" fill="#DAD7CF" fontSize={15}>{fmt(k.crowd)}</MiniText>
-      <MiniText x={x(k.crowd)} y={44} textAnchor="middle" fill="#8E8B84" fontSize={11} fontWeight={700}>{t('constats.public.crowd')}</MiniText>
-      <MiniText x={x(k.you)} y={100} textAnchor="middle" fill={youColor} fontSize={15}>{fmt(k.you)}</MiniText>
-      <MiniText x={x(k.you)} y={114} textAnchor="middle" fill="#8E8B84" fontSize={11} fontWeight={700}>{t('constats.public.you')}</MiniText>
-    </svg>
-  );
-};
-
-const phoneFill = (i: number, last: number) => (i === 0 ? LIME : i === last ? BURNT : NEUTRAL);
-
-const MiniPhone: React.FC<{ k: PhoneConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const shown = k.buckets.filter((b) => b.count > 0);
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      {shown.map((b, i) => {
-        const xx = 10 + i * 50, h = 66, fh = ((h - 8) * (b.avg ?? 0)) / 10;
-        return (
-          <g key={b.key}>
-            <rect x={xx} y={20} width={36} height={h} rx={8} fill="#0A0A0A" stroke={GRID} strokeWidth={2} />
-            <rect x={xx + 4} y={20 + h - 4 - fh} width={28} height={fh} rx={4} fill={phoneFill(i, shown.length - 1)} />
-            <MiniText x={xx + 18} y={14} textAnchor="middle" fill="#fff" fontSize={12}>{fmt(b.avg ?? 0)}</MiniText>
-            <MiniText x={xx + 18} y={104} textAnchor="middle" fill="#8E8B84" fontSize={9.5} fontWeight={800}>{t(`constats.phone.bucket.${b.key}`)}</MiniText>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-const MiniMaillon: React.FC<{ k: MaillonConstat; t: T }> = ({ k, t }) => {
-  const order = [...CRITERIA].sort((a, b) => k.weakest[b] - k.weakest[a]);
-  const max = k.weakest[order[0]] || 1;
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      {order.map((key, i) => {
-        const yy = 14 + i * 26, hot = i === 0, w = (110 * k.weakest[key]) / max;
-        return (
-          <g key={key}>
-            <MiniText x={0} y={yy + 12} fill={hot ? '#fff' : '#8E8B84'} fontSize={12}>{t(`constats.critShort.${key}`)}</MiniText>
-            <rect x={70} y={yy + 2} width={Math.max(6, w)} height={12} rx={6} fill="none" stroke={hot ? LIME : '#4A4A47'} strokeWidth={2.5} />
-            <MiniText x={78 + w} y={yy + 12} fill={hot ? LIME : '#8E8B84'} fontSize={11}>{Math.round(k.weakest[key])}</MiniText>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-const MiniEmotions: React.FC<{ k: EmotionsConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const lo = Math.min(...k.items.map((i) => i.avg)) - 0.3, hi = Math.max(...k.items.map((i) => i.avg)) + 0.3;
-  const x = (v: number) => 14 + ((v - lo) / (hi - lo)) * 176;
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      <line x1={x(lo)} x2={x(hi)} y1={62} y2={62} stroke={GRID} strokeWidth={2} />
-      <line x1={x(k.split)} x2={x(k.split)} y1={40} y2={84} stroke="#4A4A47" strokeDasharray="3 3" />
-      {k.items.map((i) => (
-        <circle key={i.key} cx={x(i.avg)} cy={62} r={4} fill={i.avg >= k.split ? LIME : BURNT} opacity={0.55} />
-      ))}
-      <circle cx={x(k.top.avg)} cy={62} r={7} fill={LIME} />
-      <circle cx={x(k.low.avg)} cy={62} r={7} fill={BURNT} />
-      <MiniText x={x(k.top.avg)} y={32} textAnchor="end" fill={LIME} fontSize={11.5}>{t(`addMovie.${k.top.key}`)}</MiniText>
-      <MiniText x={x(k.top.avg)} y={46} textAnchor="end" fill="#fff" fontSize={12}>{fmt(k.top.avg)}</MiniText>
-      <MiniText x={x(k.low.avg)} y={98} fill={BURNT} fontSize={11.5}>{t(`addMovie.${k.low.key}`)}</MiniText>
-      <MiniText x={x(k.low.avg)} y={112} fill="#fff" fontSize={12}>{fmt(k.low.avg)}</MiniText>
-    </svg>
-  );
-};
-
-const FilmStrip: React.FC<{ x: number; y: number; w: number; h: number; fill: string; hole: string }> = ({ x, y, w, h, fill, hole }) => {
-  const holes: number[] = [];
-  for (let px = x + 5; px < x + w - 4; px += 9) holes.push(px);
-  return (
-    <g>
-      <rect x={x} y={y} width={w} height={h} rx={4} fill={fill} />
-      {holes.map((px) => (
-        <g key={px}>
-          <rect x={px} y={y + 3} width={4} height={4} rx={1} fill={hole} />
-          <rect x={px} y={y + h - 7} width={4} height={4} rx={1} fill={hole} />
-        </g>
-      ))}
-    </g>
-  );
-};
-
-const toneColor = (avg: number, best: number, worst: number) =>
-  avg === best ? LIME : avg === worst ? BURNT : NEUTRAL;
-
-const MiniDuree: React.FC<{ k: DureeConstat; fmt: Fmt }> = ({ k, fmt }) => {
-  const short = k.bands[0].avg as number, long = k.bands[3].avg as number;
-  const rows: [number, number, string][] = [[short, 70, '< 1h35'], [long, 170, '2h15 +']];
-  const best = Math.max(short, long), worst = Math.min(short, long);
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      {rows.map(([v, w, label], i) => {
-        const yy = 26 + i * 46;
-        return (
-          <g key={label}>
-            <MiniText x={0} y={yy - 6} fill="#8E8B84" fontSize={10} fontWeight={800}>{label}</MiniText>
-            <FilmStrip x={0} y={yy} w={w} h={24} fill={best === worst ? NEUTRAL : toneColor(v, best, worst)} hole={CARD} />
-            <MiniText x={w + 8} y={yy + 17} fill="#fff" fontSize={15}>{fmt(v)}</MiniText>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-const MiniClassiques: React.FC<{ k: ClassiquesConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const best = Math.max(k.old, k.fresh), worst = Math.min(k.old, k.fresh);
-  const cols: [number, string][] = [[k.old, t('constats.classiques.old')], [k.fresh, t('constats.classiques.fresh')]];
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      {cols.map(([v, label], i) => {
-        const xx = 8 + i * 104, h = (70 * v) / 10;
-        return (
-          <g key={label}>
-            <rect x={xx} y={92 - h} width={70} height={h} rx={6} fill={best === worst ? NEUTRAL : toneColor(v, best, worst)} />
-            <MiniText x={xx + 35} y={86 - h} textAnchor="middle" fill="#fff" fontSize={15}>{fmt(v)}</MiniText>
-            <MiniText x={xx + 35} y={108} textAnchor="middle" fill="#8E8B84" fontSize={9.5} fontWeight={800}>{label}</MiniText>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-const MiniRevirements: React.FC<{ k: RevirementsConstat; fmt: Fmt }> = ({ k, fmt }) => {
-  const c = k.changes[0];
-  const up = c.to > c.from;
-  return (
-    <svg viewBox="0 0 204 120" className="w-full h-auto" aria-hidden="true">
-      <MiniText x={0} y={22} fill="#8E8B84" fontSize={11} fontWeight={800}>{c.title.length > 28 ? `${c.title.slice(0, 27)}…` : c.title}</MiniText>
-      <MiniText x={20} y={78} textAnchor="middle" fill="#8E8B84" fontSize={26}>{fmt(c.from)}</MiniText>
-      <line x1={50} x2={140} y1={68} y2={68} stroke={up ? LIME : BURNT} strokeWidth={3} strokeLinecap="round" />
-      <path d="M134,61 L144,68 L134,75" fill="none" stroke={up ? LIME : BURNT} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <MiniText x={176} y={78} textAnchor="middle" fill={up ? LIME : BURNT} fontSize={26}>{fmt(c.to)}</MiniText>
-    </svg>
-  );
-};
-
-/* ───────────────────────── Graphiques détaillés (niveau 2) ───────────────────────── */
+/* ───────────────────────── Détails ───────────────────────── */
 
 const Label: React.FC<React.SVGProps<SVGTextElement>> = (props) => (
   <text fontFamily="inherit" fontWeight={700} fontSize={11} fill={INK2} {...props} />
-);
-
-/** Ligne sous le graphique : ce que montre le point touché, ou l'invitation à toucher. */
-const Readout: React.FC<{ text: string | null; t: T }> = ({ text, t }) => (
-  <p className={`min-h-[2.5rem] rounded-2xl px-3 py-2 text-xs font-bold leading-snug ${text ? 'bg-white/10 text-white' : 'text-stone-500'}`}>
-    {text ?? t('constats.tapHint')}
-  </p>
 );
 
 const hit = (onPick: () => void) => ({
@@ -257,14 +369,13 @@ const hit = (onPick: () => void) => ({
 });
 
 const DetailPublic: React.FC<{ k: PublicConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const [pick, setPick] = useState<string | null>(null);
+  const [pick, setPick] = useState<PublicPoint>(k.feature);
   const W = 340, H = 300, m = { l: 30, r: 10, t: 10, b: 30 };
   const x = (v: number) => m.l + ((v - 2) / 8) * (W - m.l - m.r);
   const y = (v: number) => H - m.b - ((v - 2) / 8) * (H - m.t - m.b);
-  const sorted = [...k.points].sort((a, b) => b.you - b.crowd - (a.you - a.crowd));
-  const chips = [...sorted.slice(0, 3).filter((p) => p.you - p.crowd > 0), ...sorted.slice(-3).reverse().filter((p) => p.you - p.crowd < 0)];
+  const badge = (p: PublicPoint) => ({ ...p, badge: signed(p.rating - p.crowd, fmt), color: p.rating >= p.crowd ? LIME : BURNT });
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.public.eyebrow')}>
         {[2, 4, 6, 8, 10].map((v) => (
           <g key={v}>
@@ -282,114 +393,98 @@ const DetailPublic: React.FC<{ k: PublicConstat; t: T; fmt: Fmt }> = ({ k, t, fm
         <Label x={W - m.r} y={H - 2} textAnchor="end" fill={INK3} fontSize={9.5}>{t('constats.public.axisX')}</Label>
         <Label x={8} y={m.t + 2} fill={INK3} fontSize={9.5} textAnchor="end" transform={`rotate(-90 8 ${m.t + 2})`}>{t('constats.public.axisY')}</Label>
         {k.points.map((p) => {
-          const gap = p.you - p.crowd;
+          const gap = p.rating - p.crowd;
           const color = gap > 0.5 ? LIME : gap < -1.5 ? BURNT : NEUTRAL;
           return (
-            <g key={p.id} {...hit(() => setPick(`${p.title} — ${t('constats.public.point', { you: fmt(p.you), crowd: fmt(p.crowd) })}`))}>
-              <circle cx={x(p.crowd)} cy={y(p.you)} r={11} fill="transparent" />
-              <circle cx={x(p.crowd)} cy={y(p.you)} r={4.5} fill={color} stroke="#0E0E0E" strokeWidth={1.5} />
+            <g key={p.id} {...hit(() => setPick(p))}>
+              <circle cx={x(p.crowd)} cy={y(p.rating)} r={11} fill="transparent" />
+              <circle cx={x(p.crowd)} cy={y(p.rating)} r={4.5} fill={color} stroke="#0E0E0E" strokeWidth={1.5} />
             </g>
           );
         })}
+        <circle cx={x(pick.crowd)} cy={y(pick.rating)} r={9} fill="none" stroke="#fff" strokeWidth={2} pointerEvents="none" />
       </svg>
-      <Readout text={pick} t={t} />
-      {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((p) => {
-            const gap = p.you - p.crowd;
-            return (
-              <span key={p.id} className="inline-flex items-baseline gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-stone-300">
-                {p.title.split(' :')[0]}
-                <span className="font-black tabular-nums" style={{ color: gap > 0 ? LIME : BURNT }}>
-                  {gap > 0 ? '+' : '−'}{fmt(Math.abs(gap))}
-                </span>
-              </span>
-            );
-          })}
-        </div>
-      )}
+      <Callout
+        film={pick}
+        hint={t('constats.tapHint')}
+        line={`${t('constats.public.point', { you: fmt(pick.rating), crowd: fmt(pick.crowd) })} · ${signed(pick.rating - pick.crowd, fmt)}`}
+      />
+      <Shelf title={t('constats.public.harsher')} films={k.harsher.map(badge)} />
+      <Shelf title={t('constats.public.kinder')} films={k.kinder.map(badge)} />
     </div>
   );
 };
 
-const DetailPhone: React.FC<{ k: PhoneConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const [pick, setPick] = useState<string | null>(null);
-  const shown = k.buckets.filter((b) => b.count > 0);
-  const W = 340, H = 210, pw = 52, ph = 112, gap = (W - pw * shown.length) / shown.length;
-  return (
-    <div className="space-y-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.phone.eyebrow')}>
-        {shown.map((b, i) => {
-          const xx = gap / 2 + i * (pw + gap), yy = 22, avg = b.avg ?? 0;
-          return (
-            <g key={b.key} {...hit(() => setPick(`${t(`constats.phone.bucket.${b.key}`)} — ${t('constats.films', { n: b.count })} · ${fmt(avg)}${b.titles.length ? ` · ${b.titles.map((s) => s.split(' :')[0]).join(', ')}…` : ''}`))}>
-              <rect x={xx} y={yy} width={pw} height={ph} rx={11} fill="#1B1B1A" stroke={GRID} strokeWidth={2} />
-              <rect x={xx + 5} y={yy + ph - 5 - ((ph - 10) * avg) / 10} width={pw - 10} height={((ph - 10) * avg) / 10} rx={6} fill={phoneFill(i, shown.length - 1)} />
-              <rect x={xx + pw / 2 - 8} y={yy + 5} width={16} height={3} rx={1.5} fill={GRID} />
-              <Label x={xx + pw / 2} y={yy - 8} textAnchor="middle" fill={INK} fontSize={15} fontWeight={900}>{fmt(avg)}</Label>
-              <Label x={xx + pw / 2} y={yy + ph + 20} textAnchor="middle" fontWeight={800}>{t(`constats.phone.bucket.${b.key}`)}</Label>
-              <Label x={xx + pw / 2} y={yy + ph + 35} textAnchor="middle" fill={INK3} fontSize={10}>{t('constats.films', { n: b.count })}</Label>
-            </g>
-          );
-        })}
-      </svg>
-      <Readout text={pick} t={t} />
-    </div>
-  );
-};
+const DetailPhone: React.FC<{ k: PhoneConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => (
+  <div className="space-y-5">
+    <PhoneGauges k={k} t={t} fmt={fmt} big />
+    <Shelf
+      title={t('constats.phone.shelf')}
+      films={k.distracted.map((f) => ({ ...f, badge: `${f.phone} %`, color: f.phone > 40 ? BURNT : PALE }))}
+    />
+  </div>
+);
 
-const DetailMaillon: React.FC<{ k: MaillonConstat; t: T }> = ({ k, t }) => {
+const DetailMaillon: React.FC<{ k: MaillonConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
   const order = [...CRITERIA].sort((a, b) => k.weakest[b] - k.weakest[a]);
-  const W = 340, rowH = 46, H = rowH * 4 + 6, max = k.weakest[order[0]] || 1, x0 = 86, x1 = W - 44;
+  const max = k.weakest[order[0]] || 1;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.maillon.eyebrow')}>
-      {order.map((key, i) => {
-        const yy = i * rowH + 8, w = ((x1 - x0) * k.weakest[key]) / max, hot = key === k.lead;
-        const n = Math.max(1, Math.round(k.weakest[key] / 3)), seg = w / n;
-        return (
-          <g key={key}>
-            <title>{t('constats.maillon.count', { n: Math.round(k.weakest[key]) })}</title>
-            <Label x={0} y={yy + 19} fill={hot ? INK : INK2} fontSize={13} fontWeight={900}>{t(`constats.critShort.${key}`)}</Label>
-            {Array.from({ length: n }, (_, s) => (
-              <rect key={s} x={x0 + s * seg + 1} y={yy + 6} width={Math.max(2, seg - 3)} height={18} rx={9} fill="none" stroke={hot ? LIME : NEUTRAL} strokeWidth={3} />
-            ))}
-            <Label x={x0 + w + 8} y={yy + 20} fill={hot ? LIME : INK2} fontSize={13} fontWeight={900}>{Math.round(k.weakest[key])}</Label>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="space-y-5">
+      <div className="space-y-2.5">
+        {order.map((key) => (
+          <ScaleBar key={key} label={t(`constats.critShort.${key}`)} value={k.weakest[key]} max={max} color={key === k.lead ? BURNT : PALE} text={String(Math.round(k.weakest[key]))} />
+        ))}
+      </div>
+      <Shelf
+        title={t('constats.maillon.shelf', { crit: t(`constats.crit.${k.lead}`) })}
+        films={k.sunk.map((f) => ({ ...f, badge: fmt(f.value), color: BURNT }))}
+      />
+    </div>
   );
 };
+
+const EmotionRow: React.FC<{ label: string; avg: number; count: number; films: FilmRef[]; good: boolean; t: T; fmt: Fmt }> = ({ label, avg, count, films, good, t, fmt }) => (
+  <div className="grid grid-cols-[96px_1fr] items-center gap-2.5 border-b border-white/[0.06] py-2">
+    <div className="grid gap-0.5 min-w-0">
+      <b className="truncate text-[13px] font-black text-white">{label}</b>
+      <span className="text-[10.5px] font-bold text-stone-500">{t('constats.films', { n: count })}</span>
+    </div>
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className="w-[34px] text-lg font-black tabular-nums" style={{ color: good ? LIME : BURNT }}>{fmt(avg)}</span>
+      <div className="flex">
+        {films.slice(0, 4).map((f, i) => (
+          <span
+            key={f.id}
+            title={f.title}
+            className="h-[45px] w-[30px] rounded-md border-2 border-[#0E0E0E] bg-[#222] bg-cover bg-center shadow-[0_4px_10px_rgba(0,0,0,.4)]"
+            style={{ marginLeft: i ? -10 : 0, backgroundImage: f.poster ? `url(${poster(f.poster)})` : undefined }}
+          />
+        ))}
+      </div>
+    </div>
+  </div>
+);
 
 const DetailEmotions: React.FC<{ k: EmotionsConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const [pick, setPick] = useState<string | null>(null);
-  const W = 340, H = 30 + k.items.length * 22, L = 112, R = W - 32;
-  const x0 = Math.floor(Math.min(...k.items.map((i) => i.avg)) - 0.4), x1 = Math.ceil(Math.max(...k.items.map((i) => i.avg)) + 0.2);
-  const x = (v: number) => L + ((v - x0) / (x1 - x0)) * (R - L);
-  const ticks: number[] = [];
-  for (let v = x0; v <= x1; v++) ticks.push(v);
+  const label = (key: string) => t(`addMovie.${key}`);
+  const above = k.items.filter((i) => i.avg >= k.split);
+  const below = k.items.filter((i) => i.avg < k.split);
   return (
     <div className="space-y-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.emotions.title')}>
-        <rect x={x(k.split)} y={0} width={R - x(k.split) + 6} height={H - 22} fill={LIME} opacity={0.05} />
-        <line x1={x(k.split)} x2={x(k.split)} y1={0} y2={H - 22} stroke={INK3} strokeDasharray="3 4" strokeWidth={1.5} />
-        {ticks.map((v) => (
-          <Label key={v} x={x(v)} y={H - 6} textAnchor="middle" fill={INK3} fontSize={10}>{v}</Label>
-        ))}
-        {k.items.map((it, i) => {
-          const yy = 14 + i * 22, good = it.avg >= k.split;
-          return (
-            <g key={it.key} {...hit(() => setPick(`${t(`addMovie.${it.key}`)} — ${t('constats.emotions.point', { n: it.count, avg: fmt(it.avg) })}`))}>
-              <rect x={0} y={yy - 11} width={W} height={22} fill="transparent" />
-              <Label x={L - 10} y={yy + 4} textAnchor="end" fill={good ? INK : INK2} fontSize={11.5} fontWeight={800}>{t(`addMovie.${it.key}`)}</Label>
-              <line x1={x(x0)} x2={x(it.avg)} y1={yy} y2={yy} stroke={good ? LIME : BURNT} strokeWidth={2} opacity={0.35} />
-              <circle cx={x(it.avg)} cy={yy} r={5.5} fill={good ? LIME : BURNT} stroke="#0E0E0E" strokeWidth={2} />
-              <Label x={x(it.avg) + 10} y={yy + 4} fontSize={10.5} fontWeight={800}>{fmt(it.avg)}</Label>
-            </g>
-          );
-        })}
-      </svg>
-      <Readout text={pick} t={t} />
+      <VersusBlocks
+        left={[t('constats.emotions.lift'), fmt(k.top.avg), t('constats.emotions.when', { state: label(k.top.key).toLowerCase() })]}
+        right={[t('constats.emotions.drag'), fmt(k.low.avg), t('constats.emotions.when', { state: label(k.low.key).toLowerCase() })]}
+      />
+      <div>
+        <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">{t('constats.emotions.above', { avg: fmt(k.split) })}</p>
+        {above.map((i) => <EmotionRow key={i.key} label={label(i.key)} avg={i.avg} count={i.count} films={i.films} good t={t} fmt={fmt} />)}
+      </div>
+      {below.length > 0 && (
+        <div>
+          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">{t('constats.emotions.below')}</p>
+          {below.map((i) => <EmotionRow key={i.key} label={label(i.key)} avg={i.avg} count={i.count} films={[...i.films].reverse()} good={false} t={t} fmt={fmt} />)}
+        </div>
+      )}
     </div>
   );
 };
@@ -398,71 +493,38 @@ const DetailDuree: React.FC<{ k: DureeConstat; t: T; fmt: Fmt }> = ({ k, t, fmt 
   const labels = { short: '< 1h35', mid1: '1h35–1h55', mid2: '1h55–2h15', long: '2h15 +' };
   const avgs = k.bands.filter((b) => b.avg != null).map((b) => b.avg as number);
   const best = Math.max(...avgs), worst = Math.min(...avgs);
-  const W = 340, rowH = 44, H = rowH * 4 + 4, x0 = 96, maxW = W - x0 - 46;
+  const color = (v: number) => (k.tone === 'flat' ? PALE : v === best ? LIME : v === worst ? BURNT : PALE);
+  const longFirst = k.tone !== 'short';
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.duree.eyebrow')}>
-      {k.bands.map((b, i) => {
-        const yy = i * rowH + 6, w = maxW * (0.3 + (0.7 * i) / 3);
-        return (
-          <g key={b.key}>
-            <Label x={0} y={yy + 20} fontSize={11.5} fontWeight={800}>{labels[b.key]}</Label>
-            <Label x={0} y={yy + 33} fill={INK3} fontSize={9.5}>{t('constats.films', { n: b.count })}</Label>
-            {b.avg != null && (
-              <>
-                <FilmStrip x={x0} y={yy + 4} w={w} h={28} fill={k.tone === 'flat' ? NEUTRAL : toneColor(b.avg, best, worst)} hole="#0E0E0E" />
-                <Label x={x0 + w + 8} y={yy + 23} fill={INK} fontSize={14} fontWeight={900}>{fmt(b.avg)}</Label>
-              </>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div className="space-y-5">
+      <div className="space-y-2.5">
+        {k.bands.map((b) => (b.avg == null ? null : <ScaleBar key={b.key} label={labels[b.key]} value={b.avg} color={color(b.avg)} text={fmt(b.avg)} />))}
+      </div>
+      <Shelf
+        title={t(longFirst ? 'constats.duree.longLiked' : 'constats.duree.longTired')}
+        films={k.longFilms.map((f) => ({ ...f, badge: fmt(f.rating), color: longFirst ? LIME : BURNT }))}
+      />
+      <Shelf
+        title={t(longFirst ? 'constats.duree.shortCold' : 'constats.duree.shortLiked')}
+        films={k.shortFilms.map((f) => ({ ...f, badge: fmt(f.rating), color: longFirst ? BURNT : LIME }))}
+      />
+    </div>
   );
 };
 
 const DetailClassiques: React.FC<{ k: ClassiquesConstat; t: T; fmt: Fmt }> = ({ k, t, fmt }) => {
-  const [pick, setPick] = useState<string | null>(null);
-  const W = 340, H = 220, m = { l: 26, r: 12, t: 12, b: 34 };
-  const stops = [0, 1, 5, 10, 20, 35], px = [0, 0.22, 0.5, 0.68, 0.86, 1];
-  const ageX = (a: number) => {
-    const c = Math.min(a, 35);
-    const i = stops.findIndex((v) => c <= v);
-    if (i <= 0) return m.l;
-    const f = (c - stops[i - 1]) / (stops[i] - stops[i - 1]);
-    return m.l + (px[i - 1] + f * (px[i] - px[i - 1])) * (W - m.l - m.r);
-  };
-  const y = (v: number) => H - m.b - ((v - 2) / 8) * (H - m.t - m.b);
-  const seen = new Map<string, number>();
-  const ticks: [number, string][] = [[0, t('constats.classiques.release')], [1, '1'], [5, '5'], [10, '10'], [20, '20'], [35, t('constats.classiques.years', { n: 35 })]];
+  const oldWins = k.old >= k.fresh;
+  const rate = (color: string) => (f: FilmRef) => ({ ...f, badge: fmt(f.rating), color });
+  const blocks: [[string, string, string], [string, string, string]] = [
+    [t('constats.classiques.oldLabel'), fmt(k.old), t('constats.classiques.oldCount', { n: k.oldCount })],
+    [t('constats.classiques.freshLabel'), fmt(k.fresh), t('constats.classiques.freshCount', { n: k.freshCount })],
+  ];
   return (
-    <div className="space-y-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('constats.classiques.eyebrow')}>
-        {[2, 4, 6, 8, 10].map((v) => (
-          <g key={v}>
-            <line x1={m.l} x2={W - m.r} y1={y(v)} y2={y(v)} stroke={GRID} />
-            <Label x={m.l - 7} y={y(v) + 3} textAnchor="end" fill={INK3} fontSize={10}>{v}</Label>
-          </g>
-        ))}
-        {ticks.map(([a, l]) => (
-          <Label key={a} x={ageX(a)} y={H - m.b + 16} textAnchor={a === 35 ? 'end' : a === 0 ? 'start' : 'middle'} fill={INK3} fontSize={9.5}>{l}</Label>
-        ))}
-        {k.points.map((p) => {
-          const key = `${Math.min(p.age, 35)}|${p.rating}`;
-          const n = (seen.get(key) ?? 0) + 1;
-          seen.set(key, n);
-          const cx = ageX(p.age) + (n - 1) * 5;
-          const color = p.age >= 5 ? (k.tone === 'new' ? BURNT : LIME) : p.age <= 1 ? NEUTRAL : INK3;
-          return (
-            <g key={p.id} {...hit(() => setPick(`${p.title} (${p.year}) — ${t('constats.classiques.point', { age: p.age, rating: fmt(p.rating) })}`))}>
-              <circle cx={cx} cy={y(p.rating)} r={10} fill="transparent" />
-              <circle cx={cx} cy={y(p.rating)} r={4} fill={color} stroke="#0E0E0E" strokeWidth={1.5} />
-            </g>
-          );
-        })}
-        <line x1={ageX(0) - 4} x2={ageX(1) + 8} y1={y(k.fresh)} y2={y(k.fresh)} stroke={k.tone === 'new' ? LIME : BURNT} strokeWidth={2.5} strokeLinecap="round" />
-        <line x1={ageX(5) - 4} x2={ageX(35)} y1={y(k.old)} y2={y(k.old)} stroke={k.tone === 'new' ? BURNT : LIME} strokeWidth={2.5} strokeLinecap="round" />
-      </svg>
-      <Readout text={pick} t={t} />
+    <div className="space-y-5">
+      <VersusBlocks left={oldWins ? blocks[0] : blocks[1]} right={oldWins ? blocks[1] : blocks[0]} />
+      <Shelf title={t('constats.classiques.bestOld')} films={k.bestOld.map(rate(oldWins ? LIME : PALE))} />
+      <Shelf title={t('constats.classiques.bestFresh')} films={k.bestFresh.map(rate(oldWins ? PALE : LIME))} />
+      <Shelf title={t('constats.classiques.worstFresh')} films={k.worstFresh.map(rate(BURNT))} />
     </div>
   );
 };
@@ -472,8 +534,9 @@ const DetailRevirements: React.FC<{ k: RevirementsConstat; fmt: Fmt }> = ({ k, f
     {k.changes.slice(0, 12).map((c) => {
       const up = c.to > c.from;
       return (
-        <li key={c.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.05] px-4 py-3">
-          <span className="min-w-0 truncate text-sm font-bold text-white">{c.title}</span>
+        <li key={c.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] p-2.5">
+          <div className="h-[48px] w-[32px] shrink-0 rounded-md bg-[#222] bg-cover bg-center" style={{ backgroundImage: c.poster ? `url(${poster(c.poster)})` : undefined }} />
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{c.title}</span>
           <span className="shrink-0 text-sm font-black tabular-nums">
             <span className="text-stone-500">{fmt(c.from)}</span>
             <span className="mx-1.5" style={{ color: up ? LIME : BURNT }}>→</span>
@@ -485,55 +548,58 @@ const DetailRevirements: React.FC<{ k: RevirementsConstat; fmt: Fmt }> = ({ k, f
   </ul>
 );
 
-/* ───────────────────────── Feuille de détail ───────────────────────── */
-
-const detailTitle = (id: ConstatId, c: Constats, t: T, fmt: Fmt): string => {
-  if (id === 'public' && c.public.unlocked) return t(`constats.public.title.${c.public.tone}`);
-  if (id === 'emotions') return t('constats.emotions.title');
-  return headline(id, c, t, fmt) ?? t(`constats.${id}.eyebrow`);
+/** Le titre du détail : la phrase la plus parlante. */
+const detailTitle = (id: ConstatId, c: Constats, t: T): string => {
+  switch (id) {
+    case 'public': return c.public.unlocked ? t(`constats.public.title.${c.public.tone}`) : '';
+    case 'emotions': return t('constats.emotions.title');
+    case 'maillon': return c.maillon.unlocked ? t('constats.maillon.head', { crit: t(`constats.crit.${c.maillon.lead}`) }) : '';
+    case 'revirements': return t('constats.revirements.answer');
+    default: {
+      const k = c[id];
+      return k.unlocked && 'tone' in k ? t(`constats.${id}.head.${k.tone}`) : '';
+    }
+  }
 };
 
-const detailLede = (id: ConstatId, c: Constats, t: T, fmt: Fmt): string[] => {
+/** La phrase qui accompagne le chiffre en tête du détail. */
+const detailLede = (id: ConstatId, c: Constats, t: T, fmt: Fmt): string => {
   switch (id) {
     case 'public': {
       const k = c.public;
-      if (!k.unlocked) return [];
-      const out = [t(`constats.public.lede.${k.tone}`, { gap: fmt(Math.abs(k.gap)) })];
-      if (k.genre) out.push(t('constats.public.genre', { gap: fmt(Math.abs(k.genre.gap)), genre: k.genre.name }));
-      return out;
+      if (!k.unlocked) return '';
+      const base = t(`constats.public.lede.${k.tone}`, { gap: fmt(Math.abs(k.gap)) });
+      return k.genre ? `${base} ${t('constats.public.genre', { gap: fmt(Math.abs(k.genre.gap)), genre: k.genre.name })}` : base;
     }
     case 'phone': {
       const k = c.phone;
-      if (!k.unlocked) return [];
+      if (!k.unlocked) return '';
       const filled = k.buckets.filter((b) => b.count > 0);
-      return [t('constats.phone.lede', { never: fmt(filled[0].avg ?? 0), worst: fmt(filled[filled.length - 1].avg ?? 0) })];
+      return t('constats.phone.lede', { never: fmt(filled[0].avg ?? 0), worst: fmt(filled[filled.length - 1].avg ?? 0) });
     }
     case 'maillon': {
       const k = c.maillon;
-      if (!k.unlocked) return [];
-      const out = [t('constats.maillon.lede', { n: Math.round(k.weakest[k.lead]), total: k.total })];
-      if (k.crash) out.push(t('constats.maillon.crash', { avg: fmt(k.crash.avg) }));
-      return out;
+      if (!k.unlocked) return '';
+      const base = t('constats.maillon.lede', { n: Math.round(k.weakest[k.lead]), total: k.total });
+      return k.crash ? `${base} ${t('constats.maillon.crash', { avg: fmt(k.crash.avg) })}` : base;
     }
     case 'emotions': {
       const k = c.emotions;
-      return k.unlocked
-        ? [t('constats.emotions.lede', { top: t(`addMovie.${k.top.key}`), topAvg: fmt(k.top.avg), low: t(`addMovie.${k.low.key}`), lowAvg: fmt(k.low.avg) })]
-        : [];
+      return k.unlocked ? t('constats.emotions.lede', { top: t(`addMovie.${k.top.key}`), topAvg: fmt(k.top.avg), low: t(`addMovie.${k.low.key}`), lowAvg: fmt(k.low.avg) }) : '';
     }
     case 'duree': {
       const k = c.duree;
-      return k.unlocked ? [t('constats.duree.lede', { long: fmt(k.bands[3].avg ?? 0), short: fmt(k.bands[0].avg ?? 0) })] : [];
+      return k.unlocked ? t('constats.duree.lede', { long: fmt(k.bands[3].avg ?? 0), short: fmt(k.bands[0].avg ?? 0) }) : '';
     }
     case 'classiques': {
       const k = c.classiques;
-      return k.unlocked ? [t('constats.classiques.lede', { old: fmt(k.old), fresh: fmt(k.fresh) })] : [];
+      return k.unlocked ? t('constats.classiques.lede', { old: fmt(k.old), fresh: fmt(k.fresh) }) : '';
     }
     case 'revirements': {
       const k = c.revirements;
-      if (!k.unlocked) return [];
+      if (!k.unlocked) return '';
       const top = k.changes[0];
-      return [t('constats.revirements.lede', { title: top.title, from: fmt(top.from), to: fmt(top.to) })];
+      return t('constats.revirements.lede', { title: top.title, from: fmt(top.from), to: fmt(top.to) });
     }
   }
 };
@@ -541,14 +607,16 @@ const detailLede = (id: ConstatId, c: Constats, t: T, fmt: Fmt): string[] => {
 const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () => void }> = ({ id, constats: c, onClose }) => {
   const { t } = useLanguage();
   const fmt = useFmt();
-  const title = detailTitle(id, c, t, fmt);
+  const title = detailTitle(id, c, t);
   const dialog = useDialog(onClose, title);
+  const model = cardModel(id, c, t, fmt);
+  if (!model) return null;
 
   const chart = (() => {
     switch (id) {
       case 'public': return c.public.unlocked ? <DetailPublic k={c.public} t={t} fmt={fmt} /> : null;
       case 'phone': return c.phone.unlocked ? <DetailPhone k={c.phone} t={t} fmt={fmt} /> : null;
-      case 'maillon': return c.maillon.unlocked ? <DetailMaillon k={c.maillon} t={t} /> : null;
+      case 'maillon': return c.maillon.unlocked ? <DetailMaillon k={c.maillon} t={t} fmt={fmt} /> : null;
       case 'emotions': return c.emotions.unlocked ? <DetailEmotions k={c.emotions} t={t} fmt={fmt} /> : null;
       case 'duree': return c.duree.unlocked ? <DetailDuree k={c.duree} t={t} fmt={fmt} /> : null;
       case 'classiques': return c.classiques.unlocked ? <DetailClassiques k={c.classiques} t={t} fmt={fmt} /> : null;
@@ -556,28 +624,55 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
     }
   })();
 
+  // En tête du détail, le film du fond de carte, en grand : flouté derrière, net et incliné devant.
+  const heroPosters = 'split' in model.backdrop ? model.backdrop.split : [model.backdrop.url];
+
   return createPortal(
     <div {...dialog.props} className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
       <div className="relative z-10 w-full sm:max-w-lg bg-[#0E0E0E] text-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/10">
-        <div className="relative flex justify-center pt-3 pb-1 shrink-0" onClick={onClose}>
-          <div className="w-12 h-1.5 bg-stone-700 rounded-full" />
-        </div>
         <button
           onClick={onClose}
           aria-label={t('constats.close')}
-          className="absolute right-5 top-4 z-20 w-8 h-8 rounded-full bg-[#1F1F1E] flex items-center justify-center text-stone-300 active:scale-90 transition-transform"
+          className="absolute right-5 top-4 z-30 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white active:scale-90 transition-transform"
         >
           <X size={17} strokeWidth={2.5} />
         </button>
-        <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-8 pt-3 space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 pr-10">{t(`constats.${id}.eyebrow`)}</p>
-          <h2 className="text-[26px] font-black tracking-tight leading-[1.05] text-balance pr-6">{title}</h2>
-          {detailLede(id, c, t, fmt).map((line) => (
-            <p key={line} className="text-sm leading-relaxed text-stone-400">{line}</p>
-          ))}
-          {chart}
-          <p className="border-t border-white/10 pt-3 text-[11.5px] leading-relaxed text-stone-500">{t(`constats.${id}.foot`)}</p>
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="relative flex h-[230px] flex-col justify-end overflow-hidden px-6 pb-4">
+            {heroPosters.map((url, i) => (
+              <div
+                key={i}
+                className="absolute bg-cover"
+                style={{
+                  top: -20, bottom: -20,
+                  left: heroPosters.length === 2 && i === 1 ? '50%' : -20,
+                  right: heroPosters.length === 2 && i === 0 ? '50%' : -20,
+                  backgroundImage: url ? `url(${poster(url, 'w342')})` : undefined,
+                  backgroundPosition: 'center 25%',
+                  filter: heroPosters.length === 2 ? 'blur(6px) brightness(.7)' : 'blur(14px) saturate(1.2) brightness(.7)',
+                }}
+              />
+            ))}
+            {heroPosters.length === 1 && heroPosters[0] && (
+              <div
+                className="absolute right-6 top-10 h-[126px] w-[84px] rotate-[4deg] rounded-[10px] bg-cover shadow-[0_12px_30px_rgba(0,0,0,.6)]"
+                style={{ backgroundImage: `url(${poster(heroPosters[0], 'w342')})` }}
+              />
+            )}
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(14,14,14,0) 0%, rgba(14,14,14,.6) 55%, #0E0E0E 100%)' }} />
+            <div className="absolute left-1/2 top-3 h-1.5 w-12 -translate-x-1/2 rounded-full bg-white/30" onClick={onClose} />
+            <p className="relative text-[10px] font-black uppercase tracking-[0.2em] text-white/60">{t(`constats.${id}.eyebrow`)}</p>
+            <h2 className="relative mt-1.5 max-w-[70%] text-[26px] font-black leading-[1.03] tracking-tight text-balance">{title}</h2>
+          </div>
+          <div className="space-y-5 px-6 pb-8 pt-2">
+            <div className="flex items-baseline gap-3">
+              <strong className="text-[46px] font-black leading-[0.9] tracking-tighter tabular-nums" style={{ color: model.heroColor }}>{model.hero}</strong>
+              <span className="text-[12.5px] font-semibold leading-snug text-stone-400">{detailLede(id, c, t, fmt)}</span>
+            </div>
+            {chart}
+            <p className="border-t border-white/10 pt-3 text-[11.5px] leading-relaxed text-stone-500">{t(`constats.${id}.foot`)}</p>
+          </div>
         </div>
       </div>
     </div>,
@@ -587,17 +682,26 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
 
 /* ───────────────────────── La rangée ───────────────────────── */
 
-const Mini: React.FC<{ id: ConstatId; c: Constats; t: T; fmt: Fmt }> = ({ id, c, t, fmt }) => {
-  switch (id) {
-    case 'public': return c.public.unlocked ? <MiniPublic k={c.public} t={t} fmt={fmt} /> : null;
-    case 'phone': return c.phone.unlocked ? <MiniPhone k={c.phone} t={t} fmt={fmt} /> : null;
-    case 'maillon': return c.maillon.unlocked ? <MiniMaillon k={c.maillon} t={t} /> : null;
-    case 'emotions': return c.emotions.unlocked ? <MiniEmotions k={c.emotions} t={t} fmt={fmt} /> : null;
-    case 'duree': return c.duree.unlocked ? <MiniDuree k={c.duree} fmt={fmt} /> : null;
-    case 'classiques': return c.classiques.unlocked ? <MiniClassiques k={c.classiques} t={t} fmt={fmt} /> : null;
-    case 'revirements': return c.revirements.unlocked ? <MiniRevirements k={c.revirements} fmt={fmt} /> : null;
-  }
-};
+const ConstatCard: React.FC<{ model: CardModel; t: T; onOpen: () => void }> = ({ model, t, onOpen }) => (
+  <button
+    type="button"
+    onClick={onOpen}
+    className="relative isolate snap-start shrink-0 w-[264px] min-h-[340px] overflow-hidden rounded-[1.75rem] bg-[#0B0B0B] p-[18px] pb-4 grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr_auto_auto] gap-2 text-left text-[#F5F4F0] shadow-[0_18px_40px_-22px_rgba(0,0,0,.7)] active:scale-[0.98] transition-transform"
+  >
+    <PosterBackdrop {...model.backdrop} />
+    <span className="relative z-10 max-w-[72%] text-[11.5px] font-bold text-white/60">{model.question}</span>
+    <span className="relative z-10 max-w-[90%] text-[21px] font-black leading-[1.04] tracking-tight text-balance [text-shadow:0_2px_18px_rgba(0,0,0,.6)]">{model.answer}</span>
+    <span className="relative z-10 flex flex-wrap items-baseline gap-2 self-end">
+      <strong className="text-[52px] font-black leading-[0.85] tracking-tighter tabular-nums" style={{ color: model.heroColor }}>{model.hero}</strong>
+      <span className="max-w-[124px] text-[11.5px] font-bold leading-tight text-white/70">{model.unit}</span>
+    </span>
+    <span className="relative z-10 grid gap-1.5">{model.visual}</span>
+    <span className="relative z-10 flex items-center justify-between gap-2 border-t border-white/[0.08] pt-2 text-[10px] font-bold text-white/50">
+      <span className="min-w-0 line-clamp-2 leading-snug">{t('constats.bg', { what: '' })}<em className="not-italic text-white/80">{model.source}</em></span>
+      <span className="shrink-0 font-black uppercase tracking-[0.1em] text-bitter-lime">{t('constats.detail')} →</span>
+    </span>
+  </button>
+);
 
 const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
   const { t } = useLanguage();
@@ -619,37 +723,30 @@ const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
           {t('constats.count', { n: unlocked.length, total: CONSTAT_ORDER.length })}
         </span>
       </div>
-      <div className="-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {unlocked.map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              haptics.soft();
-              setOpen(id);
-            }}
-            className="snap-start shrink-0 w-[236px] min-h-[292px] rounded-[1.7rem] bg-[#161615] border border-white/5 p-4 grid grid-rows-[auto_auto_1fr_auto] gap-2 text-left text-white active:scale-[0.98] transition-transform"
-          >
-            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-500">{t(`constats.${id}.eyebrow`)}</span>
-            <span className="text-[19px] font-black tracking-tight leading-[1.08] text-balance">{headline(id, constats, t, fmt)}</span>
-            <span className="self-center w-full">
-              <Mini id={id} c={constats} t={t} fmt={fmt} />
-            </span>
-            <span className="flex items-center justify-end gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-bitter-lime">
-              {t('constats.seeDetail')}
-              <ChevronRight size={13} strokeWidth={3} />
-            </span>
-          </button>
-        ))}
+      <div className="-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {unlocked.map((id) => {
+          const model = cardModel(id, constats, t, fmt);
+          return model ? (
+            <ConstatCard
+              key={id}
+              model={model}
+              t={t}
+              onOpen={() => {
+                haptics.soft();
+                setOpen(id);
+              }}
+            />
+          ) : null;
+        })}
         {locked.map((id) => {
           const k = constats[id];
           return (
             <div
               key={id}
-              className="snap-start shrink-0 w-[236px] min-h-[292px] rounded-[1.7rem] border-[1.5px] border-dashed border-stone-300 dark:border-white/15 p-4 grid grid-rows-[auto_auto_1fr_auto] gap-2"
+              className="snap-start shrink-0 w-[264px] min-h-[340px] rounded-[1.75rem] border-[1.5px] border-dashed border-stone-300 dark:border-white/15 p-[18px] grid grid-rows-[auto_auto_1fr_auto] gap-2"
             >
-              <span className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400 dark:text-stone-500">{t('constats.locked')}</span>
-              <span className="text-[19px] font-black tracking-tight leading-[1.08] text-stone-500 dark:text-stone-400">{t(`constats.${id}.eyebrow`)}</span>
+              <span className="text-[11.5px] font-bold text-stone-400 dark:text-stone-500">{t('constats.locked')}</span>
+              <span className="text-[21px] font-black tracking-tight leading-[1.04] text-stone-500 dark:text-stone-400">{t(`constats.${id}.q`)}</span>
               <span className="self-center text-[12.5px] leading-relaxed text-stone-500">
                 {t(`constats.${id}.lock`, { n: k.unlocked ? 0 : k.missing })}
               </span>
