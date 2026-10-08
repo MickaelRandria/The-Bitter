@@ -31,6 +31,7 @@ import { useDialog } from '../utils/useDialog';
 interface ScreeningProgrammePickerProps {
   profileId: string;
   favoriteCinema?: FavoriteCinema;
+  initialDate?: string;
   onClose: () => void;
   onCreated: () => void;
   /** Repli assumé : festival, cinéma non UGC, séance déjà passée. */
@@ -80,6 +81,7 @@ const normalise = (value: string) =>
 const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
   profileId,
   favoriteCinema,
+  initialDate,
   onClose,
   onCreated,
   onManualEntry,
@@ -91,7 +93,7 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
   const [cinema, setCinema] = useState<FavoriteCinema | undefined>(favoriteCinema);
   const [isChangingCinema, setIsChangingCinema] = useState(!favoriteCinema);
   const [programme, setProgramme] = useState<CinemaProgramme | null>(null);
-  const [requestedDate, setRequestedDate] = useState<string | undefined>();
+  const [requestedDate, setRequestedDate] = useState<string | undefined>(initialDate ? `${initialDate.slice(8)}/${initialDate.slice(5, 7)}/${initialDate.slice(0, 4)}` : undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');

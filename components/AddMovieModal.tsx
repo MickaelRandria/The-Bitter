@@ -74,6 +74,8 @@ interface AddMovieModalProps {
   tmdbIdToLoad?: number | null;
   /** « En cours » ne vaut que pour une série : un film retombe sur « Vu ». */
   initialStatus?: MovieStatus | 'watching';
+  /** Le calendrier ouvre l'ajout au jour touché, sans créer un faux film brouillon. */
+  initialWatchedDay?: string;
   sharedSpace?: SharedSpace | null;
   currentUserId?: string;
   onSharedMovieAdded?: () => void;
@@ -215,6 +217,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   initialDataIsDraft = false,
   tmdbIdToLoad,
   initialStatus = 'watched',
+  initialWatchedDay,
   sharedSpace,
   currentUserId,
   onSharedMovieAdded,
@@ -365,7 +368,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSearchType(type);
         handleSelectTMDBMovie(tmdbIdToLoad, type);
         setMode(initialStatus === 'watching' && type !== 'tv' ? 'watched' : initialStatus);
-        setSelectedDate(new Date().toISOString().split('T')[0]);
+        setSelectedDate(initialWatchedDay ?? new Date().toISOString().split('T')[0]);
         setEmotionalImprints([]);
       } else {
         // Ajout à vide : la recherche s'ouvre dans la partie d'où l'on vient.
@@ -379,7 +382,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSearchResults([]);
         setShowResults(false);
         setSearchType(freshType);
-        setSelectedDate(new Date().toISOString().split('T')[0]);
+        setSelectedDate(initialWatchedDay ?? new Date().toISOString().split('T')[0]);
         restoredProfileRef.current = null;
         setProfileId('standard');
         setProfileManuallySet(false);
@@ -391,7 +394,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setViewingContext(undefined);
       }
     }
-  }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType]);
+  }, [isOpen, initialData, tmdbIdToLoad, initialStatus, initialMediaType, initialWatchedDay]);
 
   useEffect(() => {
     if (!isOpen) return;

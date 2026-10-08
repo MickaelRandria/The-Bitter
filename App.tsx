@@ -705,6 +705,7 @@ const App: React.FC = () => {
    */
   const [remoteWorkKeys, setRemoteWorkKeys] = useState<Set<WorkKey>>(new Set());
   const [rewatchMovie, setRewatchMovie] = useState<Movie | null>(null);
+  const [calendarWatchedDay, setCalendarWatchedDay] = useState<string | undefined>();
   // Lu dès la création de l'état : lu dans un effet, il valait [] au premier
   // rendu, et l'effet d'enregistrement pouvait écraser la liste avant sa lecture.
   const [seenTooltips, setSeenTooltips] = useState<string[]>(() => {
@@ -1941,6 +1942,7 @@ const App: React.FC = () => {
     setSeasonDraft(null);
     setTmdbIdToLoad(null);
     setIsModalOpen(false);
+    setCalendarWatchedDay(undefined);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
   };
@@ -2371,8 +2373,8 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
-    if (!activeProfileId) return;
+  const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv'): Promise<boolean> => {
+    if (!activeProfileId) return false;
     try {
       let formData: MovieFormData | null = null;
       if (mediaType === 'movie') {
@@ -2413,8 +2415,10 @@ const App: React.FC = () => {
       }
       if (!formData) throw new Error('fetch failed');
       handleSaveMovie({ ...formData, status: 'watchlist' });
+      return true;
     } catch {
       setToastMessage(t('feed.cannotAddToWatchlist'));
+      return false;
     }
   };
 
@@ -3321,7 +3325,11 @@ const App: React.FC = () => {
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
-              onAddToWatchlist={(tmdbId) => void handleQuickWatchlist(tmdbId, 'movie')}
+              subscription={activeProfile?.cinemaSubscription}
+              onAddToWatchlist={(tmdbId) => handleQuickWatchlist(tmdbId, 'movie')}
+              onRewatch={setRewatchMovie}
+              onReview={(movie) => { setEditingMovie(movie); setCalendarWatchedDay(undefined); setIsModalOpen(true); }}
+              onAddWatched={(day) => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
               onToast={setToastMessage}
             />
           ) : viewMode === 'Deck' ? (
@@ -4162,6 +4170,7 @@ const App: React.FC = () => {
             isOpen={isModalOpen}
             onClose={() => {
               setIsModalOpen(false);
+              setCalendarWatchedDay(undefined);
               setEditingMovie(null);
               setSeasonDraft(null);
               setTmdbIdToLoad(null);
@@ -4176,6 +4185,7 @@ const App: React.FC = () => {
             tmdbIdToLoad={tmdbIdToLoad}
             initialMediaType={mediaTypeToLoad}
             initialStatus={initialStatusForAdd}
+            initialWatchedDay={calendarWatchedDay}
             sharedSpace={viewMode === 'SharedSpace' ? activeSharedSpace : null}
             sharedMovieToRate={sharedMovieToRate}
             sharedRatingToEdit={sharedRatingToEdit}

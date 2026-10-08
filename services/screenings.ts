@@ -102,6 +102,7 @@ const toRow = (input: CinemaScreeningInput) => {
     format: cleanText(input.format, 100),
     notes: cleanText(input.notes, 1_000),
     reminder_offsets_minutes: offsets,
+    ...(input.bookingUrl ? { booking_url: cleanText(input.bookingUrl, 2_000) } : {}),
   };
 };
 
