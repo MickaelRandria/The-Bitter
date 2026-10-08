@@ -158,6 +158,7 @@ export interface CinemaScreeningInput {
   reminderOffsetsMinutes?: number[];
   /** Absent = 'scheduled', le statut des séances saisies à la main. */
   status?: CinemaScreeningStatus;
+  bookingUrl?: string;
 }
 
 export type ViewingLocationType = 'cinema' | 'home' | 'other';

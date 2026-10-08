@@ -427,6 +427,7 @@ export interface TheatreRelease {
   overview: string;
   voteAverage: number;
   genreIds: number[];
+  popularity?: number;
 }
 
 export interface TheatreReleases {
@@ -462,12 +463,14 @@ const toRelease = (row: any): TheatreRelease => ({
   overview: row.overview || '',
   voteAverage: row.vote_average || 0,
   genreIds: row.genre_ids || [],
+  popularity: Number(row.popularity) || 0,
 });
 
 const fetchWindow = async (
   region: string,
   gte: string,
-  lte: string
+  lte: string,
+  language = 'fr-FR'
 ): Promise<TheatreRelease[]> => {
   // Trois choix qui décident entièrement de la pertinence de la liste :
   //
@@ -485,8 +488,8 @@ const fetchWindow = async (
   // `with_runtime.gte=60` écarte les courts métrages, qui ne sortent pas en salle
   // au sens où l'entend quelqu'un qui cherche quoi aller voir.
   const url =
-    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR` +
-    `&region=${region}&with_release_type=3|2` +
+    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=${language}` +
+    `&region=${region}&with_release_type=2|3` +
     `&release_date.gte=${gte}&release_date.lte=${lte}` +
     `&sort_by=popularity.desc&with_runtime.gte=60&page=1`;
 
@@ -508,10 +511,15 @@ const fetchWindow = async (
  *
  * Type 3 est la sortie en salle, type 2 la première limitée. On préfère la première.
  */
-const fetchLocalReleaseDate = async (
+export const fetchLocalReleaseDate = async (
   movieId: number,
   region: string
 ): Promise<string | null> => {
+  const key = `bitter_release_date_v1_${region}_${movieId}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || 'null');
+    if (cached && Date.now() - cached.at < RELEASES_TTL_MS) return cached.date;
+  } catch { /* Un cache refusé ne bloque pas la recherche. */ }
   try {
     const res = await fetch(
       `${TMDB_BASE_URL}/movie/${movieId}/release_dates?api_key=${TMDB_API_KEY}`
@@ -519,11 +527,11 @@ const fetchLocalReleaseDate = async (
     if (!res.ok) return null;
     const data = await res.json();
     const country = (data.results || []).find((r: any) => r.iso_3166_1 === region);
-    if (!country) return null;
-
-    const dates: any[] = country.release_dates || [];
-    const theatrical = dates.find((d) => d.type === 3) || dates.find((d) => d.type === 2);
-    return theatrical?.release_date?.slice(0, 10) ?? null;
+    const dates: any[] = country?.release_dates || [];
+    const firstOfType = (type: number) => dates.filter((d) => d.type === type && /^\d{4}-\d{2}-\d{2}/.test(d.release_date)).map((d) => d.release_date.slice(0, 10)).sort()[0];
+    const date = firstOfType(3) ?? firstOfType(2) ?? null;
+    try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), date })); } catch { /* La date fraîche reste utilisable. */ }
+    return date;
   } catch {
     return null;
   }
@@ -548,9 +556,9 @@ const withLocalDates = async (
  */
 export const getTheatreReleases = async (
   region: string,
-  { force = false }: { force?: boolean } = {}
+  { force = false, horizonDays = 45, language = 'fr-FR' }: { force?: boolean; horizonDays?: number; language?: string } = {}
 ): Promise<TheatreReleases> => {
-  const cacheKey = `${RELEASES_CACHE_KEY}_${region}`;
+  const cacheKey = `${RELEASES_CACHE_KEY}_${region}_${horizonDays}_${language}`;
 
   if (!force) {
     try {
@@ -567,7 +575,7 @@ export const getTheatreReleases = async (
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const horizon = new Date(today);
-  horizon.setDate(horizon.getDate() + 45);
+  horizon.setDate(horizon.getDate() + horizonDays);
 
   /**
    * Cinq semaines et non une.
@@ -581,8 +589,8 @@ export const getTheatreReleases = async (
   showingSince.setDate(showingSince.getDate() - 35);
 
   const [thisWeek, upcoming] = await Promise.all([
-    fetchWindow(region, isoDay(showingSince), isoDay(today)),
-    fetchWindow(region, isoDay(tomorrow), isoDay(horizon)),
+    fetchWindow(region, isoDay(showingSince), isoDay(today), language),
+    fetchWindow(region, isoDay(horizonDays === 90 ? today : tomorrow), isoDay(horizon), language),
   ]);
 
   const showing = thisWeek.filter((f) => isRecent(f, today)).slice(0, 12);
