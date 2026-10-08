@@ -45,6 +45,7 @@ import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
 import CinemaSubscriptionCard from './CinemaSubscriptionCard';
 import TastePortrait from './TastePortrait';
+import StatsConstats from './StatsConstats';
 import AdnRadialChart from './AdnRadialChart';
 import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
 
@@ -1629,6 +1630,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Ce que les notes disent de la personne : une phrase par constat, le graphique au toucher. */}
+          <StatsConstats movies={movies} />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white dark:bg-[#202020] p-5 rounded-[2rem] border border-stone-100 dark:border-white/10 shadow-sm dark:shadow-black/20 flex flex-col justify-between aspect-square transition-all">
