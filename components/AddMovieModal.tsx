@@ -245,6 +245,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [emotionalImprints, setEmotionalImprints] = useState<EmotionalImprint[]>([]);
   const [customWeights, setCustomWeights] = useState<Record<string, number>>({ ...DEFAULT_CUSTOM_WEIGHTS });
   const [profileManuallySet, setProfileManuallySet] = useState(false);
+  /**
+   * Le profil d'une note rouverte, posé avant toute détection par genre.
+   *
+   * `profileManuallySet` ne suffit pas à protéger la restauration : l'effet de
+   * détection tourne dans le même rendu que celui qui restaure, avec l'état
+   * d'avant l'ouverture — profil « non choisi » et genre du formulaire
+   * précédent. Sa mise à jour passait après la restauration et l'écrasait :
+   * un film noté en Drame se rouvrait en Action, son critère propre perdu. Un
+   * ref est lu tel qu'il vient d'être écrit, lui.
+   */
+  const restoredProfileRef = useRef<RatingProfileId | null>(null);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
   /** Contexte de la séance, facultatif : ne bloque jamais l'enregistrement. */
   const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
@@ -294,11 +305,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // Restore adaptive rating state when editing
         if (initialData.adaptiveRating) {
           const adaptiveProfileId = initialData.adaptiveRating.profile.id;
-          // Only restore if it's a real profile (not legacy)
-          const isLegacyProfile = adaptiveProfileId === 'standard_legacy';
-          const restoredProfile = isLegacyProfile ? detectRatingProfile(initialData.genre, initialData.mediaType) : (adaptiveProfileId as RatingProfileId);
+          // « standard_legacy » vient de la conversion des premières notes : ce
+          // sont les quatre critères à poids égaux, c'est-à-dire « Standard ».
+          const restoredProfile: RatingProfileId =
+            adaptiveProfileId === 'standard_legacy' ? 'standard' : (adaptiveProfileId as RatingProfileId);
+          restoredProfileRef.current = restoredProfile;
           setProfileId(restoredProfile);
-          setProfileManuallySet(!isLegacyProfile);
+          setProfileManuallySet(true);
           const values: Record<string, number> = {};
           for (const c of initialData.adaptiveRating.criteria) values[c.key] = c.value;
           setCriteriaValues(values);
@@ -312,9 +325,28 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
           }
         } else {
-          const detected = detectRatingProfile(initialData.genre, initialData.mediaType);
-          setProfileId(detected);
-          setProfileManuallySet(false);
+          /**
+           * Une note posée avant Bitter+ : quatre critères, moyenne simple.
+           *
+           * « Standard » est exactement cette grille — quatre critères à poids
+           * égaux, sans critère propre au genre. La rouvrir dans le profil du
+           * genre ajoutait un cinquième critère jamais noté et changeait la
+           * note sans que rien n'ait été touché. On garde donc la grille d'origine ;
+           * changer de profil reste possible, mais c'est un choix.
+           *
+           * Un brouillon de saison ou un film « à voir » qu'on marque vu n'a pas
+           * encore de note : pour eux, la détection par genre reste la bonne.
+           */
+          const r = initialData.ratings;
+          const alreadyRated =
+            !initialDataIsDraft && !!r && r.story + r.visuals + r.acting + r.sound > 0;
+          const profile: RatingProfileId = alreadyRated
+            ? 'standard'
+            : detectRatingProfile(initialData.genre, initialData.mediaType);
+          restoredProfileRef.current = alreadyRated ? profile : null;
+          setProfileId(profile);
+          setProfileManuallySet(alreadyRated);
+          setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
           // Seed values from existing qualityMetrics/ratings
           const qm = initialData.qualityMetrics;
           setCriteriaValues(initialDataIsDraft ? {} : {
@@ -328,6 +360,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         if (initialData.dateWatched)
           setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
       } else if (tmdbIdToLoad) {
+        restoredProfileRef.current = null;
         const type: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
         setSearchType(type);
         handleSelectTMDBMovie(tmdbIdToLoad, type);
@@ -347,6 +380,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setShowResults(false);
         setSearchType(freshType);
         setSelectedDate(new Date().toISOString().split('T')[0]);
+        restoredProfileRef.current = null;
         setProfileId('standard');
         setProfileManuallySet(false);
         setCriteriaValues({});
@@ -456,9 +490,12 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       const values: Record<string, number> = {};
       for (const c of adaptive.criteria) values[c.key] = c.value;
       setCriteriaValues(values);
-      const restored = adaptive.profile?.id;
-      if (restored && restored !== 'standard_legacy') {
-        setProfileId(restored as RatingProfileId);
+      const stored = adaptive.profile?.id;
+      if (stored) {
+        const restored: RatingProfileId =
+          stored === 'standard_legacy' ? 'standard' : (stored as RatingProfileId);
+        restoredProfileRef.current = restored;
+        setProfileId(restored);
         setProfileManuallySet(true);
       }
     } else if (sharedRatingToEdit) {
@@ -470,13 +507,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         interpretation: Number(sharedRatingToEdit.acting),
         sound: Number(sharedRatingToEdit.sound),
       });
+      // Même raison que pour une note personnelle d'avant Bitter+ : sa grille,
+      // c'est « Standard ».
+      restoredProfileRef.current = 'standard';
+      setProfileId('standard');
+      setProfileManuallySet(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, sharedMovieToRate?.id]);
 
   // Auto-detect profile from genre unless user manually overrode it
   useEffect(() => {
-    if (profileManuallySet) return;
+    if (profileManuallySet || restoredProfileRef.current) return;
     const detected = detectRatingProfile(formData.genre, formData.mediaType);
     setProfileId((prev) => (prev === detected ? prev : detected));
   }, [formData.genre, formData.mediaType, profileManuallySet]);

@@ -302,6 +302,7 @@ export const fr: Record<string, string> = {
   'feed.addMovie': 'Ajouter un film',
   'feed.myStats': 'Mes stats',
   'feed.yourRating': 'Toi',
+  'card.firstRating': 'Première note {rating}',
   'feed.queueHours': 'À voir',
   'feed.queueOldest': 'En attente',
   'feed.fullStats': 'Voir mes statistiques complètes',
