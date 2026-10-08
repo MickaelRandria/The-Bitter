@@ -3128,12 +3128,12 @@ const App: React.FC = () => {
     );
 
   return (
-    <div className="min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative overflow-x-hidden bg-cream dark:bg-[#0c0c0c] transition-colors">
+    <div className="app-root min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative bg-cream dark:bg-[#0c0c0c] transition-colors">
       <style>{`@keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }`}</style>
 
       {viewMode !== 'SharedSpace' && (
         <header
-          className="px-6 sticky top-0 z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors"
+          className="px-6 relative z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >
           <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">

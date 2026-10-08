@@ -194,3 +194,14 @@ input[type='range']::-webkit-slider-runnable-track {
 ::view-transition-new(root) {
   animation-duration: 0.35s;
 }
+
+/*
+ * Conteneur racine de l'app. `overflow-x: hidden` en ferait un conteneur de
+ * défilement qui ne défile jamais, et tout `position: sticky` en dessous
+ * resterait inerte (la date de la frise « Bientôt en salle »). `clip` coupe
+ * pareil sans cet effet ; `hidden` reste en repli pour les navigateurs anciens.
+ */
+.app-root {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
