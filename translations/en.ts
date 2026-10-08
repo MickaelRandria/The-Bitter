@@ -2013,4 +2013,10 @@ export const en: Record<string, string> = {
   'constats.revirements.answer': "Your first impression isn’t always the right one",
   'constats.revirements.unit': "film(s) whose rating you changed",
   'constats.revirements.src': "{title}, from {from} to {to}",
+  'constats.public.line.below': "You rate tougher than the crowd",
+  'constats.public.line.above': "You rate more generously than the crowd",
+  'constats.public.line.same': "You rate like the crowd",
+  'constats.phone.line.strong': "The more you check your phone, the lower your rating",
+  'constats.phone.line.flat': "Your phone doesn’t change your rating",
+  'constats.emotions.pts': "{n} pts",
 };

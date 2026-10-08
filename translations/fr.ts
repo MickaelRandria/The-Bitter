@@ -2019,4 +2019,10 @@ export const fr: Record<string, string> = {
   'constats.revirements.answer': "Ta première impression n’est pas toujours la bonne",
   'constats.revirements.unit': "film(s) dont tu as changé la note",
   'constats.revirements.src': "{title}, de {from} à {to}",
+  'constats.public.line.below': "Tu notes plus dur que le public",
+  'constats.public.line.above': "Tu notes plus généreusement que le public",
+  'constats.public.line.same': "Tu notes comme le public",
+  'constats.phone.line.strong': "Plus tu regardes ton téléphone, plus ta note baisse",
+  'constats.phone.line.flat': "Ton téléphone ne change rien à ta note",
+  'constats.emotions.pts': "{n} pts",
 };
