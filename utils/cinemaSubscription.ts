@@ -176,6 +176,49 @@ export const buildSubscriptionContext = (subscription: CinemaSubscription): View
 });
 
 /**
+ * Rattache à l'abonnement les séances « cinéma » restées sans paiement.
+ *
+ * Avant que « Cinéma » ne présélectionne l'abonnement, le paiement se choisissait
+ * dans une seconde rangée, et l'oublier laissait la séance hors de l'abonnement :
+ * « 0 séance ce mois-ci » pour quelqu'un qui en avait vu quatre. Une séance au
+ * cinéma de l'enseigne de l'abonnement, sans paiement précisé, depuis son début,
+ * était à coup sûr incluse : c'est le seul cas que le sélecteur produisait.
+ *
+ * Se fait sur l'appareil et non en base : au démarrage, l'app renvoie sa propre
+ * collection au serveur, et écraserait une correction faite là-bas.
+ *
+ * Renvoie les films modifiés seulement — liste vide si rien n'est à réparer.
+ */
+export const attachForgottenSubscriptionSessions = (
+  movies: Movie[],
+  subscription: CinemaSubscription
+): Movie[] => {
+  if (!subscription.active) return [];
+  const start = startOfDay(new Date(subscription.startDate)).getTime();
+  const forgotten = (watch: MovieWatch): boolean => {
+    const context = watch.viewingContext;
+    const watchedAt = parseWatchDate(watch);
+    return (
+      !!context &&
+      !!watchedAt &&
+      context.locationType === 'cinema' &&
+      !context.paymentType &&
+      context.cinemaProvider === subscription.provider &&
+      watchedAt.getTime() >= start
+    );
+  };
+
+  return movies
+    .filter((movie) => movie.status === 'watched' && movie.watches?.some(forgotten))
+    .map((movie) => ({
+      ...movie,
+      watches: movie.watches!.map((watch) =>
+        forgotten(watch) ? { ...watch, viewingContext: buildSubscriptionContext(subscription) } : watch
+      ),
+    }));
+};
+
+/**
  * Attache un contexte à la première séance d'un film.
  *
  * App.tsx ne crée les séances qu'au montage suivant, via son effet de migration :

@@ -53,6 +53,8 @@ import {
   migrateLocalStorageToSupabase,
   resyncAllMoviesToSupabase,
   syncCinemaSubscriptionToSupabase,
+  isSubscriptionUnsynced,
+  markSubscriptionSyncedFromServer,
   syncFavoriteCinemaToSupabase,
   syncMovieToSupabase,
   syncMoviesToSupabase,
@@ -70,7 +72,7 @@ import {
   UserProfile,
   ViewingContext,
 } from './types';
-import { withFirstWatchContext } from './utils/cinemaSubscription';
+import { attachForgottenSubscriptionSessions, withFirstWatchContext } from './utils/cinemaSubscription';
 import { withRatingRevision } from './utils/ratingHistory';
 import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
 import {
@@ -1183,6 +1185,15 @@ const App: React.FC = () => {
           if (changed.includes('last_name')) existingProfile.last_name = linkedLocal.lastName || null;
         }
 
+        // Un abonnement réglé sur cet appareil avant que le serveur sache le
+        // stocker n'y est jamais arrivé : on l'envoie (voir isSubscriptionUnsynced).
+        const localForAccount = linkedLocal ?? localProfiles.find((p) => p.id === existingProfile.id);
+        if (existingProfile.cinema_subscription) {
+          markSubscriptionSyncedFromServer(existingProfile.cinema_subscription);
+        } else if (isSubscriptionUnsynced(localForAccount?.cinemaSubscription)) {
+          void syncCinemaSubscriptionToSupabase(user.id, localForAccount.cinemaSubscription);
+        }
+
         // Un profil local est déjà rattaché à ce compte, sous un autre identifiant :
         // en créer un second ne ferait qu'encombrer le sélecteur d'un profil vide.
         if (linkedLocal && linkedLocal.id !== existingProfile.id) {
@@ -2099,6 +2110,24 @@ const App: React.FC = () => {
     // à chaque modification de `profiles` provoquerait une boucle de fusion.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, activeProfileId]);
+
+  /**
+   * Séances au cinéma restées hors de l'abonnement faute d'un second geste.
+   *
+   * Rejoué à chaque changement de la collection, et donc après la fusion avec le
+   * serveur (qui l'emporterait sur une réparation faite avant) ; il ne trouve plus
+   * rien à faire dès la deuxième fois. Voir attachForgottenSubscriptionSessions.
+   */
+  useEffect(() => {
+    const subscription = activeProfile?.cinemaSubscription;
+    if (!activeProfile || !subscription?.active) return;
+    const repaired = attachForgottenSubscriptionSessions(activeProfile.movies, subscription);
+    if (repaired.length === 0) return;
+    const byId = new Map(repaired.map((m) => [m.id, m]));
+    updateActiveProfile((p) => ({ ...p, movies: p.movies.map((m) => byId.get(m.id) ?? m) }));
+    if (session?.user?.id) void syncMoviesToSupabase(session.user.id, repaired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile?.movies, activeProfile?.cinemaSubscription, session?.user?.id]);
 
   /** Œuvres du profil actif qui ne sont pas encore sur le compte. */
   const pendingSyncCount = useMemo(
