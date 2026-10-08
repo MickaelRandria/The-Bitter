@@ -8,6 +8,8 @@ import { haptics } from '../utils/haptics';
 import { getPublicRating } from '../utils/publicRating';
 import { ImdbMark } from './PublicRatingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
+import { firstRating } from '../utils/ratingHistory';
+import { PROFILE_OPTIONS } from '../config/ratingProfiles';
 
 interface MovieCardProps {
   movie: Movie;
@@ -131,6 +133,16 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const publicRating = getPublicRating(movie);
     const displayRatings = getDisplayRatings(movie);
     const profileLabel = adaptive?.profile.label;
+    /**
+     * La première note, quand on a changé d'avis depuis. Son profil n'est
+     * rappelé que s'il diffère de l'actuel : « 8,5 en Action » face à une note
+     * en Drame, c'est l'information ; « 8,5 en Drame » deux fois, du bruit.
+     */
+    const first = firstRating(movie);
+    const firstProfileLabel =
+      first?.profileId && first.profileId !== (adaptive?.profile.id ?? 'standard')
+        ? PROFILE_OPTIONS.find((p) => p.id === first.profileId)?.label
+        : undefined;
     const hasRewatches = (movie.watch_count ?? 1) > 1;
     const hasVerdict =
       movie.ratings.story > 0 || movie.ratings.visuals > 0 || movie.ratings.acting > 0 || movie.ratings.sound > 0;
@@ -433,6 +445,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                             ? `Bitter+ · ${profileLabel}`
                             : 'Notation Bitter+'}
                       </span>
+                      {first && (
+                        <span
+                          className={`text-[10px] font-bold tracking-wide ${hasPoster ? 'text-white/45' : 'text-stone-400 dark:text-stone-500'}`}
+                        >
+                          {t('card.firstRating', { rating: first.rating.toFixed(1) })}
+                          {firstProfileLabel ? ` · ${firstProfileLabel}` : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {hasRewatches && onToggleDisplayMode && (

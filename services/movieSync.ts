@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ActorInfo, AdaptiveRatingData, Movie, MovieStatus, MovieWatch, TvProgress } from '../types';
+import { ActorInfo, AdaptiveRatingData, Movie, MovieStatus, MovieWatch, RatingRevision, TvProgress } from '../types';
 import { WorkIdentity, WorkKey, workKey } from '../utils/workKey';
 
 /**
@@ -57,7 +57,7 @@ const MOVIE_COLUMNS = `
   runtime, genre, poster_url, tmdb_rating, status, date_watched, theme, tags,
   media_type, story, visuals, acting, sound, vibe_story, vibe_emotion, vibe_fun,
   vibe_visual, vibe_tension, smartphone_factor, hype, review, adaptive_rating,
-  watches, created_at, rated_at,
+  rating_history, watches, created_at, rated_at,
   season_number, series_tmdb_id, series_title, number_of_seasons, tv_progress
 `;
 
@@ -104,6 +104,7 @@ interface UserMovieRow {
   hype: number | null;
   review: string | null;
   adaptive_rating: unknown;
+  rating_history: unknown;
   watches: unknown;
   created_at: string | null;
   rated_at: string | null;
@@ -204,6 +205,7 @@ export const rowToMovie = (row: UserMovieRow): Movie => {
           },
     mediaType: row.media_type === 'tv' ? 'tv' : 'movie',
     adaptiveRating: parseJsonColumn<AdaptiveRatingData>(row.adaptive_rating),
+    ratingHistory: parseJsonColumn<RatingRevision[]>(row.rating_history),
     watches,
     watch_count: watches?.length,
     seasonNumber: row.season_number ?? undefined,
@@ -420,6 +422,7 @@ export const movieToRow = (movie: Movie, userId: string) => ({
   // opinion.
   comment: movie.comment || null,
   adaptive_rating: movie.adaptiveRating ?? null,
+  rating_history: movie.ratingHistory?.length ? movie.ratingHistory : null,
   // Absent du modèle local des anciens films : on publie par défaut, ce qui
   // correspond au réglage choisi et à ce que la colonne vaut déjà en base.
   shared_to_feed: movie.shareToFeed !== false,

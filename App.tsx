@@ -71,6 +71,7 @@ import {
   ViewingContext,
 } from './types';
 import { withFirstWatchContext } from './utils/cinemaSubscription';
+import { withRatingRevision } from './utils/ratingHistory';
 import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
 import {
   backfillProfileToSupabase,
@@ -1785,6 +1786,9 @@ const App: React.FC = () => {
     let finalMovie: Movie = editing
       ? { ...editing, ...data, status: determinedStatus }
       : { ...data, id: newMovieId, dateAdded: newMovieTimestamp, status: determinedStatus };
+    // Changer d'avis ne doit pas effacer l'avis d'avant : la note remplacée
+    // rejoint l'historique du film.
+    if (editing) finalMovie.ratingHistory = withRatingRevision(editing, finalMovie);
 
     // Le contexte de visionnage appartient à la séance : on le pose sur la première,
     // en la créant si le film n'en a pas encore.

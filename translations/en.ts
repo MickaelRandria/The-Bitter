@@ -301,6 +301,7 @@ export const en: Record<string, string> = {
   'feed.addMovie': 'Add a film',
   'feed.myStats': 'My stats',
   'feed.yourRating': 'You',
+  'card.firstRating': 'First rating {rating}',
   'feed.queueHours': 'To watch',
   'feed.queueOldest': 'Waiting',
   'feed.fullStats': 'View full statistics',

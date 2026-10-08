@@ -190,6 +190,16 @@ export interface MovieWatch {
   viewingContext?: ViewingContext;
 }
 
+/** Une note remplacée par une modification : voir utils/ratingHistory.ts. */
+export interface RatingRevision {
+  /** La note telle qu'elle s'affichait, au dixième. */
+  rating: number;
+  /** Profil de la grille d'alors ; « standard » pour une note d'avant Bitter+. */
+  profileId?: string;
+  /** Moment où elle a été remplacée (ISO). */
+  replacedAt: string;
+}
+
 export type CriterionGroup = 'base' | 'specific';
 export type WeightLabel = 'Essentiel' | 'Important' | 'Standard' | 'Secondaire';
 
@@ -375,6 +385,8 @@ export interface Movie {
   preferred_display_mode?: 'latest' | 'average';
   // Système de notation adaptatif (V1)
   adaptiveRating?: AdaptiveRatingData;
+  /** Notes remplacées, de la plus ancienne à la plus récente. Absent tant qu'on n'a jamais changé d'avis. */
+  ratingHistory?: RatingRevision[];
   /** Faux quand l'utilisateur retire ce film du fil de ses espaces. */
   shareToFeed?: boolean;
 }
