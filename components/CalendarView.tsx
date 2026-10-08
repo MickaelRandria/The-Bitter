@@ -351,31 +351,33 @@ export default function CalendarView(props: CalendarViewProps) {
               today={today}
               onDay={setDay}
             />
-            {genres.length > 1 && (
-              <label className="mt-5 flex items-center gap-3 text-[10px] font-black uppercase text-stone-500">
-                {t('agenda.genre')}
-                <select
-                  value={genre}
-                  onChange={(event) => setGenre(event.target.value)}
-                  className="h-10 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 text-xs normal-case dark:border-white/10 dark:bg-[#1A1A19] dark:text-white"
-                >
-                  <option value="">{t('agenda.allGenres')}</option>
-                  {genres.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <Suspense fallback={null}>
-              <WeeklyRecapStory
-                movies={movies.filter(
-                  (movie) => movie.status === 'watched' && movie.mediaType !== 'tv'
-                )}
-                variant="calendar"
-              />
-            </Suspense>
+            <div className="mt-6 flex flex-col gap-6">
+              {genres.length > 1 && (
+                <label className="flex items-center gap-3 text-[10px] font-black uppercase text-stone-500">
+                  {t('agenda.genre')}
+                  <select
+                    value={genre}
+                    onChange={(event) => setGenre(event.target.value)}
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 text-xs normal-case dark:border-white/10 dark:bg-[#1A1A19] dark:text-white"
+                  >
+                    <option value="">{t('agenda.allGenres')}</option>
+                    {genres.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <Suspense fallback={null}>
+                <WeeklyRecapStory
+                  movies={movies.filter(
+                    (movie) => movie.status === 'watched' && movie.mediaType !== 'tv'
+                  )}
+                  variant="calendar"
+                />
+              </Suspense>
+            </div>
           </>
         )}
         {tab === 'upcoming' && (
@@ -411,13 +413,18 @@ export default function CalendarView(props: CalendarViewProps) {
               {t('agenda.retry')}
             </button>
           )}
-          <button className={`${agendaAction} mt-5 w-full`} onClick={() => plan(today)}>
-            <CalendarPlus size={15} />
-            {t('agenda.plan')}
-          </button>
-          <button className="mt-3 w-full text-[10px] font-bold text-stone-500" onClick={remind}>
-            {t(reminderActive ? 'agenda.reminderActive' : 'agenda.enableReminders')}
-          </button>
+          <div className="mt-6 flex flex-col gap-4">
+            <button className={`${agendaAction} w-full`} onClick={() => plan(today)}>
+              <CalendarPlus size={15} />
+              {t('agenda.plan')}
+            </button>
+            <button
+              className="min-h-9 w-full text-[10px] font-bold text-stone-500"
+              onClick={remind}
+            >
+              {t(reminderActive ? 'agenda.reminderActive' : 'agenda.enableReminders')}
+            </button>
+          </div>
         </>
       )}
       {day && (
