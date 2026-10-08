@@ -21,6 +21,11 @@ interface Props {
    * compte ; le sélecteur d'espace reste alors le seul chemin.
    */
   onWatchWith?: (tmdbId: number) => void;
+  /**
+   * Dans le calendrier, les sorties à venir se lisent comme un fil : une grande
+   * affiche par film, dans l'ordre de sortie, plutôt que des lignes par semaine.
+   */
+  upcomingFeed?: boolean;
 }
 
 /**
@@ -39,6 +44,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
   onQuickWatchlist,
   onProposeToSpace,
   onWatchWith,
+  upcomingFeed = false,
 }) => {
   const { t, language } = useLanguage();
   const [data, setData] = useState<TheatreReleases | null>(null);
@@ -86,6 +92,24 @@ const TheatreReleasesSection: React.FC<Props> = ({
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 8);
   }, [data]);
 
+  /** Le fil : chaque film une fois, du plus proche au plus lointain. */
+  const upcomingFeedFilms = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<number>();
+    return data.upcoming
+      .filter((film) => film.releaseDate && !seen.has(film.id) && seen.add(film.id))
+      .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || (b.popularity ?? 0) - (a.popularity ?? 0));
+  }, [data]);
+
+  /** « dans 6 j », « demain » : la distance compte plus que la date dans un fil. */
+  const untilLabel = (iso: string) => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+    const days = Math.round((Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+    if (days <= 0) return t('releases.today');
+    if (days === 1) return t('releases.tomorrow');
+    return t('releases.inDays', { days: String(days) });
+  };
+
   const formatDay = (iso: string) => {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
@@ -109,7 +133,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
     }
   };
 
-  const renderCard = (film: TheatreRelease) => {
+  const renderCard = (film: TheatreRelease, post = false) => {
     const inCollection = knownTmdbIds.has(film.id);
     const alreadySuggested = suggestedTmdbIds.has(film.id) || added.has(film.id);
 
@@ -118,6 +142,60 @@ const TheatreReleasesSection: React.FC<Props> = ({
         key={film.id}
         className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.5rem] overflow-hidden"
       >
+        {post ? (
+          <>
+            <div className="flex items-baseline justify-between gap-3 px-4 pb-2.5 pt-3.5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
+                {formatDay(film.releaseDate)}
+              </p>
+              <p className="shrink-0 text-[10px] font-bold text-stone-400 dark:text-stone-500">
+                {untilLabel(film.releaseDate)}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                haptics.soft();
+                onSelectMovie(film.id);
+              }}
+              aria-label={film.title}
+              className="relative block w-full aspect-[2/3] bg-stone-100 dark:bg-[#161616] active:scale-[0.99] transition-transform"
+            >
+              {film.posterPath ? (
+                <img
+                  src={resizeTmdbImage(`${TMDB_IMAGE_URL}${film.posterPath}`, 'w500')}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <Ticket size={28} className="absolute inset-0 m-auto text-stone-400" />
+              )}
+            </button>
+            <div className="px-4 pb-3 pt-3">
+              <p className="text-base font-black leading-tight text-charcoal dark:text-white">{film.title}</p>
+              {film.overview && (
+                <p className="mt-1 line-clamp-2 text-[11.5px] font-medium leading-snug text-stone-500 dark:text-stone-400">
+                  {film.overview}
+                </p>
+              )}
+              {(inCollection || alreadySuggested) && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {inCollection && (
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400 px-2 py-0.5 rounded">
+                      {t('releases.inCollection')}
+                    </span>
+                  )}
+                  {alreadySuggested && (
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-forest/10 dark:bg-lime-400/10 text-forest dark:text-lime-400 px-2 py-0.5 rounded">
+                      {t('releases.alreadySuggested')}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
         <button
           onClick={() => {
             haptics.soft();
@@ -167,6 +245,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
             </div>
           </div>
         </button>
+        )}
 
         <div className="flex items-stretch border-t border-sand dark:border-white/5">
           <button
@@ -302,11 +381,24 @@ const TheatreReleasesSection: React.FC<Props> = ({
               <RefreshCw size={13} />
             </button>
           </div>
-          <div className="space-y-3">{data.thisWeek.map(renderCard)}</div>
+          <div className="space-y-3">{data.thisWeek.map((film) => renderCard(film))}</div>
         </section>
       )}
 
-      {upcomingByWeek.length > 0 && (
+      {upcomingFeed && upcomingFeedFilms.length > 0 && (
+        <section className="space-y-4">
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 flex items-center gap-2">
+              <Check size={12} />
+              {t('releases.upcoming')}
+            </h3>
+            <p className="mt-1 text-[11px] font-medium text-stone-500">{t('releases.feedSubtitle')}</p>
+          </div>
+          {upcomingFeedFilms.map((film) => renderCard(film, true))}
+        </section>
+      )}
+
+      {!upcomingFeed && upcomingByWeek.length > 0 && (
         <section className="space-y-4">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 flex items-center gap-2">
             <Check size={12} />
@@ -317,7 +409,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-300 dark:text-stone-700 ml-1">
                 {formatDay(day)}
               </p>
-              <div className="space-y-3">{films.map(renderCard)}</div>
+              <div className="space-y-3">{films.map((film) => renderCard(film))}</div>
             </div>
           ))}
         </section>

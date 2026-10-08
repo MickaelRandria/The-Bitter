@@ -12,6 +12,7 @@ export default function CalendarUpcoming({
   watchlistIds,
   actions,
   filter = 'all',
+  cinema,
 }: {
   days: Map<string, AgendaEvent[]>;
   wishes: AgendaEvent[];
@@ -19,6 +20,8 @@ export default function CalendarUpcoming({
   watchlistIds: Set<number>;
   actions: CalendarActions;
   filter?: CalendarFilter;
+  /** « Au cinéma », venu de Découvrir : à l'affiche, puis le fil des sorties. */
+  cinema?: React.ReactNode;
 }) {
   const showSessions = filter !== 'releases';
   const showReleases = filter !== 'sessions';
@@ -80,55 +83,12 @@ export default function CalendarUpcoming({
           {t('agenda.noWishReleases')}
         </p>
       )}
-      <h2 className={agendaLabel}>{t('agenda.majorReleases')}</h2>
-      <p className="-mt-1 mb-3 text-[11px] font-medium text-stone-500">
-        {t('agenda.majorSubtitle')}
-      </p>
-      <div className="flex gap-2.5 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {releases.map((film) => {
-          const mine = watchlistIds.has(film.id);
-          return (
-            <article key={film.id} className="w-24 shrink-0">
-              <div className="relative h-36 overflow-hidden rounded-xl bg-stone-200 dark:bg-[#1A1A19]">
-                {film.posterPath && (
-                  <img
-                    src={resizeTmdbImage(
-                      `https://image.tmdb.org/t/p/w185${film.posterPath}`,
-                      'w185'
-                    )}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                )}
-                <span
-                  className={`absolute left-1.5 top-1.5 rounded-full px-1.5 py-1 text-[9px] font-black ${mine ? 'bg-[#D9FF00] text-[#111]' : 'bg-black/65 text-white'}`}
-                >
-                  {mine
-                    ? t('agenda.yourList')
-                    : new Intl.DateTimeFormat(locale, {
-                        day: 'numeric',
-                        month: 'short',
-                        timeZone: 'Europe/Paris',
-                      }).format(new Date(`${film.releaseDate}T12:00:00Z`))}
-                </span>
-              </div>
-              <h3 className="mt-1.5 line-clamp-2 min-h-7 text-[11px] font-extrabold leading-tight text-charcoal dark:text-white">
-                {film.title}
-              </h3>
-              <button
-                disabled={mine || actions.busyId === `add:${film.id}`}
-                onClick={() => actions.onAdd(film.id)}
-                aria-label={t('agenda.addFilm', { title: film.title })}
-                className={`mt-1.5 min-h-9 w-full rounded-lg px-1 text-[10px] font-black ${mine ? 'bg-[#D9FF00]/15 text-forest dark:text-[#D9FF00]' : 'bg-white text-charcoal dark:bg-[#262625] dark:text-white'} disabled:opacity-70`}
-              >
-                {t(mine ? 'agenda.inYourList' : 'agenda.addWatchlist')}
-              </button>
-            </article>
-          );
-        })}
-      </div>
-      {!releases.length && <p className="text-xs text-stone-500">{t('agenda.noMajorReleases')}</p>}
+      {cinema && (
+        <>
+          <h2 className={`${agendaLabel} mt-8`}>{t('agenda.atTheCinema')}</h2>
+          {cinema}
+        </>
+      )}
       <p className="mt-2 text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
         {t('agenda.releaseReminderHint')}
       </p>
