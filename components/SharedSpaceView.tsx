@@ -39,6 +39,8 @@ import {
   leaveSharedSpace,
   subscribeToSpace,
   MovieVote,
+  MemberFilm,
+  addMovieToSpace,
 } from '../services/supabase';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -714,6 +716,36 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       .filter((m) => m.status === 'watchlist')
       .sort((a, b) => keen(b.id) - keen(a.id) || (b.added_at ?? '').localeCompare(a.added_at ?? ''));
   }, [movies, votes, members]);
+
+  /**
+   * Depuis la fiche d'un membre : un film que vous avez vu tous les deux entre
+   * dans les « vus ensemble ». Vos deux notes perso suivent, posées par le
+   * serveur (trigger `shared_movies_collect_verdicts`).
+   */
+  const addWatchedTogether = async (film: MemberFilm): Promise<boolean> => {
+    if (!currentUserId || film.tmdbId == null) return false;
+    const { movie, error } = await addMovieToSpace(
+      space.id,
+      {
+        tmdb_id: film.tmdbId,
+        title: film.title,
+        director: film.director,
+        year: film.year,
+        genre: film.genre ?? '',
+        poster_url: film.posterUrl,
+        status: 'watched',
+        media_type: film.mediaType,
+      },
+      currentUserId
+    );
+    if (!movie) {
+      onToast?.(error ?? t('member.bothSeenFailed'));
+      return false;
+    }
+    onToast?.(t('member.bothSeenToast', { title: film.title, space: space.name }));
+    void loadData(true);
+    return true;
+  };
 
   /** Les notes de chaque film, déjà toutes chargées avec l'espace. */
   const ratingsByMovie = useMemo(() => {
@@ -1862,6 +1894,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           member={selectedMember}
           myMovies={myMovies}
           currentUserId={currentUserId}
+          space={{ name: space.name, movies, ratings: allRatings }}
+          onAddWatchedTogether={addWatchedTogether}
           onClose={() => setSelectedMember(null)}
         />
       )}

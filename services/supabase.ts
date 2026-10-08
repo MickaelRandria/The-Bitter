@@ -754,6 +754,8 @@ const extractCriteria = (row: any) => {
 export interface MemberFilm {
   id: string;
   tmdbId: number | null;
+  /** Film ou série : un même numéro TMDB peut désigner les deux. */
+  mediaType: 'movie' | 'tv';
   title: string;
   director: string;
   year: number;
@@ -784,7 +786,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
     'Lecture des films du membre',
     supabase
       .from('user_movies')
-      .select('id, tmdb_id, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
+      .select('id, tmdb_id, media_type, title, director, year, genre, poster_url, story, visuals, acting, sound, adaptive_rating')
       .eq('profile_id', profileId)
       .eq('status', 'watched')
       .is('deleted_at', null)
@@ -803,6 +805,7 @@ export async function getMemberFilms(profileId: string): Promise<SpaceRead<Membe
     return {
       id: row.id,
       tmdbId: row.tmdb_id ?? null,
+      mediaType: row.media_type === 'tv' ? 'tv' : 'movie',
       title: row.title,
       director: row.director || '',
       year: row.year || 0,

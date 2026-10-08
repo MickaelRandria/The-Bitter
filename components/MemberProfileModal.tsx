@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass, Flag } from 'lucide-react';
-import { SpaceMember, MemberFilm, getMemberFilms } from '../services/supabase';
+import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass, Flag, Plus, Clapperboard } from 'lucide-react';
+import { SpaceMember, MemberFilm, MovieRating, SharedMovie, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { avatarSrc } from '../utils/avatar';
@@ -15,8 +15,51 @@ interface Props {
   myMovies: Movie[];
   /** Pour ne pas proposer de se signaler soi-même. */
   currentUserId?: string;
+  /**
+   * L'espace d'où l'on ouvre la fiche : ce que le membre y a noté et proposé,
+   * et les films vus par vous deux qui n'y sont pas encore.
+   */
+  space?: { name: string; movies: SharedMovie[]; ratings: MovieRating[] };
+  /** Ajoute un film aux « vus ensemble » ; rend vrai si c'est fait. */
+  onAddWatchedTogether?: (film: MemberFilm) => Promise<boolean>;
   onClose: () => void;
 }
+
+/** Note finale d'un verdict d'espace : pondérée en Bitter+, moyenne sinon. */
+const spaceScore = (r: MovieRating): number => {
+  const weighted = (r as any).adaptive_rating?.weightedRating;
+  if (typeof weighted === 'number' && Number.isFinite(weighted)) return weighted;
+  return (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
+};
+
+const workOf = (tmdbId: number | null | undefined, mediaType?: string | null) =>
+  `${mediaType === 'tv' ? 'tv' : 'movie'}:${tmdbId}`;
+
+/** Une rangée d'affiches avec une pastille : la note, ou « à voir ». */
+const PosterRow: React.FC<{ items: { key: string; title: string; poster?: string; badge: string; dim?: boolean }[] }> = ({ items }) => (
+  <div className="-mx-8 flex gap-2.5 overflow-x-auto px-8 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    {items.map((it) => (
+      <figure key={it.key} className="m-0 w-[68px] shrink-0 space-y-1">
+        <div
+          className="relative aspect-[2/3] w-[68px] rounded-[10px] bg-stone-200 dark:bg-[#252525] bg-cover bg-center shadow-sm"
+          style={{ backgroundImage: it.poster ? `url(${resizeTmdbImage(it.poster, 'w154')})` : undefined }}
+        >
+          {!it.poster && <Film size={14} className="absolute inset-0 m-auto text-stone-400" />}
+          <span
+            className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+              it.dim ? 'bg-white/90 text-stone-600' : 'bg-bitter-lime text-charcoal'
+            }`}
+          >
+            {it.badge}
+          </span>
+        </div>
+        <figcaption className="line-clamp-2 text-[10px] font-bold leading-tight text-stone-500 dark:text-stone-400">
+          {it.title.split(' :')[0]}
+        </figcaption>
+      </figure>
+    ))}
+  </div>
+);
 
 /** Note d'un film personnel, dans la même unité que celle des membres. */
 const myRatingOf = (movie: Movie): number => {
@@ -55,7 +98,7 @@ const myCriteriaOf = (movie: Movie) => {
   };
 };
 
-export default function MemberProfileModal({ member, myMovies, currentUserId, onClose }: Props) {
+export default function MemberProfileModal({ member, myMovies, currentUserId, space, onAddWatchedTogether, onClose }: Props) {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
   const [reporting, setReporting] = useState(false);
@@ -171,6 +214,55 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, on
       .slice(0, 4);
   }, [films, myMovies]);
 
+  /** Ce que le membre a fait dans cet espace : ses verdicts, ses propositions. */
+  const inSpace = useMemo(() => {
+    if (!space) return null;
+    const byId = new Map(space.movies.map((m) => [m.id, m]));
+    const verdicts = space.ratings
+      .filter((r) => r.profile_id === member.profile_id && byId.has(r.movie_id))
+      .map((r) => ({ movie: byId.get(r.movie_id) as SharedMovie, score: spaceScore(r) }))
+      .sort((a, b) => b.score - a.score);
+    const proposed = space.movies.filter((m) => m.added_by === member.profile_id);
+    return verdicts.length || proposed.length ? { verdicts, proposed } : null;
+  }, [space, member.profile_id]);
+
+  /**
+   * Vus tous les deux, et pas encore dans l'espace.
+   *
+   * L'ajouter aux « vus ensemble » ne coûte qu'un geste : vos deux notes perso
+   * y arrivent toutes seules (trigger `shared_movies_collect_verdicts`). C'est
+   * proposé, jamais fait d'office — l'espace reste ce que le groupe y met.
+   */
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState<string | null>(null);
+  const bothSeen = useMemo(() => {
+    if (!space || !onAddWatchedTogether || member.profile_id === currentUserId) return [];
+    const inSpaceWorks = new Set(space.movies.map((m) => workOf(m.tmdb_id, m.media_type)));
+    const mine = new Map<string, Movie>();
+    for (const m of myMovies) {
+      if (m.status === 'watched' && m.tmdbId != null && m.seasonNumber == null) mine.set(workOf(m.tmdbId, m.mediaType), m);
+    }
+    return films
+      .filter((f) => f.tmdbId != null && mine.has(workOf(f.tmdbId, f.mediaType)) && !inSpaceWorks.has(workOf(f.tmdbId, f.mediaType)))
+      .map((f) => ({ film: f, own: myRatingOf(mine.get(workOf(f.tmdbId, f.mediaType)) as Movie) }))
+      .sort((a, b) => b.film.rating + b.own - (a.film.rating + a.own))
+      .slice(0, 5);
+  }, [space, onAddWatchedTogether, member.profile_id, currentUserId, films, myMovies]);
+
+  const addTogether = async (film: MemberFilm) => {
+    if (!onAddWatchedTogether || adding) return;
+    haptics.soft();
+    setAdding(film.id);
+    const ok = await onAddWatchedTogether(film);
+    setAdding(null);
+    if (ok) {
+      haptics.success();
+      setAdded((prev) => new Set(prev).add(film.id));
+    } else {
+      haptics.error();
+    }
+  };
+
   const [copied, setCopied] = useState(false);
 
   /** Une statistique ne fait rien ; une phrase prête à coller lance une conversation. */
@@ -267,6 +359,90 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, on
             <p className="text-[11px] font-medium text-orange-400 leading-relaxed text-center">
               {loadError}
             </p>
+          )}
+
+          {inSpace && space && (
+            <div className="space-y-3">
+              <h4 className={sectionTitle}>
+                <Clapperboard size={12} />
+                {t('member.inSpace', { space: space.name })}
+              </h4>
+              {inSpace.verdicts.length > 0 && (
+                <>
+                  <p className="text-[11px] font-bold text-stone-400 dark:text-stone-500">
+                    {t(inSpace.verdicts.length === 1 ? 'member.inSpaceVerdicts.one' : 'member.inSpaceVerdicts', { n: inSpace.verdicts.length })}
+                  </p>
+                  <PosterRow
+                    items={inSpace.verdicts.map(({ movie, score }) => ({
+                      key: movie.id,
+                      title: movie.title,
+                      poster: movie.poster_url,
+                      badge: score.toFixed(1),
+                    }))}
+                  />
+                </>
+              )}
+              {inSpace.proposed.length > 0 && (
+                <>
+                  <p className="text-[11px] font-bold text-stone-400 dark:text-stone-500">
+                    {t(inSpace.proposed.length === 1 ? 'member.inSpaceProposed.one' : 'member.inSpaceProposed', { n: inSpace.proposed.length })}
+                  </p>
+                  <PosterRow
+                    items={inSpace.proposed.map((m) => ({
+                      key: m.id,
+                      title: m.title,
+                      poster: m.poster_url,
+                      badge: m.status === 'watched' ? t('member.badgeSeen') : t('member.badgeToSee'),
+                      dim: m.status !== 'watched',
+                    }))}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          {bothSeen.length > 0 && space && (
+            <div className="space-y-3">
+              <h4 className={sectionTitle}>
+                <Users size={12} />
+                {t('member.bothSeen')}
+              </h4>
+              <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 leading-relaxed">
+                {t('member.bothSeenHint', { space: space.name })}
+              </p>
+              <ul className="space-y-2">
+                {bothSeen.map(({ film, own }) => {
+                  const done = added.has(film.id);
+                  return (
+                    <li key={film.id} className="flex items-center gap-3 rounded-2xl bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 p-2.5">
+                      <div
+                        className="h-[51px] w-[34px] shrink-0 rounded-md bg-stone-200 dark:bg-[#252525] bg-cover bg-center"
+                        style={{ backgroundImage: film.posterUrl ? `url(${resizeTmdbImage(film.posterUrl, 'w154')})` : undefined }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-black text-charcoal dark:text-white">{film.title}</p>
+                        <p className="text-[11px] font-bold text-stone-400 dark:text-stone-500 tabular-nums">
+                          {t('member.bothSeenScores', { you: own.toFixed(1), name, theirs: film.rating.toFixed(1) })}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addTogether(film)}
+                        disabled={done || adding === film.id}
+                        className={`shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:active:scale-100 ${
+                          done
+                            ? 'bg-forest/10 text-forest dark:bg-bitter-lime/10 dark:text-bitter-lime'
+                            : 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal disabled:opacity-60'
+                        }`}
+                      >
+                        {done ? <Check size={12} /> : <Plus size={12} />}
+                        {done ? t('member.bothSeenDone') : t('member.bothSeenAdd')}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
 
           {/* La comparaison passe avant les statistiques brutes : c'est la seule

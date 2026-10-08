@@ -11,7 +11,10 @@
  * note dans l'espace.
  *
  * Le sens espace → accueil est automatique : noter dans un espace, c'est noter.
- * Le sens accueil → espace se demande : publier devant le groupe reste un choix.
+ * Le sens accueil → espace l'est aussi pour un film **vu ensemble** : c'est le
+ * serveur qui s'en charge (migration 20261008_note_perso_dans_espace), d'où
+ * que vienne la note. Pour un film encore **à voir**, il se demande : un verdict
+ * le ferait passer en « vu » pour tout le groupe, alors qu'on l'a peut-être vu seul.
  */
 import { supabase, upsertMovieRating, markMovieAsWatched } from './supabase';
 import { AdaptiveRatingData, Movie } from '../types';
@@ -112,7 +115,8 @@ export async function findSpacesToUpdate(movie: Movie, userId: string): Promise<
       status: c.status === 'watched' ? 'watched' : 'watchlist',
       myRating: byMovie.get(c.id) ?? null,
     }) as SpaceCopy)
-    .filter((c) => !c.myRating || !sameVerdict(c.myRating, movie));
+    // Vu ensemble : le serveur y publie déjà la note, il n'y a rien à demander.
+    .filter((c) => c.status === 'watchlist' && (!c.myRating || !sameVerdict(c.myRating, movie)));
 }
 
 /**
