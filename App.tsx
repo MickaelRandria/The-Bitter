@@ -46,7 +46,6 @@ import {
   TmdbSeasonSummary,
   getMovieDetailsForAdd,
   getSeriesDetails,
-  getSharedMovieDetails,
 } from './services/tmdb';
 import { avatarSrc } from './utils/avatar';
 import {
@@ -110,7 +109,7 @@ import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
-import { SharedSpace, supabase, getUserSpaces, addMovieToSpace, joinSpaceByCode } from './services/supabase';
+import { SharedSpace, supabase, getUserSpaces, joinSpaceByCode } from './services/supabase';
 import NotificationCenter from './components/NotificationCenter';
 import WatchWithSheet from './components/WatchWithSheet';
 import SocialNudge from './components/SocialNudge';
@@ -1566,50 +1565,6 @@ const App: React.FC = () => {
       setToastMessage(t('spaces.joinedToast', { name: result.space.name }));
     });
   }, [session?.user?.id, session?.user?.email, bootstrapping, pendingJoinTick]);
-
-  /**
-   * Propose une sortie dans un espace, en liste d'envies.
-   *
-   * C'est ce raccourci qui empêche les sorties d'être une liste que l'on regarde
-   * une fois : le film part là où les membres pourront voter pour ou contre.
-   */
-  const handleProposeToSpace = async (tmdbId: number, space: SharedSpace): Promise<boolean> => {
-    const userId = session?.user?.id;
-    if (!userId) return false;
-
-    // Deux appels, comme le fait déjà l'ajout de film : le premier donne l'identité
-    // du film, le second les champs propres aux espaces (synopsis, durée, casting).
-    const base = await getMovieDetailsForAdd(tmdbId);
-    if (!base?.title) {
-      setToastMessage(t('releases.proposeFailed'));
-      return false;
-    }
-    const extras = await getSharedMovieDetails(tmdbId);
-
-    const result = await addMovieToSpace(
-      space.id,
-      {
-        tmdb_id: tmdbId,
-        title: base.title,
-        director: base.director,
-        year: base.year,
-        genre: base.genre,
-        poster_url: base.posterUrl,
-        status: 'watchlist',
-        media_type: 'movie',
-        ...extras,
-      },
-      userId
-    );
-
-    if (!result.movie) {
-      setToastMessage(result.error ?? t('releases.proposeFailed'));
-      return false;
-    }
-
-    setToastMessage(t('releases.proposed', { name: space.name }));
-    return true;
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -3395,9 +3350,6 @@ const App: React.FC = () => {
                  pas. */
               movies={allMovies.filter((m) => (m.mediaType ?? 'movie') === mediaMode)}
               onToast={setToastMessage}
-              spaces={mySpaces}
-              onProposeToSpace={handleProposeToSpace}
-              onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
               initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
@@ -3425,8 +3377,6 @@ const App: React.FC = () => {
                 setPreviewTmdbId(id);
                 setPreviewMediaType('movie');
               }}
-              spaces={mySpaces}
-              onProposeToSpace={handleProposeToSpace}
               onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
             />
           ) : viewMode === 'Deck' ? (

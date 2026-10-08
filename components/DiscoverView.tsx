@@ -35,7 +35,6 @@ import MoodSearch from './MoodSearch';
 import StreamingBadge from './StreamingBadge';
 import JustWatchCredit from './JustWatchCredit';
 import { useLanguage } from '../contexts/LanguageContext';
-import TheatreReleasesSection from './TheatreReleasesSection';
 import FriendsFeed from './FriendsFeed';
 import TvUpcoming from './TvUpcoming';
 import { toTvGenreIds } from '../services/tv';
@@ -50,7 +49,6 @@ import {
   watchRegionOf,
 } from '../utils/discoveryRegion';
 import { workKey } from '../utils/workKey';
-import { SharedSpace } from '../services/supabase';
 import { useImdbRatings } from '../services/imdb';
 import { pickFromLookup } from '../utils/publicRating';
 import PublicRatingBadge from './PublicRatingBadge';
@@ -67,12 +65,6 @@ interface DiscoverViewProps {
   userProfile: UserProfile | null;
   movies?: Movie[];
   onToast?: (message: string) => void;
-  /** Espaces de l'utilisateur, pour proposer une sortie sans quitter l'écran. */
-  spaces?: SharedSpace[];
-  suggestedTmdbIds?: Set<number>;
-  onProposeToSpace?: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
-  /** « Voir avec… » depuis les sorties en salle. */
-  onWatchWith?: (tmdbId: number) => void;
   /**
    * La partie active de l'application. Cet écran garde son propre sélecteur —
    * on explore volontiers des séries depuis la partie Films — mais il s'ouvre
@@ -140,10 +132,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   userProfile,
   movies,
   onToast,
-  spaces = [],
-  suggestedTmdbIds,
-  onProposeToSpace,
-  onWatchWith,
   initialMediaType = 'movie',
 }) => {
   const { t, language } = useLanguage();
@@ -182,9 +170,9 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   });
 
   /**
-   * « Pour toi » part de tes goûts, « Au cinéma » est éditorial et identique pour
-   * tous. Deux contenus de nature différente, donc deux modes plutôt qu'une section
-   * de plus noyée dans les recommandations.
+   * « Pour toi » part de tes goûts, le fil de ce qu'ont vu tes proches. Côté séries,
+   * « À venir » suit les prochaines saisons. Les sorties en salle des films vivent
+   * dans le calendrier, onglet À venir.
    */
   const [surface, setSurface] = useState<'foryou' | 'theatre' | 'feed'>('foryou');
 
@@ -407,7 +395,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               key === 'foryou'
                 ? 'releases.forYou'
                 : key === 'theatre'
-                  ? (mediaType === 'tv' ? 'tv.upcoming' : 'releases.inTheatres')
+                  ? 'tv.upcoming'
                   : 'feed.tab'
             )}
           </button>
@@ -428,20 +416,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         />
       ) : surface === 'theatre' && mediaType === 'tv' ? (
         <TvUpcoming followedIds={(movies ?? []).filter(m => m.seasonNumber == null && m.tmdbId != null).map(m => m.tmdbId!)} onPreview={id => onPreview(id, 'tv')} onAdd={onQuickWatchlist ? id => onQuickWatchlist(id, 'tv') : undefined} />
-      ) : surface === 'theatre' ? (
-        <TheatreReleasesSection
-          knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
-          suggestedTmdbIds={suggestedTmdbIds ?? new Set()}
-          spaces={spaces}
-          onSelectMovie={(tmdbId) => onSelectMovie(tmdbId, 'movie')}
-          onQuickWatchlist={(tmdbId) => {
-            onQuickWatchlist?.(tmdbId, 'movie');
-          }}
-          onProposeToSpace={async (tmdbId, space) =>
-            onProposeToSpace ? onProposeToSpace(tmdbId, space) : false
-          }
-          onWatchWith={onWatchWith}
-        />
       ) : (
       <>
       {/* Décrire son envie plutôt que régler six filtres : c'est la question
