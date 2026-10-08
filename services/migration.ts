@@ -3,6 +3,7 @@ import { isUploadedAvatar } from './avatarUpload';
 import { supabase } from './supabase';
 import { CinemaSubscription, FavoriteCinema, UserProfile, Movie } from '../types';
 import { WORK_KEY_COLUMNS, movieToRow } from './movieSync';
+import { workKey } from '../utils/workKey';
 
 const PROFILES_STORAGE_KEY = 'the_bitter_profiles_v2';
 
@@ -96,7 +97,81 @@ export async function migrateLocalStorageToSupabase(userId: string): Promise<{
   }
 }
 
-export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?: string): Promise<number> {
+/**
+ * Films dont l'envoi a échoué, à renvoyer au prochain démarrage.
+ *
+ * Le démarrage renvoyait toute la collection de l'appareil, puis la fusion
+ * faisait gagner le serveur. Un téléphone pas à jour écrasait donc, à chaque
+ * ouverture, ce qui avait changé ailleurs : une note modifiée sur un autre
+ * appareil, une séance rattachée en base. Seul cas utile de ce renvoi complet :
+ * une modification faite hors ligne, dont l'envoi avait échoué. On note donc ces
+ * échecs ici, et le démarrage ne renvoie plus qu'eux et les films absents du
+ * serveur ; pour le reste, le serveur fait foi.
+ */
+const PENDING_SYNC_KEY = 'bitter_pending_movie_sync';
+
+const readPending = (): string[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writePending = (ids: string[]): void => {
+  try {
+    if (ids.length) localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(ids));
+    else localStorage.removeItem(PENDING_SYNC_KEY);
+  } catch {
+    // Stockage indisponible : le film sera simplement repris à la prochaine modification.
+  }
+};
+
+const markPending = (movies: Movie[]): void => {
+  const ids = new Set(readPending());
+  movies.forEach((movie) => ids.add(movie.id));
+  writePending([...ids]);
+};
+
+const clearPending = (movies: Movie[]): void => {
+  const sent = new Set(movies.map((movie) => movie.id));
+  const ids = readPending();
+  if (ids.some((id) => sent.has(id))) writePending(ids.filter((id) => !sent.has(id)));
+};
+
+/** Clés des œuvres déjà présentes sur le serveur, supprimées comprises. */
+async function fetchServerWorkKeys(userId: string): Promise<Set<string> | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('user_movies')
+    .select('tmdb_id, media_type, season_number')
+    .eq('profile_id', userId)
+    .not('tmdb_id', 'is', null);
+  if (error) return null;
+  return new Set(
+    (data as { tmdb_id: number; media_type: string | null; season_number: number | null }[]).map((row) =>
+      workKey({
+        tmdbId: row.tmdb_id,
+        mediaType: row.media_type === 'tv' ? 'tv' : 'movie',
+        seasonNumber: row.season_number ?? undefined,
+      })
+    )
+  );
+}
+
+/**
+ * Renvoie la collection locale au serveur.
+ *
+ * `mode: 'missing'` (le démarrage) : seulement les œuvres absentes du serveur et
+ * celles dont l'envoi a échoué. `mode: 'all'` (rattacher un profil à un compte,
+ * geste explicite) : tout, en écrasant.
+ */
+export async function resyncAllMoviesToSupabase(
+  userId: string,
+  linkedProfileId?: string,
+  mode: 'missing' | 'all' = 'missing'
+): Promise<number> {
   if (!supabase) { console.warn('[Resync] supabase not initialized'); return 0; }
   const profilesRaw = localStorage.getItem(PROFILES_STORAGE_KEY);
   if (!profilesRaw) { console.warn('[Resync] no profiles in localStorage'); return 0; }
@@ -111,13 +186,21 @@ export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?
   // ses autres colonnes rafraîchies mais reste supprimée. Pour un rattrapage avec
   // rapport ET filtrage explicite des suppressions, utiliser plutôt
   // `backfillProfileToSupabase` de services/movieSync.ts.
-  const withTmdbId = profile.movies.filter((m) => m.tmdbId != null);
-  console.log(`[Resync] ${withTmdbId.length} film(s) avec tmdbId à upserter`);
+  let withTmdbId = profile.movies.filter((m) => m.tmdbId != null);
+  if (mode === 'missing') {
+    const onServer = await fetchServerWorkKeys(userId);
+    // Lecture impossible : on ne renvoie rien plutôt que tout écraser.
+    if (!onServer) return 0;
+    const pending = new Set(readPending());
+    withTmdbId = withTmdbId.filter((m) => !onServer.has(workKey(m)) || pending.has(m.id));
+  }
+  console.log(`[Resync] ${withTmdbId.length} film(s) avec tmdbId à upserter (${mode})`);
   if (withTmdbId.length === 0) return 0;
   const { error } = await supabase
     .from('user_movies')
     .upsert(withTmdbId.map((m) => movieToRow(m, userId)), { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false });
   if (error) { console.error('[Resync] erreur upsert:', error); return 0; }
+  clearPending(withTmdbId);
   console.log(`[Resync] ✓ ${withTmdbId.length} film(s) synchronisés pour userId=${userId}`);
   return withTmdbId.length;
 }
@@ -133,12 +216,19 @@ export async function resyncAllMoviesToSupabase(userId: string, linkedProfileId?
  */
 export async function syncMovieToSupabase(userId: string, movie: Movie): Promise<void> {
   if (!supabase || !movie.tmdbId) return;
-  await supabase
-    .from('user_movies')
-    .upsert(
-      { ...movieToRow(movie, userId), deleted_at: null },
-      { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
-    );
+  try {
+    const { error } = await supabase
+      .from('user_movies')
+      .upsert(
+        { ...movieToRow(movie, userId), deleted_at: null },
+        { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
+      );
+    if (error) markPending([movie]);
+    else clearPending([movie]);
+  } catch {
+    // Hors ligne : le fetch lui-même échoue.
+    markPending([movie]);
+  }
 }
 
 /**
@@ -155,15 +245,21 @@ export async function syncMoviesToSupabase(userId: string, movies: Movie[]): Pro
 
   // Même sémantique que syncMovieToSupabase : ce sont des modifications voulues,
   // elles lèvent une éventuelle suppression antérieure.
-  const { error } = await supabase
-    .from('user_movies')
-    .upsert(
-      withTmdbId.map((movie) => ({ ...movieToRow(movie, userId), deleted_at: null })),
-      { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
-    );
-
-  if (error && import.meta.env.DEV) {
-    console.error('[Cinema subscription] Unable to sync movie sessions:', error);
+  try {
+    const { error } = await supabase
+      .from('user_movies')
+      .upsert(
+        withTmdbId.map((movie) => ({ ...movieToRow(movie, userId), deleted_at: null })),
+        { onConflict: WORK_KEY_COLUMNS, ignoreDuplicates: false }
+      );
+    if (error) {
+      markPending(withTmdbId);
+      console.warn('[Sync] Envoi groupé échoué, repris au prochain démarrage :', error.message);
+    } else {
+      clearPending(withTmdbId);
+    }
+  } catch {
+    markPending(withTmdbId);
   }
 }
 
