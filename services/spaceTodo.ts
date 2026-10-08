@@ -18,6 +18,7 @@
 import { supabase, SharedMovie } from './supabase';
 import { WatchPlan, getSpacePlans } from './plans';
 import { Movie } from '../types';
+import { lastReminders } from './voteReminders';
 import { hasVerdict } from '../utils/rating';
 
 export type TodoKind = 'plan' | 'watch' | 'rate';
@@ -135,10 +136,52 @@ export function skipTodo(userId: string, key: string): void {
   }
 }
 
+// ─── Propositions gardées ───────────────────────────────────────────────────
+// « Toujours d'actualité ? » → « Garder » : la question ne revient pas avant 30
+// jours. Gardé sur l'appareil, par compte ; « Retirer », lui, agit sur l'espace.
+const keptKey = (userId: string) => `bitter_space_kept:${userId}`;
+const STALE_DAYS = 30;
+const DAY = 86_400_000;
+
+function readKept(userId: string): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(keptKey(userId)) || '{}') as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+export function keepProposal(userId: string, movieId: string): void {
+  try {
+    localStorage.setItem(keptKey(userId), JSON.stringify({ ...readKept(userId), [movieId]: Date.now() }));
+  } catch {
+    // Stockage indisponible : la question reviendra.
+  }
+}
+
+/** Une proposition « à voir » à laquelle d'autres membres n'ont pas répondu. */
+export interface WaitingItem {
+  movie: SharedMovie;
+  /** Membres actifs (ni moi, ni qui a proposé) qui n'ont pas répondu. */
+  missing: string[];
+  /** Jours depuis la proposition. */
+  ageDays: number;
+}
+
 /** Ce que le billet d'un espace montre à l'accueil. */
 export interface SpaceOverview {
   /** Demandes qui m'attendent (voir `buildTodo`). */
   pending: number;
+  /** Parmi elles, les films à voter : la carte « À toi de voter » de l'accueil. */
+  toVote: TodoItem[];
+  /** Ce que le groupe attend des autres : le talon orange de celui qui attend. */
+  waiting: WaitingItem[];
+  /** Mes propositions sans aucune réponse depuis 30 jours : « Toujours d'actualité ? ». */
+  stale: WaitingItem[];
+  /** Dernière relance par `${movieId}:${profileId}`. */
+  reminded: Map<string, Date>;
+  /** Qui a voté quoi, film par film : sert à dire qui manque encore. */
+  votedBy: Map<string, Set<string>>;
   /** Les trois dernières affiches de l'espace, la plus récente d'abord. */
   posters: string[];
   /** Membres actifs, les autres d'abord, moi en dernier. */
@@ -156,9 +199,10 @@ export async function loadSpaceOverview(userId: string, myMovies: Movie[]): Prom
   const [moviesRes, votesRes, ratingsRes, plans, membersRes] = await Promise.all([
     supabase
       .from('shared_movies')
-      .select('id, space_id, status, added_by, tmdb_id, media_type, added_at, title, poster_url')
+      .select('id, space_id, status, added_by, tmdb_id, media_type, added_at, title, poster_url, synopsis')
       .order('added_at', { ascending: false }),
-    supabase.from('space_movie_votes').select('movie_id, profile_id, interested').eq('profile_id', userId),
+    // Les votes de tout le groupe : la RLS ne rend que ceux de mes espaces.
+    supabase.from('space_movie_votes').select('movie_id, profile_id, interested'),
     supabase.from('movie_ratings').select('movie_id, profile_id').eq('profile_id', userId),
     getSpacePlans(),
     supabase
@@ -171,7 +215,7 @@ export async function loadSpaceOverview(userId: string, myMovies: Movie[]): Prom
   const entry = (spaceId: string): SpaceOverview => {
     let e = overview.get(spaceId);
     if (!e) {
-      e = { pending: 0, posters: [], members: [] };
+      e = { pending: 0, toVote: [], waiting: [], stale: [], reminded: new Map(), votedBy: new Map(), posters: [], members: [] };
       overview.set(spaceId, e);
     }
     return e;
@@ -185,16 +229,23 @@ export async function loadSpaceOverview(userId: string, myMovies: Movie[]): Prom
   }
   const personal = personalVerdicts(myMovies);
   const skipped = readSkipped(userId);
+  const votes = (votesRes.data || []) as VoteLike[];
+  const votedBy = new Map<string, Set<string>>();
+  for (const v of votes) votedBy.set(v.movie_id, new Set([...(votedBy.get(v.movie_id) ?? []), v.profile_id]));
   for (const [spaceId, movies] of bySpace) {
-    entry(spaceId).pending = buildTodo({
+    const todo = buildTodo({
       movies,
-      votes: (votesRes.data || []) as VoteLike[],
+      votes,
       ratings: (ratingsRes.data || []) as RatingLike[],
       plans: plans.filter((p) => p.space_id === spaceId),
       userId,
       personal,
       skipped,
-    }).length;
+    });
+    const e = entry(spaceId);
+    e.pending = todo.length;
+    e.toVote = todo.filter((i) => i.kind === 'watch');
+    e.votedBy = votedBy;
   }
   type MemberRow = {
     space_id: string;
@@ -212,5 +263,54 @@ export async function loadSpaceOverview(userId: string, myMovies: Movie[]): Prom
   for (const e of overview.values()) {
     e.members.sort((a, b) => Number(a.profile_id === userId) - Number(b.profile_id === userId));
   }
+
+  // Qui le groupe attend encore, proposition par proposition.
+  const kept = readKept(userId);
+  const now = Date.now();
+  for (const [spaceId, movies] of bySpace) {
+    const e = entry(spaceId);
+    for (const movie of movies) {
+      if (movie.status !== 'watchlist') continue;
+      const voted = votedBy.get(movie.id) ?? new Set<string>();
+      const missing = e.members
+        .map((m) => m.profile_id)
+        .filter((id) => id !== userId && id !== movie.added_by && !voted.has(id));
+      const ageDays = Math.floor((now - new Date(movie.added_at).getTime()) / DAY);
+      if (missing.length) e.waiting.push({ movie, missing, ageDays });
+      const othersVoted = [...voted].some((id) => id !== movie.added_by);
+      const keptAt = kept[movie.id] ?? 0;
+      if (movie.added_by === userId && !othersVoted && ageDays >= STALE_DAYS && now - keptAt > STALE_DAYS * DAY) {
+        e.stale.push({ movie, missing, ageDays });
+      }
+    }
+  }
+  const waitingIds = [...overview.values()].flatMap((e) => e.waiting.map((w) => w.movie.id));
+  const reminded = await lastReminders(waitingIds);
+  for (const e of overview.values()) e.reminded = reminded;
   return overview;
 }
+
+/**
+ * L'état du talon d'un billet, du plus pressant au plus calme :
+ * - `me` : on m'attend ;
+ * - `stale` : une de mes propositions n'a eu aucune réponse en 30 jours ;
+ * - `wait` / `waitReminded` : j'ai fait ma part, d'autres non (relancés il y a
+ *   moins de 5 jours pour le second) ;
+ * - `ok` : plus personne ne doit rien.
+ */
+export type StubState = 'me' | 'stale' | 'wait' | 'waitReminded' | 'ok';
+
+export function stubStateOf(e: SpaceOverview | undefined): StubState {
+  if (!e) return 'ok';
+  if (e.pending > 0) return 'me';
+  if (e.stale.length) return 'stale';
+  if (!e.waiting.length) return 'ok';
+  const fresh = (movieId: string, target: string) => {
+    const at = e.reminded.get(`${movieId}:${target}`);
+    return !!at && Date.now() - at.getTime() < 5 * DAY;
+  };
+  return e.waiting.every((w) => w.missing.every((id) => fresh(w.movie.id, id))) ? 'waitReminded' : 'wait';
+}
+
+/** Les membres qui manquent, toutes propositions confondues, dans l'ordre d'apparition. */
+export const missingMembers = (e: SpaceOverview): string[] => [...new Set(e.waiting.flatMap((w) => w.missing))];

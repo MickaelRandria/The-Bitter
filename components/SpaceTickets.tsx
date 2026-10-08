@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Check, ChevronDown, Plus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SharedSpace } from '../services/supabase';
-import { SpaceOverview } from '../services/spaceTodo';
+import { SpaceOverview, missingMembers, stubStateOf } from '../services/spaceTodo';
 import { haptics } from '../utils/haptics';
 import { avatarSrc } from '../utils/avatar';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -14,6 +14,8 @@ interface Props {
   overview: Map<string, SpaceOverview>;
   currentUserId: string;
   onOpen: (space: SharedSpace) => void;
+  /** Le talon orange : qui manque, la relance, « toujours d'actualité ? ». */
+  onOpenWaiting: (space: SharedSpace) => void;
   onCreate: () => void;
 }
 
@@ -41,7 +43,7 @@ const readExpanded = () => {
     return false;
   }
 };
-const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen, onCreate }) => {
+const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen, onOpenWaiting, onCreate }) => {
   const { t } = useLanguage();
   const pendingOf = (space: SharedSpace) => overview.get(space.id)?.pending ?? 0;
   const sorted = [...spaces].sort((a, b) => pendingOf(b) - pendingOf(a));
@@ -119,22 +121,34 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
             const others = (info?.members ?? []).filter((m) => m.profile_id !== currentUserId);
             const me = (info?.members ?? []).find((m) => m.profile_id === currentUserId);
             const shown = [...others.slice(0, 3), ...(me ? [me] : [])];
+            const state = stubStateOf(info);
+            const memberById = new Map<string, SpaceOverview['members'][number] & { index: number }>(
+              (info?.members ?? []).map((m, i) => [m.profile_id, { ...m, index: i }])
+            );
+            const missing = info ? missingMembers(info) : [];
+            // Seulement des votes à donner : on le dit, plutôt que « t'attend ».
+            const onlyVotes = !!info && info.toVote.length === pending;
+            const open = () => {
+              haptics.soft();
+              onOpen(space);
+            };
             return (
-              <button
+              <div
                 key={space.id}
-                onClick={() => {
-                  haptics.soft();
-                  onOpen(space);
-                }}
-                aria-label={
-                  pending
-                    ? t('spaces.bubbleWaiting', { name: space.name, count: String(pending) })
-                    : t('spaces.bubbleOpen', { name: space.name })
-                }
-                className="snap-start shrink-0 w-[300px] h-[118px] flex text-left active:scale-[0.98] transition-transform drop-shadow-[0_8px_12px_rgba(26,26,26,0.10)] dark:drop-shadow-none"
+                role="group"
+                aria-label={space.name}
+                className="snap-start shrink-0 w-[300px] h-[118px] flex drop-shadow-[0_8px_12px_rgba(26,26,26,0.10)] dark:drop-shadow-none"
               >
-                {/* Le billet */}
-                <span className="flex-1 min-w-0 h-full bg-white dark:bg-[#1a1a1a] rounded-l-[18px] pl-4 pr-3.5 py-3.5 flex flex-col justify-between">
+                {/* Le billet : inchangé, il ouvre l'espace. */}
+                <button
+                  type="button"
+                  onClick={open}
+                  aria-label={
+                    pending
+                      ? t('spaces.bubbleWaiting', { name: space.name, count: String(pending) })
+                      : t('spaces.bubbleOpen', { name: space.name })
+                  }
+                  className="flex-1 min-w-0 h-full text-left active:scale-[0.98] transition-transform bg-white dark:bg-[#1a1a1a] rounded-l-[18px] pl-4 pr-3.5 py-3.5 flex flex-col justify-between">
                   <span className="flex items-center gap-2 min-w-0">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -186,7 +200,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
                       })}
                     </span>
                   </span>
-                </span>
+                </button>
 
                 {/* La perforation, avec ses deux encoches de la couleur de la page */}
                 <span className="relative w-0 h-full border-l-2 border-dashed border-stone-300 dark:border-white/15">
@@ -194,17 +208,81 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
                   <span className="absolute -bottom-[9px] -left-[10px] w-[18px] h-[18px] rounded-full bg-cream dark:bg-[#0c0c0c]" />
                 </span>
 
-                {/* Le talon */}
-                <span
-                  className={`w-[86px] h-full rounded-r-[18px] flex flex-col items-center justify-center gap-0.5 ${pending ? 'bg-charcoal dark:bg-bitter-lime' : 'bg-sand dark:bg-[#232323]'}`}
+                {/* Le talon : c'est lui qui dit où en est le groupe. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (state === 'me' || state === 'ok') return open();
+                    haptics.soft();
+                    onOpenWaiting(space);
+                  }}
+                  aria-label={
+                    state === 'wait' || state === 'waitReminded'
+                      ? t('spaces.stubWaitingLabel', { name: space.name, count: String(missing.length) })
+                      : state === 'stale'
+                        ? t('spaces.stubStaleLabel', { name: space.name })
+                        : undefined
+                  }
+                  className={`w-[86px] h-full rounded-r-[18px] flex flex-col items-center justify-center gap-0.5 px-1.5 text-center active:scale-[0.97] transition-transform ${
+                    state === 'me'
+                      ? 'bg-charcoal dark:bg-bitter-lime'
+                      : state === 'wait' || state === 'waitReminded'
+                        ? 'bg-[#FFF1E2] dark:bg-[#2A2116]'
+                        : state === 'stale'
+                          ? 'bg-[#F3EFE6] dark:bg-[#232019]'
+                          : 'bg-sand dark:bg-[#232323]'
+                  }`}
                 >
-                  {pending ? (
+                  {state === 'me' ? (
                     <>
                       <span className="text-[40px] font-black tracking-[-0.06em] leading-none text-bitter-lime dark:text-charcoal">
                         {pending}
                       </span>
-                      <span className="text-[10px] font-extrabold text-stone-300 dark:text-charcoal/70">
-                        {pending > 1 ? t('spaces.ticketWaitingMany') : t('spaces.ticketWaitingOne')}
+                      <span className="text-[10px] font-extrabold leading-tight text-stone-300 dark:text-charcoal/70">
+                        {onlyVotes
+                          ? pending > 1
+                            ? t('spaces.ticketVotesMany')
+                            : t('spaces.ticketVotesOne')
+                          : pending > 1
+                            ? t('spaces.ticketWaitingMany')
+                            : t('spaces.ticketWaitingOne')}
+                      </span>
+                    </>
+                  ) : state === 'wait' || state === 'waitReminded' ? (
+                    <>
+                      <span className="flex mb-0.5">
+                        {missing.slice(0, 3).map((id, i) => {
+                          const m = memberById.get(id);
+                          const src = avatarSrc(m?.avatar_url ?? null);
+                          return (
+                            <span
+                              key={id}
+                              className={`w-6 h-6 rounded-full overflow-hidden border-2 border-[#FFF1E2] dark:border-[#2A2116] flex items-center justify-center text-[9px] font-black text-white ${i ? '-ml-2' : ''}`}
+                              style={{ background: MEMBER_TINTS[(m?.index ?? i) % MEMBER_TINTS.length] }}
+                            >
+                              {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : (m?.first_name || '?')[0].toUpperCase()}
+                            </span>
+                          );
+                        })}
+                      </span>
+                      <span className="text-[11px] font-black leading-tight text-[#9A4F05] dark:text-[#F5B26B]">
+                        {missing.length > 1
+                          ? t('spaces.stubMissingMany', { count: String(missing.length) })
+                          : t('spaces.stubMissingOne')}
+                      </span>
+                      {state === 'wait' ? (
+                        <span className="mt-0.5 rounded-full bg-[#F08A24] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                          {t('spaces.stubRemind')}
+                        </span>
+                      ) : (
+                        <span className="text-[9.5px] font-bold text-[#B8732F]">{t('spaces.stubReminded')}</span>
+                      )}
+                    </>
+                  ) : state === 'stale' ? (
+                    <>
+                      <span className="text-[22px] font-black leading-none text-[#9A4F05] dark:text-[#F5B26B]">?</span>
+                      <span className="text-[9.5px] font-extrabold leading-tight text-stone-500 dark:text-stone-400">
+                        {t('spaces.stubStale')}
                       </span>
                     </>
                   ) : (
@@ -215,8 +293,8 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
                       </span>
                     </>
                   )}
-                </span>
-              </button>
+                </button>
+              </div>
             );
           })}
 

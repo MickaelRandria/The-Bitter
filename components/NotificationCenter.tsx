@@ -96,7 +96,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     if (result.data) {
       setSocial(result.data);
       const waiting = result.data.filter(
-        (n) => !n.read_at && ['watch_invite', 'plan_proposed', 'verdict_request'].includes(n.kind)
+        (n) => !n.read_at && ['watch_invite', 'vote_reminder', 'plan_proposed', 'verdict_request'].includes(n.kind)
       ).length;
       if (waiting) onPending?.(waiting);
     }
@@ -306,7 +306,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   });
                   const unread = !n.read_at;
                   const avatar = avatarSrc(n.actor?.avatar_url);
-                  const pendingInvite = unread && n.kind === 'watch_invite' && !!n.shared_movie_id;
+                  // Une relance se règle comme l'invitation : « partant » ou « pas envie », sur place.
+                  const pendingInvite = unread && (n.kind === 'watch_invite' || n.kind === 'vote_reminder') && !!n.shared_movie_id;
                   const pendingVerdict = unread && (n.kind === 'verdict_request' || n.kind === 'plan_rate') && !!n.space_id;
                   const pendingPlan = unread && n.kind === 'plan_proposed' && !!n.space_id;
                   // Créneaux encore à venir d'une invitation ou d'une proposition.

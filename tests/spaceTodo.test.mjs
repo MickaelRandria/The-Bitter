@@ -112,3 +112,39 @@ test('une demande écartée ou venant d’une personne bloquée disparaît', () 
   assert.deepEqual(run({ movies: [movie('a')], skipped: new Set(['watch:a']) }), []);
   assert.deepEqual(run({ movies: [movie('a')], blocked: new Set([LEA]) }), []);
 });
+
+// ─── Le talon du billet ─────────────────────────────────────────────────────
+const { stubStateOf, missingMembers } = load('../services/spaceTodo.ts', {
+  '../utils/rating': { hasVerdict: () => false },
+});
+const overview = (over = {}) => ({
+  pending: 0, toVote: [], waiting: [], stale: [], reminded: new Map(), votedBy: new Map(), posters: [], members: [], ...over,
+});
+const waitingOn = (id, missing) => ({ movie: { id }, missing, ageDays: 4 });
+
+test('talon : on m’attend passe avant tout le reste', () => {
+  assert.equal(stubStateOf(overview({ pending: 1, waiting: [waitingOn('m1', [LEA])] })), 'me');
+});
+
+test('talon : une proposition sans réponse depuis 30 jours passe avant l’attente', () => {
+  const w = waitingOn('m1', [LEA]);
+  assert.equal(stubStateOf(overview({ waiting: [w], stale: [w] })), 'stale');
+});
+
+test('talon : « on attend » tant qu’une personne n’a pas été relancée depuis 5 jours', () => {
+  const recent = new Date(Date.now() - 2 * 86400000);
+  const old = new Date(Date.now() - 6 * 86400000);
+  const w = waitingOn('m1', [LEA, TOM]);
+  assert.equal(stubStateOf(overview({ waiting: [w], reminded: new Map([['m1:lea', recent]]) })), 'wait');
+  assert.equal(stubStateOf(overview({ waiting: [w], reminded: new Map([['m1:lea', recent], ['m1:tom', recent]]) })), 'waitReminded');
+  assert.equal(stubStateOf(overview({ waiting: [w], reminded: new Map([['m1:lea', recent], ['m1:tom', old]]) })), 'wait');
+});
+
+test('talon : à jour quand plus personne ne doit rien', () => {
+  assert.equal(stubStateOf(overview()), 'ok');
+  assert.equal(stubStateOf(undefined), 'ok');
+});
+
+test('talon : les absents, sans doublon, dans l’ordre', () => {
+  assert.deepEqual(missingMembers(overview({ waiting: [waitingOn('a', [LEA, TOM]), waitingOn('b', [TOM])] })), [LEA, TOM]);
+});
