@@ -111,10 +111,6 @@ export const RELEASE_HISTORY: Release[] = [
       },
       {
         type: 'feature',
-        text: "Au cinéma. Les films à l'affiche et les sorties à venir, avec leur vraie date française, dans Découvrir. Chacun s'ajoute à tes envies ou se propose directement à un espace, où les membres voteront.",
-      },
-      {
-        type: 'feature',
         text: "Mes proches. Ce que les membres de tes espaces ont vu et noté, par date, avec ta note à côté de la leur. Touche une note pour voir la grille complète, critère par critère. Une case à cocher permet de garder un film hors du fil au moment de le noter.",
       },
       {

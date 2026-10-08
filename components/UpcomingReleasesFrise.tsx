@@ -18,6 +18,9 @@ interface Props {
 /**
  * « Bientôt en salle », dans l'onglet À venir du calendrier.
  *
+ * La date reste accrochée en haut pendant qu'on fait défiler les films du jour :
+ * c'est pour ça que le conteneur racine de l'app coupe en `clip` (voir index.css).
+ *
  * Une frise : un groupe par jour de sortie, du plus proche au plus lointain, la
  * date en grand à gauche. Toutes les affiches ont la même taille : c'est l'image
  * qui fait envie, pas un classement de popularité.
@@ -181,7 +184,7 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
         const parts = dateParts(day);
         return (
           <div key={day} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3">
-            <div className="self-start pt-1 text-center">
+            <div className="sticky top-4 self-start pt-1 text-center">
               <p className="text-[38px] font-black leading-[0.9] tracking-tighter text-charcoal dark:text-white">{parts.day}</p>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-charcoal dark:text-white">{parts.month}</p>
               <p className="mt-0.5 text-[9.5px] font-extrabold text-stone-400">{parts.weekday}</p>
