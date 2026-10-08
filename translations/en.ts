@@ -2193,4 +2193,12 @@ export const en: Record<string, string> = {
   'relance.noPushOne': "{names} doesn’t get notifications: the nudge goes by message.",
   'relance.noPushMany': "{names} don’t get notifications: the nudge goes by message.",
   'relance.foot': "At most one nudge every 5 days, per film and per person. With no answer 72 h after a suggestion, one nudge goes out on its own.",
+  'agenda.filterLabel': "What the calendar shows",
+  'agenda.filter.all': "All",
+  'agenda.filter.watched': "Watched",
+  'agenda.filter.sessions': "Screenings",
+  'agenda.filter.releases': "Releases",
+  'agenda.cancelSession': "Cancel screening",
+  'agenda.cancelConfirmation': "Cancel the “{title}” screening? It will be cancelled for the whole group.",
+  'agenda.sessionCancelled': "Screening cancelled, the group has been told.",
 };

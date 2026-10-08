@@ -2199,4 +2199,12 @@ export const fr: Record<string, string> = {
   'relance.noPushOne': "{names} ne reçoit pas les notifications : la relance part par message.",
   'relance.noPushMany': "{names} ne reçoivent pas les notifications : la relance part par message.",
   'relance.foot': "Une relance au plus tous les 5 jours, par film et par personne. Sans réponse 72 h après une proposition, une relance part toute seule, une fois.",
+  'agenda.filterLabel': "Ce que montre le calendrier",
+  'agenda.filter.all': "Tout",
+  'agenda.filter.watched': "Vus",
+  'agenda.filter.sessions': "Séances",
+  'agenda.filter.releases': "Sorties",
+  'agenda.cancelSession': "Annuler la séance",
+  'agenda.cancelConfirmation': "Annuler la séance « {title} » ? Elle sera annulée pour tout le groupe.",
+  'agenda.sessionCancelled': "Séance annulée, le groupe est prévenu.",
 };

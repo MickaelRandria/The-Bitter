@@ -17,6 +17,8 @@ const {
   daysUntil,
   mergeCalendarEvents,
   majorCalendarReleases,
+  filterCalendarDays,
+  isRemovableSession,
 } = exports;
 const ratings = { story: 6, visuals: 8, acting: 7, sound: 7 };
 const movie = (over = {}) => ({
@@ -105,4 +107,27 @@ test('les grosses sorties gardent les trois mois et suivent la popularité', () 
     [2, 1]
   );
   assert.equal(films[0].id, 1);
+});
+
+test('un filtre garde une famille entière et retire les jours vides', () => {
+  const days = new Map([
+    ['2026-10-01', [{ id: 'a', kind: 'watched' }, { id: 'b', kind: 'screening' }]],
+    ['2026-10-02', [{ id: 'c', kind: 'release' }]],
+    ['2026-10-03', [{ id: 'd', kind: 'plan' }, { id: 'e', kind: 'watchlist-release' }]],
+  ]);
+  const ids = (m) => [...m].map(([d, ev]) => `${d}:${ev.map((e) => e.id).join('')}`);
+  assert.deepEqual(ids(filterCalendarDays(days, 'all')), ['2026-10-01:ab', '2026-10-02:c', '2026-10-03:de']);
+  assert.deepEqual(ids(filterCalendarDays(days, 'watched')), ['2026-10-01:a']);
+  assert.deepEqual(ids(filterCalendarDays(days, 'sessions')), ['2026-10-01:b', '2026-10-03:d']);
+  assert.deepEqual(ids(filterCalendarDays(days, 'releases')), ['2026-10-02:c', '2026-10-03:e']);
+});
+
+test('seules les séances à venir où l’on est se retirent', () => {
+  const today = '2026-10-08';
+  assert.equal(isRemovableSession({ kind: 'screening', day: '2026-10-09' }, today), true);
+  assert.equal(isRemovableSession({ kind: 'screening', day: '2026-10-07' }, today), false);
+  assert.equal(isRemovableSession({ kind: 'plan', day: '2026-10-10', ownPlan: true }, today), true);
+  assert.equal(isRemovableSession({ kind: 'plan', day: '2026-10-10', joined: true }, today), true);
+  assert.equal(isRemovableSession({ kind: 'plan', day: '2026-10-10' }, today), false);
+  assert.equal(isRemovableSession({ kind: 'release', day: '2026-10-10' }, today), false);
 });

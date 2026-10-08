@@ -152,6 +152,42 @@ export function calendarYear(history: readonly CalendarWatch[], year: number) {
   };
 }
 
+/**
+ * Ce que le calendrier montre : tout, ou une seule famille d'événements.
+ *
+ * Le mois mélangeait films vus, séances et sorties : pratique pour voir sa
+ * semaine, illisible pour retrouver « quand ai-je vu ce film » ou « qu'est-ce qui
+ * sort ». Chaque filtre garde une famille entière, jamais un événement isolé.
+ */
+export type CalendarFilter = 'all' | 'watched' | 'sessions' | 'releases';
+export const CALENDAR_FILTERS: CalendarFilter[] = ['all', 'watched', 'sessions', 'releases'];
+const FILTER_KINDS: Record<Exclude<CalendarFilter, 'all'>, AgendaKind[]> = {
+  watched: ['watched'],
+  sessions: ['screening', 'plan'],
+  releases: ['watchlist-release', 'release'],
+};
+
+export const matchesCalendarFilter = (kind: AgendaKind, filter: CalendarFilter): boolean =>
+  filter === 'all' || FILTER_KINDS[filter].includes(kind);
+
+export function filterCalendarDays(
+  days: ReadonlyMap<string, AgendaEvent[]>,
+  filter: CalendarFilter
+): Map<string, AgendaEvent[]> {
+  if (filter === 'all') return new Map(days);
+  const result = new Map<string, AgendaEvent[]>();
+  for (const [day, events] of days) {
+    const kept = events.filter((event) => matchesCalendarFilter(event.kind, filter));
+    if (kept.length) result.set(day, kept);
+  }
+  return result;
+}
+
+/** Une séance à venir qu'on peut encore retirer : la sienne, ou une séance d'espace où l'on est. */
+export const isRemovableSession = (event: AgendaEvent, today: string): boolean =>
+  event.day >= today &&
+  (event.kind === 'screening' || (event.kind === 'plan' && !!(event.ownPlan || event.joined)));
+
 /** Une séance calée et son invitation ne doivent pas occuper deux fois le même jour. */
 export function mergeCalendarEvents(events: readonly AgendaEvent[]): Map<string, AgendaEvent[]> {
   const rank: Record<AgendaKind, number> = {
