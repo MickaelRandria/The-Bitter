@@ -27,8 +27,7 @@ import CalendarDaySheet from './CalendarDaySheet';
 import { agendaAction, agendaGhost, CalendarActions, eventColors } from './CalendarEventCard';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
-import TheatreReleasesSection from './TheatreReleasesSection';
-import { SharedSpace } from '../services/supabase';
+import UpcomingReleasesFrise from './UpcomingReleasesFrise';
 
 const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
 interface CalendarViewProps {
@@ -40,10 +39,8 @@ interface CalendarViewProps {
   onRewatch?: (movie: Movie) => void;
   onReview?: (movie: Movie) => void;
   onAddWatched?: (day: string) => void;
-  /** « Au cinéma » : ouvrir un film, le proposer à un espace, le voir avec quelqu'un. */
+  /** « Bientôt en salle » : ouvrir un film, le voir avec quelqu'un. */
   onPreviewMovie?: (tmdbId: number) => void;
-  spaces?: SharedSpace[];
-  onProposeToSpace?: (tmdbId: number, space: SharedSpace) => Promise<boolean>;
   onWatchWith?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
 }
@@ -467,17 +464,11 @@ export default function CalendarView(props: CalendarViewProps) {
         {tab === 'upcoming' && (
           <CalendarUpcoming
             filter={upcomingFilter}
-            cinema={
-              <TheatreReleasesSection
-                upcomingFeed
+            upcomingReleases={
+              <UpcomingReleasesFrise
                 knownTmdbIds={new Set(movies.filter((m) => m.tmdbId && m.mediaType !== 'tv').map((m) => m.tmdbId!))}
-                suggestedTmdbIds={new Set()}
-                spaces={props.spaces ?? []}
                 onSelectMovie={(tmdbId) => props.onPreviewMovie?.(tmdbId)}
                 onQuickWatchlist={(tmdbId) => void props.onAddToWatchlist?.(tmdbId)}
-                onProposeToSpace={async (tmdbId, space) =>
-                  props.onProposeToSpace ? props.onProposeToSpace(tmdbId, space) : false
-                }
                 onWatchWith={props.onWatchWith}
               />
             }
