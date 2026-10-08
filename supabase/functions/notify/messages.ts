@@ -11,6 +11,7 @@
 
 export type SocialKind =
   | 'watch_invite'
+  | 'vote_reminder'
   | 'watch_accepted'
   | 'verdict_request'
   | 'verdict_given'
@@ -47,6 +48,8 @@ export interface PlanPayload {
   providers?: string[];
   /** Prénoms des proches qui attendent aussi le film. */
   also?: string[];
+  /** Nom de l'espace, pour une relance de vote. */
+  space?: string;
   /** Série suivie : l'épisode ou la saison annoncés, et leur date de diffusion. */
   season?: number;
   episode?: number;
@@ -162,6 +165,14 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         return { title: `${actor} veut voir ${title} avec toi`, body: `${slots.length} créneaux au choix. Ça te dit ?` };
       }
       return { title: `${actor} veut voir ${title} avec toi`, body: 'Ça te dit ? Réponds en un geste.' };
+    // Relance d'une proposition restée sans réponse, à la main ou 72 h après.
+    case 'vote_reminder': {
+      const space = (input.payload?.space ?? '').trim();
+      return {
+        title: `${actor} t’attend pour ${title}`,
+        body: space ? `Dans ${space} : chaud ou pas ? Réponds en un geste.` : 'Chaud ou pas ? Réponds en un geste.',
+      };
+    }
     case 'watch_accepted':
       return { title: `${actor} dit oui pour ${title}`, body: 'Vous êtes deux à vouloir le voir.' };
     case 'verdict_request':

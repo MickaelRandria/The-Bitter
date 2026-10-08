@@ -131,6 +131,7 @@ import {
   CommonWish,
   getCommonWishes,
   wishKey,
+  answerWatchInvite,
 } from './services/social';
 import { formatRating } from './supabase/functions/notify/messages.ts';
 import {
@@ -142,6 +143,8 @@ import {
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import SpaceTickets from './components/SpaceTickets';
+import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
+import VoteWaitingSheet from './components/VoteWaitingSheet';
 import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
 import { SpaceOverview, loadSpaceOverview } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
@@ -651,6 +654,20 @@ const App: React.FC = () => {
   const [mySpaces, setMySpaces] = useState<SharedSpace[]>([]);
   /** Ce que montre le billet de chaque espace à l'accueil : demandes, affiches, membres. */
   const [spaceOverview, setSpaceOverview] = useState<Map<string, SpaceOverview>>(new Map());
+  /** Le talon orange touché : la feuille « qui manque, relancer ». */
+  const [waitingSpace, setWaitingSpace] = useState<SharedSpace | null>(null);
+  /** Film arrivé par un lien de relance (`?vote=`) : sa carte passe en premier. */
+  const [focusVoteId, setFocusVoteId] = useState<string | null>(null);
+  /** Votes donnés depuis l'accueil, retirés de la carte sans attendre la relecture. */
+  const [votedHere, setVotedHere] = useState<Set<string>>(new Set());
+  /** « Plus tard » : la carte revient le lendemain. Gardé sur l'appareil. */
+  const [voteLater, setVoteLater] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('bitter_vote_later') || '{}') as Record<string, number>;
+    } catch {
+      return {};
+    }
+  });
   /** Relit la liste des espaces : après en avoir créé, rejoint ou quitté un. */
   const [spacesReload, setSpacesReload] = useState(0);
   /** Incrémenté quand un lien `?join=` arrive, pour le traiter sans attendre. */
@@ -1453,6 +1470,73 @@ const App: React.FC = () => {
   }, [session?.user?.id, bootstrapping, mySpaces, viewMode, sharedSpaceRefreshTrigger]);
 
   /**
+   * « X t'attend » : les films à voter, tous espaces confondus, pour la carte
+   * en tête de l'accueil. Le film d'un lien de relance passe devant ; sinon,
+   * ceux qui attendent depuis le plus longtemps.
+   */
+  const voteRequests = useMemo<VoteRequest[]>(() => {
+    const now = Date.now();
+    const list: VoteRequest[] = [];
+    for (const space of mySpaces) {
+      const info = spaceOverview.get(space.id);
+      if (!info) continue;
+      const nameOf = (id: string) => info.members.find((m) => m.profile_id === id)?.first_name || '';
+      for (const item of info.toVote) {
+        const movie = item.movie;
+        if (votedHere.has(movie.id) || (voteLater[movie.id] ?? 0) > now) continue;
+        const proposer = info.members.find((m) => m.profile_id === movie.added_by) ?? null;
+        const waiting = info.waiting.find((w) => w.movie.id === movie.id);
+        list.push({
+          movie,
+          space,
+          proposer: proposer ? { first_name: proposer.first_name, avatar_url: proposer.avatar_url } : null,
+          othersMissing: (waiting?.missing ?? []).map(nameOf).filter(Boolean),
+        });
+      }
+    }
+    return list.sort(
+      (a, b) =>
+        Number(b.movie.id === focusVoteId) - Number(a.movie.id === focusVoteId) ||
+        (a.movie.added_at ?? '').localeCompare(b.movie.added_at ?? '')
+    );
+  }, [mySpaces, spaceOverview, votedHere, voteLater, focusVoteId]);
+
+  const voteFromHome = async (request: VoteRequest, interested: boolean): Promise<boolean> => {
+    const userId = session?.user?.id;
+    if (!userId) return false;
+    const result = await answerWatchInvite(request.movie.id, userId, interested);
+    if (result.error) {
+      haptics.error();
+      setToastMessage(result.error);
+      return false;
+    }
+    haptics.success();
+    setVotedHere((prev) => new Set(prev).add(request.movie.id));
+    const left = voteRequests.filter((r) => r.movie.id !== request.movie.id && r.space.id === request.space.id).length;
+    const name = request.proposer?.first_name || t('shared.member');
+    if (left === 0) {
+      setToastMessage(t('votes.allDone', { space: request.space.name, name }));
+      void askPush(t('push.reasonVote', { space: request.space.name }), 'vote');
+    } else {
+      setToastMessage(interested ? t('votes.sentYes', { name }) : t('votes.sentNo', { name }));
+    }
+    setSharedSpaceRefreshTrigger((n) => n + 1);
+    return true;
+  };
+
+  const voteLaterFromHome = (request: VoteRequest) => {
+    setVoteLater((prev) => {
+      const next = { ...prev, [request.movie.id]: Date.now() + 86_400_000 };
+      try {
+        localStorage.setItem('bitter_vote_later', JSON.stringify(next));
+      } catch {
+        // Stockage indisponible : « plus tard » vaut pour la session.
+      }
+      return next;
+    });
+  };
+
+  /**
    * Lien « Inviter » reçu : on rejoint l'espace et on l'ouvre. Sans compte, le
    * code attend dans le stockage local qu'on en ait un.
    */
@@ -1646,6 +1730,12 @@ const App: React.FC = () => {
     }
     if (url.searchParams.get('notif')) setPendingNotifOpen(true);
     if (url.searchParams.get('screening')) setViewMode('Calendar');
+    // Lien d'une relance de vote : la carte du film s'ouvre en tête de l'accueil.
+    const vote = url.searchParams.get('vote');
+    if (vote && /^[0-9a-f-]{36}$/i.test(vote)) {
+      setFocusVoteId(vote);
+      setViewMode('Feed');
+    }
     // Lien « Inviter » d'un espace : rejoint dès qu'un compte est là (voir plus bas).
     const join = url.searchParams.get('join');
     if (join && /^[A-Za-z0-9_-]{4,32}$/.test(join)) {
@@ -1660,7 +1750,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening', 'join'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join', 'vote'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       handleIncomingUrl(window.location.href);
@@ -3345,6 +3435,9 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+              {session?.user?.email && voteRequests.length > 0 && (
+                <HomeVoteCard requests={voteRequests} onVote={voteFromHome} onLater={voteLaterFromHome} />
+              )}
               {session?.user?.email && mySpaces.length > 0 && (
                 <SpaceTickets
                   spaces={mySpaces}
@@ -3355,7 +3448,18 @@ const App: React.FC = () => {
                     setViewMode('SharedSpace');
                     haptics.medium();
                   }}
+                  onOpenWaiting={setWaitingSpace}
                   onCreate={() => setShowSharedSpaces(true)}
+                />
+              )}
+              {waitingSpace && session?.user?.id && spaceOverview.get(waitingSpace.id) && (
+                <VoteWaitingSheet
+                  space={waitingSpace}
+                  overview={spaceOverview.get(waitingSpace.id) as SpaceOverview}
+                  currentUserId={session.user.id}
+                  onClose={() => setWaitingSpace(null)}
+                  onChanged={() => setSharedSpaceRefreshTrigger((n) => n + 1)}
+                  onToast={setToastMessage}
                 />
               )}
               {!activeProfile || uniqueMovies.length === 0 ? (
