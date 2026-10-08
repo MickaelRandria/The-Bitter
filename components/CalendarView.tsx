@@ -9,16 +9,22 @@ import {
   Movie,
 } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { acceptSlot } from '../services/plans';
+import { acceptSlot, cancelPlan } from '../services/plans';
 import { confirmScreening, createScreening, deleteScreening } from '../services/screenings';
 import { enablePushNotifications, hasPushSubscription } from '../services/pushNotifications';
-import { AgendaEvent, calendarDay } from '../utils/calendarAgenda';
+import {
+  AgendaEvent,
+  CALENDAR_FILTERS,
+  CalendarFilter,
+  calendarDay,
+  filterCalendarDays,
+} from '../utils/calendarAgenda';
 import { useCalendarAgenda } from './useCalendarAgenda';
 import CalendarMonth from './CalendarMonth';
 import CalendarUpcoming from './CalendarUpcoming';
 import CalendarYear from './CalendarYear';
 import CalendarDaySheet from './CalendarDaySheet';
-import { agendaAction, agendaGhost, CalendarActions } from './CalendarEventCard';
+import { agendaAction, agendaGhost, CalendarActions, eventColors } from './CalendarEventCard';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 
@@ -44,6 +50,23 @@ export default function CalendarView(props: CalendarViewProps) {
   const [tab, setTab] = useState<'month' | 'upcoming' | 'year'>('month');
   const [day, setDay] = useState<string | null>(null);
   const [genre, setGenre] = useState('');
+  /** Le filtre choisi, gardé sur l'appareil : on revient souvent au même. */
+  const [filter, setFilter] = useState<CalendarFilter>(() => {
+    try {
+      const saved = localStorage.getItem('bitter_calendar_filter') as CalendarFilter | null;
+      return saved && CALENDAR_FILTERS.includes(saved) ? saved : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const chooseFilter = (next: CalendarFilter) => {
+    setFilter(next);
+    try {
+      localStorage.setItem('bitter_calendar_filter', next);
+    } catch {
+      /* Le choix vaut pour la session. */
+    }
+  };
   const [composer, setComposer] = useState<{ mode: 'programme' | 'manual'; day: string } | null>(
     null
   );
@@ -87,15 +110,18 @@ export default function CalendarView(props: CalendarViewProps) {
     [agenda.days, declined]
   );
   const visibleDays = useMemo(() => {
-    if (!genre) return days;
+    const filtered = filterCalendarDays(days, filter);
+    if (!genre) return filtered;
     const ids = new Set(movies.filter((movie) => movie.genre === genre).map((movie) => movie.id));
     return new Map(
-      [...days].map(([date, events]) => [
+      [...filtered].map(([date, events]) => [
         date,
         events.filter((event) => event.kind !== 'watched' || ids.has(event.movieId ?? '')),
       ])
     );
-  }, [days, movies, genre]);
+  }, [days, movies, genre, filter]);
+  /** « À venir » n'a pas de films vus : le filtre « Vus » y vaut « Tout ». */
+  const upcomingFilter: CalendarFilter = filter === 'watched' ? 'all' : filter;
   const watchlistIds = useMemo(
     () =>
       new Set(
@@ -166,6 +192,24 @@ export default function CalendarView(props: CalendarViewProps) {
     onOpenDay: setDay,
     onPlan: plan,
     onRemind: remind,
+    onRemove: (event) => {
+      if (event.kind === 'screening') {
+        const screening = agenda.screenings.find((s) => s.id === event.screeningId);
+        if (screening) remove(screening);
+        return;
+      }
+      if (event.kind !== 'plan' || !event.planId) return;
+      if (!window.confirm(t('agenda.cancelConfirmation', { title: event.title }))) return;
+      void run(event.id, async () => {
+        const result = await cancelPlan(event.planId!);
+        if (!result.ok) {
+          onToast?.(t('agenda.removeError'));
+          return;
+        }
+        agenda.refresh();
+        onToast?.(t('agenda.sessionCancelled'));
+      });
+    },
     onAccept: (event) =>
       void run(event.id, async () => {
         if (!event.slotId) return;
@@ -333,6 +377,39 @@ export default function CalendarView(props: CalendarViewProps) {
           </button>
         ))}
       </div>
+      {tab !== 'year' && (
+        <div
+          role="radiogroup"
+          aria-label={t('agenda.filterLabel')}
+          className="mt-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {CALENDAR_FILTERS.filter((f) => tab === 'month' || f !== 'watched').map((f) => {
+            const active = (tab === 'month' ? filter : upcomingFilter) === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => chooseFilter(f)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold transition active:scale-95 ${
+                  active
+                    ? 'bg-charcoal text-white dark:bg-white dark:text-[#111]'
+                    : 'bg-white text-stone-500 ring-1 ring-stone-200 dark:bg-[#1A1A19] dark:text-stone-400 dark:ring-white/10'
+                }`}
+              >
+                {f !== 'all' && (
+                  <i
+                    className="h-2 w-2 rounded-full ring-1 ring-black/15"
+                    style={{ background: eventColors[f === 'watched' ? 'watched' : f === 'sessions' ? 'plan' : 'watchlist-release'] }}
+                  />
+                )}
+                {t(`agenda.filter.${f}`)}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {tab !== 'upcoming' && (
         <button
           onClick={() => setCurrentMonth(today.slice(0, 7))}
@@ -382,6 +459,7 @@ export default function CalendarView(props: CalendarViewProps) {
         )}
         {tab === 'upcoming' && (
           <CalendarUpcoming
+            filter={upcomingFilter}
             days={days}
             wishes={agenda.wishes}
             releases={agenda.releases}

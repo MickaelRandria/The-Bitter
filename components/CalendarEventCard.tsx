@@ -1,7 +1,7 @@
 import React from 'react';
 import { Film } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { AgendaEvent, daysUntil } from '../utils/calendarAgenda';
+import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 
 export const agendaPill =
@@ -27,6 +27,8 @@ export interface CalendarActions {
   onPlan: (day: string) => void;
   onAdd: (id: number) => void;
   onRemind: () => void;
+  /** Retirer une séance à venir : la sienne, ou annuler une séance d'espace. */
+  onRemove: (event: AgendaEvent) => void;
   reminderActive: boolean;
 }
 
@@ -110,6 +112,15 @@ export default function CalendarEventCard({
           {event.kind === 'screening' && (
             <button className={agendaGhost} onClick={() => actions.onOpenDay(event.day)}>
               {t('agenda.viewSession')}
+            </button>
+          )}
+          {isRemovableSession(event, actions.today) && (
+            <button
+              className={agendaGhost}
+              disabled={actions.busyId === event.id}
+              onClick={() => actions.onRemove(event)}
+            >
+              {t(event.kind === 'plan' ? 'agenda.cancelSession' : 'agenda.removeSession')}
             </button>
           )}
           {event.kind === 'watchlist-release' && (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { AgendaEvent, shiftCalendarDay } from '../utils/calendarAgenda';
+import { AgendaEvent, CalendarFilter, shiftCalendarDay } from '../utils/calendarAgenda';
 import { TheatreRelease } from '../services/tmdb';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import CalendarEventCard, { agendaLabel, CalendarActions } from './CalendarEventCard';
@@ -11,13 +11,17 @@ export default function CalendarUpcoming({
   releases,
   watchlistIds,
   actions,
+  filter = 'all',
 }: {
   days: Map<string, AgendaEvent[]>;
   wishes: AgendaEvent[];
   releases: TheatreRelease[];
   watchlistIds: Set<number>;
   actions: CalendarActions;
+  filter?: CalendarFilter;
 }) {
+  const showSessions = filter !== 'releases';
+  const showReleases = filter !== 'sessions';
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const sessions = [...days.values()]
@@ -48,6 +52,8 @@ export default function CalendarUpcoming({
   );
   return (
     <>
+      {showSessions && (
+      <>
       <h2 className={agendaLabel}>{t('agenda.thisWeek')}</h2>
       {thisWeek.length ? (
         rows(thisWeek)
@@ -62,6 +68,10 @@ export default function CalendarUpcoming({
           {rows(later)}
         </>
       )}
+      </>
+      )}
+      {showReleases && (
+      <>
       <h2 className={agendaLabel}>{t('agenda.yourReleases')}</h2>
       {wishes.length ? (
         rows(wishes)
@@ -122,6 +132,8 @@ export default function CalendarUpcoming({
       <p className="mt-2 text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
         {t('agenda.releaseReminderHint')}
       </p>
+      </>
+      )}
     </>
   );
 }
