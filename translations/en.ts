@@ -2206,4 +2206,6 @@ export const en: Record<string, string> = {
   'releases.today': "today",
   'releases.tomorrow': "tomorrow",
   'releases.inDays': "in {days} d",
+  'releases.wantToSee': "Watchlist",
+  'releases.inYourList': "In your list",
 };
