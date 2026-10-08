@@ -51,6 +51,8 @@ const TheatreReleasesSection: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<number>>(new Set());
+  /** Ajoutés à « À voir » depuis la frise : le bouton bascule sans attendre la collection. */
+  const [wished, setWished] = useState<Set<number>>(new Set());
   const [pickerFor, setPickerFor] = useState<number | null>(null);
   const [proposing, setProposing] = useState<number | null>(null);
 
@@ -92,13 +94,22 @@ const TheatreReleasesSection: React.FC<Props> = ({
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 8);
   }, [data]);
 
-  /** Le fil : chaque film une fois, du plus proche au plus lointain. */
-  const upcomingFeedFilms = useMemo(() => {
-    if (!data) return [];
+  /**
+   * La frise : un groupe par jour de sortie, du plus proche au plus lointain. Les
+   * films les plus attendus (le quart le plus populaire) prennent une grande
+   * affiche, les autres une vignette : ce qui compte saute aux yeux.
+   */
+  const upcomingByDay = useMemo(() => {
+    if (!data) return { days: [] as [string, TheatreRelease[]][], bigFrom: Infinity };
     const seen = new Set<number>();
-    return data.upcoming
+    const films = data.upcoming
       .filter((film) => film.releaseDate && !seen.has(film.id) && seen.add(film.id))
       .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || (b.popularity ?? 0) - (a.popularity ?? 0));
+    const ranked = films.map((film) => film.popularity ?? 0).sort((a, b) => b - a);
+    const bigFrom = ranked.length ? ranked[Math.max(0, Math.ceil(ranked.length / 4) - 1)] : Infinity;
+    const days = new Map<string, TheatreRelease[]>();
+    for (const film of films) days.set(film.releaseDate, [...(days.get(film.releaseDate) ?? []), film]);
+    return { days: [...days.entries()], bigFrom };
   }, [data]);
 
   /** « dans 6 j », « demain » : la distance compte plus que la date dans un fil. */
@@ -133,7 +144,7 @@ const TheatreReleasesSection: React.FC<Props> = ({
     }
   };
 
-  const renderCard = (film: TheatreRelease, post = false) => {
+  const renderCard = (film: TheatreRelease) => {
     const inCollection = knownTmdbIds.has(film.id);
     const alreadySuggested = suggestedTmdbIds.has(film.id) || added.has(film.id);
 
@@ -142,60 +153,6 @@ const TheatreReleasesSection: React.FC<Props> = ({
         key={film.id}
         className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 rounded-[1.5rem] overflow-hidden"
       >
-        {post ? (
-          <>
-            <div className="flex items-baseline justify-between gap-3 px-4 pb-2.5 pt-3.5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-400">
-                {formatDay(film.releaseDate)}
-              </p>
-              <p className="shrink-0 text-[10px] font-bold text-stone-400 dark:text-stone-500">
-                {untilLabel(film.releaseDate)}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                haptics.soft();
-                onSelectMovie(film.id);
-              }}
-              aria-label={film.title}
-              className="relative block w-full aspect-[2/3] bg-stone-100 dark:bg-[#161616] active:scale-[0.99] transition-transform"
-            >
-              {film.posterPath ? (
-                <img
-                  src={resizeTmdbImage(`${TMDB_IMAGE_URL}${film.posterPath}`, 'w500')}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                <Ticket size={28} className="absolute inset-0 m-auto text-stone-400" />
-              )}
-            </button>
-            <div className="px-4 pb-3 pt-3">
-              <p className="text-base font-black leading-tight text-charcoal dark:text-white">{film.title}</p>
-              {film.overview && (
-                <p className="mt-1 line-clamp-2 text-[11.5px] font-medium leading-snug text-stone-500 dark:text-stone-400">
-                  {film.overview}
-                </p>
-              )}
-              {(inCollection || alreadySuggested) && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {inCollection && (
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-stone-100 dark:bg-[#252525] text-stone-500 dark:text-stone-400 px-2 py-0.5 rounded">
-                      {t('releases.inCollection')}
-                    </span>
-                  )}
-                  {alreadySuggested && (
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-forest/10 dark:bg-lime-400/10 text-forest dark:text-lime-400 px-2 py-0.5 rounded">
-                      {t('releases.alreadySuggested')}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
         <button
           onClick={() => {
             haptics.soft();
@@ -245,7 +202,6 @@ const TheatreReleasesSection: React.FC<Props> = ({
             </div>
           </div>
         </button>
-        )}
 
         <div className="flex items-stretch border-t border-sand dark:border-white/5">
           <button
@@ -325,6 +281,90 @@ const TheatreReleasesSection: React.FC<Props> = ({
     );
   };
 
+  const dateParts = (iso: string) => {
+    const date = new Date(`${iso}T12:00:00Z`);
+    const locale = language === 'fr' ? 'fr-FR' : 'en-GB';
+    const part = (o: Intl.DateTimeFormatOptions) => date.toLocaleDateString(locale, { ...o, timeZone: 'Europe/Paris' });
+    return { day: part({ day: 'numeric' }), month: part({ month: 'short' }).replace('.', ''), weekday: part({ weekday: 'short' }) };
+  };
+
+  const renderFriseFilm = (film: TheatreRelease, big: boolean) => {
+    const inCollection = knownTmdbIds.has(film.id) || wished.has(film.id);
+    const poster = (
+      <button
+        onClick={() => {
+          haptics.soft();
+          onSelectMovie(film.id);
+        }}
+        aria-label={film.title}
+        className={`relative block aspect-[2/3] overflow-hidden bg-stone-200 dark:bg-[#1A1A19] active:scale-[0.98] transition-transform ${
+          big ? 'w-full rounded-2xl shadow-[0_14px_30px_-18px_rgba(0,0,0,0.6)]' : 'w-[92px] shrink-0 rounded-xl'
+        }`}
+      >
+        {film.posterPath ? (
+          <img
+            src={resizeTmdbImage(`${TMDB_IMAGE_URL}${film.posterPath}`, big ? 'w500' : 'w185')}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <Ticket size={big ? 28 : 18} className="absolute inset-0 m-auto text-stone-400" />
+        )}
+      </button>
+    );
+    const pill =
+      'inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[9.5px] font-black uppercase tracking-widest active:scale-95 transition-transform disabled:opacity-60';
+    const actions = (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button
+          onClick={() => {
+            haptics.medium();
+            setWished((prev) => new Set(prev).add(film.id));
+            onQuickWatchlist(film.id);
+          }}
+          disabled={inCollection}
+          className={`${pill} ${
+            inCollection
+              ? 'bg-[#D9FF00]/20 text-forest dark:text-[#D9FF00]'
+              : 'bg-charcoal text-white dark:bg-white dark:text-[#111]'
+          }`}
+        >
+          {inCollection ? <Check size={12} strokeWidth={3} /> : <Bookmark size={12} />}
+          {t(inCollection ? 'releases.inYourList' : 'releases.wantToSee')}
+        </button>
+        {big && onWatchWith && (
+          <button
+            onClick={() => {
+              haptics.soft();
+              onWatchWith(film.id);
+            }}
+            className={`${pill} bg-white text-charcoal ring-1 ring-stone-200 dark:bg-[#1C1C1B] dark:text-white dark:ring-white/10`}
+          >
+            <Users size={12} />
+            {t('social.watchWith')}
+          </button>
+        )}
+      </div>
+    );
+    return big ? (
+      <div key={film.id}>
+        {poster}
+        <p className="mt-2.5 text-[17px] font-black leading-tight tracking-tight text-charcoal dark:text-white">{film.title}</p>
+        {actions}
+      </div>
+    ) : (
+      <div key={film.id} className="flex items-center gap-3">
+        {poster}
+        <div className="min-w-0">
+          <p className="text-sm font-black leading-tight text-charcoal dark:text-white">{film.title}</p>
+          {actions}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -385,16 +425,31 @@ const TheatreReleasesSection: React.FC<Props> = ({
         </section>
       )}
 
-      {upcomingFeed && upcomingFeedFilms.length > 0 && (
-        <section className="space-y-4">
-          <div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 flex items-center gap-2">
-              <Check size={12} />
-              {t('releases.upcoming')}
-            </h3>
-            <p className="mt-1 text-[11px] font-medium text-stone-500">{t('releases.feedSubtitle')}</p>
-          </div>
-          {upcomingFeedFilms.map((film) => renderCard(film, true))}
+      {upcomingFeed && upcomingByDay.days.length > 0 && (
+        <section>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500 flex items-center gap-2">
+            <Check size={12} />
+            {t('releases.upcoming')}
+          </h3>
+          <p className="mt-1 mb-4 text-[11px] font-medium text-stone-500">{t('releases.feedSubtitle')}</p>
+          {upcomingByDay.days.map(([day, films]) => {
+            const parts = dateParts(day);
+            return (
+              <div key={day} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3">
+                <div className="self-start pt-1 text-center">
+                  <p className="text-[38px] font-black leading-[0.9] tracking-tighter text-charcoal dark:text-white">{parts.day}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-charcoal dark:text-white">{parts.month}</p>
+                  <p className="mt-0.5 text-[9.5px] font-extrabold text-stone-400">{parts.weekday}</p>
+                  <span className="mt-2 inline-block rounded-full bg-[#D9FF00] px-1.5 py-0.5 text-[9px] font-black text-[#111]">
+                    {untilLabel(day)}
+                  </span>
+                </div>
+                <div className="min-w-0 space-y-5 border-l-2 border-stone-200 pb-7 pl-3 dark:border-white/10">
+                  {films.map((film) => renderFriseFilm(film, (film.popularity ?? 0) >= upcomingByDay.bigFrom))}
+                </div>
+              </div>
+            );
+          })}
         </section>
       )}
 

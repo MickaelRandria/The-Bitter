@@ -2212,4 +2212,6 @@ export const fr: Record<string, string> = {
   'releases.today': "aujourd’hui",
   'releases.tomorrow': "demain",
   'releases.inDays': "dans {days} j",
+  'releases.wantToSee': "À voir",
+  'releases.inYourList': "Dans ta liste",
 };
