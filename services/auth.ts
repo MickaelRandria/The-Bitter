@@ -134,6 +134,38 @@ export const verifyEmailCode = async (email: string, code: string): Promise<Auth
   return { ok: true };
 };
 
+/**
+ * Connexion Google, par redirection.
+ *
+ * La page part chez Google puis revient sur l'origine : `detectSessionInUrl`
+ * (actif par défaut) lit la session au retour. Un compte e-mail existant portant
+ * la même adresse vérifiée est rattaché par Supabase au lieu d'être dupliqué.
+ * `select_account` évite de reconnecter d'office le dernier compte Google utilisé
+ * sur l'appareil, souvent celui d'un proche sur un téléphone partagé.
+ */
+export const signInWithGoogle = async (): Promise<AuthOutcome> => {
+  if (!supabase) return notConfigured;
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { prompt: 'select_account' },
+    },
+  });
+
+  if (error) return { ok: false, reason: 'failed', message: error.message };
+  return { ok: true };
+};
+
+/**
+ * Les comptes de démonstration remis à l'examen Google Play sont les seuls à se
+ * connecter par mot de passe : ils ne peuvent pas aller chercher un code par
+ * e-mail. Ils vivent tous sous le domaine de l'app.
+ */
+export const isPasswordAccount = (email: string): boolean =>
+  /@thebitter\.watch$/i.test(email.trim());
+
 /** Crée une session anonyme, sans aucun écran intermédiaire. */
 export const startAnonymousSession = async (): Promise<AuthOutcome> => {
   if (!supabase) return notConfigured;

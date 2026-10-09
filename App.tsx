@@ -107,6 +107,7 @@ import { initAnalytics, stopAnalytics, trackEvent } from './utils/analytics';
 import { readConsent, saveConsent } from './utils/consent';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
+import EntryFlow, { EntryAccount, NewProfileData } from './components/EntryFlow';
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
 import { SharedSpace, supabase, getUserSpaces, joinSpaceByCode } from './services/supabase';
@@ -181,6 +182,44 @@ import {
 
 /** Une note IMDb bouge peu : une vérification par semaine suffit, le serveur fait de même. */
 const IMDB_RECHECK_MS = 7 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Le parcours d'entrée reste à l'écran entre la connexion et le profil prêt.
+ * Gardé en session : la connexion Google recharge la page au retour.
+ */
+const ENTRY_HOLD_KEY = 'bitter_entry_hold';
+
+/**
+ * Compte tout juste créé : ni réponses de profil ni film. Le trigger
+ * `handle_new_user` a déjà posé une ligne « Utilisateur », d'où ce critère plutôt
+ * que l'absence de ligne. Dans le doute (lecture en échec), on ne redemande rien.
+ */
+const isFreshAccount = async (userId: string, row: Record<string, any> | null): Promise<boolean> => {
+  if (!supabase) return false;
+  if (row && (row.age || row.viewing_preference)) return false;
+  const { count, error } = await supabase
+    .from('user_movies')
+    .select('profile_id', { count: 'exact', head: true })
+    .eq('profile_id', userId)
+    .is('deleted_at', null);
+  if (error) return false;
+  return (count ?? 0) === 0;
+};
+
+/** Prénom et nom connus d'avance : ceux du compte Google, sinon ceux déjà en ligne. */
+const entryPrefill = (user: any, row: Record<string, any> | null): EntryAccount['prefill'] => {
+  const meta = user?.user_metadata ?? {};
+  const fromGoogle =
+    user?.app_metadata?.provider === 'google' ||
+    (user?.identities ?? []).some((identity: any) => identity?.provider === 'google');
+  const [first = '', ...rest] = String(meta.full_name || meta.name || '').trim().split(/\s+/);
+  const rowFirst = row?.first_name && row.first_name !== 'Utilisateur' ? row.first_name : '';
+  return {
+    firstName: meta.given_name || first || rowFirst,
+    lastName: meta.family_name || rest.join(' ') || row?.last_name || '',
+    fromGoogle,
+  };
+};
 
 // Lazy loading components
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -453,6 +492,19 @@ const App: React.FC = () => {
   // pendant une migration réseau. Sert uniquement à retirer le splash.
   const [bootstrapping, setBootstrapping] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
+  // Compte neuf qui n'a pas encore dit qui il est : l'app attend son profil.
+  const [pendingProfileSetup, setPendingProfileSetup] = useState<{
+    userId: string;
+    row: Record<string, any> | null;
+    prefill: EntryAccount['prefill'];
+  } | null>(null);
+  const [entryHold, setEntryHold] = useState(() => {
+    try {
+      return sessionStorage.getItem(ENTRY_HOLD_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [showProfileLinking, setShowProfileLinking] = useState(false);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   /**
@@ -1239,6 +1291,13 @@ const App: React.FC = () => {
           return;
         }
 
+        // Compte neuf sur un appareil vierge : on lui demande son profil au lieu
+        // de lui fabriquer un « Utilisateur » de 25 ans.
+        if (!linkedLocal && localProfiles.length === 0 && (await isFreshAccount(user.id, existingProfile))) {
+          setPendingProfileSetup({ userId: user.id, row: existingProfile, prefill: entryPrefill(user, existingProfile) });
+          return;
+        }
+
         // Profil trouvé → charger normalement
         setProfiles((prev) => {
           const exists = prev.find((p) => p.id === existingProfile.id);
@@ -1322,7 +1381,15 @@ const App: React.FC = () => {
           },
         ]);
 
-        if (!insertError) {
+        let noLocalProfile = false;
+        try {
+          noLocalProfile = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]').length === 0;
+        } catch {
+          noLocalProfile = true;
+        }
+        if (!insertError && noLocalProfile) {
+          setPendingProfileSetup({ userId: user.id, row: null, prefill: entryPrefill(user, null) });
+        } else if (!insertError) {
           // Profil créé → charger
           setProfiles((prev) => [
             ...prev,
@@ -1411,6 +1478,7 @@ const App: React.FC = () => {
       if (event === 'SIGNED_OUT') {
         // Session expirée ou fermée depuis un autre appareil : sans l'écran
         // d'accueil, l'app restait sur une interface sans profil, donc vide.
+        setPendingProfileSetup(null);
         setActiveProfileId(null);
         setActiveSharedSpace(null);
         setShowWelcome(true);
@@ -3026,6 +3094,157 @@ const App: React.FC = () => {
         <Loader2 size={32} className="animate-spin text-forest" />
       </div>
     );
+
+  /*
+   * Le compte est obligatoire. Sans session e-mail ou Google (une session anonyme
+   * ne compte pas), on ne passe pas le parcours d'entrée. Il reste aussi affiché
+   * juste après la connexion, le temps de remplir le profil ou de dire bonjour.
+   */
+  const realSession = !!session?.user?.email && !session.user.is_anonymous;
+  if (supabase && (!realSession || entryHold || pendingProfileSetup)) {
+    const linkedIds = new Set<string>();
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('bitter_linked_profile_')) {
+          const value = localStorage.getItem(key);
+          if (value) linkedIds.add(value);
+        }
+      }
+    } catch {
+      // Stockage illisible : tous les profils passent pour non sauvegardés.
+    }
+    const unsaved = profiles.filter((p) => p.movies.length > 0 && !linkedIds.has(p.id));
+    const saveCandidate =
+      profiles.find((p) => p.id === activeProfileId && unsaved.includes(p)) ??
+      [...unsaved].sort((a, b) => b.movies.length - a.movies.length)[0];
+    const unsavedCount = unsaved.reduce((sum, p) => sum + p.movies.length, 0);
+    const postersOf = (movies: Movie[]) =>
+      movies
+        .filter((m) => m.posterUrl)
+        .slice(-4)
+        .reverse()
+        .map((m) => m.posterUrl as string);
+
+    const releaseEntry = () => {
+      setEntryHold(false);
+      try {
+        sessionStorage.removeItem(ENTRY_HOLD_KEY);
+      } catch {
+        // Rien à nettoyer.
+      }
+    };
+
+    const entryAccount: EntryAccount = !realSession
+      ? { status: 'none' }
+      : pendingProfileSetup
+        ? { status: 'needsProfile', prefill: pendingProfileSetup.prefill }
+        : activeProfile
+          ? {
+              status: 'ready',
+              firstName: activeProfile.firstName,
+              filmCount: activeProfile.movies.length,
+              posters: postersOf(activeProfile.movies),
+            }
+          : { status: 'loading' };
+
+    const createProfileFromEntry = (data: NewProfileData) => {
+      if (!pendingProfileSetup) return;
+      const { userId, row } = pendingProfileSetup;
+      const newP: UserProfile = {
+        id: userId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        gender: data.gender,
+        age: data.age,
+        viewingPreference: data.viewingPreference,
+        streamingPlatforms: data.streamingPlatforms,
+        favoriteCinema: data.favoriteCinema,
+        cinemaChain: data.cinemaChain,
+        movies: [],
+        createdAt: Date.now(),
+        isOnboarded: false,
+      };
+      setProfiles((prev) => [...prev.filter((p) => p.id !== userId), newP]);
+      localStorage.setItem(linkedProfileKey(userId), userId);
+      localStorage.setItem(LAST_PROFILE_ID_KEY, userId);
+      setChoosingProfile(false);
+      setActiveProfileId(userId);
+      setShowWelcome(false);
+      setViewMode('Feed');
+      void syncProfileFieldsToSupabase(userId, newP, row ?? {});
+      if (data.favoriteCinema) void syncFavoriteCinemaToSupabase(userId, data.favoriteCinema);
+      setPendingProfileSetup(null);
+      releaseEntry();
+      setToastMessage(t('entry.createdToast'));
+      // Arrivé par un lien d'invitation, la suite est l'invitation : pas de tuto devant.
+      if (!readPendingInvite()) setPendingTour('main');
+    };
+
+    return (
+      <div className="relative min-h-screen">
+        <EntryFlow
+          mode={unsaved.length > 0 && !realSession ? 'save' : 'welcome'}
+          localFilmCount={unsavedCount}
+          localPosters={saveCandidate ? postersOf(saveCandidate.movies) : []}
+          localName={
+            saveCandidate
+              ? `${saveCandidate.firstName}${saveCandidate.lastName ? ` ${saveCandidate.lastName[0]}.` : ''}`
+              : undefined
+          }
+          account={entryAccount}
+          invite={
+            invitePreview && !invitePreview.expired
+              ? {
+                  inviter: invitePreview.inviter,
+                  title: invitePreview.title,
+                  posterUrl: invitePreview.poster_url,
+                  kind: invitePreview.kind,
+                }
+              : null
+          }
+          onAuthStarted={() => {
+            setEntryHold(true);
+            try {
+              sessionStorage.setItem(ENTRY_HOLD_KEY, '1');
+            } catch {
+              // Sans stockage de session, le retour de Google ira droit dans l'app.
+            }
+            // Les films à sauver doivent être ceux du profil rattaché au compte :
+            // loadOrCreateProfile lit le dernier profil actif à la connexion.
+            if (saveCandidate && !activeProfileId) {
+              localStorage.setItem(LAST_PROFILE_ID_KEY, saveCandidate.id);
+              setActiveProfileId(saveCandidate.id);
+            }
+          }}
+          onCreateProfile={createProfileFromEntry}
+          onFinish={() => {
+            if (unsavedCount > 0 && realSession) {
+              setToastMessage(t('entry.savedToast', { count: String(unsavedCount) }));
+            }
+            setShowWelcome(false);
+            releaseEntry();
+          }}
+        />
+        {showConsent && (
+          <ConsentModal
+            onAccept={() => {
+              haptics.success();
+              setShowConsent(false);
+              saveConsent('granted');
+              void initAnalytics();
+            }}
+            onDecline={() => {
+              haptics.soft();
+              setShowConsent(false);
+              saveConsent('denied');
+              stopAnalytics();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
   // Plus d'écran de connexion : l'app est 100% locale, on arrive directement sur
   // le choix / la création de profil. AuthScreen est conservé pour le jour où la
   // synchronisation de comptes sera de nouveau au point.

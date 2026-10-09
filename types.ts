@@ -414,6 +414,8 @@ export interface UserProfile {
   avatarUrl?: string;
   cinemaSubscription?: CinemaSubscription;
   favoriteCinema?: FavoriteCinema;
+  /** Chaîne déclarée à l'inscription. Seul UGC a un annuaire de salles pour l'instant. */
+  cinemaChain?: 'ugc' | 'pathe' | 'other';
 }
 
 export type MovieFormData = Omit<Movie, 'id' | 'dateAdded'>;
