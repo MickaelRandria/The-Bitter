@@ -205,3 +205,67 @@ input[type='range']::-webkit-slider-runnable-track {
   overflow-x: hidden;
   overflow-x: clip;
 }
+
+/*
+ * Parcours d'entrée (compte + profil). Une seule courbe, douce en sortie : la
+ * page glisse dans le sens de la marche, ses blocs montent l'un après l'autre,
+ * et un bloc qui apparaît en cours de route le fait seul, sans rejouer le reste.
+ */
+.entry-in-fwd {
+  animation: entryInFwd 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.entry-in-back {
+  animation: entryInBack 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.entry-stagger > * {
+  animation: entryRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.entry-stagger > :nth-child(2) { animation-delay: 55ms; }
+.entry-stagger > :nth-child(3) { animation-delay: 110ms; }
+.entry-stagger > :nth-child(4) { animation-delay: 165ms; }
+.entry-stagger > :nth-child(5) { animation-delay: 220ms; }
+.entry-stagger > :nth-child(6) { animation-delay: 275ms; }
+.entry-stagger > :nth-child(7) { animation-delay: 330ms; }
+.entry-stagger > :nth-child(n + 8) { animation-delay: 385ms; }
+.entry-pop {
+  animation: entryPop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.entry-sel {
+  animation: entrySel 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.entry-fill {
+  transform-origin: left;
+  animation: entryFill 0.6s 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes entryInFwd {
+  from { opacity: 0; transform: translateX(32px); }
+}
+@keyframes entryInBack {
+  from { opacity: 0; transform: translateX(-32px); }
+}
+@keyframes entryRise {
+  from { opacity: 0; transform: translateY(14px); }
+}
+@keyframes entryPop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+@keyframes entrySel {
+  from { transform: scale(0.93); }
+}
+@keyframes entryFill {
+  from { transform: scaleX(0); }
+}
+@keyframes shake {
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry-in-fwd,
+  .entry-in-back,
+  .entry-stagger > *,
+  .entry-pop,
+  .entry-sel,
+  .entry-fill {
+    animation: none !important;
+  }
+}
