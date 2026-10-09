@@ -750,18 +750,40 @@ const App: React.FC = () => {
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const claimingRef = useRef(false);
   /** Pourquoi proposer les notifications maintenant, et d'où vient la question. */
-  const [pushPrompt, setPushPrompt] = useState<{ reason: string; source: string } | null>(null);
+  const [pushPrompt, setPushPrompt] = useState<{ reason: string; source: string; benefits?: string[] } | null>(null);
   const pushAskedRef = useRef(false);
+  /** Compte tout juste créé : la visite guidée attend que la question des notifications soit réglée. */
+  const tourAfterPushRef = useRef(false);
   /**
    * Au plus une fois par session, et seulement si c'est utile (appareil pas
    * abonné, pas de refus, délai de trois jours depuis la dernière question).
    */
-  const askPush = useCallback(async (reason: string, source: string) => {
-    if (pushAskedRef.current) return;
-    if (!(await canOfferPush())) return;
+  const askPush = useCallback(async (reason: string, source: string, benefits?: string[]): Promise<boolean> => {
+    if (pushAskedRef.current) return false;
+    if (!(await canOfferPush())) return false;
     pushAskedRef.current = true;
-    setPushPrompt({ reason, source });
+    setPushPrompt({ reason, source, benefits });
+    return true;
   }, []);
+
+  /**
+   * Fin d'inscription ou de sauvegarde : la question arrive sans contexte, il
+   * faut donc dire ce qu'on y gagne. Un léger délai laisse l'accueil s'afficher
+   * avant que la fenêtre ne monte.
+   */
+  const askPushAfterSignup = useCallback(
+    (source: 'signup' | 'save', thenTour: boolean) => {
+      const benefits = [t('push.benefitFriends'), t('push.benefitScreening'), t('push.benefitSeries'), t('push.benefitRelease')];
+      window.setTimeout(() => {
+        void askPush(t('push.reasonSignup'), source, benefits).then((asked) => {
+          if (!thenTour) return;
+          if (asked) tourAfterPushRef.current = true;
+          else setPendingTour('main');
+        });
+      }, 700);
+    },
+    [askPush, t]
+  );
   const inviteSyncPromptedRef = useRef(false);
   const [mergeChoice, setMergeChoice] = useState<{ remote: number; local: number } | null>(null);
   /** Films déjà présents sur le compte, pour savoir ce qui reste à envoyer. */
@@ -3177,8 +3199,9 @@ const App: React.FC = () => {
       setPendingProfileSetup(null);
       releaseEntry();
       setToastMessage(t('entry.createdToast'));
-      // Arrivé par un lien d'invitation, la suite est l'invitation : pas de tuto devant.
-      if (!readPendingInvite()) setPendingTour('main');
+      // Arrivé par un lien d'invitation, la suite est l'invitation : pas de tuto
+      // devant, et la question des notifications viendra avec elle, mieux motivée.
+      if (!readPendingInvite()) askPushAfterSignup('signup', true);
     };
 
     return (
@@ -3221,6 +3244,7 @@ const App: React.FC = () => {
           onFinish={() => {
             if (unsavedCount > 0 && realSession) {
               setToastMessage(t('entry.savedToast', { count: String(unsavedCount) }));
+              if (!readPendingInvite()) askPushAfterSignup('save', false);
             }
             setShowWelcome(false);
             releaseEntry();
@@ -4361,7 +4385,14 @@ const App: React.FC = () => {
         <PushPrompt
           reason={pushPrompt.reason}
           source={pushPrompt.source}
-          onClose={() => setPushPrompt(null)}
+          benefits={pushPrompt.benefits}
+          onClose={() => {
+            setPushPrompt(null);
+            if (tourAfterPushRef.current) {
+              tourAfterPushRef.current = false;
+              setPendingTour('main');
+            }
+          }}
           onToast={setToastMessage}
         />
       )}
@@ -4883,7 +4914,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {pendingTour && !activeTour && (
+      {pendingTour && !activeTour && !pushPrompt && (
         <TourPrompt
           variant={pendingTour}
           stepCount={

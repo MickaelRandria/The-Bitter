@@ -2257,4 +2257,9 @@ export const en: Record<string, string> = {
   'entry.skipStep': 'Skip this step',
   'entry.savedToast': 'Your {count} films are backed up to your account.',
   'entry.createdToast': 'Account created. Your films will be backed up automatically.',
+  'push.reasonSignup': "Notifications are what make The Bitter work with the people close to you: without them, you find their suggestions days later. Turn them on for this phone to hear about:",
+  'push.benefitFriends': 'a friend suggesting a film or a screening, and their answer;',
+  'push.benefitScreening': 'your screening, the day before, so you don’t forget it;',
+  'push.benefitSeries': 'a new episode of a show you follow;',
+  'push.benefitRelease': 'the day a film you’re waiting for comes out. Nothing else, never ads.',
 };
