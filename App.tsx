@@ -3615,6 +3615,7 @@ const App: React.FC = () => {
               onRewatch={setRewatchMovie}
               onReview={(movie) => { setEditingMovie(movie); setCalendarWatchedDay(undefined); setIsModalOpen(true); }}
               onAddWatched={(day) => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
+              onRateWatched={(tmdbId, day) => { setEditingMovie(null); setTmdbIdToLoad(tmdbId); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
               onToast={setToastMessage}
               onPreviewMovie={(id) => {
                 setPreviewTmdbId(id);

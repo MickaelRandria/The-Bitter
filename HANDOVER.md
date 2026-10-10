@@ -183,6 +183,34 @@ Règles publiques : `/conditions`. Code : `services/moderation.ts`,
   Retirer un avis : vider `review` dans `user_movies` ou `movie_ratings`. Bannir :
   supprimer l'utilisateur dans Authentication → Users.
 
+### 3.7 Billets de cinéma : l'Edge Function `ticket-scan`
+
+Calendrier → « Importer mes billets ». Réserver avec la carte UGC Illimité
+**n'envoie aucun e-mail** (vérifié sur la boîte du propriétaire) : le billet ne
+vit que dans l'app UGC, et une capture de « Mes billets » est la seule trace
+transmissible sans ressaisie.
+
+Trois étapes, et aucune ne croit la précédente sur parole :
+
+1. `ticket-scan` lit la capture. Le modèle **recopie** titre, cinéma, jour, heure
+   de début, version, salle, places ; `parseTickets.ts` borne et valide tout.
+2. `cinema-directory`, action `match`, cherche chaque billet dans la vraie grille
+   UGC (`ticketMatch.ts`) : seule une séance publiée est déclarée « retrouvée ».
+   Heure absente de la grille → les autres horaires du film ce jour-là, au choix.
+   Nom de cinéma qui ne ressemble à aucun UGC → jamais rabattu sur un UGC voisin.
+3. TMDB pour la fiche ; la personne valide la liste. Une séance déjà en attente
+   (`pending`) est confirmée plutôt que dupliquée.
+
+**Le modèle n'est pas celui de `ai`.** Mesuré le 24 septembre 2026 avec la clé du
+projet : `mistral-small-latest` (devenu `mistral-small-2603`) et
+`mistral-medium-latest` répondent **429 à toute requête portant une image**, même
+minuscule, alors qu'ils acceptent le texte. `ministral-14b-latest` lit l'image
+(≈ 2 000 jetons par capture, 3 à 5 s), `ministral-8b-latest` prend le relais s'il
+est saturé. Secret optionnel `MISTRAL_VISION_MODEL` pour en imposer un autre.
+
+Même clé et même quota que `ai` : une lecture = un appel du jour. Les deux
+modules purs sont testés tels que livrés : `node --test tests/ticketImport.test.mjs`.
+
 ---
 
 ## 4. Les fonctions IA livrées
@@ -747,6 +775,7 @@ effaçait tout, sans message ni issue.
 | Licences des styles DiceBear (CC0 contre CC BY 4.0) | **non vérifiées** |
 | `De la Comédie-Française` a `date_watched` nul | antérieur au correctif ; les prochains sont datés |
 | Chat dans les espaces | reporté par le propriétaire ; le socle temps réel est prêt |
+| Import de billets (`ticket-scan`) | recetté de bout en bout sur une capture reconstituée ; **à valider sur une vraie capture de l'app UGC** |
 
 ---
 
