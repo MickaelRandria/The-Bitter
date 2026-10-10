@@ -2265,4 +2265,9 @@ export const fr: Record<string, string> = {
   'entry.skipStep': 'Passer cette étape',
   'entry.savedToast': 'Tes {count} films sont sauvegardés sur ton compte.',
   'entry.createdToast': 'Compte créé. Tes films seront sauvegardés automatiquement.',
+  'push.reasonSignup': "C'est grâce aux notifications que The Bitter se vit avec tes proches : sans elles, tu découvres leurs propositions des jours après. Active-les sur ce téléphone pour être prévenu :",
+  'push.benefitFriends': "quand un proche te propose un film ou une séance, et quand il te répond ;",
+  'push.benefitScreening': 'la veille de ta séance, pour ne pas l’oublier ;',
+  'push.benefitSeries': "à la sortie d'un nouvel épisode d'une série que tu suis ;",
+  'push.benefitRelease': "le jour où sort un film que tu attends. Rien d'autre, jamais de pub.",
 };

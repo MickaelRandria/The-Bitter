@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, Loader2, Share, X } from 'lucide-react';
+import { Bell, Check, Loader2, Share, X } from 'lucide-react';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -16,6 +16,8 @@ interface Props {
   reason: string;
   /** D'où vient la question, pour mesurer ce qui convainc. */
   source: string;
+  /** Ce que les notifications apportent, quand la question arrive hors contexte (fin d'inscription). */
+  benefits?: string[];
   onClose: () => void;
   onToast?: (message: string) => void;
 }
@@ -27,7 +29,7 @@ interface Props {
  * « Activer » y échouerait à coup sûr. On explique alors comment ajouter l'app,
  * ce qui est la seule façon de les recevoir.
  */
-const PushPrompt: React.FC<Props> = ({ reason, source, onClose, onToast }) => {
+const PushPrompt: React.FC<Props> = ({ reason, source, benefits, onClose, onToast }) => {
   const { t } = useLanguage();
   const close = () => {
     markPushOffered();
@@ -82,6 +84,19 @@ const PushPrompt: React.FC<Props> = ({ reason, source, onClose, onToast }) => {
         </div>
 
         <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">{reason}</p>
+
+        {benefits && benefits.length > 0 && (
+          <ul className="entry-stagger space-y-2.5 rounded-2xl bg-stone-50 dark:bg-white/5 border border-stone-100 dark:border-white/10 p-4">
+            {benefits.map((line) => (
+              <li key={line} className="flex items-start gap-2.5 text-[13px] leading-snug text-charcoal dark:text-stone-200">
+                <span className="w-5 h-5 rounded-full bg-lime-400 text-charcoal flex items-center justify-center shrink-0 mt-px">
+                  <Check size={12} strokeWidth={3.5} />
+                </span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {iosInstall ? (
           <ol className="space-y-2 text-sm text-charcoal dark:text-white">
