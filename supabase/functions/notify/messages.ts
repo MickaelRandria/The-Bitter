@@ -26,7 +26,11 @@ export type SocialKind =
   | 'now_streaming'
   | 'tv_episode'
   | 'tv_season'
-  | 'tv_season_soon';
+  | 'tv_season_soon'
+  | 'rating_reminder'
+  | 'verdict_complete'
+  | 'review_reaction'
+  | 'verdict_debate';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -54,6 +58,10 @@ export interface PlanPayload {
   season?: number;
   episode?: number;
   air_date?: string;
+  /** Verdict d'un espace : nombre d'avis, émoji d'une réaction, extrait d'un message du débat. */
+  count?: number;
+  emoji?: string;
+  text?: string;
 }
 
 export interface SocialMessageInput {
@@ -264,6 +272,30 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         title: day ? `${title} revient ${day.split(' ')[0]}` : `${title} revient bientôt`,
         body: `${season ? `La saison ${season}` : 'La nouvelle saison'} commence ${day || 'dans quelques jours'}. Le récap de la saison d’avant t’attend dans l’app.`,
       };
+    }
+    // Relance d'une note : le verdict du groupe n'attend plus que toi.
+    case 'rating_reminder': {
+      const space = (input.payload?.space ?? '').trim();
+      return {
+        title: `${actor} attend ta note pour ${title}`,
+        body: space ? `Dans ${space} : note-le pour faire tomber le verdict.` : 'Note-le pour faire tomber le verdict.',
+      };
+    }
+    // Sans la moyenne : elle se découvre dans l'app, avec la révélation.
+    case 'verdict_complete': {
+      const count = input.payload?.count;
+      return {
+        title: `Le verdict de ${title} est tombé`,
+        body: count ? `${count} avis. Touche pour découvrir les notes de chacun.` : 'Touche pour découvrir les notes de chacun.',
+      };
+    }
+    case 'review_reaction': {
+      const emoji = (input.payload?.emoji ?? '').trim();
+      return { title: `${actor} a réagi ${emoji || 'à ton avis'}`.trim(), body: `À ton avis sur ${title}.` };
+    }
+    case 'verdict_debate': {
+      const text = (input.payload?.text ?? '').trim();
+      return { title: `${actor} défend sa note sur ${title}`, body: text ? `« ${text} »` : 'Va lui répondre.' };
     }
     default:
       return { title: 'The Bitter', body: title };

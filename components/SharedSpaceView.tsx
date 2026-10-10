@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ArrowLeft,
   Plus,
@@ -17,7 +17,6 @@ import {
   UserCheck,
   UserMinus,
   AlertTriangle,
-  PartyPopper,
   BarChart3,
   ChevronRight,
   Settings,
@@ -67,6 +66,14 @@ import ReportSheet from './ReportSheet';
 import { ReportTarget, useBlockedUsers } from '../services/moderation';
 import { ImdbLookup, useImdbRatings } from '../services/imdb';
 import { pickFromLookup, pickPublicRating } from '../utils/publicRating';
+import VerdictSheet from './verdict/VerdictSheet';
+import MonthlyRecap from './verdict/MonthlyRecap';
+import SpaceStatsView from './verdict/SpaceStatsView';
+import { Avatar, Poster, ProgressRing, VerdictPerson } from './verdict/VerdictBits';
+import { VerdictExtras, emptyExtras, loadVerdictExtras, subscribeToVerdicts } from '../services/verdicts';
+import { membersWithPush } from '../services/voteReminders';
+import { SpaceSuggestion, getSpaceSuggestions, proposeSuggestion } from '../services/spaceSuggestions';
+import { agreementOf, expectedRaters, fmt1, guessLeaderboard, mean, spreadOf, verdictState } from '../utils/verdict';
 
 interface SharedSpaceViewProps {
   space: SharedSpace;
@@ -186,6 +193,17 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [slow, setSlow] = useState(false);
   /** Toutes les notes de l'espace, pour raisonner sur le groupe et non film par film. */
   const [allRatings, setAllRatings] = useState<MovieRating[]>([]);
+  /** Ce qui entoure les verdicts : pas vus, paris, réactions, débat, relances. */
+  const [extras, setExtras] = useState<VerdictExtras>(emptyExtras);
+  const reloadExtras = () => loadVerdictExtras(initialSpace.id).then(setExtras);
+  /** Fiche verdict ouverte, et vue « Nos stats ». */
+  const [openVerdictId, setOpenVerdictId] = useState<string | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  /** Co-membres qui reçoivent les notifications : les autres sont relancés par message. */
+  const [pushIds, setPushIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void membersWithPush().then(setPushIds);
+  }, []);
   /** L'espace peut être renommé pendant la session : on garde la version à jour. */
   const [space, setSpace] = useState(initialSpace);
   /**
@@ -247,11 +265,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const unsubscribePlans = subscribeToPlans(space.id, () => {
       reloadPlans();
     });
+    const unsubscribeVerdicts = subscribeToVerdicts(space.id, scheduleReload);
 
     return () => {
       if (pending) clearTimeout(pending);
       unsubscribe();
       unsubscribePlans();
+      unsubscribeVerdicts();
     };
   }, [space.id, resumeTick]);
 
@@ -290,6 +310,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       setVotes(votes.data);
       setAllRatings(ratings.data);
       reloadPlans();
+      void reloadExtras();
     } catch (e) {
       console.warn('[Espaces] Chargement interrompu :', e);
       setLoadError(t('shared.loadFailedTitle'));
@@ -404,7 +425,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    * des barres au-delà de cent pour cent, et un consensus testé sur une égalité stricte
    * qu'un ancien membre rendait définitivement inatteignable.
    */
-  const activeMemberIds = new Set(members.map((m) => m.profile_id));
+  const activeMemberIds = new Set<string>(members.map((m) => m.profile_id));
 
   const isOwner = members.some((m) => m.profile_id === currentUserId && m.role === 'owner');
 
@@ -700,6 +721,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const target = movies.find((m) => m.id === focusMovieId);
     onFocusHandled?.();
     if (!target) return;
+    if (target.status === 'watched') {
+      setOpenVerdictId(target.id);
+      return;
+    }
     setExpandedMovie(target.id);
     window.setTimeout(() => {
       document.getElementById(`space-movie-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -773,6 +798,72 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     colors[currentUserId] = '#1A1A1A';
     return colors;
   }, [members, currentUserId]);
+
+  /**
+   * Les membres tels que les verdicts et « Nos stats » les dessinent : moi
+   * d'abord, puis les autres dans l'ordre de l'espace, chacun avec sa couleur de
+   * la palette validée (index.css, --vd-c0 à --vd-c3).
+   */
+  const people = useMemo<VerdictPerson[]>(() => {
+    const ordered = [...members.filter((m) => m.profile_id === currentUserId), ...members.filter((m) => m.profile_id !== currentUserId)];
+    return ordered.map((m, i) => ({
+      id: m.profile_id,
+      name: m.profile?.first_name || t('shared.member'),
+      avatarUrl: m.profile?.avatar_url,
+      color: `var(--vd-c${i === 0 ? 0 : ((i - 1) % 3) + 1})`,
+      isMe: m.profile_id === currentUserId,
+    }));
+  }, [members, currentUserId, t]);
+
+  /**
+   * « Et maintenant ? » : les trois suggestions, calculées une fois par visite.
+   * Le goût de chacun, c'est son genre le mieux noté dans l'espace ; le goût
+   * commun, le film dont la plus basse note du groupe est la plus haute.
+   */
+  const suggestionsRef = useRef<Promise<SpaceSuggestion[]> | null>(null);
+  const loadSuggestions = () => {
+    if (!suggestionsRef.current) {
+      const tastes = people
+        .map((person) => {
+          const byGenre = new Map<string, number[]>();
+          for (const r of allRatings) {
+            if (r.profile_id !== person.id) continue;
+            const film = movies.find((m) => m.id === r.movie_id);
+            for (const g of film?.genres ?? []) byGenre.set(g, [...(byGenre.get(g) ?? []), ratingValue(r)]);
+          }
+          const best = [...byGenre.entries()].sort((a, b) => (mean(b[1]) ?? 0) - (mean(a[1]) ?? 0) || b[1].length - a[1].length)[0];
+          return best ? { name: person.isMe ? t('spaces.you') : person.name, genre: best[0] } : null;
+        })
+        .filter((x): x is { name: string; genre: string } => !!x);
+      const common = movies
+        .filter((m) => m.status === 'watched' && m.tmdb_id && m.media_type !== 'tv')
+        .map((m) => {
+          const values = allRatings.filter((r) => r.movie_id === m.id && activeMemberIds.has(r.profile_id)).map(ratingValue);
+          return { m, low: values.length >= 2 ? Math.min(...values) : -1 };
+        })
+        .filter((x) => x.low >= 7)
+        .sort((a, b) => b.low - a.low)[0];
+      suggestionsRef.current = getSpaceSuggestions({
+        existing: new Set(movies.map((m) => m.tmdb_id).filter((id): id is number => typeof id === 'number')),
+        tastes,
+        common: common ? { tmdbId: common.m.tmdb_id!, title: common.m.title } : null,
+      });
+    }
+    return suggestionsRef.current;
+  };
+
+  const proposeFromSuggestion = async (suggestion: SpaceSuggestion): Promise<boolean> => {
+    const { movie, error } = await proposeSuggestion(space.id, currentUserId, suggestion);
+    if (!movie) {
+      haptics.error();
+      onToast?.(error ?? t('verdict.proposeFailed'));
+      return false;
+    }
+    haptics.success();
+    onToast?.(t('verdict.proposedToast', { title: suggestion.title }));
+    void loadData(true);
+    return true;
+  };
 
   if (loading && movies.length === 0) {
     return (
@@ -931,14 +1022,24 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     const activeRatings = ratings.filter((r) => activeMemberIds.has(r.profile_id));
     const myRating = ratings.find((r) => r.profile_id === currentUserId);
     const plan = currentPlanFor(plans, movie.id);
+    const skipIds = extras.skips.filter((sk) => sk.movie_id === movie.id && activeMemberIds.has(sk.profile_id)).map((sk) => sk.profile_id);
+    const raterIds = activeRatings.map((r) => r.profile_id);
+    // Même calcul que le serveur (private.expected_raters).
+    const expected = expectedRaters({
+      activeIds: Array.from(activeMemberIds),
+      planParticipants: plan?.status === 'agreed' ? plan.participant_ids : null,
+      raterIds,
+      skipIds,
+    });
+    const state = verdictState({ me: currentUserId, expected, raterIds, skipIds });
+    const verdictRaters = activeRatings.filter((r) => expected.includes(r.profile_id));
+    const spread = spreadOf(verdictRaters.map(ratingValue));
     /**
-     * Tant que je n'ai pas noté un film qu'on attend de moi (vu ensemble, ou
-     * noté seul), les notes des autres restent floutées : c'est ce qui donne
-     * envie de noter, et ce qui garde ma note à moi.
+     * Tant que je n'ai pas noté un film qu'on attend de moi, les notes des autres
+     * restent scellées : c'est ce qui donne envie de noter, et ce qui garde ma
+     * note à moi.
      */
-    const hideOthers =
-      !myRating &&
-      ((plan?.status === 'agreed' && plan.participant_ids.includes(currentUserId)) || rateTodoIds.has(movie.id));
+    const hideOthers = state === 'turn' || (!myRating && rateTodoIds.has(movie.id));
     const scores = [...activeRatings]
       .sort((a, b) => Number(a.profile_id === currentUserId) - Number(b.profile_id === currentUserId))
       .map((r) => {
@@ -950,10 +1051,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           hidden: hideOthers && !isMe,
         };
       });
-    const averageValue = activeRatings.length
-      ? activeRatings.reduce((sum, r) => sum + ratingValue(r), 0) / activeRatings.length
+    const averageValue = verdictRaters.length
+      ? verdictRaters.reduce((sum, r) => sum + ratingValue(r), 0) / verdictRaters.length
       : null;
-    const average = averageValue == null ? null : formatRating(averageValue);
+    const average = averageValue == null ? null : fmt1(averageValue);
     return {
       ratings,
       activeRatings,
@@ -963,8 +1064,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       scores,
       average,
       averageValue,
-      criteriaAvg: calculateCriteriaAverages(activeRatings),
-      isConsensus: members.length > 1 && activeRatings.length >= members.length,
+      plan,
+      skipIds,
+      expected,
+      state,
+      raterIds: verdictRaters.map((r) => r.profile_id),
+      missing: expected.filter((id) => !raterIds.includes(id)),
+      spread,
+      agreement: agreementOf(spread),
     };
   };
 
@@ -1101,7 +1208,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     kicker: string | null,
     right: React.ReactNode
   ) => {
-    const isExpanded = expandedMovie === movie.id;
     const image = imageOf(movie);
     return (
       <div
@@ -1126,8 +1232,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             style={{ background: 'linear-gradient(90deg, rgba(12,12,12,0.92) 0%, rgba(12,12,12,0.62) 60%, rgba(12,12,12,0.35) 100%)' }}
           />
           <button
-            onClick={() => handleExpandMovie(movie.id)}
-            aria-expanded={isExpanded}
+            onClick={() => openVerdict(movie.id)}
             aria-label={t('spaces.openFilm', { title: movie.title })}
             className="absolute inset-0"
           />
@@ -1152,7 +1257,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             <span className="pointer-events-auto">{right}</span>
           </div>
         </div>
-        {isExpanded && <div className="bg-cream dark:bg-[#0c0c0c]">{renderSeenDetail(movie, ctx)}</div>}
       </div>
     );
   };
@@ -1252,187 +1356,93 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       </div>
   );
 
-  const renderSeenDetail = (movie: SharedMovie, ctx: ReturnType<typeof seenContext>) => (
-      <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-5">
-        {(movie.synopsis || movie.runtime || (movie.genres && movie.genres.length > 0) || movie.actors || publicRatingOf(movie)) && (
-          <div className="space-y-2">
-            {movie.synopsis && (
-              <p className="text-xs italic text-stone-500 dark:text-stone-400 leading-relaxed line-clamp-3">{movie.synopsis}</p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-500 dark:text-stone-500">
-              {movie.runtime && <span>{movie.runtime} min</span>}
-              {movie.genres && movie.genres.length > 0 && <span>{movie.genres.join(', ')}</span>}
-              {publicRatingOf(movie) && (
-                <PublicRatingBadge
-                  rating={publicRatingOf(movie)}
-                  className="bg-forest/10 dark:bg-forest/20 text-forest dark:text-lime-400 px-2 py-0.5 rounded-lg"
-                />
-              )}
-            </div>
-            {movie.actors && (
-              <p className="text-[10px] text-stone-500 dark:text-stone-500">Avec {movie.actors}</p>
-            )}
-          </div>
-        )}
-
-        {ctx.isConsensus && (
-          <div
-            className="bg-bitter-lime p-4 rounded-2xl flex items-center justify-center gap-3 border-2 border-charcoal/5"
-            style={{ animation: 'celebrate 2s infinite ease-in-out' }}
-          >
-            <PartyPopper size={20} className="text-charcoal" strokeWidth={2.5} />
-            <span className="text-xs font-black uppercase tracking-widest text-charcoal">
-              {t('shared.completeVerdict')}
-            </span>
-            <PartyPopper size={20} className="text-charcoal scale-x-[-1]" strokeWidth={2.5} />
-          </div>
-        )}
-
-        {ctx.criteriaAvg && !ctx.hideOthers && (
-          <div className="bg-white dark:bg-[#202020] p-5 rounded-2xl border border-stone-200 dark:border-white/10">
-            <div className="flex items-center gap-2 mb-4 text-forest dark:text-lime-500">
-              <BarChart3 size={16} />
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">{t('shared.groupAvg')}</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { l: t('criteria.story'), v: ctx.criteriaAvg.story },
-                { l: t('criteria.visuals'), v: ctx.criteriaAvg.visuals },
-                { l: t('criteria.acting'), v: ctx.criteriaAvg.acting },
-                { l: t('criteria.sound'), v: ctx.criteriaAvg.sound },
-              ].map((c) => (
-                <div key={c.l} className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-bold text-stone-500 dark:text-stone-500 uppercase">
-                    <span>{c.l}</span>
-                    <span>{c.v.toFixed(1)}</span>
-                  </div>
-                  <div className="h-1.5 bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-charcoal dark:bg-white" style={{ width: `${c.v * 10}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
-            {t('shared.verdictDetail')} ({ctx.activeRatings.length}/{members.length})
-          </h4>
-          {movie.added_by === currentUserId && (
-            <button
-              onClick={(e) => handleDeleteMovie(e, movie.id)}
-              aria-label={t('shared.removeSuggestion')}
-              className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
-
-        {ctx.hideOthers && ctx.ratings.length > 0 && (
-          <p className="text-xs font-bold text-forest dark:text-lime-400 bg-forest/5 dark:bg-lime-400/5 rounded-xl px-3 py-2">
-            {t('spaces.rateToReveal')}
-          </p>
-        )}
-        {ctx.ratings.length > 0 ? (
-          <div className="grid gap-3">
-            {ctx.ratings.map((rating) => {
-              const isMe = rating.profile_id === currentUserId;
-              const hidden = ctx.hideOthers && !isMe;
-              return (
-                <div
-                  key={rating.id}
-                  className={`bg-white dark:bg-[#252525] rounded-2xl p-4 border ${isMe ? 'border-forest/20 dark:border-forest/40 ring-2 ring-forest/5' : 'border-stone-100 dark:border-white/5'}`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black text-white ${isMe ? 'dark:!bg-bitter-lime dark:!text-charcoal' : ''}`}
-                        style={{ background: isMe ? '#1A1A1A' : memberColors[rating.profile_id] ?? '#78716C' }}
-                      >
-                        {avatarSrc(rating.profile?.avatar_url) ? (
-                          <img src={avatarSrc(rating.profile?.avatar_url) as string} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          (rating.profile?.first_name || '?')[0].toUpperCase()
-                        )}
-                      </span>
-                      <span className="font-bold text-sm text-charcoal dark:text-white">
-                        {rating.profile?.first_name || t('shared.member')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!isMe && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            haptics.soft();
-                            setReporting({
-                              contentType: 'review',
-                              contentId: rating.id,
-                              reportedUserId: rating.profile_id,
-                              reportedName: rating.profile?.first_name || t('shared.member'),
-                              snapshot: rating.review,
-                            });
-                          }}
-                          aria-label={t('moderation.report')}
-                          className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
-                        >
-                          <Flag size={12} />
-                        </button>
-                      )}
-                      <div
-                        className={`flex items-center gap-1.5 text-charcoal bg-bitter-lime px-3 py-1 rounded-lg ${hidden ? 'blur-[5px] select-none' : ''}`}
-                        aria-label={hidden ? t('plan.hiddenScore') : undefined}
-                      >
-                        <Star size={12} fill="currentColor" />
-                        <span className="text-xs font-black">{hidden ? '?.?' : ratingValue(rating).toFixed(1)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  {hidden ? null : rating.review && blocked.has(rating.profile_id) ? (
-                    <p className="text-[11px] text-stone-500 dark:text-stone-500 italic">{t('moderation.hiddenReview')}</p>
-                  ) : rating.review ? (
-                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed pl-3 border-l-2 border-stone-200 dark:border-stone-800">
-                      "{rating.review}"
-                    </p>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-white dark:bg-[#202020] rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
-            <p className="text-[10px] font-bold text-stone-500 dark:text-stone-500 uppercase tracking-widest">
-              {t('shared.beFirst')}
-            </p>
-          </div>
-        )}
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            haptics.medium();
-            // Même formulaire qu'en solo, grille Bitter+ comprise.
-            onRateMovie(movie, ctx.myRating ?? null);
-          }}
-          className={`w-full h-12 rounded-2xl font-black text-xs transition-all active:scale-95 ${ctx.myRating ? 'bg-stone-100 dark:bg-[#252525] text-stone-600 dark:text-stone-300' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
-        >
-          {rateLabel(ctx.myRating, ctx.mine, t('shared.submitVerdict'))}
-        </button>
-      </div>
-  );
-
-  /** « Vus ensemble » : le palmarès de ce que j'ai noté, le reste, puis ce qui attend ma note. */
+  /**
+   * « Vus ensemble », en trois temps : ce qu'on attend de moi, le palmarès des
+   * verdicts complets, puis les verdicts qui attendent encore des notes. Une
+   * moyenne partielle ne classe plus un film : une seule note n'est pas un verdict.
+   */
   const seenList = feedMovies.map((movie) => ({ movie, ctx: seenContext(movie) }));
   const ranked = seenList
-    .filter(({ ctx }) => ctx.myRating && ctx.averageValue != null)
+    .filter(({ ctx }) => ctx.state === 'done' && ctx.averageValue != null)
     .sort((a, b) => (b.ctx.averageValue ?? 0) - (a.ctx.averageValue ?? 0));
   const podium = ranked.slice(0, 3);
   const others = ranked.slice(3);
-  const pending = seenList.filter(({ ctx }) => !ctx.myRating);
-  const consensusId = groupStats?.meaningful ? groupStats.consensus.movie?.id : undefined;
-  const divisiveId = groupStats?.meaningful ? groupStats.divisive.movie?.id : undefined;
+  const turnList = seenList.filter(({ ctx }) => ctx.state === 'turn');
+  const waitList = seenList.filter(({ ctx }) => ctx.state === 'wait' || ctx.state === 'skip');
+  const doneIds = new Set(ranked.map(({ movie }) => movie.id));
+  const openVerdict = (movieId: string) => {
+    haptics.soft();
+    setOpenVerdictId(movieId);
+  };
+  const agreementChip = (ctx: ReturnType<typeof seenContext>) => (
+    <span
+      className={`inline-block mt-2 px-2 py-1 rounded-[10px] text-[10px] font-black uppercase tracking-wide ${
+        ctx.agreement === 'split'
+          ? 'bg-orange-100 text-orange-800 dark:bg-orange-400/15 dark:text-orange-300'
+          : 'bg-forest/10 text-forest dark:bg-bitter-lime/10 dark:text-bitter-lime'
+      }`}
+    >
+      {t(`verdict.agree.${ctx.agreement}`)}
+    </span>
+  );
+  /** Qui connaît le mieux qui : l'erreur moyenne des paris résolus, par binôme. */
+  const guessBoard = guessLeaderboard(extras.guesses, (movieId, profileId) => {
+    if (!activeMemberIds.has(profileId)) return null;
+    const r = allRatings.find((x) => x.movie_id === movieId && x.profile_id === profileId);
+    return r ? ratingValue(r) : null;
+  });
+  const personOf = (id: string) => people.find((p) => p.id === id);
+  /** Une ligne de film en attente : « à toi de noter » ou « en attente du verdict ». */
+  const renderVerdictRow = (movie: SharedMovie, ctx: ReturnType<typeof seenContext>, kind: 'turn' | 'wait') => {
+    const others = ctx.raterIds.filter((id) => id !== currentUserId);
+    const names = (ids: string[]) => {
+      const list = ids.map((id) => (id === currentUserId ? t('spaces.you') : personOf(id)?.name || t('shared.member')));
+      return list.length <= 1 ? list[0] ?? '' : `${list.slice(0, -1).join(', ')} ${t('spaceSync.and')} ${list[list.length - 1]}`;
+    };
+    const line =
+      kind === 'turn'
+        ? others.length
+          ? t(others.length > 1 ? 'verdict.rowTurnMany' : 'verdict.rowTurnOne', { names: names(others) })
+          : t('verdict.rowTurnFirst')
+        : ctx.state === 'skip'
+          ? t('verdict.rowSkipped')
+          : ctx.myRating
+            ? t('verdict.rowWaitMine', { names: names(ctx.missing) })
+            : t('verdict.rowWait', { names: names(ctx.missing) });
+    return (
+      <button
+        key={movie.id}
+        id={`space-movie-${movie.id}`}
+        onClick={() => openVerdict(movie.id)}
+        className="w-full flex items-center gap-3 rounded-[1.4rem] bg-white dark:bg-[#161616] border border-sand dark:border-white/10 p-2.5 pr-3.5 text-left active:scale-[0.99] transition-transform"
+      >
+        <Poster url={movie.poster_url} className="w-[46px] aspect-[2/3] rounded-[10px] shrink-0" />
+        <span className="flex-1 min-w-0">
+          <b className="block text-[14px] font-black leading-tight text-charcoal dark:text-white truncate">{movie.title}</b>
+          <small className="block mt-0.5 text-[11px] font-semibold text-stone-500 dark:text-stone-400 leading-snug line-clamp-2">{line}</small>
+          <span
+            className={`inline-block mt-1.5 px-2 py-0.5 rounded-lg text-[9.5px] font-black uppercase tracking-wide ${
+              kind === 'turn'
+                ? 'bg-bitter-lime text-charcoal'
+                : 'bg-sand text-stone-600 dark:bg-white/10 dark:text-stone-300'
+            }`}
+          >
+            {kind === 'turn' ? t('verdict.chipTurn') : ctx.state === 'skip' ? t('verdict.chipSkipped') : t('verdict.chipWait')}
+          </span>
+        </span>
+        {kind === 'turn' ? (
+          <span className="flex shrink-0">
+            {others.slice(0, 3).map((id, i) => {
+              const person = personOf(id);
+              return person ? <Avatar key={id} person={person} size={26} className={`border-2 border-white dark:border-[#161616] ${i ? '-ml-2' : ''}`} /> : null;
+            })}
+          </span>
+        ) : (
+          <ProgressRing done={ctx.raterIds.length} total={ctx.expected.length} />
+        )}
+      </button>
+    );
+  };
 
   /**
    * « Inviter » envoie un lien qui fait rejoindre l'espace d'un appui
@@ -1507,6 +1517,19 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             >
               <ArrowLeft size={20} strokeWidth={3} className="text-charcoal dark:text-white" />
             </button>
+            <span className="flex gap-2">
+            {members.length > 1 && (
+              <button
+                onClick={() => {
+                  haptics.soft();
+                  setShowStats(true);
+                }}
+                aria-label={t('stats.title')}
+                className="w-11 h-11 rounded-2xl bg-cream dark:bg-[#0c0c0c] flex items-center justify-center active:scale-90 transition-transform shadow-sm text-charcoal dark:text-white"
+              >
+                <BarChart3 size={18} />
+              </button>
+            )}
             <button
               onClick={() => {
                 haptics.soft();
@@ -1517,6 +1540,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             >
               {loading ? <Loader2 size={17} className="animate-spin" /> : <Settings size={18} />}
             </button>
+            </span>
           </div>
         </div>
 
@@ -1576,6 +1600,27 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             onRate={(item) => onRateMovie(item.movie, null)}
             onAcceptSlot={acceptPlanSlot}
             onSkip={skipItem}
+          />
+        )}
+
+        {!loadError && members.length > 1 && (
+          <MonthlyRecap
+            spaceId={space.id}
+            spaceName={space.name}
+            monogram={monogramOf(space.name)}
+            tint={tint}
+            currentUserId={currentUserId}
+            people={people}
+            movies={movies}
+            ratings={allRatings.filter((r) => activeMemberIds.has(r.profile_id))}
+            plans={plans}
+            messages={extras.messages}
+            guesses={extras.guesses}
+            doneIds={doneIds}
+            watchlist={watchlistMovies}
+            loadSuggestions={loadSuggestions}
+            onPropose={proposeFromSuggestion}
+            onOpenWatchlist={() => document.getElementById('space-watchlist')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           />
         )}
 
@@ -1650,7 +1695,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 bandeaux sur leur image de fond. Tous se glissent : à droite
                 partant, à gauche pas envie. */}
             {watchlistMovies.length > 0 && (
-              <section aria-label={t('spaces.toWatchTogether')} className="space-y-3">
+              <section id="space-watchlist" aria-label={t('spaces.toWatchTogether')} className="space-y-3 scroll-mt-4">
                 <div className="px-1">
                   <div className="flex items-baseline justify-between">
                     <h2 className="text-[22px] font-black tracking-tighter text-charcoal dark:text-white">
@@ -1671,30 +1716,37 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 ceux qui attendent ma note. */}
             {feedMovies.length > 0 && (
               <section aria-label={t('spaces.seenTogether')} className="space-y-4">
+                {turnList.length > 0 && (
+                  <div className="space-y-2.5">
+                    <p className="px-1 text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
+                      {t('verdict.listTurn')}
+                    </p>
+                    {turnList.map(({ movie, ctx }) => renderVerdictRow(movie, ctx, 'turn'))}
+                  </div>
+                )}
+
                 <div className="flex items-baseline justify-between px-1">
                   <h2 className="text-[22px] font-black tracking-tighter text-charcoal dark:text-white">
                     {podium.length ? t('spaces.palmares') : t('spaces.seenTogether')}
                   </h2>
                   <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400">
-                    {t('spaces.seenCount', { count: String(feedMovies.length) })}
+                    {podium.length
+                      ? t(ranked.length > 1 ? 'verdict.verdictCountMany' : 'verdict.verdictCountOne', { count: String(ranked.length) })
+                      : t('spaces.seenCount', { count: String(feedMovies.length) })}
                   </span>
                 </div>
+                {podium.length === 0 && (
+                  <p className="px-1 -mt-2 text-[12px] font-semibold text-stone-500 dark:text-stone-400">{t('verdict.noVerdictYet')}</p>
+                )}
 
                 {podium.length > 0 && (
                   <div className="space-y-4">
                     {podium.map(({ movie, ctx }, i) => {
-                      const isExpanded = expandedMovie === movie.id;
-                      const tag =
-                        movie.id === consensusId
-                          ? { text: t('group.consensus'), className: 'text-forest dark:text-lime-400' }
-                          : movie.id === divisiveId
-                            ? { text: t('group.divisive'), className: 'text-orange-700 dark:text-orange-400' }
-                            : null;
                       return (
                         <div key={movie.id} id={`space-movie-${movie.id}`}>
                           <button
-                            onClick={() => handleExpandMovie(movie.id)}
-                            aria-expanded={isExpanded}
+                            onClick={() => openVerdict(movie.id)}
+                            aria-label={t('spaces.openFilm', { title: movie.title })}
                             className="w-full flex items-end gap-1 text-left active:scale-[0.99] transition-transform"
                           >
                             <span
@@ -1725,16 +1777,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                               <span className="block mt-1.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 truncate">
                                 {ctx.scores.map((s) => `${s.name} ${s.value}`).join(' · ')}
                               </span>
-                              {tag && (
-                                <span
-                                  className={`inline-block mt-2 px-2 py-1 rounded-[10px] bg-sand dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wide ${tag.className}`}
-                                >
-                                  {tag.text}
-                                </span>
-                              )}
+                              {agreementChip(ctx)}
                             </span>
                           </button>
-                          {isExpanded && <div className="mt-3 rounded-[1.4rem] overflow-hidden border border-sand dark:border-white/10">{renderSeenDetail(movie, ctx)}</div>}
                         </div>
                       );
                     })}
@@ -1759,11 +1804,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                       renderSeenBand(
                         movie,
                         ctx,
-                        movie.id === consensusId
-                          ? t('group.consensus')
-                          : movie.id === divisiveId
-                            ? t('group.divisive')
-                            : t('spaces.rankN', { n: String(i + 4) }),
+                        `${t('spaces.rankN', { n: String(i + 4) })} · ${t(`verdict.agree.${ctx.agreement}`)}`,
                         <span className="shrink-0 text-[44px] font-black tracking-[-0.07em] leading-none tabular-nums text-white">
                           {ctx.average}
                         </span>
@@ -1772,28 +1813,63 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   </div>
                 )}
 
-                {pending.length > 0 && (
+                {waitList.length > 0 && (
                   <div className="space-y-2.5">
-                    <p className="px-1 pt-2 text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-500">
-                      {t('spaces.waitingYourRating')}
+                    <p className="px-1 pt-2 text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
+                      {t('verdict.listWait')}
                     </p>
-                    {pending.map(({ movie, ctx }) =>
-                      renderSeenBand(
-                        movie,
-                        ctx,
-                        null,
-                        <button
-                          onClick={() => {
-                            haptics.medium();
-                            onRateMovie(movie, null);
-                          }}
-                          className="shrink-0 h-11 px-4 rounded-2xl bg-bitter-lime text-charcoal text-xs font-black active:scale-95 transition-transform whitespace-nowrap"
-                        >
-                          {ctx.mine != null ? t('spaces.publishShort', { rating: formatRating(ctx.mine) ?? '' }) : t('todo.rate')}
-                        </button>
-                      )
-                    )}
+                    {waitList.map(({ movie, ctx }) => renderVerdictRow(movie, ctx, 'wait'))}
                   </div>
+                )}
+
+                {guessBoard.length > 0 && (
+                  <div className="space-y-2.5">
+                    <p className="px-1 pt-2 text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
+                      {t('verdict.boardTitle')}
+                    </p>
+                    <div className="rounded-[1.4rem] bg-white dark:bg-[#161616] border border-sand dark:border-white/10 p-3.5 space-y-3">
+                      {guessBoard.slice(0, 5).map((row, i) => {
+                        const a = personOf(row.guesser);
+                        const b = personOf(row.target);
+                        const text =
+                          row.guesser === currentUserId
+                            ? t('verdict.boardYou', { name: b?.name ?? '' })
+                            : row.target === currentUserId
+                              ? t('verdict.boardOnYou', { name: a?.name ?? '' })
+                              : t('verdict.boardOthers', { a: a?.name ?? '', b: b?.name ?? '' });
+                        return (
+                          <div key={`${row.guesser}-${row.target}`} className="flex items-center gap-3">
+                            <span className="w-4 text-[13px] font-black text-charcoal dark:text-white">{i + 1}</span>
+                            <span className="flex shrink-0">
+                              {a && <Avatar person={a} size={26} />}
+                              {b && <Avatar person={b} size={26} className="-ml-2 border-2 border-white dark:border-[#161616]" />}
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <b className="block text-[12.5px] font-black leading-tight text-charcoal dark:text-white">{text}</b>
+                              <small className="block text-[10.5px] font-semibold text-stone-500 dark:text-stone-400">
+                                {t(row.count > 1 ? 'verdict.boardBetsMany' : 'verdict.boardBetsOne', { n: String(row.count) })}
+                              </small>
+                            </span>
+                            <span className="text-[15px] font-black tabular-nums text-charcoal dark:text-white">±{fmt1(row.error)}</span>
+                          </div>
+                        );
+                      })}
+                      <p className="text-[11px] font-semibold text-stone-500 dark:text-stone-400">{t('verdict.boardHint')}</p>
+                    </div>
+                  </div>
+                )}
+
+                {members.length > 1 && (
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setShowStats(true);
+                    }}
+                    className="mx-auto flex items-center gap-1.5 h-11 px-4 text-[12px] font-extrabold text-stone-500 dark:text-stone-400 underline underline-offset-4 decoration-stone-300 dark:decoration-stone-700"
+                  >
+                    <BarChart3 size={14} />
+                    {t('stats.link')}
+                  </button>
                 )}
               </section>
             )}
@@ -1901,6 +1977,57 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       )}
 
       {reporting && <ReportSheet target={reporting} onClose={() => setReporting(null)} />}
+
+      {(() => {
+        const movie = openVerdictId ? movies.find((m) => m.id === openVerdictId) : null;
+        if (!movie || movie.status !== 'watched') return null;
+        const ctx = seenContext(movie);
+        return (
+          <VerdictSheet
+            movie={movie}
+            image={imageOf(movie).src}
+            currentUserId={currentUserId}
+            spaceName={space.name}
+            people={people}
+            ratings={ctx.activeRatings}
+            expected={ctx.expected}
+            skipIds={ctx.skipIds}
+            state={ctx.state}
+            extras={extras}
+            publicRating={publicRatingOf(movie)}
+            blocked={blocked}
+            pushIds={pushIds}
+            canDelete={movie.added_by === currentUserId}
+            loadSuggestions={loadSuggestions}
+            onPropose={proposeFromSuggestion}
+            onRate={() => {
+              haptics.medium();
+              onRateMovie(movie, ctx.myRating ?? null);
+            }}
+            onDelete={() => {
+              setOpenVerdictId(null);
+              handleDeleteMovie({ stopPropagation: () => {} } as React.MouseEvent, movie.id);
+            }}
+            onReport={setReporting}
+            onChanged={() => void reloadExtras()}
+            onToast={onToast}
+            onClose={() => setOpenVerdictId(null)}
+          />
+        );
+      })()}
+
+      {showStats && (
+        <SpaceStatsView
+          spaceName={space.name}
+          currentUserId={currentUserId}
+          people={people}
+          movies={movies}
+          ratings={allRatings.filter((r) => activeMemberIds.has(r.profile_id))}
+          votes={votes}
+          plans={plans}
+          onClose={() => setShowStats(false)}
+        />
+      )}
 
       {showSettings && (
         <SpaceSettingsModal
