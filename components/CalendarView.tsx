@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, Ticket } from 'lucide-react';
 import {
   CinemaProgrammeFilm,
   CinemaScreening,
@@ -30,6 +30,7 @@ import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import UpcomingReleasesFrise from './UpcomingReleasesFrise';
 
 const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
+const TicketImportModal = lazy(() => import('./TicketImportModal'));
 interface CalendarViewProps {
   movies: Movie[];
   profileId?: string;
@@ -39,6 +40,8 @@ interface CalendarViewProps {
   onRewatch?: (movie: Movie) => void;
   onReview?: (movie: Movie) => void;
   onAddWatched?: (day: string) => void;
+  /** Séance passée importée d'un billet : noter ce film, vu ce jour-là. */
+  onRateWatched?: (tmdbId: number, day: string) => void;
   /** « Bientôt en salle » : ouvrir un film, le voir avec quelqu'un. */
   onPreviewMovie?: (tmdbId: number) => void;
   onWatchWith?: (tmdbId: number) => void;
@@ -74,6 +77,8 @@ export default function CalendarView(props: CalendarViewProps) {
   const [composer, setComposer] = useState<{ mode: 'programme' | 'manual'; day: string } | null>(
     null
   );
+  /** Import des billets UGC par image : l'entrée la plus rapide pour une place déjà réservée. */
+  const [importingTickets, setImportingTickets] = useState(false);
   const [busyId, setBusyId] = useState('');
   const busy = useRef(false);
   const [reminderActive, setReminderActive] = useState(false);
@@ -462,6 +467,29 @@ export default function CalendarView(props: CalendarViewProps) {
           </>
         )}
         {tab === 'upcoming' && (
+          <button
+            type="button"
+            onClick={() =>
+              profileId
+                ? setImportingTickets(true)
+                : onToast?.('Connecte-toi pour importer tes billets et recevoir leurs rappels.')
+            }
+            className="mb-4 flex w-full items-center gap-3 rounded-[1.25rem] bg-forest p-3.5 text-left text-white shadow-lg shadow-forest/20 transition active:scale-[0.98]"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/15">
+              <Ticket size={19} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-black">Importer mes billets</span>
+              <span className="mt-0.5 block text-[11.5px] font-medium leading-snug text-white/80">
+                {agenda.screenings.some((screening) => screening.startsAt > Date.now())
+                  ? 'Une autre réservation UGC ? Ajoute-la en une image.'
+                  : 'Tu as réservé sur UGC ? L’image de ta séance suffit.'}
+              </span>
+            </span>
+          </button>
+        )}
+        {tab === 'upcoming' && (
           <CalendarUpcoming
             filter={upcomingFilter}
             upcomingReleases={
@@ -535,6 +563,20 @@ export default function CalendarView(props: CalendarViewProps) {
           onDelete={remove}
           onConfirm={confirm}
         />
+      )}
+      {importingTickets && profileId && (
+        <Suspense fallback={null}>
+          <TicketImportModal
+            profileId={profileId}
+            favoriteCinema={favoriteCinema}
+            existingScreenings={agenda.screenings}
+            onClose={() => setImportingTickets(false)}
+            onImported={agenda.refresh}
+            onAddToWatchlist={(id) => void props.onAddToWatchlist?.(id)}
+            onRateWatched={props.onRateWatched}
+            onToast={onToast}
+          />
+        </Suspense>
       )}
       {composer &&
         profileId &&

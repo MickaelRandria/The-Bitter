@@ -1,5 +1,14 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import {
+  DirectoryCinema,
+  findShowing,
+  isGenericCinemaName,
+  isoToUgcDate,
+  normalizeTime,
+  ProgrammeShowing,
+  resolveCinema,
+} from './ticketMatch.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +32,8 @@ const SHOWTIMES_CACHE_MS = 3 * 60 * 60 * 1_000;
 const MAX_SHOWTIME_DAYS = 7;
 /** Quelques dizaines de journées-cinémas suffisent, et bornent la mémoire de l'isolat. */
 const SHOWTIMES_CACHE_ENTRIES = 120;
+/** Une capture de « Mes billets » en montre rarement plus ; chaque billet coûte au plus une journée UGC. */
+const MAX_MATCH_TICKETS = 8;
 const PARIS_TIME_ZONE = 'Europe/Paris';
 
 type UgcCinema = { id: string; name: string };
@@ -213,6 +224,13 @@ const parisToInstant = (year: number, month: number, day: number, hour: number, 
   return naive - parisOffsetMinutes(firstGuess) * 60_000;
 };
 
+/** L'instant d'une séance, qu'elle soit passée ou non. */
+const showingInstant = (showing: { date: string; time: string }) => {
+  const [day, month, year] = showing.date.split('/').map(Number);
+  const [hour, minute] = showing.time.split(':').map(Number);
+  return parisToInstant(year, month, day, hour, minute);
+};
+
 /** Les `days` prochaines journées parisiennes, au format jj/mm/aaaa attendu par UGC. */
 const parisDaysFromToday = (days: number): string[] => {
   const today = readParisParts(Date.now());
@@ -316,8 +334,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return fail(405, 'method-not-allowed', 'Requête POST attendue.');
 
+  // Assez pour huit billets à retrouver ; toutes les autres actions tiennent
+  // largement en dessous.
   const contentLength = Number(req.headers.get('content-length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > 2_000) {
+  if (Number.isFinite(contentLength) && contentLength > 8_000) {
     return fail(413, 'payload-too-large', 'Requête trop volumineuse.');
   }
 
@@ -494,6 +514,92 @@ Deno.serve(async (req) => {
       }));
 
     return json({ items, days, partial: failures > 0 });
+  }
+
+  /**
+   * Des billets lus sur une capture, retrouvés dans le vrai programme.
+   *
+   * Le client envoie ce que l'image dit — titre, cinéma, jour, heure — et reçoit
+   * pour chaque billet la séance publiée par UGC, ou la raison pour laquelle
+   * elle ne l'a pas été. Rien n'est écrit ici : c'est la personne qui valide la
+   * liste avant que le calendrier ne change.
+   */
+  if (body.action === 'match') {
+    const tickets = (Array.isArray(body.tickets) ? body.tickets.slice(0, MAX_MATCH_TICKETS) : [])
+      .filter((value): value is Record<string, unknown> => !!value && typeof value === 'object')
+      .map((ticket) => ({
+        title: cleanText(ticket.title, 200),
+        cinema: cleanText(ticket.cinema, 120),
+        date: cleanText(ticket.date, 10),
+        time: normalizeTime(cleanText(ticket.time, 8)) ?? '',
+        version: cleanText(ticket.version, 20),
+      }));
+    if (tickets.length === 0) return fail(400, 'invalid-tickets', 'Aucun billet à retrouver.');
+
+    const rawFallback = body.fallbackCinema as Record<string, unknown> | undefined;
+    const fallbackId = cleanText(rawFallback?.id, 12);
+    const fallbackCinema: DirectoryCinema | null = /^\d{1,8}$/.test(fallbackId)
+      ? { id: fallbackId, name: cleanText(rawFallback?.name, 120), city: cleanText(rawFallback?.city, 100) }
+      : null;
+
+    let cinemas: DirectoryCinema[] = [];
+    try {
+      cinemas = (await getUgcDirectory()).flatMap((city) =>
+        city.cinemas.map((cinema) => ({ id: cinema.id, name: cinema.name, city: city.label }))
+      );
+    } catch (error) {
+      // Sans l'annuaire, un nom quelconque ne se rapproche plus de rien ; le
+      // cinéma habituel, lui, reste reconnaissable à son propre nom.
+      console.warn('[Cinema directory] Annuaire indisponible pour les billets', error);
+      if (fallbackCinema) cinemas = [fallbackCinema];
+    }
+
+    const items = [];
+    for (const ticket of tickets) {
+      // Un billet sans nom de cinéma lisible est présumé pris dans le cinéma
+      // habituel ; un nom lisible qui ne ressemble à aucun UGC ne l'est jamais.
+      const cinema = isGenericCinemaName(ticket.cinema)
+        ? fallbackCinema
+        : resolveCinema(ticket.cinema, cinemas, fallbackCinema?.id);
+      const ugcDate = isoToUgcDate(ticket.date);
+      if (!cinema) {
+        items.push({ status: 'cinema-unknown', cinema: null, showing: null, alternatives: [] });
+        continue;
+      }
+      if (!ugcDate || !ticket.title || !ticket.time) {
+        items.push({ status: 'not-found', cinema, showing: null, alternatives: [] });
+        continue;
+      }
+
+      let day: { showings: UgcShowing[]; posters: Record<string, string> };
+      try {
+        day = await getCinemaDay(cinema.id, ugcDate);
+      } catch (error) {
+        console.warn('[Cinema directory] Grille UGC indisponible pour un billet', { cinemaId: cinema.id, ugcDate, error: String(error) });
+        items.push({ status: 'unavailable', cinema, showing: null, alternatives: [] });
+        continue;
+      }
+
+      const describe = (showing: ProgrammeShowing) => ({
+        id: showing.id,
+        title: showing.title,
+        startsAt: new Date(showingInstant(showing)).toISOString(),
+        version: showing.version,
+        room: showing.room,
+        endTime: showing.endTime,
+        bookingUrl: `${UGC_BOOKING_URL}${showing.id}`,
+        posterUrl: day.posters[showing.filmId] || '',
+      });
+      const result = findShowing(ticket, day.showings);
+      items.push({
+        status: result.status,
+        cinema,
+        showing: result.showing ? describe(result.showing) : null,
+        alternatives: result.alternatives.map(describe),
+      });
+    }
+
+    return json({ items });
   }
 
   let directory: UgcCity[];

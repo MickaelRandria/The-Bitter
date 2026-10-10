@@ -269,3 +269,66 @@ input[type='range']::-webkit-slider-runnable-track {
     animation: none !important;
   }
 }
+
+/*
+ * Démonstration « récupérer l'image de sa séance » (import de billets).
+ * Un écran de séance évoqué, un doigt qui va d'étape en étape, le tout piloté
+ * par `data-step` : chaque étape n'est qu'un état, et la transition fait le reste.
+ */
+.tkd { position: relative; width: 168px; height: 340px; margin: 2px auto 0; }
+.tkd-phone { position: absolute; inset: 0; border-radius: 30px; background: #0a0a0a; padding: 6px; box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.55); }
+.tkd-bt { position: absolute; width: 4px; border-radius: 2px; background: #2a2a2a; transition: background 0.2s, transform 0.15s, box-shadow 0.2s; }
+.tkd-side { right: -4px; top: 92px; height: 44px; }
+.tkd-vol { left: -4px; top: 78px; height: 26px; }
+.tkd-vol2 { left: -4px; top: 110px; height: 26px; }
+.tkd-screen { position: relative; width: 100%; height: 100%; border-radius: 25px; overflow: hidden; background: #050826; color: #fff; }
+.tkd-island { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 42px; height: 12px; border-radius: 8px; background: #000; z-index: 6; }
+.tkd-content { position: absolute; inset: 0; transform-origin: 8% 92%; transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.55s, box-shadow 0.55s; }
+.tkd-when { position: absolute; top: 28px; left: 0; right: 0; text-align: center; font-weight: 900; letter-spacing: -0.02em; line-height: 1.05; }
+.tkd-when b { display: block; font-size: 15px; }
+.tkd-when span { display: block; font-size: 8px; font-weight: 700; margin-top: 5px; opacity: 0.85; }
+.tkd-poster { position: absolute; left: 50%; top: 82px; width: 54px; height: 78px; transform: translateX(-50%); border-radius: 7px; background: linear-gradient(160deg, #d3202a, #5e070c); box-shadow: 0 8px 14px -6px rgba(0, 0, 0, 0.6); z-index: 2; }
+.tkd-card { position: absolute; left: 12px; right: 12px; top: 118px; height: 128px; border-radius: 14px; background: #fff; color: #0b0d2a; }
+.tkd-title { position: absolute; left: 8px; right: 8px; top: 48px; text-align: center; font-size: 8.5px; font-weight: 900; line-height: 1.15; }
+.tkd-pills { position: absolute; left: 0; right: 0; top: 74px; display: flex; justify-content: center; gap: 4px; }
+.tkd-pills i { font-style: normal; font-size: 6px; font-weight: 800; background: #e8e9f0; border-radius: 4px; padding: 3px 5px; }
+.tkd-share { position: absolute; left: 10px; top: 96px; width: 24px; height: 22px; border-radius: 6px; background: #e8e9f0; display: grid; place-items: center; color: #0a84ff; }
+.tkd-ticket { position: absolute; left: 39px; right: 10px; top: 96px; height: 22px; border-radius: 6px; background: #0a8fe0; color: #fff; font-size: 6.5px; font-weight: 900; letter-spacing: 0.06em; display: grid; place-items: center; }
+.tkd-tabs { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: #0a1150; display: flex; justify-content: space-around; align-items: center; padding-bottom: 6px; border-top: 1px solid rgba(64, 140, 255, 0.6); }
+.tkd-tabs span { width: 22px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 4.5px; font-weight: 900; letter-spacing: 0.04em; opacity: 0.7; }
+.tkd-tabs span i { width: 11px; height: 9px; border-radius: 2px; border: 1.5px solid #fff; }
+.tkd-tabs .tkd-on { opacity: 1; }
+.tkd-tabs .tkd-on::after { content: ''; width: 16px; height: 1.5px; background: #fff; border-radius: 1px; }
+.tkd-tabs .tkd-search { width: 26px; height: 26px; border-radius: 8px; background: #0a8fe0; margin-top: -14px; opacity: 1; }
+.tkd-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; background: #f2f2f7; color: #000; border-radius: 16px 16px 0 0; transform: translateY(105%); transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); z-index: 4; padding: 10px 10px 0; font-family: -apple-system, system-ui, sans-serif; }
+.tkd-grab { width: 26px; height: 3px; border-radius: 2px; background: #c7c7cc; margin: 0 auto 8px; }
+.tkd-row { background: #fff; border-radius: 8px; padding: 7px 9px; font-size: 7.5px; font-weight: 600; margin-bottom: 4px; }
+.tkd-row.tkd-hl { background: #dbe9ff; }
+.tkd-flash { position: absolute; inset: 0; background: #fff; opacity: 0; z-index: 5; pointer-events: none; }
+.tkd-toast { position: absolute; left: 10px; right: 10px; top: 24px; z-index: 6; background: rgba(30, 30, 30, 0.92); color: #fff; border-radius: 12px; padding: 8px 9px; font-size: 7.5px; font-weight: 700; display: flex; gap: 6px; align-items: center; opacity: 0; transform: translateY(-8px); transition: opacity 0.3s, transform 0.3s; }
+.tkd-toast b { width: 13px; height: 13px; border-radius: 50%; background: #34c759; display: grid; place-items: center; flex: none; }
+.tkd-finger { position: absolute; z-index: 8; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(217, 255, 0, 0.85); box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35), 0 6px 14px rgba(0, 0, 0, 0.35); opacity: 0; transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s; }
+.tkd-tap-a { animation: tkdTapA 0.45s ease; }
+.tkd-tap-b { animation: tkdTapB 0.45s ease; }
+@keyframes tkdTapA { 40% { transform: scale(0.72); } }
+@keyframes tkdTapB { 40% { transform: scale(0.72); } }
+.tkd[data-step='tab'] .tkd-finger,
+.tkd[data-step='share'] .tkd-finger,
+.tkd[data-step='save'] .tkd-finger { opacity: 1; }
+.tkd[data-step='tab'] .tkd-finger { left: 116px; top: 312px; }
+.tkd[data-step='share'] .tkd-finger { left: 40px; top: 231px; }
+.tkd[data-step='save'] .tkd-finger { left: 128px; top: 247px; }
+.tkd[data-step='save'] .tkd-sheet { transform: none; }
+.tkd[data-step='done'] .tkd-toast,
+.tkd[data-step='thumb'] .tkd-toast { opacity: 1; transform: none; }
+.tkd[data-step='press'] .tkd-side,
+.tkd[data-step='press'] .tkd-vol { background: #d9ff00; box-shadow: 0 0 10px rgba(217, 255, 0, 0.8); }
+.tkd[data-step='press'] .tkd-side { transform: translateX(-2px); }
+.tkd[data-step='press'] .tkd-vol { transform: translateX(2px); }
+.tkd[data-step='press'] .tkd-flash { animation: tkdFlash 0.5s ease 0.25s; }
+@keyframes tkdFlash { 30% { opacity: 0.95; } 100% { opacity: 0; } }
+.tkd[data-step='thumb'] .tkd-content { transform: scale(0.32); border-radius: 30px; box-shadow: 0 0 0 4px #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .tkd-finger, .tkd-content, .tkd-sheet, .tkd-toast, .tkd-bt { transition: none !important; animation: none !important; }
+  .tkd-flash { animation: none !important; }
+}
