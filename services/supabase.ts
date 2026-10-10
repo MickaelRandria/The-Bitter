@@ -624,7 +624,7 @@ export async function getMovieRatings(movieId: string): Promise<SpaceRead<MovieR
       .select(
         `
       *,
-      profile:profiles(first_name, last_name)
+      profile:profiles!movie_ratings_profile_id_fkey(first_name, last_name)
     `
       )
       .eq('movie_id', movieId)
@@ -647,7 +647,7 @@ export async function getSpaceRatings(
     'Lecture des notes de l’espace',
     supabase
       .from('movie_ratings')
-      .select('*, shared_movies!inner(space_id), profile:profiles(first_name, avatar_url)')
+      .select('*, shared_movies!inner(space_id), profile:profiles!movie_ratings_profile_id_fkey(first_name, avatar_url)')
       .eq('shared_movies.space_id', spaceId)
   );
 }
