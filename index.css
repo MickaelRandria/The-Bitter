@@ -333,3 +333,42 @@ input[type='range']::-webkit-slider-runnable-track {
   .tkd-finger, .tkd-content, .tkd-sheet, .tkd-toast, .tkd-bt { transition: none !important; animation: none !important; }
   .tkd-flash { animation: none !important; }
 }
+
+/* ─── Verdicts des espaces ──────────────────────────────────────────────────
+   Palette des membres validée (validate_palette.js, clair et sombre) : toi en
+   premier, puis les autres dans l'ordre de l'espace. */
+:root { --vd-c0: #1baf7a; --vd-c1: #eb6834; --vd-c2: #2a78d6; --vd-c3: #e87ba4; }
+.dark { --vd-c0: #199e70; --vd-c1: #d95926; --vd-c2: #3987e5; --vd-c3: #d55181; }
+
+.vd-cards { display: grid; gap: 8px; perspective: 900px; }
+.vd-tcard { position: relative; height: 104px; transform-style: preserve-3d; transition: transform 0.7s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.vd-tcard.vd-flip { transform: rotateY(180deg); }
+.vd-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px; text-align: center; }
+.vd-back { transform: rotateY(180deg); }
+
+.vd-scale-dot { transition: left 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+.vd-scale-spread { transition: left 0.8s cubic-bezier(0.22, 1, 0.36, 1), width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+.vd-bar-fill { transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes vd-pop { 0% { opacity: 0; transform: scale(0.6); } 70% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
+.vd-pop { animation: vd-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes vd-rise { from { opacity: 0; transform: translateY(12px); } }
+.vd-rise { animation: vd-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes vd-progress { from { width: 0; } to { width: 100%; } }
+.vd-story-bar > i { display: block; height: 100%; width: 0; background: #fff; border-radius: 2px; }
+.vd-story-bar.vd-done > i { width: 100%; }
+.vd-story-bar.vd-on > i { animation: vd-progress 5s linear forwards; }
+.vd-story.vd-paused .vd-story-bar.vd-on > i { animation-play-state: paused; }
+@keyframes vd-slide-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+.vd-slide > * { animation: vd-slide-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.vd-slide > *:nth-child(2) { animation-delay: 0.06s; }
+.vd-slide > *:nth-child(3) { animation-delay: 0.12s; }
+.vd-slide > *:nth-child(4) { animation-delay: 0.18s; }
+.vd-slide > *:nth-child(5) { animation-delay: 0.24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vd-tcard, .vd-scale-dot, .vd-scale-spread, .vd-bar-fill { transition: none; }
+  .vd-pop, .vd-rise, .vd-slide > * { animation: none; }
+  .vd-story-bar.vd-on > i { animation: none; width: 100%; }
+}

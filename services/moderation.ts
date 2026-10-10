@@ -11,7 +11,7 @@ import { supabase } from './supabase';
  * dans un espace partagé, profil d'un membre.
  */
 
-export type ReportContentType = 'review' | 'feed_item' | 'profile' | 'space_movie';
+export type ReportContentType = 'review' | 'feed_item' | 'profile' | 'space_movie' | 'debate_message';
 export type ReportReason = 'offensive' | 'harassment' | 'spam' | 'inappropriate' | 'other';
 
 export const REPORT_REASONS: ReportReason[] = ['offensive', 'harassment', 'spam', 'inappropriate', 'other'];
