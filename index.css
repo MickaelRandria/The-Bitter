@@ -287,7 +287,8 @@ input[type='range']::-webkit-slider-runnable-track {
 .tkd-when { position: absolute; top: 28px; left: 0; right: 0; text-align: center; font-weight: 900; letter-spacing: -0.02em; line-height: 1.05; }
 .tkd-when b { display: block; font-size: 15px; }
 .tkd-when span { display: block; font-size: 8px; font-weight: 700; margin-top: 5px; opacity: 0.85; }
-.tkd-poster { position: absolute; left: 50%; top: 82px; width: 54px; height: 78px; transform: translateX(-50%); border-radius: 7px; background: linear-gradient(160deg, #d3202a, #5e070c); box-shadow: 0 8px 14px -6px rgba(0, 0, 0, 0.6); z-index: 2; }
+.tkd-poster { position: absolute; left: 50%; top: 82px; width: 54px; height: 78px; transform: translateX(-50%); border-radius: 7px; background: linear-gradient(160deg, #d3202a, #5e070c); box-shadow: 0 8px 14px -6px rgba(0, 0, 0, 0.6); z-index: 2; overflow: hidden; }
+.tkd-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .tkd-card { position: absolute; left: 12px; right: 12px; top: 118px; height: 128px; border-radius: 14px; background: #fff; color: #0b0d2a; }
 .tkd-title { position: absolute; left: 8px; right: 8px; top: 48px; text-align: center; font-size: 8.5px; font-weight: 900; line-height: 1.15; }
 .tkd-pills { position: absolute; left: 0; right: 0; top: 74px; display: flex; justify-content: center; gap: 4px; }

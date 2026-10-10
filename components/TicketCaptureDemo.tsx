@@ -37,6 +37,9 @@ const DEMO: Record<Mode, { steps: Step[]; hold: number[]; text: React.ReactNode[
   },
 };
 
+/** Hunger Games : L'Embrasement (TMDB 101299), affiche française. */
+const POSTER_URL = 'https://image.tmdb.org/t/p/w185/32mRJXEjmpcVYcQFvzvXCLPsUgS.jpg';
+
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -104,7 +107,18 @@ const TicketCaptureDemo: React.FC = () => {
                 <b>À 18:00</b>
                 <span>Talence · en salle 2</span>
               </div>
-              <span className="tkd-poster" />
+              {/* La vraie affiche du film de l'exemple ; le dégradé rouge reste
+                  dessous si l'image ne charge pas (hors connexion). */}
+              <span className="tkd-poster">
+                <img
+                  src={POSTER_URL}
+                  alt=""
+                  loading="lazy"
+                  onError={(event) => {
+                    event.currentTarget.style.display = 'none';
+                  }}
+                />
+              </span>
               <div className="tkd-card">
                 <div className="tkd-title">
                   HUNGER GAMES :<br />
