@@ -114,56 +114,71 @@ export const en: Record<string, string> = {
   'auth.resetLinkSent': 'A reset link has been sent to:',
   'auth.checkSpam': 'Also check your spam folder. The link expires in 1 hour.',
 
-  // ── How it works (onboarding carousel) ───────────────────────────────────
-  'howItWorks.title': 'Best practices',
-  'howItWorks.subtitle': 'No account, on your device',
+  // ── How it works (welcome and profile) ────────────────────────────────────
+  'howItWorks.title': 'How it works',
+  'howItWorks.subtitle': 'The Bitter in 4 screens',
   'howItWorks.next': 'Next',
+  'howItWorks.cta': "Let's go",
   'howItWorks.ios': 'iPhone / iPad',
   'howItWorks.android': 'Android',
   'howItWorks.yourDevice': 'you',
 
-  // Slide 1: your data
-  'howItWorks.s1.badge': '100% local',
-  'howItWorks.s1.title1': 'Your Cinema,',
-  'howItWorks.s1.title2': 'Your Data.',
+  // Page 1: rating
+  'howItWorks.s1.badge': 'Your film diary',
+  'howItWorks.s1.title1': 'Rate what',
+  'howItWorks.s1.title2': 'you watch.',
   'howItWorks.s1.desc':
-    'No account, no server. Your collection, ratings and stats live only in this device’s browser.',
-  'howItWorks.s1.alertTitle': 'Never in private browsing',
-  'howItWorks.s1.alertDesc':
-    'In private mode the browser wipes everything the second you close the window. Your entire collection is gone, for good.',
-  'howItWorks.s1.cacheTitle': 'Do not clear your cache.',
-  'howItWorks.s1.cacheDesc':
-    '“Clear browsing data” resets the app, just like uninstalling it or switching phones.',
-  'howItWorks.s1.exportTitle': 'Export now and then.',
-  'howItWorks.s1.exportDesc':
-    'From your profile, “Export my data” saves a backup you can keep somewhere safe.',
+    'Films and shows, rated on four criteria: story, visuals, acting and sound. Or with a single score, if you want to go fast.',
+  'howItWorks.s1.sample': 'Sample rating',
+  'howItWorks.s1.quote': "Your rating doesn't have to be objective: it's yours.",
 
-  // Slide 2: install
-  'howItWorks.s2.badge': 'Home screen',
-  'howItWorks.s2.title1': 'Install the app',
-  'howItWorks.s2.title2': "(it's better).",
-  'howItWorks.s2.desc':
-    'For a full-screen experience, and so you don’t lose your data in Safari or Chrome, add The Bitter to your home screen.',
-  'howItWorks.s2.hintIos': 'Safari → Share → Add to Home Screen',
-  'howItWorks.s2.hintAndroid': 'Chrome → ⋮ menu → Install app',
-  'howItWorks.s2.alreadyInstalled': 'The app is already installed',
-  'howItWorks.iosSafariOnly': 'You are not in Safari: reopen this page in Safari to install it.',
+  // Page 2: with friends
+  'howItWorks.s2.badge': 'With your people',
+  'howItWorks.s2.title1': 'Films are',
+  'howItWorks.s2.title2': 'better shared.',
+  'howItWorks.s2.desc': 'The Bitter is made for watching and arguing together.',
+  'howItWorks.s2.spacesTitle': 'Spaces',
+  'howItWorks.s2.spacesBody': 'A shared list with friends or family: suggest, vote, compare verdicts.',
+  'howItWorks.s2.watchWithTitle': 'Watch with…',
+  'howItWorks.s2.watchWithBody': "Suggest a film to someone or ask for their take, even if they don't have the app yet.",
+  'howItWorks.s2.screeningTitle': 'Screenings for two',
+  'howItWorks.s2.screeningBody': 'Pick the day and the cinema together. The reminder comes the day before.',
+
+  // Page 3: where things are
+  'howItWorks.s3.badge': 'In the app',
+  'howItWorks.s3.title1': 'Everything',
+  'howItWorks.s3.title2': 'within reach.',
+  'howItWorks.s3.discoverTitle': 'Explore',
+  'howItWorks.s3.discoverBody': "What's out now and your platforms' catalogue.",
+  'howItWorks.s3.calendarTitle': 'Calendar',
+  'howItWorks.s3.calendarBody': 'Your year in films, your screenings and what hits cinemas soon.',
+  'howItWorks.s3.seriesTitle': 'Shows',
+  'howItWorks.s3.seriesBody': "Follow them episode by episode, we'll tell you when the next one lands.",
+  'howItWorks.s3.statsTitle': 'Stats',
+  'howItWorks.s3.statsBody': 'Your film DNA takes shape after 5 rated films.',
+  'howItWorks.s3.account': 'Everything is saved to your account: change phones, your films follow you.',
+
+  // Page 4: install and get notified
+  'howItWorks.s4.badge': 'Home screen',
+  'howItWorks.s4.title1': 'Install the app,',
+  'howItWorks.s4.title2': "it's better.",
+  'howItWorks.s4.desc': 'Full screen, one tap away, and the only way to get notifications on iPhone.',
+  'howItWorks.s4.ios1': 'Open thebitter.watch in Safari.',
+  'howItWorks.s4.ios2': 'Tap the Share button at the bottom of the screen.',
+  'howItWorks.s4.ios3': 'Choose “Add to Home Screen”, then “Add”.',
+  'howItWorks.s4.android1': 'Install The Bitter from the Play Store,',
+  'howItWorks.s4.android2': 'or, in Chrome, open the ⋮ menu at the top right,',
+  'howItWorks.s4.android3': 'then tap “Install app”.',
+  'howItWorks.s4.alreadyInstalled': 'The app is already installed',
+  'howItWorks.s4.notifs':
+    "Then turn on notifications: that's how you know when a friend suggests a film, answers you, or a screening is coming up.",
+  'howItWorks.iosSafariOnly': "You're not in Safari: reopen this page in Safari to install it.",
   'howItWorks.installNow': 'Install the app',
-  'howItWorks.installFirst':
-    'Tip: install the app before building your collection. On iPhone, the home-screen app may not find films you entered earlier in Safari.',
 
-  // Slide 3: get started
-  'howItWorks.s3.title1': 'Ready to',
-  'howItWorks.s3.title2': 'judge?',
-  'howItWorks.s3.desc': 'Start your collection.',
-  'howItWorks.s3.quote': 'Remember: a rating is not objective, it belongs to you.',
-  'howItWorks.s3.cta': 'Start rating',
-
-  // Home-screen trigger
+  // Trigger on the welcome screen
   'howItWorks.learnMore': 'How does it work?',
-  'howItWorks.localOnly': 'No account · your films stay on this device',
-  'howItWorks.triggerTitle': 'Read this before you start',
-  'howItWorks.triggerDesc': 'Where your films live · install the app · 30 seconds',
+  'howItWorks.triggerTitle': 'How does it work?',
+  'howItWorks.triggerDesc': 'Rate, share, install the app · 30 seconds',
   'howItWorks.triggerSeen': 'See how it works again',
 
   // ── Welcome ──────────────────────────────────────────────────────────────
