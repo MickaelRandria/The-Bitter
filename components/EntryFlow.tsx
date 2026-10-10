@@ -38,7 +38,16 @@ const GUIDE_SEEN_KEY = 'the_bitter_guide_seen';
 
 /** Supabase limite l'envoi à un code par minute et par adresse. */
 const RESEND_COOLDOWN_S = 60;
-const CODE_LENGTH = 6;
+/**
+ * Longueur du code envoyé par e-mail. C'est un réglage du projet Supabase
+ * (« Email OTP Length », de 6 à 10), pas une constante de l'API : il est à 8 en
+ * prod. Les cases et la validation automatique suivent cette valeur, mais toute
+ * longueur de la plage reste acceptée, avec le bouton Valider, pour qu'un
+ * changement du réglage ne bloque plus jamais la connexion.
+ */
+const CODE_LENGTH = 8;
+const CODE_MIN = 6;
+const CODE_MAX = 10;
 
 export type CinemaChain = 'ugc' | 'pathe' | 'other';
 
@@ -367,7 +376,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
       void submitCode(raw.trim());
       return;
     }
-    const digits = raw.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    const digits = raw.replace(/\D/g, '').slice(0, CODE_MAX);
     setCode(digits);
     if (error) setError(null);
     if (digits.length === CODE_LENGTH) void submitCode(digits);
@@ -644,7 +653,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
         >
           {back('start')}
           <h2 className={h2}>{t('entry.emailTitle')}</h2>
-          <p className={sub}>{passwordAccount ? t('entry.passwordHint') : t('entry.emailBody')}</p>
+          <p className={sub}>{passwordAccount ? t('entry.passwordHint') : t('entry.emailBody', { n: String(CODE_LENGTH) })}</p>
           <div className="mt-8">
             <label htmlFor="entry-email" className={label}>
               {t('auth.email')}
@@ -708,6 +717,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
 
     if (screen === 'code') {
       const inbox = inboxUrl(emailClean);
+      const boxCount = Math.max(CODE_LENGTH, code.includes('://') ? 0 : code.length);
       return (
         <div className="entry-stagger w-full flex flex-col flex-1">
           {back('email')}
@@ -725,28 +735,31 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
-              aria-label={t('entry.codeLabel')}
+              aria-label={t('entry.codeLabel', { n: String(CODE_LENGTH) })}
               value={code}
               disabled={busy}
               onChange={(e) => onCodeChange(e.target.value)}
               className="absolute inset-0 w-full h-full opacity-0 text-base"
             />
-            <div className={`grid grid-cols-6 gap-2 pointer-events-none ${error ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}>
-              {Array.from({ length: CODE_LENGTH }, (_, i) => {
+            <div
+              className={`grid gap-1.5 pointer-events-none ${error ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}
+              style={{ gridTemplateColumns: `repeat(${boxCount}, minmax(0, 1fr))` }}
+            >
+              {Array.from({ length: boxCount }, (_, i) => {
                 const filled = code.includes('://') ? '' : code[i] ?? '';
-                const active = !busy && i === Math.min(code.length, CODE_LENGTH - 1);
+                const active = !busy && i === Math.min(code.length, boxCount - 1);
                 return (
                   <div
                     key={i}
-                    className={`aspect-[4/5] rounded-2xl border-2 flex items-center justify-center text-2xl font-black tabular-nums transition-colors bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white ${
+                    className={`aspect-[3/4] rounded-xl border-2 flex items-center justify-center text-xl font-black tabular-nums transition-colors bg-white dark:bg-[#1a1a1a] text-charcoal dark:text-white ${
                       error
                         ? 'border-red-400'
                         : active
-                          ? 'border-forest'
+                          ? 'border-forest dark:border-lime-400'
                           : 'border-sand dark:border-white/10'
                     }`}
                   >
-                    {busy && i === CODE_LENGTH - 1 && code.length >= CODE_LENGTH ? (
+                    {busy && i === boxCount - 1 && code.length >= CODE_MIN ? (
                       <Loader2 size={18} className="animate-spin text-stone-400" />
                     ) : (
                       filled
@@ -757,7 +770,19 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
             </div>
           </div>
           <div className="mt-4">{errorBox}</div>
-          <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 mt-4 ml-1">{t('entry.spamHint')}</p>
+          {/* Filet si la longueur réglée côté Supabase change : on valide à la main. */}
+          {code.length >= CODE_MIN && code.length !== CODE_LENGTH && !code.includes('://') && (
+            <button
+              type="button"
+              onClick={() => void submitCode(code)}
+              disabled={busy}
+              className={`${primary} entry-pop mt-4`}
+            >
+              {busy ? <Loader2 size={18} className="animate-spin" /> : t('entry.verifyCode')}
+            </button>
+          )}
+          <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 mt-4 ml-1">{t('entry.useCodeHint')}</p>
+          <p className="text-[11px] font-medium text-stone-400 dark:text-stone-500 mt-1.5 ml-1">{t('entry.spamHint')}</p>
           <div className="grid grid-cols-2 gap-2 mt-4">
             <button
               type="button"
