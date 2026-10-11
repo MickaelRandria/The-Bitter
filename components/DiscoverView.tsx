@@ -179,7 +179,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
    * « À venir » suit les prochaines saisons. Les sorties en salle des films vivent
    * dans le calendrier, onglet À venir.
    */
-  const [surface, setSurface] = useState<'foryou' | 'theatre' | 'feed'>('foryou');
+  const [surface, setSurface] = useState<'foryou' | 'free' | 'theatre' | 'feed'>('foryou');
 
   /** Mes films vus, indexés par TMDB : le détail compare critère par critère. */
   const myMovieByTmdb = useMemo(() => {
@@ -382,7 +382,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
-        {(mediaType === 'tv' ? (['foryou', 'theatre', 'feed'] as const) : (['foryou', 'feed'] as const)).map((key) => (
+        {(mediaType === 'tv' ? (['foryou', 'free', 'theatre', 'feed'] as const) : (['foryou', 'free', 'feed'] as const)).map((key) => (
           <button
             key={key}
             onClick={() => {
@@ -399,7 +399,9 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             {t(
               key === 'foryou'
                 ? 'releases.forYou'
-                : key === 'theatre'
+                : key === 'free'
+                  ? 'free.tab'
+                  : key === 'theatre'
                   ? 'tv.upcoming'
                   : 'feed.tab'
             )}
@@ -418,6 +420,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           onQuickWatchlist={(tmdbId) => {
             onQuickWatchlist?.(tmdbId, mediaType);
           }}
+        />
+      ) : surface === 'free' ? (
+        <FreeToWatchSection
+          key={mediaType}
+          initialKind={mediaType === 'tv' ? 'serie' : 'doc'}
+          movies={movies}
+          onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)}
         />
       ) : surface === 'theatre' && mediaType === 'tv' ? (
         <TvUpcoming followedIds={(movies ?? []).filter(m => m.seasonNumber == null && m.tmdbId != null).map(m => m.tmdbId!)} onPreview={id => onPreview(id, 'tv')} onAdd={onQuickWatchlist ? id => onQuickWatchlist(id, 'tv') : undefined} />
@@ -587,11 +596,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aiResult.text) }}
           />
         </div>
-      )}
-
-      {/* Gratuit et légal : seulement quand on ne cherche rien de précis. */}
-      {!isSearchActive && !aiResult && (
-        <FreeToWatchSection movies={movies} onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)} />
       )}
 
       {/* FILTERS */}
