@@ -139,3 +139,23 @@ test('mois précédent, y compris en janvier', () => {
   assert.equal(stats.previousMonth(new Date(2027, 0, 1)), '2026-12');
   assert.equal(stats.shiftMonth('2026-01', -1), '2025-12');
 });
+
+test('vous contre le public : tri, moyenne, porté, descendu, contre-courant', () => {
+  const films = ['a', 'b', 'c', 'd'].map((id) => ({ id, title: id, status: 'watched' }));
+  const ratings = [
+    rating('a', 'lea', 9), rating('a', 'mika', 9),
+    rating('b', 'lea', 5), rating('b', 'mika', 5),
+    rating('c', 'lea', 7), rating('c', 'mika', 7),
+    rating('d', 'lea', 6), rating('d', 'mika', 6),
+  ];
+  const rows = stats.pairRows(films, ratings, 'lea', 'mika');
+  const pub = { a: 7, b: 7.5, c: 7, d: null };
+  const v = stats.versusPublic(rows, (f) => pub[f.id]);
+  assert.deepEqual(v.list.map((x) => x.row.film.id), ['a', 'c', 'b']);
+  assert.equal(v.carried.row.film.id, 'a');
+  assert.equal(v.sunk.row.film.id, 'b');
+  assert.equal(v.against, 2);
+  assert.equal(Math.round(v.mean * 10) / 10, -0.2);
+  // Sous trois films avec une note publique, pas de graphique.
+  assert.equal(stats.versusPublic(rows.slice(0, 2), (f) => pub[f.id]), null);
+});
