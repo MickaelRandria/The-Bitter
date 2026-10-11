@@ -3642,6 +3642,13 @@ const App: React.FC = () => {
                 setPreviewMediaType(type);
               }}
               onOpenFilm={(id, type) => openFilm(id, type)}
+              onWatchWith={session?.user?.id ? (id, type) => void openWatchWith(id, type) : undefined}
+              onSeen={(id, type) => {
+                setTmdbIdToLoad(id);
+                setMediaTypeToLoad(type);
+                setInitialStatusForAdd(type === 'tv' ? 'watching' : 'watched');
+                setIsModalOpen(true);
+              }}
               onQuickWatchlist={handleQuickWatchlist}
               userProfile={activeProfile}
               /* Cet écran ne montre plus qu'une moitié du catalogue à la fois :
