@@ -69,8 +69,6 @@ const readCollection = (): { recent: Shot[]; top: Shot | null } => {
   }
 };
 
-const fmt = (n: number) => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
-
 const reducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -143,14 +141,8 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
   const pool: Shot[] = [...collection.recent];
   for (const url of log?.posters ?? []) if (pool.length < 12 && !pool.some((p) => p.url === url)) pool.push({ url });
   const reel = pool.slice(0, 12);
-  let cursor = collection.recent.length ? 1 : 0;
-  const visualOf = (item: Change): Shot | null => {
-    if (item.visual === 'top' && collection.top) return collection.top;
-    if (item.visual === 'recent' && pool[0]) return pool[0];
-    const shot = pool.length ? pool[cursor % pool.length] : null;
-    cursor += 1;
-    return shot;
-  };
+  /** Une seule affiche en fond, très assombrie : ton film le mieux noté, sinon le premier de la pellicule. */
+  const backdrop = collection.top ?? pool[0] ?? null;
   const lead =
     mode === 'found'
       ? 'Une nouvelle version de The Bitter est prête. Redémarre l’app pour en profiter, tu retrouveras tout là où tu l’as laissé.'
@@ -177,11 +169,20 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
         @keyframes us-cue { 0%, 100% { opacity: 0; } 10%, 30% { opacity: .9; } 20% { opacity: .2; } 40% { opacity: 0; } }
         .update-screen .us-in { animation: us-rise .55s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i) * 90ms); }
         @keyframes us-rise { from { opacity: 0; transform: translateY(14px); } }
+        .update-screen .us-backdrop { position: absolute; inset: -40px; background-size: cover; background-position: center 25%; filter: blur(18px) saturate(1.1); opacity: .28; transform: scale(1.08); }
+        .update-screen .us-backdrop-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,15,14,.55) 0%, rgba(15,15,14,.82) 45%, #0F0F0E 85%); }
         .update-screen .us-sweep { background: conic-gradient(rgba(217,255,0,.22) var(--a, 0deg), transparent 0); }
         @media (prefers-reduced-motion: reduce) {
           .update-screen .us-reel, .update-screen .us-cue, .update-screen .us-in { animation: none; }
         }
       `}</style>
+
+      {backdrop && (
+        <div aria-hidden>
+          <span className="us-backdrop" style={{ backgroundImage: `url(${resizeTmdbImage(backdrop.url, 'w500')})` }} />
+          <span className="us-backdrop-shade" />
+        </div>
+      )}
 
       <div className="us-strip" aria-hidden>
         <div className="us-reel">
@@ -228,42 +229,17 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
           </span>
         )}
 
-        <ul className="mt-5 flex-1 min-h-0 overflow-y-auto space-y-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Ce qui change">
-          {!ready && <li className="h-16 rounded-2xl bg-[#1A1A19] animate-pulse" />}
+        {/* Une liste de texte, sans vignettes : les affiches sont déjà dans la pellicule et en fond. */}
+        <ul className="mt-5 pr-14 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Ce qui change">
+          {!ready && <li className="h-16 rounded-2xl bg-white/5 animate-pulse" />}
           {items.map((item, i) => (
             <li
               key={`${item.title}-${i}`}
-              className="us-in grid grid-cols-[44px_minmax(0,1fr)] gap-3 items-center rounded-2xl bg-[#1A1A19] border border-[#2A2A28] p-2.5 pr-3"
+              className="us-in py-3 border-t border-white/[0.08] first:border-t-0 first:pt-0"
               style={{ ['--i' as string]: i + 3 }}
             >
-              {(() => {
-                const shot = visualOf(item);
-                return (
-                  <span className="relative w-[44px] aspect-[2/3] rounded-lg overflow-hidden bg-[#262624] shadow-[0_8px_14px_-8px_rgba(0,0,0,0.8)]">
-                    {shot && (
-                      <img
-                        src={resizeTmdbImage(shot.url, 'w154')}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          e.currentTarget.style.visibility = 'hidden';
-                        }}
-                      />
-                    )}
-                    {item.visual === 'top' && shot === collection.top && collection.top?.rating != null && (
-                      <span className="absolute left-1 bottom-1 rounded-md bg-bitter-lime px-1 text-[9px] font-black tabular-nums text-[#111]">
-                        {fmt(collection.top.rating)}
-                      </span>
-                    )}
-                  </span>
-                );
-              })()}
-              <span className="min-w-0">
-                <b className="block text-[13px] font-black tracking-[-0.01em]">{item.title}</b>
-                {item.body && <small className="block mt-0.5 text-[11.5px] font-semibold leading-snug text-[#9C978F]">{item.body}</small>}
-              </span>
+              <b className="block text-[14px] font-black tracking-[-0.015em]">{item.title}</b>
+              {item.body && <small className="block mt-1 text-[12px] font-semibold leading-snug text-[#A8A39B]">{item.body}</small>}
             </li>
           ))}
         </ul>
