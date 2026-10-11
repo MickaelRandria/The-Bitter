@@ -1805,7 +1805,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       {t(labelKey)}
                     </span>
                   </div>
-                  <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                  <button
+                    type="button"
+                    onClick={() => movie && onViewMovie?.(movie)}
+                    disabled={!onViewMovie || !movie?.tmdbId}
+                    aria-label={movie?.title}
+                    className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
+                  >
                     {movie?.posterUrl ? (
                       <img
                         src={resizeTmdbImage(movie.posterUrl, 'w185')}
@@ -1819,7 +1825,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         <Film size={16} />
                       </div>
                     )}
-                  </div>
+                  </button>
                   <p className="text-[11px] font-black text-charcoal dark:text-white leading-tight line-clamp-1">
                     {movie?.title}
                   </p>
@@ -2015,7 +2021,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </h3>
 
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
-              <div className="w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
+              <button
+                type="button"
+                onClick={() => bestRated && onViewMovie?.(bestRated)}
+                disabled={!onViewMovie || !bestRated?.tmdbId}
+                aria-label={bestRated?.title}
+                className="block w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5 active:scale-95 transition-transform disabled:active:scale-100"
+              >
                 {bestRated?.posterUrl ? (
                   <img
                     src={resizeTmdbImage(bestRated.posterUrl, 'w185')}
@@ -2029,7 +2041,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <Film size={20} />
                   </div>
                 )}
-              </div>
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 text-forest dark:text-lime-500">
                   <ThumbsUp size={12} fill="currentColor" />
@@ -2056,7 +2068,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
 
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
-              <div className="w-16 aspect-[2/3] bg-stone-100 dark:bg-[#161616] rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5">
+              <button
+                type="button"
+                onClick={() => worstRated && onViewMovie?.(worstRated)}
+                disabled={!onViewMovie || !worstRated?.tmdbId}
+                aria-label={worstRated?.title}
+                className="block w-16 aspect-[2/3] bg-stone-100 dark:bg-[#161616] rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5 active:scale-95 transition-transform disabled:active:scale-100"
+              >
                 {worstRated?.posterUrl ? (
                   <img
                     src={resizeTmdbImage(worstRated.posterUrl, 'w185')}
@@ -2070,7 +2088,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <Film size={20} />
                   </div>
                 )}
-              </div>
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 text-orange-400">
                   <ThumbsDown size={12} fill="currentColor" />
@@ -2114,7 +2132,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         {t('analytics.yourSurprise')}
                       </span>
                     </div>
-                    <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                    <button
+                      type="button"
+                      onClick={() => biggestSurprise && onViewMovie?.(biggestSurprise)}
+                      disabled={!onViewMovie || !biggestSurprise?.tmdbId}
+                      aria-label={biggestSurprise?.title}
+                      className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
+                    >
                       {biggestSurprise.posterUrl ? (
                         <img
                           src={resizeTmdbImage(biggestSurprise.posterUrl, 'w185')}
@@ -2128,7 +2152,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           <Film size={16} />
                         </div>
                       )}
-                    </div>
+                    </button>
                     <div>
                       <h4 className="font-black text-charcoal dark:text-white text-sm leading-tight line-clamp-2">
                         {biggestSurprise.title}
@@ -2153,7 +2177,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         {t('analytics.yourDisappointment')}
                       </span>
                     </div>
-                    <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
+                    <button
+                      type="button"
+                      onClick={() => biggestDisappointment && onViewMovie?.(biggestDisappointment)}
+                      disabled={!onViewMovie || !biggestDisappointment?.tmdbId}
+                      aria-label={biggestDisappointment?.title}
+                      className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
+                    >
                       {biggestDisappointment.posterUrl ? (
                         <img
                           src={resizeTmdbImage(biggestDisappointment.posterUrl, 'w185')}
@@ -2167,7 +2197,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           <Film size={16} />
                         </div>
                       )}
-                    </div>
+                    </button>
                     <div>
                       <h4 className="font-black text-charcoal dark:text-white text-sm leading-tight line-clamp-2">
                         {biggestDisappointment.title}
@@ -2461,7 +2491,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   className="overflow-hidden rounded-[1.8rem] border border-stone-100 bg-stone-50 p-4 dark:border-white/5 dark:bg-[#161616]"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-200 dark:bg-stone-800">
+                    <button
+                      type="button"
+                      onClick={() => movie && onViewMovie?.(movie)}
+                      disabled={!onViewMovie || !movie?.tmdbId}
+                      aria-label={movie?.title}
+                      className="block h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-200 dark:bg-stone-800 active:scale-95 transition-transform disabled:active:scale-100"
+                    >
                       {movie.posterUrl ? (
                         <img
                           src={resizeTmdbImage(movie.posterUrl, 'w185')}
@@ -2471,7 +2507,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       ) : (
                         <Film size={15} className="m-auto mt-8 text-stone-400" />
                       )}
-                    </div>
+                    </button>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-black text-charcoal dark:text-white">
                         {movie.title}

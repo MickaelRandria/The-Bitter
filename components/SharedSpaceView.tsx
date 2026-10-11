@@ -95,6 +95,8 @@ interface SharedSpaceViewProps {
   focusMovieId?: string | null;
   onFocusHandled?: () => void;
   onToast?: (message: string) => void;
+  /** Un film hors de l'espace (profil d'un membre) : « Ma note » ou sa fiche. */
+  onOpenFilm?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
 }
 
 /** Teintes des membres, dans l'ordre de la liste ; la mienne est l'anthracite. */
@@ -150,6 +152,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   focusMovieId,
   onFocusHandled,
   onToast,
+  onOpenFilm,
 }) => {
   const { t } = useLanguage();
   /** La liste des membres, ouverte depuis la rangée d'avatars de l'en-tête. */
@@ -1972,6 +1975,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           currentUserId={currentUserId}
           space={{ name: space.name, movies, ratings: allRatings }}
           onAddWatchedTogether={addWatchedTogether}
+          onOpenSpaceMovie={(id) => {
+            setSelectedMember(null);
+            openVerdict(id);
+          }}
+          onOpenFilm={onOpenFilm}
           onClose={() => setSelectedMember(null)}
         />
       )}
@@ -2026,6 +2034,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           votes={votes}
           plans={plans}
           publicRatingOf={publicRatingOf}
+          onOpenFilm={openVerdict}
           onClose={() => setShowStats(false)}
         />
       )}

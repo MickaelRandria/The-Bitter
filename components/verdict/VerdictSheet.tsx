@@ -444,7 +444,7 @@ const VerdictSheet: React.FC<VerdictSheetProps> = (props) => {
 
   return (
     <div
-      className="fixed inset-0 z-[140] bg-cream dark:bg-[#0c0c0c] overflow-y-auto overscroll-contain animate-[fadeIn_0.2s_ease-out]"
+      className="fixed inset-0 z-[145] bg-cream dark:bg-[#0c0c0c] overflow-y-auto overscroll-contain animate-[fadeIn_0.2s_ease-out]"
       role="dialog"
       aria-modal="true"
       aria-label={movie.title}
