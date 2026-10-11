@@ -1,41 +1,26 @@
 {
-  "version": "2026-10-12-sobre",
+  "version": "2026-10-12-gratuit",
   "label": "Version du 12 octobre",
   "items": [
     {
-      "visual": "recent",
-      "title": "Tes vraies affiches",
-      "body": "Cet écran défile désormais avec les films de ta collection."
+      "title": "Gratuit et légal",
+      "body": "Dans Découvrir : les documentaires, films et séries à regarder gratuitement en France, et où les trouver."
     },
     {
-      "visual": "next",
+      "title": "À regarder ici",
+      "body": "Trois grands documentaires du domaine public, à lancer sans quitter l'app."
+    },
+    {
       "title": "Les mises à jour s'annoncent",
       "body": "Fini l'écran d'erreur après une nouvelle version : cet écran te dit ce qui change et redémarre l'app."
     },
     {
-      "visual": "top",
       "title": "Ma note, en lecture",
       "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
     },
     {
-      "visual": "next",
       "title": "Les verdicts des espaces",
       "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
-    },
-    {
-      "visual": "next",
-      "title": "Vous contre le public",
-      "body": "Dans « Nos stats », votre note à deux face à la note IMDb, film par film."
-    },
-    {
-      "visual": "next",
-      "title": "Des affiches qui s'ouvrent",
-      "body": "Stats, calendrier, profils : chaque affiche mène à ta note ou à la fiche du film."
-    },
-    {
-      "visual": "next",
-      "title": "Corrections",
-      "body": "Les pop-ins des stats ne cachent plus le film ouvert, et les notes des espaces s'affichent de nouveau."
     }
   ],
   "posters": [
