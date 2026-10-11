@@ -175,12 +175,12 @@ export async function getTrailerFeed(category: TrailerCategory, mediaType: 'movi
 }
 
 /** Le lecteur officiel, sans cookies, piloté par l'API iframe (son, erreurs). */
-export const youtubeEmbed = (key: string) => {
+export const youtubeEmbed = (key: string, opts: { controls?: boolean; muted?: boolean } = {}) => {
   const params = new URLSearchParams({
     autoplay: '1',
-    mute: '1',
+    mute: opts.muted === false ? '0' : '1',
     playsinline: '1',
-    controls: '0',
+    controls: opts.controls ? '1' : '0',
     rel: '0',
     loop: '1',
     playlist: key,

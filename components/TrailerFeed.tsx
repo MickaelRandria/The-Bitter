@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Eye, Info, Plus, Users, Volume2, VolumeX, Play } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, Eye, Info, Plus, Users, Volume2, VolumeX, Play, Maximize2, X } from 'lucide-react';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -148,19 +149,74 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
     return language === 'en' ? text : text.replace(/^1 /, '1er ');
   };
 
-  const act = (label: string, icon: React.ReactNode, onClick: () => void, on = false) => (
-    <button type="button" onClick={onClick} className="flex flex-col items-center gap-1 text-white text-[10px] font-extrabold active:scale-95 transition-transform">
-      <span className={`w-[46px] h-[46px] rounded-full flex items-center justify-center backdrop-blur ${on ? 'bg-bitter-lime text-charcoal' : 'bg-white/15'}`}>{icon}</span>
-      {label}
+  /**
+   * Hauteur du fil : de son bord haut jusqu'au-dessus de la barre de navigation
+   * flottante (2 rem du bas + sa hauteur), pour que rien ne passe dessous.
+   */
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [top, setTop] = useState(200);
+  useEffect(() => {
+    const measure = () => {
+      const el = boxRef.current;
+      if (el) setTop(Math.max(0, el.getBoundingClientRect().top + window.scrollY));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  /** Plein écran dans l'app : le lecteur avec ses commandes, le son, et YouTube en dernier recours. */
+  const [fullscreen, setFullscreen] = useState<TrailerItem | null>(null);
+  const fullRef = useRef<HTMLDivElement>(null);
+  const openFullscreen = (item: TrailerItem) => {
+    haptics.medium();
+    setFullscreen(item);
+    window.requestAnimationFrame(() => {
+      const el = fullRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null;
+      try {
+        if (el?.requestFullscreen) void el.requestFullscreen().catch(() => {});
+        else el?.webkitRequestFullscreen?.();
+      } catch {
+        // Pas d'API plein écran (iPhone) : la vue occupe déjà tout l'écran de l'app.
+      }
+      try {
+        void (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('landscape')?.catch(() => {});
+      } catch {
+        // Rotation non verrouillable : tant pis, on tourne le téléphone soi-même.
+      }
+    });
+  };
+  const closeFullscreen = () => {
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      (screen.orientation as unknown as { unlock?: () => void })?.unlock?.();
+    } catch {
+      // Rien à défaire.
+    }
+    setFullscreen(null);
+  };
+
+  const action = (label: string, icon: React.ReactNode, onClick: () => void, on = false) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 min-w-0 flex flex-col items-center gap-1 py-1 text-white text-[10.5px] font-extrabold active:scale-95 transition-transform"
+    >
+      <span className={`w-11 h-11 rounded-full flex items-center justify-center ${on ? 'bg-bitter-lime text-charcoal' : 'bg-white/15'}`}>{icon}</span>
+      <span className="truncate max-w-full">{label}</span>
     </button>
   );
 
   return (
-    <div className="relative h-[calc(100dvh-15rem)] min-h-[480px] rounded-[1.6rem] overflow-hidden bg-black text-white">
+    <div
+      ref={boxRef}
+      className="relative min-h-[460px] rounded-[1.6rem] overflow-hidden bg-black text-white"
+      style={{ height: `calc(100dvh - ${top}px - env(safe-area-inset-bottom, 0px) - 8rem)` }}
+    >
       <div
         ref={feedRef}
         onScroll={onScroll}
-        className="absolute inset-0 overflow-y-auto snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="absolute inset-0 overflow-y-auto snap-y snap-mandatory overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {items == null && <div className="h-full flex items-center justify-center text-[12px] font-bold text-white/60">{t('trailers.loading')}</div>}
         {items?.length === 0 && (
@@ -168,93 +224,121 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
         )}
         {items?.map((item, i) => {
           const isActive = i === active;
-          const play = isActive && (autoplay || started.has(item.videoKey));
+          // En plein écran, la vidéo du fil s'efface : une seule lecture à la fois.
+          const play = isActive && !fullscreen && (autoplay || started.has(item.videoKey));
           const offers = where[`${item.mediaType}:${item.tmdbId}`] ?? [];
           const isListed = inList.has(item.tmdbId) || added.has(item.tmdbId);
           return (
-            <section key={`${item.mediaType}-${item.tmdbId}`} className="relative h-full snap-start snap-always overflow-hidden" aria-label={item.title}>
+            <section
+              key={`${item.mediaType}-${item.tmdbId}`}
+              className="relative h-full snap-start snap-always overflow-hidden flex flex-col"
+              aria-label={item.title}
+            >
               {item.posterPath && (
-                <img src={tmdbImage(item.posterPath, 'w342')} alt="" className="absolute inset-[-40px] w-[calc(100%+80px)] h-[calc(100%+80px)] object-cover blur-2xl opacity-50 scale-110" />
+                <img
+                  src={tmdbImage(item.posterPath, 'w342')}
+                  alt=""
+                  className="absolute inset-[-40px] w-[calc(100%+80px)] h-[calc(100%+80px)] object-cover blur-2xl opacity-45 scale-110"
+                />
               )}
-              <span className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/15 to-black/95" />
+              <span className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/90" />
 
-              {/* La vidéo, en 16:9, en haut sous les filtres : le bas reste au titre et aux actions. */}
-              <div className="absolute left-0 right-0 top-14 aspect-video bg-black overflow-hidden">
-                {play ? (
-                  <iframe
-                    ref={isActive ? frameRef : undefined}
-                    src={youtubeEmbed(item.videoKey)}
-                    title={item.title}
-                    onLoad={onFrameLoad}
-                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    className="absolute inset-0 w-full h-full"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setStarted((prev) => new Set(prev).add(item.videoKey))}
-                    aria-label={t('trailers.play', { title: item.title })}
-                    className="absolute inset-0 flex items-center justify-center"
-                  >
-                    <img src={youtubeThumb(item.videoKey)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-                    {isActive && (
-                      <span className="relative w-14 h-14 rounded-full bg-bitter-lime text-charcoal flex items-center justify-center">
-                        <Play size={22} fill="currentColor" className="ml-0.5" />
-                      </span>
-                    )}
-                  </button>
-                )}
-                <span className="pointer-events-none absolute left-2 top-2 rounded-md bg-bitter-lime px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-[0.08em] text-charcoal">
-                  {t(`trailers.kind.${item.videoKind}`)}
-                </span>
-                {play && (
-                  <button
-                    type="button"
-                    onClick={() => setSound((s) => !s)}
-                    aria-pressed={sound}
-                    className="absolute right-2 bottom-2 h-8 px-2.5 rounded-full bg-black/60 text-[11px] font-extrabold flex items-center gap-1.5"
-                  >
-                    {sound ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                    {sound ? t('trailers.soundOn') : t('trailers.soundOff')}
-                  </button>
-                )}
-              </div>
-
-              <div className="absolute left-3.5 right-[74px] bottom-5 space-y-1.5">
-                <span className="inline-flex rounded-full bg-bitter-lime/15 px-2.5 py-1 text-[11px] font-extrabold text-bitter-lime">{reasonOf(item)}</span>
-                <h3 className="text-[25px] font-black tracking-[-0.045em] leading-none">{item.title}</h3>
-                <p className="text-[12px] font-bold text-white/75">
-                  {[item.reason.kind === 'soon' ? t('trailers.releaseOn', { date: dateOf(item.releaseDate) }) : item.year].filter(Boolean).join(' · ')}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {item.reason.kind === 'showing' && (
-                    <em className="not-italic rounded-lg bg-white px-2 py-1 text-[11px] font-extrabold text-charcoal">{t('trailers.inCinemas')}</em>
+              {/* La vidéo, centrée dans l'espace laissé par les filtres et la fiche. */}
+              <div className="relative flex-1 min-h-0 flex items-center pt-12">
+                <div className="relative w-full aspect-video bg-black overflow-hidden">
+                  {play ? (
+                    <iframe
+                      ref={isActive ? frameRef : undefined}
+                      src={youtubeEmbed(item.videoKey)}
+                      title={item.title}
+                      onLoad={onFrameLoad}
+                      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      className="absolute inset-0 w-full h-full"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setStarted((prev) => new Set(prev).add(item.videoKey))}
+                      aria-label={t('trailers.play', { title: item.title })}
+                      className="absolute inset-0 flex items-center justify-center"
+                    >
+                      <img src={youtubeThumb(item.videoKey)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                      {isActive && (
+                        <span className="relative w-14 h-14 rounded-full bg-bitter-lime text-charcoal flex items-center justify-center">
+                          <Play size={22} fill="currentColor" className="ml-0.5" />
+                        </span>
+                      )}
+                    </button>
                   )}
-                  {offers.map((name) => (
-                    <em key={name} className="not-italic rounded-lg bg-white/15 px-2 py-1 text-[11px] font-extrabold">
-                      {t('trailers.on', { platform: name })}
-                    </em>
-                  ))}
+                  <span className="pointer-events-none absolute left-2 top-2 rounded-md bg-bitter-lime px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-[0.08em] text-charcoal">
+                    {t(`trailers.kind.${item.videoKind}`)}
+                  </span>
+                  {isActive && (
+                    <span className="absolute right-2 bottom-2 flex gap-1.5">
+                      {play && (
+                        <button
+                          type="button"
+                          onClick={() => setSound((s) => !s)}
+                          aria-pressed={sound}
+                          aria-label={sound ? t('trailers.soundOn') : t('trailers.soundOff')}
+                          className="h-8 px-2.5 rounded-full bg-black/65 text-[11px] font-extrabold flex items-center gap-1.5"
+                        >
+                          {sound ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                          {sound ? t('trailers.soundOn') : t('trailers.soundOff')}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openFullscreen(item)}
+                        aria-label={t('trailers.fullscreen')}
+                        className="w-8 h-8 rounded-full bg-black/65 flex items-center justify-center"
+                      >
+                        <Maximize2 size={14} />
+                      </button>
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="absolute right-2.5 bottom-7 flex flex-col items-center gap-3.5">
-                {onAdd &&
-                  act(
-                    isListed ? t('trailers.listed') : t('trailers.add'),
-                    isListed ? <Check size={20} strokeWidth={2.8} /> : <Plus size={21} strokeWidth={2.6} />,
-                    () => {
-                      if (isListed) return;
-                      haptics.success();
-                      setAdded((prev) => new Set(prev).add(item.tmdbId));
-                      void onAdd(item.tmdbId, item.mediaType);
-                    },
-                    isListed
-                  )}
-                {onWatchWith && act(t('trailers.with'), <Users size={20} strokeWidth={2.4} />, () => onWatchWith(item.tmdbId, item.mediaType))}
-                {onSeen && act(t('trailers.seen'), <Eye size={20} strokeWidth={2.4} />, () => onSeen(item.tmdbId, item.mediaType))}
-                {act(t('trailers.details'), <Info size={20} strokeWidth={2.4} />, () => onOpen(item.tmdbId, item.mediaType))}
+              {/* La fiche et les actions, en une rangée : tout se touche sans faire défiler. */}
+              <div className="relative shrink-0 px-3.5 pb-3.5 pt-2 space-y-2.5">
+                <div className="space-y-1">
+                  <span className="inline-flex max-w-full rounded-full bg-bitter-lime/15 px-2.5 py-1 text-[11px] font-extrabold text-bitter-lime truncate">
+                    {reasonOf(item)}
+                  </span>
+                  <h3 className="text-[22px] font-black tracking-[-0.045em] leading-[1.05] line-clamp-2">{item.title}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] font-bold text-white/75">
+                    {(item.reason.kind === 'soon' ? t('trailers.releaseOn', { date: dateOf(item.releaseDate) }) : item.year) && (
+                      <span>{item.reason.kind === 'soon' ? t('trailers.releaseOn', { date: dateOf(item.releaseDate) }) : item.year}</span>
+                    )}
+                    {item.reason.kind === 'showing' && (
+                      <em className="not-italic rounded-md bg-white px-1.5 py-0.5 text-[10.5px] font-extrabold text-charcoal">{t('trailers.inCinemas')}</em>
+                    )}
+                    {offers.map((name) => (
+                      <em key={name} className="not-italic rounded-md bg-white/15 px-1.5 py-0.5 text-[10.5px] font-extrabold">
+                        {t('trailers.on', { platform: name })}
+                      </em>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {onAdd &&
+                    action(
+                      isListed ? t('trailers.listed') : t('trailers.add'),
+                      isListed ? <Check size={19} strokeWidth={2.8} /> : <Plus size={20} strokeWidth={2.6} />,
+                      () => {
+                        if (isListed) return;
+                        haptics.success();
+                        setAdded((prev) => new Set(prev).add(item.tmdbId));
+                        void onAdd(item.tmdbId, item.mediaType);
+                      },
+                      isListed
+                    )}
+                  {onWatchWith && action(t('trailers.with'), <Users size={19} strokeWidth={2.4} />, () => onWatchWith(item.tmdbId, item.mediaType))}
+                  {onSeen && action(t('trailers.seen'), <Eye size={19} strokeWidth={2.4} />, () => onSeen(item.tmdbId, item.mediaType))}
+                  {action(t('trailers.details'), <Info size={19} strokeWidth={2.4} />, () => onOpen(item.tmdbId, item.mediaType))}
+                </div>
               </div>
             </section>
           );
@@ -279,6 +363,51 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
           </button>
         ))}
       </div>
+
+      {fullscreen && createPortal(
+        <div
+          ref={fullRef}
+          className="fixed inset-0 z-[300] bg-black flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label={fullscreen.title}
+        >
+          <div className="flex items-center gap-3 px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] pb-2 text-white">
+            <button
+              type="button"
+              onClick={closeFullscreen}
+              aria-label={t('common.close')}
+              className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0"
+            >
+              <X size={18} />
+            </button>
+            <b className="flex-1 min-w-0 truncate text-[14px] font-black">{fullscreen.title}</b>
+            <a
+              href={`https://www.youtube.com/watch?v=${fullscreen.videoKey}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 h-9 px-3 rounded-full bg-white/15 text-[11.5px] font-extrabold flex items-center"
+            >
+              {t('trailers.onYoutube')}
+            </a>
+          </div>
+          {/* Avec ses commandes et le son : en plein écran, on regarde vraiment. */}
+          <div className="flex-1 min-h-0 flex items-center">
+            <div className="relative w-full max-h-full aspect-video">
+              <iframe
+                src={youtubeEmbed(fullscreen.videoKey, { controls: true, muted: false })}
+                title={fullscreen.title}
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="absolute inset-0 w-full h-full"
+              />
+            </div>
+          </div>
+          <div className="h-[calc(env(safe-area-inset-bottom,0px)+12px)]" />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

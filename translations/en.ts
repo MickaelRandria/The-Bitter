@@ -2599,4 +2599,6 @@ export const en: Record<string, string> = {
   "trailers.kind.Clip": "Clip",
   "trailers.kind.Featurette": "Featurette",
   "trailers.kind.Behind the Scenes": "Behind the scenes",
+  "trailers.fullscreen": "Full screen",
+  "trailers.onYoutube": "Open on YouTube",
 };
