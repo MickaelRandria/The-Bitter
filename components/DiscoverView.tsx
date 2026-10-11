@@ -388,7 +388,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
-        {(mediaType === 'tv' ? (['foryou', 'free', 'trailers', 'theatre', 'feed'] as const) : (['foryou', 'free', 'trailers', 'feed'] as const)).map((key) => (
+        {(mediaType === 'tv' ? (['foryou', 'trailers', 'theatre', 'feed'] as const) : (['foryou', 'trailers', 'feed'] as const)).map((key) => (
           <button
             key={key}
             onClick={() => {

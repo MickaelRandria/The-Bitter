@@ -1,18 +1,14 @@
 {
-  "version": "2026-10-12-trailers",
+  "version": "2026-10-12-trailers-v2",
   "label": "Version du 12 octobre",
   "items": [
     {
-      "title": "Un onglet Trailers",
-      "body": "Dans Découvrir : les bandes-annonces officielles en plein écran, choisies d'après tes films. Un geste pour les garder dans ta liste ou les proposer à un proche."
+      "title": "Des trailers mieux cadrés",
+      "body": "La vidéo est centrée, les actions tiennent en une rangée sous le titre, et rien ne passe sous la barre de navigation."
     },
     {
-      "title": "Un onglet Gratuit",
-      "body": "Dans Découvrir, juste après « Pour toi » : documentaires, films et séries à regarder gratuitement en France."
-    },
-    {
-      "title": "À regarder ici",
-      "body": "Trois grands documentaires du domaine public, à lancer sans quitter l'app."
+      "title": "Le plein écran",
+      "body": "Un bouton sur la vidéo l'ouvre en grand, avec le son et les commandes, sans quitter l'app."
     },
     {
       "title": "Les mises à jour s'annoncent",
@@ -21,6 +17,10 @@
     {
       "title": "Ma note, en lecture",
       "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
+    },
+    {
+      "title": "Les verdicts des espaces",
+      "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
     }
   ],
   "posters": [
