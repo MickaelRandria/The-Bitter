@@ -96,7 +96,8 @@ interface SharedSpaceViewProps {
   onFocusHandled?: () => void;
   onToast?: (message: string) => void;
   /** Un film hors de l'espace (profil d'un membre) : « Ma note » ou sa fiche. */
-  onOpenFilm?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
+  /** `onReturn` rouvre le profil du membre une fois le film refermé. */
+  onOpenFilm?: (tmdbId: number, mediaType: 'movie' | 'tv', onReturn?: () => void) => void;
 }
 
 /** Teintes des membres, dans l'ordre de la liste ; la mienne est l'anthracite. */
@@ -1979,7 +1980,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             setSelectedMember(null);
             openVerdict(id);
           }}
-          onOpenFilm={onOpenFilm}
+          onOpenFilm={
+            onOpenFilm &&
+            ((tmdbId, mediaType) => {
+              // Le profil s'efface le temps du film, puis revient.
+              const member = selectedMember;
+              setSelectedMember(null);
+              onOpenFilm(tmdbId, mediaType, () => setSelectedMember(member));
+            })
+          }
           onClose={() => setSelectedMember(null)}
         />
       )}
