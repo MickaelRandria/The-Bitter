@@ -2548,6 +2548,7 @@ export const en: Record<string, string> = {
   "myRating.details": "Film details",
   "myRating.open": "See my rating for {title}",
   // Gratuit et légal.
+  "free.tab": "Free",
   "free.title": "Free and legal",
   "free.inFrance": "in France",
   "free.leadKicker": "Free right now · {platform}",

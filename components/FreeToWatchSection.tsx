@@ -26,13 +26,15 @@ import {
 interface Props {
   movies?: Movie[];
   onOpen: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
+  /** Le type affiché à l'ouverture : les séries depuis la partie Séries. */
+  initialKind?: FreeKind;
 }
 
 const fmt = (n: number) => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
 
-const FreeToWatchSection: React.FC<Props> = ({ movies = [], onOpen }) => {
+const FreeToWatchSection: React.FC<Props> = ({ movies = [], onOpen, initialKind = 'doc' }) => {
   const { t } = useLanguage();
-  const [kind, setKind] = useState<FreeKind>('doc');
+  const [kind, setKind] = useState<FreeKind>(initialKind);
   const [provider, setProvider] = useState<number | null>(null);
   const [items, setItems] = useState<FreeTitle[] | null>(null);
   const [failed, setFailed] = useState(false);
