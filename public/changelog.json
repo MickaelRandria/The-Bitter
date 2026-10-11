@@ -1,36 +1,55 @@
 {
-  "version": "2026-10-12",
+  "version": "2026-10-12-affiches",
   "label": "Version du 12 octobre",
   "items": [
     {
-      "icon": "update",
+      "visual": "recent",
+      "title": "Tes vraies affiches",
+      "body": "Cet écran défile désormais avec les films de ta collection."
+    },
+    {
+      "visual": "next",
       "title": "Les mises à jour s'annoncent",
       "body": "Fini l'écran d'erreur après une nouvelle version : cet écran te dit ce qui change et redémarre l'app."
     },
     {
-      "icon": "star",
+      "visual": "top",
       "title": "Ma note, en lecture",
       "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
     },
     {
-      "icon": "users",
+      "visual": "next",
       "title": "Les verdicts des espaces",
       "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
     },
     {
-      "icon": "chart",
+      "visual": "next",
       "title": "Vous contre le public",
       "body": "Dans « Nos stats », votre note à deux face à la note IMDb, film par film."
     },
     {
-      "icon": "hand",
+      "visual": "next",
       "title": "Des affiches qui s'ouvrent",
       "body": "Stats, calendrier, profils : chaque affiche mène à ta note ou à la fiche du film."
     },
     {
-      "icon": "fix",
+      "visual": "next",
       "title": "Corrections",
       "body": "Les pop-ins des stats ne cachent plus le film ouvert, et les notes des espaces s'affichent de nouveau."
     }
+  ],
+  "posters": [
+    "https://image.tmdb.org/t/p/w780/7w6v7FHdTbxuKqAPiMqKxEq8hro.jpg",
+    "https://image.tmdb.org/t/p/w780/jvVlMNTPoTKZT2mD3jlSs9B9kIX.jpg",
+    "https://image.tmdb.org/t/p/w780/tFzSSetNzvdaxms6RLfr2pyu9sM.jpg",
+    "https://image.tmdb.org/t/p/w780/gXUnFIZdLsGnZp2AxKjQIVm5jEM.jpg",
+    "https://image.tmdb.org/t/p/w780/hlNRCWGoFFvmRZERUgNUbntO5EU.jpg",
+    "https://image.tmdb.org/t/p/w780/tGdFDoA9qyt0t6Qr9MFnOl8Z2Jz.jpg",
+    "https://image.tmdb.org/t/p/w780/e5qRxuVJNfgZHfFAxts0wK2Fubb.jpg",
+    "https://image.tmdb.org/t/p/w780/wAofwsldMDNAIzGSEfMJMoUn1KB.jpg",
+    "https://image.tmdb.org/t/p/w780/zLCjFOyjvKqYdkQYYAyTtfJ5mpk.jpg",
+    "https://image.tmdb.org/t/p/w780/9BzF32t0U7mOnpzmQ0dyFKv4uZT.jpg",
+    "https://image.tmdb.org/t/p/w780/pICoWjcKSet6sA3yzxOkP8ChwYI.jpg",
+    "https://image.tmdb.org/t/p/w780/qJ2tW6WMUDux911r6m7haRef0WH.jpg"
   ]
 }

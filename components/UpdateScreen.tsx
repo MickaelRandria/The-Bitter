@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BarChart3, Hand, RotateCcw, Sparkles, Star, Users, Wrench, Zap, CalendarDays, Bell, Ticket } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { resizeTmdbImage } from '../utils/tmdbImage';
 import { UpdateMode, restartApp } from '../utils/appUpdate';
 
 /**
@@ -14,7 +15,8 @@ import { UpdateMode, restartApp } from '../utils/appUpdate';
  * Toujours en sombre, comme une salle.
  */
 interface Change {
-  icon?: string;
+  /** Quelle affiche illustre la nouveauté : ton film le mieux noté, le dernier vu, ou le suivant. */
+  visual?: 'top' | 'recent' | 'next';
   title: string;
   body?: string;
 }
@@ -23,30 +25,51 @@ interface Changelog {
   version?: string;
   label?: string;
   items?: Change[];
+  /** Affiches de secours, pour qui n'a encore rien noté. */
+  posters?: string[];
 }
 
-const ICONS: Record<string, React.ReactNode> = {
-  star: <Star size={17} strokeWidth={2.4} />,
-  users: <Users size={17} strokeWidth={2.4} />,
-  chart: <BarChart3 size={17} strokeWidth={2.4} />,
-  hand: <Hand size={17} strokeWidth={2.4} />,
-  fix: <Wrench size={17} strokeWidth={2.4} />,
-  update: <RotateCcw size={17} strokeWidth={2.4} />,
-  calendar: <CalendarDays size={17} strokeWidth={2.4} />,
-  bell: <Bell size={17} strokeWidth={2.4} />,
-  ticket: <Ticket size={17} strokeWidth={2.4} />,
-  bolt: <Zap size={17} strokeWidth={2.4} />,
+interface Shot {
+  url: string;
+  title?: string;
+  rating?: number;
+}
+
+/**
+ * Les films vus, lus dans la copie locale de la collection : l'écran vit hors de
+ * l'app (il remplace un écran qui n'a pas pu se charger) et n'a pas accès à son état.
+ */
+const readCollection = (): { recent: Shot[]; top: Shot | null } => {
+  try {
+    const profiles = JSON.parse(localStorage.getItem('the_bitter_profiles_v2') || '[]');
+    const movies = (Array.isArray(profiles) ? profiles : []).flatMap((p: { movies?: unknown[] }) => (p?.movies ?? []) as any[]);
+    const seen = new Set<string>();
+    const watched = movies
+      .filter((m) => m?.status === 'watched' && typeof m.posterUrl === 'string' && m.posterUrl && m.seasonNumber == null)
+      .map((m) => {
+        const r = m.ratings ?? {};
+        const weighted = Number(m.adaptiveRating?.weightedRating);
+        const rating =
+          Number.isFinite(weighted) && weighted > 0
+            ? weighted
+            : (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
+        return {
+          url: m.posterUrl as string,
+          title: m.title as string,
+          rating: Number.isFinite(rating) ? rating : undefined,
+          at: Number(m.dateWatched || m.dateAdded || 0),
+        };
+      })
+      .filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)));
+    const recent = [...watched].sort((a, b) => b.at - a.at);
+    const top = [...watched].filter((m) => m.rating != null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0] ?? null;
+    return { recent, top };
+  } catch {
+    return { recent: [], top: null };
+  }
 };
 
-/** Teintes des photogrammes de la pellicule, en fond. */
-const FRAMES = [
-  ['#5B3A29', '#160C06'],
-  ['#1F3A5F', '#0B1424'],
-  ['#B8763A', '#2A1608'],
-  ['#2F6A5A', '#0A1A14'],
-  ['#3B2F5B', '#0F0B1A'],
-  ['#8A3A12', '#1A0802'],
-];
+const fmt = (n: number) => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
 
 const reducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -109,8 +132,25 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
   };
 
   const items: Change[] = offline
-    ? [{ icon: 'bolt', title: 'Nouvelle version disponible', body: 'La liste des nouveautés s’affichera une fois reconnecté. Le redémarrage marche quand même.' }]
+    ? [{ visual: 'recent', title: 'Nouvelle version disponible', body: 'La liste des nouveautés s’affichera une fois reconnecté. Le redémarrage marche quand même.' }]
     : log?.items ?? [];
+
+  /**
+   * Les affiches : celles de ta collection d'abord, du plus récent au plus
+   * ancien ; celles de la liste de secours pour compléter.
+   */
+  const [collection] = useState(readCollection);
+  const pool: Shot[] = [...collection.recent];
+  for (const url of log?.posters ?? []) if (pool.length < 12 && !pool.some((p) => p.url === url)) pool.push({ url });
+  const reel = pool.slice(0, 12);
+  let cursor = collection.recent.length ? 1 : 0;
+  const visualOf = (item: Change): Shot | null => {
+    if (item.visual === 'top' && collection.top) return collection.top;
+    if (item.visual === 'recent' && pool[0]) return pool[0];
+    const shot = pool.length ? pool[cursor % pool.length] : null;
+    cursor += 1;
+    return shot;
+  };
   const lead =
     mode === 'found'
       ? 'Une nouvelle version de The Bitter est prête. Redémarre l’app pour en profiter, tu retrouveras tout là où tu l’as laissé.'
@@ -127,9 +167,11 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
       className="update-screen fixed inset-0 z-[400] overflow-hidden bg-[#0F0F0E] text-[#F5F3EE]"
     >
       <style>{`
-        .update-screen .us-strip { position: absolute; top: -40px; bottom: -40px; right: -34px; width: 132px; opacity: .45; transform: rotate(8deg); background: #000; border-left: 10px dotted #1d1d1c; border-right: 10px dotted #1d1d1c; overflow: hidden; }
-        .update-screen .us-reel { display: flex; flex-direction: column; gap: 8px; padding: 8px 6px; animation: us-roll 18s linear infinite; }
-        .update-screen .us-frame { height: 120px; border-radius: 4px; flex: none; }
+        .update-screen .us-strip { position: absolute; top: -60px; bottom: -60px; right: -38px; width: 142px; opacity: .55; transform: rotate(8deg); background: #000; border-left: 11px dotted #232321; border-right: 11px dotted #232321; overflow: hidden; }
+        .update-screen .us-strip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(15,15,14,.55), transparent 60%); }
+        .update-screen .us-reel { display: flex; flex-direction: column; gap: 8px; padding: 8px 6px; animation: us-roll 40s linear infinite; }
+        .update-screen .us-frame { position: relative; aspect-ratio: 2 / 3; border-radius: 4px; flex: none; overflow: hidden; background: #1A1A19; }
+        .update-screen .us-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
         @keyframes us-roll { to { transform: translateY(-50%); } }
         .update-screen .us-cue { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 22px); right: 22px; width: 14px; height: 14px; border-radius: 50%; background: #F5F3EE; opacity: 0; animation: us-cue 1.6s .3s both; }
         @keyframes us-cue { 0%, 100% { opacity: 0; } 10%, 30% { opacity: .9; } 20% { opacity: .2; } 40% { opacity: 0; } }
@@ -143,8 +185,19 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
 
       <div className="us-strip" aria-hidden>
         <div className="us-reel">
-          {[...FRAMES, ...FRAMES].map((f, i) => (
-            <span key={i} className="us-frame" style={{ background: `linear-gradient(160deg, ${f[0]}, ${f[1]})` }} />
+          {/* Deux fois la même suite : la boucle de défilement ne se voit pas. */}
+          {[...reel, ...reel].map((shot, i) => (
+            <span key={i} className="us-frame">
+              <img
+                src={resizeTmdbImage(shot.url, 'w185')}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  e.currentTarget.style.visibility = 'hidden';
+                }}
+              />
+            </span>
           ))}
         </div>
       </div>
@@ -180,12 +233,33 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
           {items.map((item, i) => (
             <li
               key={`${item.title}-${i}`}
-              className="us-in grid grid-cols-[34px_minmax(0,1fr)] gap-3 items-start rounded-2xl bg-[#1A1A19] border border-[#2A2A28] px-3 py-3"
+              className="us-in grid grid-cols-[44px_minmax(0,1fr)] gap-3 items-center rounded-2xl bg-[#1A1A19] border border-[#2A2A28] p-2.5 pr-3"
               style={{ ['--i' as string]: i + 3 }}
             >
-              <span className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center bg-bitter-lime/10 text-bitter-lime">
-                {ICONS[item.icon ?? ''] ?? <Sparkles size={17} strokeWidth={2.4} />}
-              </span>
+              {(() => {
+                const shot = visualOf(item);
+                return (
+                  <span className="relative w-[44px] aspect-[2/3] rounded-lg overflow-hidden bg-[#262624] shadow-[0_8px_14px_-8px_rgba(0,0,0,0.8)]">
+                    {shot && (
+                      <img
+                        src={resizeTmdbImage(shot.url, 'w154')}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          e.currentTarget.style.visibility = 'hidden';
+                        }}
+                      />
+                    )}
+                    {item.visual === 'top' && shot === collection.top && collection.top?.rating != null && (
+                      <span className="absolute left-1 bottom-1 rounded-md bg-bitter-lime px-1 text-[9px] font-black tabular-nums text-[#111]">
+                        {fmt(collection.top.rating)}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
               <span className="min-w-0">
                 <b className="block text-[13px] font-black tracking-[-0.01em]">{item.title}</b>
                 {item.body && <small className="block mt-0.5 text-[11.5px] font-semibold leading-snug text-[#9C978F]">{item.body}</small>}
