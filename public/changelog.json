@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-onglet-gratuit",
+  "version": "2026-10-12-trailers",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Un onglet Trailers",
+      "body": "Dans Découvrir : les bandes-annonces officielles en plein écran, choisies d'après tes films. Un geste pour les garder dans ta liste ou les proposer à un proche."
+    },
     {
       "title": "Un onglet Gratuit",
       "body": "Dans Découvrir, juste après « Pour toi » : documentaires, films et séries à regarder gratuitement en France."
@@ -17,10 +21,6 @@
     {
       "title": "Ma note, en lecture",
       "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
-    },
-    {
-      "title": "Les verdicts des espaces",
-      "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
     }
   ],
   "posters": [

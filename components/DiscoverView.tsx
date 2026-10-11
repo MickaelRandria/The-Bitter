@@ -59,12 +59,16 @@ type TimePeriod = 'this_month' | 'this_year' | 'all_time';
 type SearchMode = 'title' | 'mood';
 
 import FreeToWatchSection from './FreeToWatchSection';
+import TrailerFeed from './TrailerFeed';
 
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
   onPreview: (tmdbId: number, mediaType: MediaType) => void;
   /** « Gratuit et légal » : ma note si le titre est noté, sinon sa fiche. */
   onOpenFilm?: (tmdbId: number, mediaType: MediaType) => void;
+  /** Fil des bandes-annonces : proposer une séance, noter un film déjà vu. */
+  onWatchWith?: (tmdbId: number, mediaType: MediaType) => void;
+  onSeen?: (tmdbId: number, mediaType: MediaType) => void;
   onQuickWatchlist?: (tmdbId: number, mediaType: MediaType) => Promise<void>;
   userProfile: UserProfile | null;
   movies?: Movie[];
@@ -133,6 +137,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   onSelectMovie,
   onPreview,
   onOpenFilm,
+  onWatchWith,
+  onSeen,
   onQuickWatchlist,
   userProfile,
   movies,
@@ -179,7 +185,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
    * « À venir » suit les prochaines saisons. Les sorties en salle des films vivent
    * dans le calendrier, onglet À venir.
    */
-  const [surface, setSurface] = useState<'foryou' | 'free' | 'theatre' | 'feed'>('foryou');
+  const [surface, setSurface] = useState<'foryou' | 'free' | 'trailers' | 'theatre' | 'feed'>('foryou');
 
   /** Mes films vus, indexés par TMDB : le détail compare critère par critère. */
   const myMovieByTmdb = useMemo(() => {
@@ -382,7 +388,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   return (
     <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
-        {(mediaType === 'tv' ? (['foryou', 'free', 'theatre', 'feed'] as const) : (['foryou', 'free', 'feed'] as const)).map((key) => (
+        {(mediaType === 'tv' ? (['foryou', 'free', 'trailers', 'theatre', 'feed'] as const) : (['foryou', 'free', 'trailers', 'feed'] as const)).map((key) => (
           <button
             key={key}
             onClick={() => {
@@ -401,6 +407,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                 ? 'releases.forYou'
                 : key === 'free'
                   ? 'free.tab'
+                  : key === 'trailers'
+                    ? 'trailers.tab'
                   : key === 'theatre'
                   ? 'tv.upcoming'
                   : 'feed.tab'
@@ -420,6 +428,16 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           onQuickWatchlist={(tmdbId) => {
             onQuickWatchlist?.(tmdbId, mediaType);
           }}
+        />
+      ) : surface === 'trailers' ? (
+        <TrailerFeed
+          key={mediaType}
+          mediaType={mediaType}
+          movies={movies}
+          onAdd={onQuickWatchlist}
+          onWatchWith={onWatchWith}
+          onSeen={onSeen}
+          onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)}
         />
       ) : surface === 'free' ? (
         <FreeToWatchSection
