@@ -40,6 +40,8 @@ interface SpaceStatsViewProps {
   plans: WatchPlan[];
   /** Note publique d'un film : IMDb, sinon TMDB (la même que sur la fiche). */
   publicRatingOf: (movie: SharedMovie) => PublicRating | null;
+  /** Toucher une affiche : la fiche verdict du film, par-dessus les stats. */
+  onOpenFilm?: (sharedMovieId: string) => void;
   onClose: () => void;
 }
 
@@ -506,15 +508,24 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
         ] as [PairRow | null, string][]).filter((x): x is [PairRow, string] => !!x[0])
       : [];
     const days = [t('stats.day0'), t('stats.day1'), t('stats.day2'), t('stats.day3'), t('stats.day4'), t('stats.day5'), t('stats.day6')];
+    const open = (id: string) => () => {
+      if (!props.onOpenFilm) return;
+      haptics.soft();
+      props.onOpenFilm(id);
+    };
     const filmCard = (row: PairRow, kicker: string, sub: string) => (
-      <div className="flex gap-3 items-center rounded-2xl bg-sand dark:bg-[#1f1f1f] p-2.5">
+      <button
+        type="button"
+        onClick={open(row.film.id)}
+        className="w-full text-left flex gap-3 items-center rounded-2xl bg-sand dark:bg-[#1f1f1f] p-2.5 active:scale-[0.99] transition-transform"
+      >
         <Poster url={row.film.poster_url} className="w-[46px] aspect-[2/3] rounded-lg shrink-0" />
         <span className="min-w-0">
           <em className="not-italic block text-[9px] font-black uppercase tracking-[0.08em] text-stone-500 dark:text-stone-400">{kicker}</em>
           <b className="block text-[12.5px] font-black leading-tight text-charcoal dark:text-white truncate">{row.film.title}</b>
           <small className="block mt-0.5 text-[10.5px] font-semibold text-stone-500 dark:text-stone-400">{sub}</small>
         </span>
-      </div>
+      </button>
     );
 
     return (
@@ -538,7 +549,9 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
           </div>
           <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(wall.length < 7 ? wall.length : 7, 4)}, minmax(0, 1fr))` }}>
             {wall.map((r) => (
-              <Poster key={r.film.id} url={r.film.poster_url} size="w92" className="aspect-[2/3] rounded-md" />
+              <button key={r.film.id} type="button" onClick={open(r.film.id)} aria-label={r.film.title} className="block active:scale-95 transition-transform">
+                <Poster url={r.film.poster_url} size="w92" className="aspect-[2/3] rounded-md" />
+              </button>
             ))}
           </div>
         </div>
@@ -556,7 +569,7 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
               <p className="pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">{t('stats.definersTitle')}</p>
               <div className="flex gap-2.5 overflow-x-auto -mx-1 px-1 pb-1 [scrollbar-width:none]">
                 {definerItems.map(([row, kicker]) => (
-                  <div key={kicker} className="shrink-0 w-[112px] space-y-1.5">
+                  <button key={kicker} type="button" onClick={open(row.film.id)} className="shrink-0 w-[112px] space-y-1.5 text-left active:scale-[0.98] transition-transform">
                     <em className="not-italic block min-h-[22px] text-[9px] font-black uppercase tracking-[0.08em] leading-tight text-stone-500 dark:text-stone-400">
                       {kicker}
                     </em>
@@ -569,7 +582,7 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
                     <span className="block text-[10.5px] font-semibold text-stone-500 dark:text-stone-400">
                       {cap(t('spaces.you'))} {fmt1(row.me)} · {otherName} {fmt1(row.them)}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </>

@@ -44,6 +44,8 @@ interface CalendarViewProps {
   onRateWatched?: (tmdbId: number, day: string) => void;
   /** « Bientôt en salle » : ouvrir un film, le voir avec quelqu'un. */
   onPreviewMovie?: (tmdbId: number) => void;
+  /** Toucher l'affiche d'un film vu : « Ma note ». */
+  onOpenFilm?: (movie: Movie) => void;
   onWatchWith?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
 }
@@ -558,6 +560,7 @@ export default function CalendarView(props: CalendarViewProps) {
           onClose={() => setDay(null)}
           onRewatch={props.onRewatch}
           onReview={props.onReview}
+          onOpenFilm={props.onOpenFilm}
           onAddWatched={props.onAddWatched}
           onShowtime={showtime}
           onDelete={remove}

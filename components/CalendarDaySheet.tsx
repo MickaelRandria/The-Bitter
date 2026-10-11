@@ -34,6 +34,8 @@ interface Props {
   onClose: () => void;
   onRewatch?: (movie: Movie) => void;
   onReview?: (movie: Movie) => void;
+  /** Toucher l'affiche : « Ma note ». */
+  onOpenFilm?: (movie: Movie) => void;
   onAddWatched?: (day: string) => void;
   onShowtime: (film: CinemaProgrammeFilm, showtime: CinemaShowtime) => void;
   onDelete: (screening: CinemaScreening) => void;
@@ -164,7 +166,17 @@ export default function CalendarDaySheet(props: Props) {
                 return (
                   <article key={entry.id} className="rounded-[18px] bg-white p-3 dark:bg-[#1A1A19]">
                     <div className="flex gap-3">
-                      <div className="h-[69px] w-[46px] shrink-0 overflow-hidden rounded-lg bg-stone-200 dark:bg-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!props.onOpenFilm) return;
+                          onClose();
+                          props.onOpenFilm(movie);
+                        }}
+                        disabled={!props.onOpenFilm}
+                        aria-label={t('myRating.open', { title: movie.title })}
+                        className="h-[69px] w-[46px] shrink-0 overflow-hidden rounded-lg bg-stone-200 dark:bg-white/5 active:scale-95 transition-transform"
+                      >
                         {movie.posterUrl && (
                           <img
                             src={resizeTmdbImage(movie.posterUrl, 'w185')}
@@ -172,7 +184,7 @@ export default function CalendarDaySheet(props: Props) {
                             className="h-full w-full object-cover"
                           />
                         )}
-                      </div>
+                      </button>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-sm font-black">{movie.title}</h3>
                         <span className="mt-1 inline-block rounded-full bg-[#D9FF00] px-2 py-0.5 text-[11px] font-black text-[#111]">

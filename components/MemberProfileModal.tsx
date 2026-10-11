@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, Star, Film, Users, ArrowLeftRight, TrendingUp, TrendingDown, ChevronDown, Copy, Check, Compass, Flag, Plus, Clapperboard } from 'lucide-react';
-import { SpaceMember, MemberFilm, MovieRating, SharedMovie, getMemberFilms } from '../services/supabase';
+import { SpaceMember, MemberFilm, MovieRating, SharedMovie, FriendActivity, getMemberFilms } from '../services/supabase';
 import { Movie } from '../types';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { avatarSrc } from '../utils/avatar';
@@ -8,6 +8,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
 import ReportSheet from './ReportSheet';
+import RatingDetailSheet from './RatingDetailSheet';
 
 interface Props {
   member: SpaceMember;
@@ -22,6 +23,10 @@ interface Props {
   space?: { name: string; movies: SharedMovie[]; ratings: MovieRating[] };
   /** Ajoute un film aux « vus ensemble » ; rend vrai si c'est fait. */
   onAddWatchedTogether?: (film: MemberFilm) => Promise<boolean>;
+  /** Un film de l'espace : sa fiche verdict. */
+  onOpenSpaceMovie?: (sharedMovieId: string) => void;
+  /** Un film hors de l'espace : « Ma note » si je l'ai noté, sinon sa fiche. */
+  onOpenFilm?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
   onClose: () => void;
 }
 
@@ -36,10 +41,25 @@ const workOf = (tmdbId: number | null | undefined, mediaType?: string | null) =>
   `${mediaType === 'tv' ? 'tv' : 'movie'}:${tmdbId}`;
 
 /** Une rangée d'affiches avec une pastille : la note, ou « à voir ». */
-const PosterRow: React.FC<{ items: { key: string; title: string; poster?: string; badge: string; dim?: boolean }[] }> = ({ items }) => (
+const PosterRow: React.FC<{
+  items: { key: string; title: string; poster?: string; badge: string; dim?: boolean; onOpen?: () => void }[];
+}> = ({ items }) => (
   <div className="-mx-8 flex gap-2.5 overflow-x-auto px-8 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     {items.map((it) => (
-      <figure key={it.key} className="m-0 w-[68px] shrink-0 space-y-1">
+      <figure
+        key={it.key}
+        className={`m-0 w-[68px] shrink-0 space-y-1 ${it.onOpen ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
+        onClick={it.onOpen}
+        role={it.onOpen ? 'button' : undefined}
+        tabIndex={it.onOpen ? 0 : undefined}
+        aria-label={it.onOpen ? it.title : undefined}
+        onKeyDown={(e) => {
+          if (it.onOpen && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            it.onOpen();
+          }
+        }}
+      >
         <div
           className="relative aspect-[2/3] w-[68px] rounded-[10px] bg-stone-200 dark:bg-[#252525] bg-cover bg-center shadow-sm"
           style={{ backgroundImage: it.poster ? `url(${resizeTmdbImage(it.poster, 'w154')})` : undefined }}
@@ -98,7 +118,16 @@ const myCriteriaOf = (movie: Movie) => {
   };
 };
 
-export default function MemberProfileModal({ member, myMovies, currentUserId, space, onAddWatchedTogether, onClose }: Props) {
+export default function MemberProfileModal({
+  member,
+  myMovies,
+  currentUserId,
+  space,
+  onAddWatchedTogether,
+  onOpenSpaceMovie,
+  onOpenFilm,
+  onClose,
+}: Props) {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
   const [reporting, setReporting] = useState(false);
@@ -264,6 +293,34 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
   };
 
   const [copied, setCopied] = useState(false);
+  /** Un film du membre, ouvert sur sa note (et la mienne s'il est dans ma collection). */
+  const [theirFilm, setTheirFilm] = useState<MemberFilm | null>(null);
+  const activityOf = (film: MemberFilm): FriendActivity => ({
+    mediaType: film.mediaType,
+    movieId: film.id,
+    profileId: member.profile_id,
+    firstName: member.profile?.first_name || t('shared.member'),
+    avatarUrl: member.profile?.avatar_url ?? null,
+    title: film.title,
+    director: film.director,
+    year: film.year,
+    posterUrl: film.posterUrl ?? null,
+    tmdbId: film.tmdbId,
+    rating: film.rating,
+    adaptiveRating: film.allCriteria?.length
+      ? ({ criteria: film.allCriteria.map((c) => ({ ...c, weight: 1 })) } as unknown as FriendActivity['adaptiveRating'])
+      : ({
+          criteria: [
+            { key: 'scenario', label: t('criteria.story'), value: film.criteria.story, weight: 1 },
+            { key: 'image', label: t('criteria.visuals'), value: film.criteria.visuals, weight: 1 },
+            { key: 'interpretation', label: t('criteria.acting'), value: film.criteria.acting, weight: 1 },
+            { key: 'sound', label: t('criteria.sound'), value: film.criteria.sound, weight: 1 },
+          ],
+        } as unknown as FriendActivity['adaptiveRating']),
+    review: null,
+    synopsis: null,
+    watchedAt: '',
+  });
 
   /** Une statistique ne fait rien ; une phrase prête à coller lance une conversation. */
   const shareGap = async () => {
@@ -378,6 +435,7 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
                       title: movie.title,
                       poster: movie.poster_url,
                       badge: score.toFixed(1),
+                      onOpen: onOpenSpaceMovie ? () => onOpenSpaceMovie(movie.id) : undefined,
                     }))}
                   />
                 </>
@@ -394,6 +452,12 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
                       poster: m.poster_url,
                       badge: m.status === 'watched' ? t('member.badgeSeen') : t('member.badgeToSee'),
                       dim: m.status !== 'watched',
+                      onOpen:
+                        m.status === 'watched'
+                          ? onOpenSpaceMovie && (() => onOpenSpaceMovie(m.id))
+                          : onOpenFilm && m.tmdb_id
+                            ? () => onOpenFilm(m.tmdb_id!, m.media_type === 'tv' ? 'tv' : 'movie')
+                            : undefined,
                     }))}
                   />
                 </>
@@ -490,7 +554,14 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
                 <p className="text-[9px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600">
                   {t('member.widestGap')}
                 </p>
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.soft();
+                    setTheirFilm(comparison.widest.film);
+                  }}
+                  className="w-full flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+                >
                   {comparison.widest.film.posterUrl ? (
                     <img
                       src={resizeTmdbImage(comparison.widest.film.posterUrl, 'w154')}
@@ -516,7 +587,7 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
                       {name} {comparison.widest.film.rating.toFixed(1)}
                     </span>
                   </div>
-                </div>
+                </button>
                 <button
                   onClick={shareGap}
                   className="w-full py-2.5 rounded-xl bg-white dark:bg-[#202020] border border-stone-200 dark:border-white/10 text-charcoal dark:text-white font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -630,9 +701,14 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
               </h4>
               <div className="space-y-2">
                 {toDiscover.map((film) => (
-                  <div
+                  <button
+                    type="button"
                     key={film.id}
-                    className="flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5"
+                    onClick={() => {
+                      haptics.soft();
+                      setTheirFilm(film);
+                    }}
+                    className="w-full text-left flex items-center gap-3 bg-stone-50 dark:bg-[#161616] rounded-2xl p-3 border border-stone-100 dark:border-white/5 active:scale-[0.99] transition-transform"
                   >
                     {film.posterUrl ? (
                       <img
@@ -661,7 +737,7 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
                         {film.rating.toFixed(1)}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               {comparison && Math.abs(comparison.bias) >= 0.8 && (
@@ -863,6 +939,14 @@ export default function MemberProfileModal({ member, myMovies, currentUserId, sp
           )}
         </div>
       </div>
+
+      {theirFilm && (
+        <RatingDetailSheet
+          item={activityOf(theirFilm)}
+          mine={theirFilm.tmdbId != null ? myByTmdb.get(theirFilm.tmdbId) : undefined}
+          onClose={() => setTheirFilm(null)}
+        />
+      )}
 
       {reporting && (
         <ReportSheet

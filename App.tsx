@@ -85,7 +85,8 @@ import {
 } from './services/movieSync';
 import RewatchModal from './components/RewatchModal';
 import { MovieDisplayMode } from './utils/movieDisplay';
-import { getDisplayWeightedRating } from './utils/rating';
+import { getDisplayWeightedRating, hasVerdict } from './utils/rating';
+import MyRatingSheet from './components/MyRatingSheet';
 import { resizeTmdbImage } from './utils/tmdbImage';
 import { countCustomVibes, MIN_MOVIES_FOR_VIBES, totalWatchHours } from './utils/movieStats';
 import { RELEASE_HISTORY } from './constants/changelog';
@@ -660,6 +661,8 @@ const App: React.FC = () => {
 
   const [mediaTypeToLoad, setMediaTypeToLoad] = useState<'movie' | 'tv'>('movie');
   const [previewTmdbId, setPreviewTmdbId] = useState<number | null>(null);
+  /** « Ma note » ouverte : l'identifiant, pour toujours lire la version à jour après une modification. */
+  const [myRatingId, setMyRatingId] = useState<string | null>(null);
   const [previewMediaType, setPreviewMediaType] = useState<'movie' | 'tv'>('movie');
   const [previewDirector, setPreviewDirector] = useState<{ name: string; id?: number } | null>(
     null
@@ -1704,6 +1707,38 @@ const App: React.FC = () => {
    * Ouvre un espace, et au besoin la notation d'un de ses films : depuis une
    * notification, ou juste après avoir rattaché un lien d'invitation.
    */
+  /**
+   * Toucher l'affiche d'un film, où que ce soit (hors collection, qui garde son
+   * dépliage) : « Ma note » si je l'ai noté, la fiche de la série pour une série
+   * suivie, sinon la fiche du film.
+   */
+  const openFilm = (tmdbId: number | null | undefined, mediaType: 'movie' | 'tv' = 'movie', known?: Movie) => {
+    const mine =
+      known && known.status === 'watched' && hasVerdict(known)
+        ? known
+        : (activeProfile?.movies ?? []).find(
+            (m) =>
+              tmdbId != null &&
+              m.tmdbId === tmdbId &&
+              (m.mediaType ?? 'movie') === mediaType &&
+              m.seasonNumber == null &&
+              m.status === 'watched' &&
+              hasVerdict(m)
+          );
+    if (mine && isSeries(mine)) {
+      setOpenSeries(mine);
+      return;
+    }
+    if (mine) {
+      setMyRatingId(mine.id);
+      return;
+    }
+    if (tmdbId) {
+      setPreviewTmdbId(tmdbId);
+      setPreviewMediaType(mediaType);
+    }
+  };
+
   const openSpaceFromNotification = async (spaceId: string, sharedMovieId: string | null, rate: boolean) => {
     const loaded = await loadSpaceAndMovie(spaceId, sharedMovieId);
     if (!loaded) {
@@ -3540,6 +3575,7 @@ const App: React.FC = () => {
         >
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
             <SharedSpaceView
+              onOpenFilm={(tmdbId, mediaType) => openFilm(tmdbId, mediaType)}
               space={activeSharedSpace}
               currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
@@ -3563,11 +3599,7 @@ const App: React.FC = () => {
               onNavigateToCalendar={() => setViewMode('Calendar')}
               onRecalibrate={() => setShowCalibration(true)}
               onViewDirector={(name, id) => setPreviewDirector({ name, id })}
-              onViewMovie={(movie) => {
-                if (!movie.tmdbId) return;
-                setPreviewTmdbId(movie.tmdbId);
-                setPreviewMediaType(movie.mediaType ?? 'movie');
-              }}
+              onViewMovie={(movie) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie)}
               onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
               onOpenCinemaDetails={() => setShowCinemaDetails(true)}
             />
@@ -3621,6 +3653,7 @@ const App: React.FC = () => {
                 setPreviewTmdbId(id);
                 setPreviewMediaType('movie');
               }}
+              onOpenFilm={(movie) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie)}
               onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
             />
           ) : viewMode === 'Deck' ? (
@@ -4551,6 +4584,44 @@ const App: React.FC = () => {
                 onUpdateProgress={(progress) => handleUpdateTvProgress(series, progress)}
               />
             )
+          );
+        })()}
+
+        {(() => {
+          const movie = myRatingId ? (activeProfile?.movies ?? []).find((m) => m.id === myRatingId) : null;
+          if (!movie) return null;
+          return (
+            <MyRatingSheet
+              movie={movie}
+              userId={session?.user?.id}
+              onClose={() => setMyRatingId(null)}
+              // Le formulaire s'ouvre par-dessus : en revenant, la feuille montre la note à jour.
+              onEdit={(m) => {
+                setEditingMovie(m);
+                setIsModalOpen(true);
+              }}
+              onRewatch={(m) => {
+                setMyRatingId(null);
+                setRewatchMovie(m);
+              }}
+              onShare={
+                session?.user?.id
+                  ? (m) => {
+                      setMyRatingId(null);
+                      setShareSheet({ kind: 'verdict', movie: m });
+                    }
+                  : undefined
+              }
+              onDetails={(id, type) => {
+                setMyRatingId(null);
+                setPreviewTmdbId(id);
+                setPreviewMediaType(type);
+              }}
+              onOpenSpace={(spaceId, sharedMovieId) => {
+                setMyRatingId(null);
+                void openSpaceFromNotification(spaceId, sharedMovieId, false);
+              }}
+            />
           );
         })()}
 
