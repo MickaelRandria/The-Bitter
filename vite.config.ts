@@ -2,7 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/**
+ * Identifiant du build : le commit déployé sur Vercel, sinon l'heure du build.
+ * Écrit dans `version.json` et injecté dans l'app : quand les deux diffèrent,
+ * une nouvelle version est en ligne (utils/appUpdate.ts).
+ */
+const BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now())).slice(0, 12);
+
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   server: {
     headers: {
       'Content-Security-Policy': "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;",
@@ -46,6 +56,13 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    {
+      name: 'bitter-version',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD_ID }) });
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
