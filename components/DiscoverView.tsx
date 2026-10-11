@@ -58,9 +58,13 @@ type MediaType = 'movie' | 'tv';
 type TimePeriod = 'this_month' | 'this_year' | 'all_time';
 type SearchMode = 'title' | 'mood';
 
+import FreeToWatchSection from './FreeToWatchSection';
+
 interface DiscoverViewProps {
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
   onPreview: (tmdbId: number, mediaType: MediaType) => void;
+  /** « Gratuit et légal » : ma note si le titre est noté, sinon sa fiche. */
+  onOpenFilm?: (tmdbId: number, mediaType: MediaType) => void;
   onQuickWatchlist?: (tmdbId: number, mediaType: MediaType) => Promise<void>;
   userProfile: UserProfile | null;
   movies?: Movie[];
@@ -128,6 +132,7 @@ const RECENT_KEY = 'bitter-recent-searches';
 const DiscoverView: React.FC<DiscoverViewProps> = ({
   onSelectMovie,
   onPreview,
+  onOpenFilm,
   onQuickWatchlist,
   userProfile,
   movies,
@@ -582,6 +587,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aiResult.text) }}
           />
         </div>
+      )}
+
+      {/* Gratuit et légal : seulement quand on ne cherche rien de précis. */}
+      {!isSearchActive && !aiResult && (
+        <FreeToWatchSection movies={movies} onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)} />
       )}
 
       {/* FILTERS */}

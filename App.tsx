@@ -3641,6 +3641,7 @@ const App: React.FC = () => {
                 setPreviewTmdbId(id);
                 setPreviewMediaType(type);
               }}
+              onOpenFilm={(id, type) => openFilm(id, type)}
               onQuickWatchlist={handleQuickWatchlist}
               userProfile={activeProfile}
               /* Cet écran ne montre plus qu'une moitié du catalogue à la fois :
