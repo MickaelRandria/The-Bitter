@@ -55,7 +55,8 @@ interface AnalyticsViewProps {
   onNavigateToCalendar?: () => void;
   onRecalibrate?: () => void;
   onViewDirector?: (name: string, id?: number) => void;
-  onViewMovie?: (movie: Movie) => void;
+  /** `onReturn` rouvre la pop-in d'où l'on vient, une fois le film refermé. */
+  onViewMovie?: (movie: Movie, onReturn?: () => void) => void;
   onConfigureCinemaSubscription?: () => void;
   onOpenCinemaDetails?: () => void;
 }
@@ -967,6 +968,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   /** Vue détaillée ouverte depuis un macro-bloc de l'onglet Notes. */
   const [openSheet, setOpenSheet] = useState<SheetId | null>(null);
+  /**
+   * Un film touché dans une pop-in : la pop-in se referme pour lui laisser la
+   * place, et revient quand on referme le film. Sans ça, le film (et ce qu'on
+   * ouvre depuis lui) s'empilait sous la pop-in, invisible.
+   */
+  const openFromSheet = (movie: Movie) => {
+    const from = openSheet;
+    setOpenSheet(null);
+    onViewMovie?.(movie, from ? () => setOpenSheet(from) : undefined);
+  };
   const [isSharing, setIsSharing] = useState(false);
   const [showTrendDetail, setShowTrendDetail] = useState(false);
   const [trendViewMode, setTrendViewMode] = useState<TrendViewMode>('default');
@@ -1805,13 +1816,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       {t(labelKey)}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => movie && onViewMovie?.(movie)}
-                    disabled={!onViewMovie || !movie?.tmdbId}
-                    aria-label={movie?.title}
-                    className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
-                  >
+                  <div className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616]">
                     {movie?.posterUrl ? (
                       <img
                         src={resizeTmdbImage(movie.posterUrl, 'w185')}
@@ -1825,7 +1830,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         <Film size={16} />
                       </div>
                     )}
-                  </button>
+                  </div>
                   <p className="text-[11px] font-black text-charcoal dark:text-white leading-tight line-clamp-1">
                     {movie?.title}
                   </p>
@@ -2023,7 +2028,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
               <button
                 type="button"
-                onClick={() => bestRated && onViewMovie?.(bestRated)}
+                onClick={() => bestRated && openFromSheet(bestRated)}
                 disabled={!onViewMovie || !bestRated?.tmdbId}
                 aria-label={bestRated?.title}
                 className="block w-16 aspect-[2/3] bg-forest rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5 active:scale-95 transition-transform disabled:active:scale-100"
@@ -2070,7 +2075,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div className="bg-white dark:bg-[#202020] border border-sand dark:border-white/10 p-5 rounded-[2rem] shadow-sm dark:shadow-black/20 flex gap-4 items-center transition-all">
               <button
                 type="button"
-                onClick={() => worstRated && onViewMovie?.(worstRated)}
+                onClick={() => worstRated && openFromSheet(worstRated)}
                 disabled={!onViewMovie || !worstRated?.tmdbId}
                 aria-label={worstRated?.title}
                 className="block w-16 aspect-[2/3] bg-stone-100 dark:bg-[#161616] rounded-xl overflow-hidden shadow-md shrink-0 border border-white/5 active:scale-95 transition-transform disabled:active:scale-100"
@@ -2134,7 +2139,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => biggestSurprise && onViewMovie?.(biggestSurprise)}
+                      onClick={() => biggestSurprise && openFromSheet(biggestSurprise)}
                       disabled={!onViewMovie || !biggestSurprise?.tmdbId}
                       aria-label={biggestSurprise?.title}
                       className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
@@ -2179,7 +2184,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => biggestDisappointment && onViewMovie?.(biggestDisappointment)}
+                      onClick={() => biggestDisappointment && openFromSheet(biggestDisappointment)}
                       disabled={!onViewMovie || !biggestDisappointment?.tmdbId}
                       aria-label={biggestDisappointment?.title}
                       className="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-stone-100 dark:bg-[#161616] active:scale-95 transition-transform disabled:active:scale-100"
@@ -2493,7 +2498,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   <div className="flex items-start gap-3">
                     <button
                       type="button"
-                      onClick={() => movie && onViewMovie?.(movie)}
+                      onClick={() => movie && openFromSheet(movie)}
                       disabled={!onViewMovie || !movie?.tmdbId}
                       aria-label={movie?.title}
                       className="block h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-200 dark:bg-stone-800 active:scale-95 transition-transform disabled:active:scale-100"
@@ -2554,7 +2559,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     onClick={() => {
                       if (!movie.tmdbId) return;
                       setSelectedImprint(null);
-                      onViewMovie?.(movie);
+                      openFromSheet(movie);
                     }}
                     className="mt-4 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-[10px] font-black uppercase tracking-widest text-charcoal transition-colors enabled:hover:border-forest enabled:active:scale-[0.99] disabled:opacity-40 dark:border-white/10 dark:bg-[#202020] dark:text-white dark:enabled:hover:border-bitter-lime"
                   >
@@ -2748,7 +2753,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                             key={movie.id}
                             type="button"
                             disabled={!onViewMovie || !movie.tmdbId}
-                            onClick={() => onViewMovie?.(movie)}
+                            onClick={() => openFromSheet(movie)}
                             className="w-[112px] shrink-0 snap-start text-left transition-transform enabled:active:scale-[0.98]"
                           >
                             <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#2A2A2A]">

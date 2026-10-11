@@ -1712,7 +1712,27 @@ const App: React.FC = () => {
    * dépliage) : « Ma note » si je l'ai noté, la fiche de la série pour une série
    * suivie, sinon la fiche du film.
    */
-  const openFilm = (tmdbId: number | null | undefined, mediaType: 'movie' | 'tv' = 'movie', known?: Movie) => {
+  /**
+   * Où revenir quand le film ouvert se referme : la pop-in d'où on l'a ouvert.
+   *
+   * Une pop-in (stats, profil d'un membre) se referme pour laisser la place au
+   * film : sinon le film, puis le formulaire ou « Revoir » ouverts depuis lui,
+   * s'empilaient sous elle et restaient invisibles. On la rouvre à la fin.
+   */
+  const filmReturnRef = useRef<(() => void) | null>(null);
+  const finishFilm = () => {
+    const back = filmReturnRef.current;
+    filmReturnRef.current = null;
+    back?.();
+  };
+
+  const openFilm = (
+    tmdbId: number | null | undefined,
+    mediaType: 'movie' | 'tv' = 'movie',
+    known?: Movie,
+    onReturn?: () => void
+  ) => {
+    filmReturnRef.current = onReturn ?? null;
     const mine =
       known && known.status === 'watched' && hasVerdict(known)
         ? known
@@ -1726,6 +1746,8 @@ const App: React.FC = () => {
               hasVerdict(m)
           );
     if (mine && isSeries(mine)) {
+      // La fiche série a ses propres fenêtres : pas de retour automatique.
+      filmReturnRef.current = null;
       setOpenSeries(mine);
       return;
     }
@@ -1736,6 +1758,8 @@ const App: React.FC = () => {
     if (tmdbId) {
       setPreviewTmdbId(tmdbId);
       setPreviewMediaType(mediaType);
+    } else {
+      finishFilm();
     }
   };
 
@@ -2728,6 +2752,7 @@ const App: React.FC = () => {
     if (session?.user?.id) void syncMovieToSupabase(session.user.id, updatedMovie);
     setToastMessage('Rewatch enregistré !');
     setRewatchMovie(null);
+    finishFilm();
   };
 
   /** Toutes les œuvres du profil, dédoublonnées — les deux parties confondues. */
@@ -3575,7 +3600,7 @@ const App: React.FC = () => {
         >
           {viewMode === 'SharedSpace' && activeSharedSpace ? (
             <SharedSpaceView
-              onOpenFilm={(tmdbId, mediaType) => openFilm(tmdbId, mediaType)}
+              onOpenFilm={(tmdbId, mediaType, onReturn) => openFilm(tmdbId, mediaType, undefined, onReturn)}
               space={activeSharedSpace}
               currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
@@ -3599,7 +3624,7 @@ const App: React.FC = () => {
               onNavigateToCalendar={() => setViewMode('Calendar')}
               onRecalibrate={() => setShowCalibration(true)}
               onViewDirector={(name, id) => setPreviewDirector({ name, id })}
-              onViewMovie={(movie) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie)}
+              onViewMovie={(movie, onReturn) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie, onReturn)}
               onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
               onOpenCinemaDetails={() => setShowCinemaDetails(true)}
             />
@@ -4453,7 +4478,10 @@ const App: React.FC = () => {
         <WatchWithSheet
           kind={shareSheet.kind}
           movie={shareSheet.movie}
-          onClose={() => setShareSheet(null)}
+          onClose={() => {
+            setShareSheet(null);
+            finishFilm();
+          }}
           onDone={setToastMessage}
           favoriteCinema={activeProfile?.favoriteCinema}
           preselect={shareSheet.preselect}
@@ -4505,7 +4533,10 @@ const App: React.FC = () => {
         {rewatchMovie && (
           <RewatchModal
             movie={rewatchMovie}
-            onClose={() => setRewatchMovie(null)}
+            onClose={() => {
+              setRewatchMovie(null);
+              finishFilm();
+            }}
             onSave={handleSaveRewatch}
             cinemaSubscription={activeProfile?.cinemaSubscription}
           />
@@ -4594,7 +4625,10 @@ const App: React.FC = () => {
             <MyRatingSheet
               movie={movie}
               userId={session?.user?.id}
-              onClose={() => setMyRatingId(null)}
+              onClose={() => {
+                setMyRatingId(null);
+                finishFilm();
+              }}
               // Le formulaire s'ouvre par-dessus : en revenant, la feuille montre la note à jour.
               onEdit={(m) => {
                 setEditingMovie(m);
@@ -4618,6 +4652,8 @@ const App: React.FC = () => {
                 setPreviewMediaType(type);
               }}
               onOpenSpace={(spaceId, sharedMovieId) => {
+                // On part vers l'espace : la pop-in d'origine ne revient pas.
+                filmReturnRef.current = null;
                 setMyRatingId(null);
                 void openSpaceFromNotification(spaceId, sharedMovieId, false);
               }}
@@ -4633,7 +4669,10 @@ const App: React.FC = () => {
                 tmdbId={previewTmdbId}
                 mediaType={previewMediaType}
                 isOpen={!!previewTmdbId}
-                onClose={() => setPreviewTmdbId(null)}
+                onClose={() => {
+                  setPreviewTmdbId(null);
+                  finishFilm();
+                }}
                 onAction={(id, status) => {
                   /* « Commencer » une série déjà dans la collection : pas de
                      seconde fiche, elle passe simplement en cours. */
@@ -4643,6 +4682,8 @@ const App: React.FC = () => {
                           (m) => m.mediaType === 'tv' && m.seasonNumber == null && m.tmdbId === id
                         )
                       : undefined;
+                  // On passe à l'ajout : la pop-in d'origine ne revient pas.
+                  filmReturnRef.current = null;
                   if (existingSeries) {
                     setPreviewTmdbId(null);
                     haptics.success();
