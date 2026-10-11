@@ -2025,6 +2025,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           ratings={allRatings.filter((r) => activeMemberIds.has(r.profile_id))}
           votes={votes}
           plans={plans}
+          publicRatingOf={publicRatingOf}
           onClose={() => setShowStats(false)}
         />
       )}

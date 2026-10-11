@@ -13,8 +13,11 @@ import {
   pairRows,
   sessionHabits,
   turningFilm,
+  versusPublic,
+  AGAINST_THE_GRAIN,
   whoLeads,
 } from '../../utils/spaceStats';
+import { PublicRating } from '../../utils/publicRating';
 import { cap, fmt1, mean } from '../../utils/verdict';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { haptics } from '../../utils/haptics';
@@ -35,6 +38,8 @@ interface SpaceStatsViewProps {
   ratings: MovieRating[];
   votes: MovieVote[];
   plans: WatchPlan[];
+  /** Note publique d'un film : IMDb, sinon TMDB (la même que sur la fiche). */
+  publicRatingOf: (movie: SharedMovie) => PublicRating | null;
   onClose: () => void;
 }
 
@@ -75,8 +80,9 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
       genres: genreDumbbell(rows),
       leads: whoLeads(props.movies as never, props.votes, props.ratings as never, props.currentUserId, other.id),
       habits: sessionHabits(props.plans, props.currentUserId, other.id),
+      publicVs: versusPublic(rows, (film) => props.publicRatingOf(film as unknown as SharedMovie)?.value ?? null),
     };
-  }, [other?.id, props.movies, props.ratings, props.votes, props.plans]);
+  }, [other?.id, props.movies, props.ratings, props.votes, props.plans, props.publicRatingOf]);
 
   const monthLabel = (m: string, style: 'long' | 'short' = 'long') => {
     const [y, mo] = m.split('-').map(Number);
@@ -304,6 +310,76 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
     );
   };
 
+  // ─── Vous contre le public ──────────────────────────────────────────────────
+  /** Un film par ligne : la note publique (point creux) reliée à la note de la paire (point plein). */
+  const publicChart = (v: NonNullable<ReturnType<typeof versusPublic>>) => {
+    const rowH = 20;
+    const L = 112;
+    const R = 36;
+    const w = W - L - R;
+    const H = v.list.length * rowH + 20;
+    const values = v.list.flatMap((x) => [x.pub, x.row.joint]);
+    const lo = Math.max(0, Math.floor(Math.min(...values)) - 1);
+    const x = (val: number) => L + ((val - lo) / (10 - lo)) * w;
+    const ticks = [lo, Math.round((lo + 10) / 2), 10];
+    return (
+      <div className="relative" data-chart>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={t('stats.publicAria')}>
+          {ticks.map((tick) => (
+            <g key={tick}>
+              <line x1={x(tick)} x2={x(tick)} y1={0} y2={v.list.length * rowH} className={gridLine} strokeWidth={1} />
+              <text x={x(tick)} y={H - 4} textAnchor="middle" className={axisText} style={{ font: '700 9px Inter, sans-serif' }}>
+                {tick}
+              </text>
+            </g>
+          ))}
+          {v.list.map((item, i) => {
+            const cy = i * rowH + rowH / 2;
+            const against = Math.abs(item.gap) > AGAINST_THE_GRAIN;
+            const title = item.row.film.title;
+            const sign = item.gap >= 0 ? '+' : '−';
+            const source = props.publicRatingOf(item.row.film as unknown as SharedMovie)?.source === 'tmdb' ? 'TMDB' : 'IMDb';
+            return (
+              <g
+                key={item.row.film.id}
+                className="cursor-pointer"
+                {...hover('public', title, t('stats.publicTip', { you: fmt1(item.row.joint), source, pub: fmt1(item.pub), gap: `${sign}${fmt1(Math.abs(item.gap))}` }))}
+              >
+                <rect x={0} y={cy - rowH / 2} width={W} height={rowH} fill="transparent" />
+                <text
+                  x={0}
+                  y={cy + 3.5}
+                  className={against ? 'fill-charcoal dark:fill-white' : axisText}
+                  style={{ font: `${against ? 900 : 700} 9.5px Inter, sans-serif` }}
+                >
+                  {title.length > 19 ? `${title.slice(0, 18)}…` : title}
+                </text>
+                <line x1={x(item.pub)} x2={x(item.row.joint)} y1={cy} y2={cy} className="stroke-stone-400 dark:stroke-stone-500" strokeWidth={2} opacity={0.6} />
+                <circle cx={x(item.pub)} cy={cy} r={4} className="fill-white dark:fill-[#161616] stroke-stone-400 dark:stroke-stone-500" strokeWidth={2} />
+                <circle cx={x(item.row.joint)} cy={cy} r={4.5} className="fill-charcoal dark:fill-white stroke-white dark:stroke-[#161616]" strokeWidth={2} />
+                <text x={W - 2} y={cy + 3.5} textAnchor="end" className="fill-charcoal dark:fill-white" style={{ font: '900 9.5px Inter, sans-serif' }}>
+                  {sign}
+                  {fmt1(Math.abs(item.gap))}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        {tipBox('public')}
+        <div className="flex flex-wrap gap-3 text-[10.5px] font-extrabold text-stone-500 dark:text-stone-400">
+          <span className="inline-flex items-center gap-1.5">
+            <i className="inline-block w-2.5 h-2.5 rounded-full bg-charcoal dark:bg-white" />
+            {props.people.length === 2 ? t('stats.publicLegendTwo') : t('stats.publicLegendPair', { name: otherName })}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <i className="inline-block w-2.5 h-2.5 rounded-full border-2 border-stone-400 dark:border-stone-500" />
+            {t('stats.publicLegendPublic')}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   // ─── Matrice des affinités (plus de deux membres) ───────────────────────────
   const matrix = () => {
     const ids = props.people.map((p) => p.id);
@@ -411,7 +487,7 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
         </div>
       );
     }
-    const { rows, split, defs, months, turning, criteria, genres, leads, habits } = stats;
+    const { rows, split, defs, months, turning, criteria, genres, leads, habits, publicVs } = stats;
     const pairAvg = mean(rows.map((r) => r.joint)) ?? 0;
     const since = [...rows].map((r) => r.at).filter(Boolean).sort()[0];
     // Des rangées pleines de sept : une affiche seule sur sa ligne fait désordre.
@@ -516,6 +592,46 @@ const SpaceStatsView: React.FC<SpaceStatsViewProps> = (props) => {
                 t('stats.turningKicker', { month: monthLabel(turning.month) }),
                 t('stats.turningSub', { me: fmt1(turning.row.me), name: otherName, them: fmt1(turning.row.them) })
               )}
+          </div>
+        )}
+
+        {publicVs && (
+          <div className={card}>
+            <h3 className={h3}>{t('stats.publicTitle')}</h3>
+            <p className={lead}>
+              {t('stats.publicLead')}{' '}
+              <b className="text-charcoal dark:text-white">
+                {Math.abs(publicVs.mean) < 0.05
+                  ? t('stats.publicSame')
+                  : publicVs.mean > 0
+                    ? t('stats.publicAbove', { gap: fmt1(publicVs.mean) })
+                    : t('stats.publicBelow', { gap: fmt1(Math.abs(publicVs.mean)) })}
+              </b>
+              {publicVs.against > 0 && (
+                <>
+                  {t(publicVs.against > 1 ? 'stats.publicAgainstMany' : 'stats.publicAgainstOne', { n: String(publicVs.against) })}{' '}
+                  <span className="inline-block px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-800 dark:bg-orange-400/15 dark:text-orange-300 text-[9px] font-black uppercase tracking-wide align-middle">
+                    {t('stats.publicAgainstTag')}
+                  </span>
+                </>
+              )}
+              .
+            </p>
+            {publicChart(publicVs)}
+            <div className="grid grid-cols-1 gap-2">
+              {publicVs.carried &&
+                filmCard(
+                  publicVs.carried.row,
+                  t('stats.publicCarried'),
+                  t('stats.publicCardSub', { you: fmt1(publicVs.carried.row.joint), pub: fmt1(publicVs.carried.pub) })
+                )}
+              {publicVs.sunk &&
+                filmCard(
+                  publicVs.sunk.row,
+                  t('stats.publicSunk'),
+                  t('stats.publicCardSub', { you: fmt1(publicVs.sunk.row.joint), pub: fmt1(publicVs.sunk.pub) })
+                )}
+            </div>
           </div>
         )}
 

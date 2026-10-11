@@ -258,3 +258,28 @@ export const shiftMonth = (month: string, delta: number): string => {
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
+
+/** Au-delà de cet écart avec la note publique, un film met la paire « à contre-courant ». */
+export const AGAINST_THE_GRAIN = 1.5;
+
+/**
+ * Vous contre le public : la note de la paire face à la note publique (IMDb,
+ * sinon TMDB), film par film, du film le plus « porté » au plus « descendu ».
+ * Les films sans note publique sont écartés. Null sous trois films : deux
+ * écarts ne disent rien d'un goût.
+ */
+export const versusPublic = (rows: PairRow[], publicOf: (film: StatsFilm) => number | null) => {
+  const list = rows
+    .map((row) => ({ row, pub: publicOf(row.film) }))
+    .filter((x): x is { row: PairRow; pub: number } => x.pub != null && Number.isFinite(x.pub) && x.pub > 0)
+    .map((x) => ({ ...x, gap: x.row.joint - x.pub }))
+    .sort((a, b) => b.gap - a.gap);
+  if (list.length < 3) return null;
+  return {
+    list,
+    mean: mean(list.map((x) => x.gap)) ?? 0,
+    carried: list[0].gap > 0 ? list[0] : null,
+    sunk: list[list.length - 1].gap < 0 ? list[list.length - 1] : null,
+    against: list.filter((x) => Math.abs(x.gap) > AGAINST_THE_GRAIN).length,
+  };
+};
