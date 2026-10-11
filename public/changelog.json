@@ -1,0 +1,36 @@
+{
+  "version": "2026-10-12",
+  "label": "Version du 12 octobre",
+  "items": [
+    {
+      "icon": "update",
+      "title": "Les mises à jour s'annoncent",
+      "body": "Fini l'écran d'erreur après une nouvelle version : cet écran te dit ce qui change et redémarre l'app."
+    },
+    {
+      "icon": "star",
+      "title": "Ma note, en lecture",
+      "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
+    },
+    {
+      "icon": "users",
+      "title": "Les verdicts des espaces",
+      "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
+    },
+    {
+      "icon": "chart",
+      "title": "Vous contre le public",
+      "body": "Dans « Nos stats », votre note à deux face à la note IMDb, film par film."
+    },
+    {
+      "icon": "hand",
+      "title": "Des affiches qui s'ouvrent",
+      "body": "Stats, calendrier, profils : chaque affiche mène à ta note ou à la fiche du film."
+    },
+    {
+      "icon": "fix",
+      "title": "Corrections",
+      "body": "Les pop-ins des stats ne cachent plus le film ouvert, et les notes des espaces s'affichent de nouveau."
+    }
+  ]
+}

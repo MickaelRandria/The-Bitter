@@ -1,4 +1,6 @@
 import React from 'react';
+import UpdateScreen from './UpdateScreen';
+import { isChunkLoadError } from '../utils/appUpdate';
 
 interface Props {
   children: React.ReactNode;
@@ -82,6 +84,8 @@ class ErrorBoundary extends Base {
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+    // Un écran d'une version précédente : ce n'est pas une panne, c'est une mise à jour.
+    if (isChunkLoadError(error)) return <UpdateScreen mode="error" />;
 
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
