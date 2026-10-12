@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-pass-cine",
+  "version": "2026-10-12-portrait",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Ce que tes notes disent",
+      "body": "Trois constats, chacun avec son chiffre et deux de tes films qui le montrent. Calculés sur tes vraies notes, mis en mots par Mistral."
+    },
     {
       "title": "Le pass ciné tient sur une ligne",
       "body": "Les séances et leur légende ne sont plus coupées, même sur un petit écran."
@@ -17,10 +21,6 @@
     {
       "title": "Ton pass ciné",
       "body": "Ton abonnement en forme de billet : ce que tu as économisé, ou les séances qui manquent."
-    },
-    {
-      "title": "Signature, podium et année",
-      "body": "Tes quatre critères, tes trois films préférés et ton mois record, en un coup d'œil."
     }
   ],
   "posters": [
@@ -40,15 +40,15 @@
   "highlights": [
     {
       "icon": "stats",
+      "title": "Un portrait plus juste"
+    },
+    {
+      "icon": "stats",
       "title": "Des stats plus belles"
     },
     {
       "icon": "platforms",
       "title": "Tes plateformes d'abord"
-    },
-    {
-      "icon": "calendar",
-      "title": "Le ciné de la semaine au calendrier"
     }
   ]
 }
