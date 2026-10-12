@@ -82,6 +82,8 @@ interface DiscoverViewProps {
   initialMediaType?: MediaType;
   /** Ouvre « Mes habitudes » du profil (choisir ses plateformes). */
   onEditHabits?: () => void;
+  /** Ouvre l'onglet À venir du calendrier (sorties de la semaine et à venir). */
+  onOpenCalendar?: () => void;
 }
 
 interface TMDBItem {
@@ -148,6 +150,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   onToast,
   initialMediaType = 'movie',
   onEditHabits,
+  onOpenCalendar,
 }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
@@ -757,7 +760,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {/* Mes rangées : mes plateformes, le ciné de la semaine, de quoi démarrer. */}
       {userProfile && !isSearchActive && !aiResult && (
-        <PersonalShelves mediaType={mediaType} profile={userProfile} onPreview={onPreview} onEditHabits={onEditHabits} />
+        <PersonalShelves mediaType={mediaType} profile={userProfile} onPreview={onPreview} onEditHabits={onEditHabits} onOpenCalendar={onOpenCalendar} />
       )}
 
       {/* RESULTS GRID */}
