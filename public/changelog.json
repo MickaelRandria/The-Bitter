@@ -1,10 +1,10 @@
 {
-  "version": "2026-10-12-paysage",
+  "version": "2026-10-12-paysage-2",
   "label": "Version du 12 octobre",
   "items": [
     {
       "title": "Tourne ton téléphone",
-      "body": "Dans Trailers, mets ton téléphone en paysage : la vidéo passe en plein écran, avec le son."
+      "body": "Dans Trailers, mets ton téléphone en paysage : la vidéo passe en plein écran, bien centrée, avec le son."
     },
     {
       "title": "Trailers en plein écran",

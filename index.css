@@ -375,4 +375,5 @@ input[type='range']::-webkit-slider-runnable-track {
 
 /* Note « tourne ton téléphone » sous les trailers : le téléphone bascule, revient. */
 @keyframes trailer-rotate { 0%, 55%, 100% { transform: rotate(0deg); } 25%, 40% { transform: rotate(-90deg); } }
+@keyframes trailer-turn { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .animate-\[trailer-rotate_3\.2s_ease-in-out_infinite\] { animation: none; } }
