@@ -53,6 +53,7 @@ import {
   saveNotificationPrefs,
   sendTestNotification,
 } from '../utils/notifications';
+import PushStatusCard from './PushStatusCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { useTheme } from '../contexts/ThemeContext';
@@ -652,6 +653,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
+          {/* Toujours visible : activer les notifications ne doit pas se cacher dans un accordéon. */}
+          {session && (
+            <div className="px-3 pb-3">
+              <PushStatusCard source="profile" />
+            </div>
+          )}
+
           {notifOpen && (
             <div className="px-3 pb-3 space-y-1.5 border-t border-stone-100 dark:border-white/5 pt-2">
               {NOTIF_KEYS.map(({ key, translationKey, emoji }) => (
@@ -679,19 +687,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 </div>
               ))}
-              {'Notification' in window && Notification.permission === 'denied' && (
-                <p className="pt-1 text-[10px] text-orange-400 font-medium ml-1 flex items-center gap-1.5">
-                  <BellOff size={11} /> {t('profileModal.notifBlocked')}
-                </p>
-              )}
-              {'Notification' in window && Notification.permission === 'default' && (
-                <button
-                  onClick={() => Notification.requestPermission()}
-                  className="pt-1 text-[10px] font-black uppercase tracking-widest text-forest dark:text-lime-500 hover:opacity-80 transition-opacity flex items-center gap-1.5 ml-1"
-                >
-                  <Bell size={11} /> {t('profileModal.allowNotif')}
-                </button>
-              )}
             </div>
           )}
         </div>
