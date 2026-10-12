@@ -2622,4 +2622,8 @@ export const fr: Record<string, string> = {
   "pushCard.disable": "Désactiver",
   "pushCard.enabledToast": "Notifications activées sur cet appareil.",
   "pushCard.disabledToast": "Notifications désactivées sur cet appareil.",
+  "trailers.fillOn": "Remplir l’écran",
+  "trailers.fillOff": "Vidéo entière",
+  "trailers.pause": "Mettre en pause",
+  "trailers.close": "Revenir à Découvrir",
 };

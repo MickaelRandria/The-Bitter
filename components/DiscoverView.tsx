@@ -438,6 +438,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           onWatchWith={onWatchWith}
           onSeen={onSeen}
           onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)}
+          onClose={() => setSurface('foryou')}
         />
       ) : surface === 'free' ? (
         <FreeToWatchSection

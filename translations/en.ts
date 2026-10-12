@@ -2616,4 +2616,8 @@ export const en: Record<string, string> = {
   "pushCard.disable": "Turn off",
   "pushCard.enabledToast": "Notifications on for this device.",
   "pushCard.disabledToast": "Notifications off for this device.",
+  "trailers.fillOn": "Fill the screen",
+  "trailers.fillOff": "Whole video",
+  "trailers.pause": "Pause",
+  "trailers.close": "Back to Discover",
 };
