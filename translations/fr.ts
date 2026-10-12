@@ -2626,4 +2626,5 @@ export const fr: Record<string, string> = {
   "trailers.fillOff": "Vidéo entière",
   "trailers.pause": "Mettre en pause",
   "trailers.close": "Revenir à Découvrir",
+  "trailers.rotateHint": "Tourne ton téléphone pour le plein écran",
 };

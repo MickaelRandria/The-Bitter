@@ -372,3 +372,7 @@ input[type='range']::-webkit-slider-runnable-track {
   .vd-pop, .vd-rise, .vd-slide > * { animation: none; }
   .vd-story-bar.vd-on > i { animation: none; width: 100%; }
 }
+
+/* Note « tourne ton téléphone » sous les trailers : le téléphone bascule, revient. */
+@keyframes trailer-rotate { 0%, 55%, 100% { transform: rotate(0deg); } 25%, 40% { transform: rotate(-90deg); } }
+@media (prefers-reduced-motion: reduce) { .animate-\[trailer-rotate_3\.2s_ease-in-out_infinite\] { animation: none; } }

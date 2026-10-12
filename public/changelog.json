@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-trailers-immersif",
+  "version": "2026-10-12-paysage",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Tourne ton téléphone",
+      "body": "Dans Trailers, mets ton téléphone en paysage : la vidéo passe en plein écran, avec le son."
+    },
     {
       "title": "Trailers en plein écran",
       "body": "L'onglet Trailers prend tout l'écran : le décor du film en fond, la vidéo sans l'interface YouTube, et rien ne passe sous la barre de navigation."
@@ -17,10 +21,6 @@
     {
       "title": "Activer les notifications d'un geste",
       "body": "Depuis la cloche ou ton profil : un bouton les active vraiment sur ce téléphone, et explique quoi faire si elles sont bloquées."
-    },
-    {
-      "title": "Les mises à jour s'annoncent",
-      "body": "Fini l'écran d'erreur après une nouvelle version : cet écran te dit ce qui change et redémarre l'app."
     }
   ],
   "posters": [
