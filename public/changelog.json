@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-12-paysage-2",
+  "version": "2026-10-12-habitudes",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Tes plateformes d'abord",
+      "body": "Choisis tes abonnements dans ton profil : Découvrir, Trailers et les fiches mettent en avant ce que tu peux regarder tout de suite."
+    },
+    {
+      "title": "Découvrir à ta façon",
+      "body": "Au ciné ou en streaming : l'ordre des rangées suit ta façon de regarder. Un compte tout neuf démarre avec ses genres préférés."
+    },
+    {
+      "title": "Ton profil de critique",
+      "body": "Ton exigence comparée aux notes du public, en une phrase."
+    },
     {
       "title": "Tourne ton téléphone",
       "body": "Dans Trailers, mets ton téléphone en paysage : la vidéo passe en plein écran, bien centrée, avec le son."
@@ -9,18 +21,6 @@
     {
       "title": "Trailers en plein écran",
       "body": "L'onglet Trailers prend tout l'écran : le décor du film en fond, la vidéo sans l'interface YouTube, et rien ne passe sous la barre de navigation."
-    },
-    {
-      "title": "Toucher pour pause, deux fois pour remplir",
-      "body": "Un toucher met en pause, deux touchers remplissent l'écran avec la vidéo. Ton choix est retenu."
-    },
-    {
-      "title": "Une cloche plus légère",
-      "body": "Les 5 dernières notifications, et « Afficher plus » pour le reste."
-    },
-    {
-      "title": "Activer les notifications d'un geste",
-      "body": "Depuis la cloche ou ton profil : un bouton les active vraiment sur ce téléphone, et explique quoi faire si elles sont bloquées."
     }
   ],
   "posters": [

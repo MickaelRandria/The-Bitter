@@ -31,6 +31,10 @@ interface Props {
   onSeen?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
   onOpen: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
   onClose: () => void;
+  /** Mes plateformes : la catégorie « Sur mes plateformes ». */
+  platformIds?: string[];
+  /** Je regarde surtout en streaming : cette catégorie s'ouvre d'abord. */
+  preferPlatforms?: boolean;
 }
 
 const YT_ORIGIN = 'https://www.youtube-nocookie.com';
@@ -39,11 +43,17 @@ const FILL_KEY = 'bitter_trailers_fill';
 /** Économiseur de données activé : pas de lecture automatique. */
 const saveData = () => !!(navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData;
 
-const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWith, onSeen, onOpen, onClose }) => {
+const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWith, onSeen, onOpen, onClose, platformIds = [], preferPlatforms = false }) => {
   const { t, language } = useLanguage();
   const locale = language === 'en' ? 'en-GB' : 'fr-FR';
-  const categories: TrailerCategory[] = mediaType === 'tv' ? ['foryou', 'series'] : ['foryou', 'cinema', 'soon'];
-  const [category, setCategory] = useState<TrailerCategory>('foryou');
+  const hasPlatforms = platformIds.length > 0;
+  const base: TrailerCategory[] = mediaType === 'tv' ? ['foryou', 'series'] : ['foryou', 'cinema', 'soon'];
+  const categories: TrailerCategory[] = !hasPlatforms
+    ? base
+    : preferPlatforms
+      ? ['platforms', ...base]
+      : [base[0], 'platforms', ...base.slice(1)];
+  const [category, setCategory] = useState<TrailerCategory>(hasPlatforms && preferPlatforms ? 'platforms' : 'foryou');
   const [items, setItems] = useState<TrailerItem[] | null>(null);
   const [active, setActive] = useState(0);
   const [sound, setSound] = useState(false);
@@ -109,7 +119,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
     setItems(null);
     setActive(0);
     feedRef.current?.scrollTo({ top: 0 });
-    getTrailerFeed(category, mediaType, seeds)
+    getTrailerFeed(category, mediaType, seeds, platformIds)
       .then((list) => alive && setItems(list))
       .catch(() => alive && setItems([]));
     return () => {
@@ -248,6 +258,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
     if (r.kind === 'showing') return t('trailers.showing');
     if (r.kind === 'soon') return t('trailers.soon');
     if (r.kind === 'airing') return t('trailers.airing');
+    if (r.kind === 'platforms') return t('trailers.onMine');
     return t('trailers.following');
   };
   const dateOf = (iso?: string) => {

@@ -10,8 +10,9 @@
  */
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
 import { getTheatreReleases, getRecommendations } from './tmdb';
+import { providerQuery } from '../utils/platforms';
 
-export type TrailerCategory = 'foryou' | 'cinema' | 'soon' | 'series';
+export type TrailerCategory = 'foryou' | 'platforms' | 'cinema' | 'soon' | 'series';
 export type VideoKind = 'Trailer' | 'Teaser' | 'Clip' | 'Featurette' | 'Behind the Scenes';
 
 export interface TrailerItem {
@@ -26,7 +27,7 @@ export interface TrailerItem {
   videoKey: string;
   videoKind: VideoKind;
   /** Pourquoi ce titre est dans le fil. */
-  reason: { kind: 'because'; from: string } | { kind: 'list' } | { kind: 'showing' } | { kind: 'soon'; date: string } | { kind: 'airing' } | { kind: 'following' };
+  reason: { kind: 'because'; from: string } | { kind: 'list' } | { kind: 'showing' } | { kind: 'soon'; date: string } | { kind: 'airing' } | { kind: 'following' } | { kind: 'platforms' };
 }
 
 /** Les films de ma collection dont le fil a besoin. */
@@ -105,7 +106,21 @@ const fromRow = (row: any, mediaType: 'movie' | 'tv', reason: TrailerItem['reaso
 });
 
 /** Les titres d'une catégorie, avant le choix des vidéos. */
-async function candidates(category: TrailerCategory, mediaType: 'movie' | 'tv', seeds: TrailerSeed[]): Promise<Candidate[]> {
+async function candidates(category: TrailerCategory, mediaType: 'movie' | 'tv', seeds: TrailerSeed[], platformIds: string[]): Promise<Candidate[]> {
+  if (category === 'platforms') {
+    // Ce qui est inclus dans mes abonnements, en France, du plus regardé au moins regardé.
+    const providers = providerQuery(platformIds);
+    if (!providers) return [];
+    const data = await tmdb(`discover/${mediaType}`, {
+      language: 'fr-FR',
+      watch_region: 'FR',
+      with_watch_providers: providers,
+      with_watch_monetization_types: 'flatrate',
+      sort_by: 'popularity.desc',
+      'vote_count.gte': '30',
+    });
+    return (data.results ?? []).filter((r: any) => r.poster_path).map((r: any) => fromRow(r, mediaType, { kind: 'platforms' }));
+  }
   if (category === 'cinema' || category === 'soon') {
     const releases = await getTheatreReleases('FR');
     const list = category === 'cinema' ? releases.thisWeek : releases.upcoming;
@@ -144,14 +159,19 @@ async function candidates(category: TrailerCategory, mediaType: 'movie' | 'tv', 
 }
 
 /** Le fil d'une catégorie : titres pas encore vus, avec une vidéo officielle. */
-export async function getTrailerFeed(category: TrailerCategory, mediaType: 'movie' | 'tv', seeds: TrailerSeed[]): Promise<TrailerItem[]> {
+export async function getTrailerFeed(
+  category: TrailerCategory,
+  mediaType: 'movie' | 'tv',
+  seeds: TrailerSeed[],
+  platformIds: string[] = []
+): Promise<TrailerItem[]> {
   const known = new Set(seeds.filter((s) => s.status === 'watched').map((s) => s.tmdbId));
-  const cacheKey = `bitter_trailer_feed_v2_${category}_${mediaType}`;
+  const cacheKey = `bitter_trailer_feed_v2_${category}_${mediaType}${category === 'platforms' ? `_${providerQuery(platformIds)}` : ''}`;
   const cached = category === 'foryou' ? null : readStore<TrailerItem[]>(cacheKey, 6 * 60 * 60 * 1000);
   if (cached) return cached.filter((i) => !known.has(i.tmdbId));
 
   const seen = new Set<string>();
-  const list = (await candidates(category, mediaType, seeds)).filter((c) => {
+  const list = (await candidates(category, mediaType, seeds, platformIds)).filter((c) => {
     const key = `${c.mediaType}:${c.tmdbId}`;
     if (seen.has(key) || known.has(c.tmdbId) || !c.title) return false;
     seen.add(key);

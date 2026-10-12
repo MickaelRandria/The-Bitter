@@ -30,6 +30,8 @@ import {
 } from '../services/cinemaDirectory';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { PLATFORMS } from '../utils/platforms';
+import PlatformCard from './PlatformCard';
 import ThemeToggle from './ThemeToggle';
 import HowItWorksModal from './HowItWorksModal';
 
@@ -94,12 +96,6 @@ interface EntryFlowProps {
 
 type Screen = 'language' | 'start' | 'email' | 'code' | 'profile' | 'back' | 'loading';
 
-const PLATFORMS = [
-  { id: 'netflix', name: 'Netflix' },
-  { id: 'prime', name: 'Prime Video' },
-  { id: 'disney', name: 'Disney+' },
-  { id: 'canal', name: 'Canal+' },
-];
 
 /** Lien vers la boîte de réception pour les fournisseurs courants, rien sinon. */
 const inboxUrl = (email: string): string | null => {
@@ -910,7 +906,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
               </div>
               <div>
                 <label htmlFor="entry-last" className={label}>
-                  {t('createProfile.lastName')}
+                  {t('createProfile.lastName')} <span className="normal-case tracking-normal font-bold opacity-70">· {t('entry.optional')}</span>
                 </label>
                 <input
                   id="entry-last"
@@ -922,6 +918,14 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
                 />
               </div>
             </div>
+            {/* Ce que verront les amis : le prénom, et l'initiale du nom s'il y en a un. */}
+            <p className="-mt-2 ml-1 text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-snug">
+              {form.firstName.trim()
+                ? t('entry.namePreview', {
+                    name: `${form.firstName.trim()}${form.lastName.trim() ? ` ${form.lastName.trim()[0].toUpperCase()}.` : ''}`,
+                  })
+                : t('entry.lastNameHelp')}
+            </p>
             <div className="grid grid-cols-2 gap-3 items-end">
               <div>
                 <span className={label}>{t('createProfile.gender')}</span>
@@ -962,6 +966,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
                 />
               </div>
             </div>
+            <p className="-mt-2 ml-1 text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-snug">{t('entry.genderAgeHelp')}</p>
           </div>
           <div className="flex-1 min-h-8" />
           <button type="submit" disabled={!canNext} className={primary}>
@@ -1022,15 +1027,16 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
             {form.viewingPreference !== 'cinema' && (
               <div className="entry-pop">
                 <span className={label}>{t('createProfile.favPlatforms')}</span>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {PLATFORMS.map((p) => {
                     const on = form.streamingPlatforms.includes(p.id);
                     return (
-                      <button
+                      <PlatformCard
                         key={p.id}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => {
+                        platform={p}
+                        selected={on}
+                        caption={on ? t('habits.subscribed') : t('habits.add')}
+                        onToggle={() => {
                           haptics.soft();
                           setForm({
                             ...form,
@@ -1039,14 +1045,7 @@ const EntryFlow: React.FC<EntryFlowProps> = ({
                               : [...form.streamingPlatforms, p.id],
                           });
                         }}
-                        className={`px-4 py-2.5 rounded-full border-2 text-xs font-black transition-colors active:scale-95 ${
-                          on
-                            ? 'entry-sel border-forest bg-forest/10 dark:bg-forest/25 text-charcoal dark:text-white'
-                            : 'border-sand dark:border-white/10 bg-white dark:bg-[#161616] text-charcoal dark:text-white'
-                        }`}
-                      >
-                        {p.name}
-                      </button>
+                      />
                     );
                   })}
                 </div>
