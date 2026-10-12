@@ -1,85 +1,91 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  BarChart3,
+  Bell,
+  CalendarDays,
+  Check,
+  Clapperboard,
+  Clock,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Ticket,
+  Tv,
+  Users,
+} from 'lucide-react';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { UpdateMode, restartApp } from '../utils/appUpdate';
 
 /**
- * « Changement de bobine » : l'écran d'une nouvelle version.
+ * L'écran d'une nouvelle version.
  *
- * En projection, des repères ronds en haut à droite de l'image annoncent qu'il
- * faut passer à la bobine suivante ; l'amorce 3-2-1 ouvre chaque bobine. L'écran
- * reprend les deux, puis liste ce qui vient de changer et propose de redémarrer.
+ * Il dit les faits : une nouvelle version est prête, il faut redémarrer, rien
+ * n'est perdu. Puis au plus trois grands changements, et un seul bouton. En
+ * fond, un mur de tes affiches qui défile lentement, comme un générique.
  *
- * La liste est lue dans `/changelog.json` sur le serveur, sans cache : l'app
- * restée sur l'ancienne version affiche donc les nouveautés de la nouvelle.
- * Toujours en sombre, comme une salle.
+ * Les changements sont lus dans `/changelog.json` sur le serveur, sans cache :
+ * l'app restée sur l'ancienne version affiche donc ceux de la nouvelle. On y lit
+ * `highlights` (trois thèmes, avec une icône) ; à défaut, les trois premiers
+ * titres de `items`. Toujours en sombre, comme une salle.
  */
 interface Change {
-  /** Quelle affiche illustre la nouveauté : ton film le mieux noté, le dernier vu, ou le suivant. */
-  visual?: 'top' | 'recent' | 'next';
   title: string;
   body?: string;
+}
+
+interface Highlight {
+  icon?: string;
+  title: string;
 }
 
 interface Changelog {
   version?: string;
   label?: string;
+  highlights?: Highlight[];
   items?: Change[];
   /** Affiches de secours, pour qui n'a encore rien noté. */
   posters?: string[];
 }
 
-interface Shot {
-  url: string;
-  title?: string;
-  rating?: number;
-}
+const ICONS: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
+  stats: BarChart3,
+  platforms: Tv,
+  calendar: CalendarDays,
+  trailers: Clapperboard,
+  spaces: Users,
+  notifications: Bell,
+  cinema: Ticket,
+};
 
 /**
- * Les films vus, lus dans la copie locale de la collection : l'écran vit hors de
- * l'app (il remplace un écran qui n'a pas pu se charger) et n'a pas accès à son état.
+ * Les affiches des films vus, lues dans la copie locale de la collection : l'écran
+ * vit hors de l'app (il remplace un écran qui n'a pas pu se charger) et n'a pas
+ * accès à son état.
  */
-const readCollection = (): { recent: Shot[]; top: Shot | null } => {
+const readPosters = (): string[] => {
   try {
     const profiles = JSON.parse(localStorage.getItem('the_bitter_profiles_v2') || '[]');
     const movies = (Array.isArray(profiles) ? profiles : []).flatMap((p: { movies?: unknown[] }) => (p?.movies ?? []) as any[]);
     const seen = new Set<string>();
-    const watched = movies
+    return movies
       .filter((m) => m?.status === 'watched' && typeof m.posterUrl === 'string' && m.posterUrl && m.seasonNumber == null)
-      .map((m) => {
-        const r = m.ratings ?? {};
-        const weighted = Number(m.adaptiveRating?.weightedRating);
-        const rating =
-          Number.isFinite(weighted) && weighted > 0
-            ? weighted
-            : (Number(r.story) + Number(r.visuals) + Number(r.acting) + Number(r.sound)) / 4;
-        return {
-          url: m.posterUrl as string,
-          title: m.title as string,
-          rating: Number.isFinite(rating) ? rating : undefined,
-          at: Number(m.dateWatched || m.dateAdded || 0),
-        };
-      })
-      .filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)));
-    const recent = [...watched].sort((a, b) => b.at - a.at);
-    const top = [...watched].filter((m) => m.rating != null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0] ?? null;
-    return { recent, top };
+      .sort((a, b) => Number(b.dateWatched || b.dateAdded || 0) - Number(a.dateWatched || a.dateAdded || 0))
+      .map((m) => m.posterUrl as string)
+      .filter((url) => (seen.has(url) ? false : (seen.add(url), true)));
   } catch {
-    return { recent: [], top: null };
+    return [];
   }
 };
 
-const reducedMotion = () =>
-  typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-const LEADER_KEY = (version: string) => `bitter_update_leader_${version}`;
+/** Le temps de lire les étapes avant que la page se recharge. */
+const STEP_MS = 650;
 
 const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mode, onLater }) => {
   const [log, setLog] = useState<Changelog | null>(null);
   const [offline, setOffline] = useState(false);
-  const [leader, setLeader] = useState<number | null>(null);
-  const [restarting, setRestarting] = useState(false);
-  const sweepRef = useRef<HTMLSpanElement>(null);
+  /** 0 : pas encore lancé ; 1 : données à l'abri ; 2 : téléchargement ; 3 : relance. */
+  const [step, setStep] = useState(0);
+  const [mine] = useState(readPosters);
 
   useEffect(() => {
     let alive = true;
@@ -92,196 +98,199 @@ const UpdateScreen: React.FC<{ mode: UpdateMode; onLater?: () => void }> = ({ mo
     };
   }, []);
 
-  /**
-   * L'amorce 3-2-1 : une fois par version, jamais si le téléphone demande moins
-   * d'animations. Elle attend la liste pour connaître la version.
-   */
-  useEffect(() => {
-    if (!log && !offline) return;
-    const version = log?.version ?? 'hors-ligne';
-    let seen = false;
-    try {
-      seen = localStorage.getItem(LEADER_KEY(version)) === '1';
-      localStorage.setItem(LEADER_KEY(version), '1');
-    } catch {
-      // Sans stockage, l'amorce se rejoue : sans gravité.
-    }
-    if (seen || reducedMotion()) return;
-    let raf = 0;
-    const t0 = performance.now();
-    const tick = (t: number) => {
-      const e = (t - t0) / 800;
-      const step = Math.floor(e);
-      if (step >= 3) {
-        setLeader(null);
-        return;
-      }
-      setLeader(3 - step);
-      sweepRef.current?.style.setProperty('--a', `${((e - step) * 360).toFixed(1)}deg`);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [log, offline]);
-
   const restart = () => {
-    setRestarting(true);
-    void restartApp();
+    if (step) return;
+    setStep(1);
+    window.setTimeout(() => setStep(2), STEP_MS);
+    window.setTimeout(() => {
+      setStep(3);
+      void restartApp();
+    }, STEP_MS * 2);
   };
 
-  const items: Change[] = offline
-    ? [{ visual: 'recent', title: 'Nouvelle version disponible', body: 'La liste des nouveautés s’affichera une fois reconnecté. Le redémarrage marche quand même.' }]
-    : log?.items ?? [];
+  // Le mur : tes affiches d'abord, celles de la version pour compléter.
+  const pool = [...mine];
+  for (const url of log?.posters ?? []) if (pool.length < 16 && !pool.includes(url)) pool.push(url);
+  const columns = [0, 1, 2, 3].map((c) => pool.filter((_, i) => i % 4 === c).slice(0, 4));
+  const hasWall = columns.every((col) => col.length > 0);
 
-  /**
-   * Les affiches : celles de ta collection d'abord, du plus récent au plus
-   * ancien ; celles de la liste de secours pour compléter.
-   */
-  const [collection] = useState(readCollection);
-  const pool: Shot[] = [...collection.recent];
-  for (const url of log?.posters ?? []) if (pool.length < 12 && !pool.some((p) => p.url === url)) pool.push({ url });
-  const reel = pool.slice(0, 12);
-  /** Une seule affiche en fond, très assombrie : ton film le mieux noté, sinon le premier de la pellicule. */
-  const backdrop = collection.top ?? pool[0] ?? null;
-  const lead =
-    mode === 'found'
-      ? 'Une nouvelle version de The Bitter est prête. Redémarre l’app pour en profiter, tu retrouveras tout là où tu l’as laissé.'
-      : mode === 'preview'
-        ? 'Voici ce qui a changé dans la dernière version de The Bitter.'
-        : 'The Bitter a changé pendant que l’app était ouverte. Redémarre-la pour charger la nouvelle version : tes notes et tes listes ne bougent pas.';
+  const themes: Highlight[] = (log?.highlights?.length ? log.highlights : (log?.items ?? []).map((i) => ({ title: i.title }))).slice(0, 3);
   const ready = !!log || offline;
+  const preview = mode === 'preview';
+  const found = mode === 'found';
+
+  const title = preview ? 'Ce qui a changé' : found ? 'Une mise à jour est arrivée' : 'Nouvelle version prête';
+  const why = preview
+    ? 'Les grands changements de la dernière version de The Bitter.'
+    : found
+      ? 'Redémarre l’app pour l’avoir. Tu retrouveras tout là où tu l’as laissé.'
+      : 'The Bitter a été mis à jour pendant que tu l’utilisais. Redémarre pour passer à la nouvelle version.';
+
+  const stepRow = (n: number, label: string) => {
+    const done = step > n || (n === 1 && step >= 1);
+    const now = step === n && n > 1;
+    return (
+      <li className={`flex items-center gap-2.5 text-[13.5px] font-extrabold ${done || now ? 'text-[#F5F3EE]' : 'text-[#9C978F]'}`}>
+        <b
+          className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center border-[1.5px] ${
+            done ? 'bg-bitter-lime border-bitter-lime text-[#111]' : now ? 'border-bitter-lime' : 'border-white/20'
+          }`}
+        >
+          {done ? <Check size={11} strokeWidth={3.5} /> : now ? <i className="w-2 h-2 rounded-full bg-bitter-lime animate-pulse" /> : null}
+        </b>
+        {label}
+      </li>
+    );
+  };
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="update-title"
-      className="update-screen fixed inset-0 z-[400] overflow-hidden bg-[#0F0F0E] text-[#F5F3EE]"
+      className="update-screen fixed inset-0 z-[400] overflow-hidden bg-[#0F0F0E] text-[#F5F3EE] isolate"
     >
       <style>{`
-        .update-screen .us-strip { position: absolute; top: -60px; bottom: -60px; right: -38px; width: 142px; opacity: .55; transform: rotate(8deg); background: #000; border-left: 11px dotted #232321; border-right: 11px dotted #232321; overflow: hidden; }
-        .update-screen .us-strip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(15,15,14,.55), transparent 60%); }
-        .update-screen .us-reel { display: flex; flex-direction: column; gap: 8px; padding: 8px 6px; animation: us-roll 40s linear infinite; }
-        .update-screen .us-frame { position: relative; aspect-ratio: 2 / 3; border-radius: 4px; flex: none; overflow: hidden; background: #1A1A19; }
-        .update-screen .us-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        @keyframes us-roll { to { transform: translateY(-50%); } }
-        .update-screen .us-cue { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 22px); right: 22px; width: 14px; height: 14px; border-radius: 50%; background: #F5F3EE; opacity: 0; animation: us-cue 1.6s .3s both; }
-        @keyframes us-cue { 0%, 100% { opacity: 0; } 10%, 30% { opacity: .9; } 20% { opacity: .2; } 40% { opacity: 0; } }
-        .update-screen .us-in { animation: us-rise .55s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i) * 90ms); }
-        @keyframes us-rise { from { opacity: 0; transform: translateY(14px); } }
-        .update-screen .us-backdrop { position: absolute; inset: -40px; background-size: cover; background-position: center 25%; filter: blur(18px) saturate(1.1); opacity: .28; transform: scale(1.08); }
-        .update-screen .us-backdrop-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,15,14,.55) 0%, rgba(15,15,14,.82) 45%, #0F0F0E 85%); }
-        .update-screen .us-sweep { background: conic-gradient(rgba(217,255,0,.22) var(--a, 0deg), transparent 0); }
+        .update-screen .us-wall { position: absolute; inset: -18% -30%; z-index: -3; display: flex; gap: 10px; transform: rotate(-8deg); }
+        .update-screen .us-col { flex: 1; display: flex; flex-direction: column; gap: 10px; animation: us-rise 38s linear infinite; }
+        .update-screen .us-col:nth-child(even) { animation-name: us-fall; animation-duration: 44s; }
+        .update-screen .us-col:nth-child(3) { animation-duration: 52s; }
+        .update-screen .us-col img { flex: none; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; display: block; box-shadow: 0 10px 24px -12px rgba(0,0,0,.8); background: #1A1A19; }
+        .update-screen .us-shade { position: absolute; inset: 0; z-index: -2; background:
+          radial-gradient(120% 70% at 50% 18%, rgba(15,15,14,.15), rgba(15,15,14,.7) 60%),
+          linear-gradient(180deg, rgba(15,15,14,.55) 0%, rgba(15,15,14,.35) 22%, rgba(15,15,14,.88) 46%, #0F0F0E 74%); }
+        /* Une lueur diffuse bien plus grande que l'écran : aucun bord ne passe dans le cadre. */
+        .update-screen .us-glow { position: absolute; top: -30%; left: -60%; width: 90%; height: 90%; z-index: -1; border-radius: 50%;
+          background: radial-gradient(closest-side, rgba(217,255,0,.10), rgba(217,255,0,.04) 55%, transparent);
+          filter: blur(30px); animation: us-glow 9s ease-in-out infinite alternate; }
+        @keyframes us-rise { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+        @keyframes us-fall { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+        @keyframes us-glow { from { transform: translate(0, 0); } to { transform: translate(110%, 20%); } }
+        .update-screen .us-in { animation: us-enter .8s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i) * 90ms + 150ms); }
+        @keyframes us-enter { from { opacity: 0; transform: translateY(12px); } }
+        .update-screen .us-bar i { animation: us-load 1.6s ease-in-out infinite; }
+        @keyframes us-load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+        .update-screen .us-turn { animation: us-turn 1.1s linear infinite; }
+        @keyframes us-turn { to { transform: rotate(360deg); } }
         @media (prefers-reduced-motion: reduce) {
-          .update-screen .us-reel, .update-screen .us-cue, .update-screen .us-in { animation: none; }
+          .update-screen .us-col, .update-screen .us-glow, .update-screen .us-in, .update-screen .us-bar i, .update-screen .us-turn { animation: none; }
         }
       `}</style>
 
-      {backdrop && (
-        <div aria-hidden>
-          <span className="us-backdrop" style={{ backgroundImage: `url(${resizeTmdbImage(backdrop.url, 'w500')})` }} />
-          <span className="us-backdrop-shade" />
-        </div>
-      )}
-
-      <div className="us-strip" aria-hidden>
-        <div className="us-reel">
-          {/* Deux fois la même suite : la boucle de défilement ne se voit pas. */}
-          {[...reel, ...reel].map((shot, i) => (
-            <span key={i} className="us-frame">
-              <img
-                src={resizeTmdbImage(shot.url, 'w185')}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                onError={(e) => {
-                  e.currentTarget.style.visibility = 'hidden';
-                }}
-              />
-            </span>
+      {hasWall && (
+        <div className="us-wall" aria-hidden>
+          {columns.map((col, c) => (
+            <div key={c} className="us-col">
+              {/* Deux fois la même suite : la boucle de défilement ne se voit pas. */}
+              {[...col, ...col].map((url, i) => (
+                <img
+                  key={i}
+                  src={resizeTmdbImage(url, 'w185')}
+                  alt=""
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = 'hidden';
+                  }}
+                />
+              ))}
+            </div>
           ))}
         </div>
-      </div>
-      <span className="us-cue" aria-hidden />
+      )}
+      <span className="us-shade" aria-hidden />
+      <span className="us-glow" aria-hidden />
 
-      {/* Remonté à la fin de l'amorce, pour que le texte et la liste entrent après le « 1 ». */}
-      <div
-        key={leader == null ? 'content' : 'leader'}
-        className="relative h-full max-w-md mx-auto flex flex-col px-5 pt-[calc(env(safe-area-inset-top,0px)+48px)] pb-[calc(env(safe-area-inset-bottom,0px)+20px)]"
-      >
-        <span className="us-in text-[10px] font-black uppercase tracking-[0.18em] text-bitter-lime" style={{ ['--i' as string]: 0 }}>
-          Nouvelle bobine
-        </span>
-        <h2
-          id="update-title"
-          className="us-in mt-2.5 text-[40px] font-black tracking-[-0.06em] leading-[0.92] max-w-[85%]"
-          style={{ ['--i' as string]: 1 }}
+      <div className="relative h-full max-w-md mx-auto flex flex-col px-[22px] pt-[calc(env(safe-area-inset-top,0px)+64px)] pb-[calc(env(safe-area-inset-bottom,0px)+22px)]">
+        <span
+          className="us-in w-[58px] h-[58px] rounded-[18px] bg-bitter-lime text-[#111] flex items-center justify-center shadow-[0_0_0_6px_rgba(217,255,0,0.12)]"
+          style={{ ['--i' as string]: 0 }}
         >
-          The Bitter vient de changer
-        </h2>
-        <p className="us-in mt-3 text-[13.5px] font-semibold leading-snug text-[#9C978F] max-w-[90%]" style={{ ['--i' as string]: 2 }}>
-          {lead}
-        </p>
-        {log?.label && (
-          <span className="us-in mt-3.5 inline-flex items-center gap-1.5 text-[11px] font-extrabold text-[#9C978F]" style={{ ['--i' as string]: 2 }}>
-            <i className="w-[7px] h-[7px] rounded-full bg-bitter-lime shadow-[0_0_0_3px_rgba(217,255,0,0.2)]" />
-            {log.label}
-          </span>
+          {preview ? <Sparkles size={27} strokeWidth={2.6} /> : <RotateCcw size={27} strokeWidth={2.6} className={step ? 'us-turn' : ''} />}
+        </span>
+
+        {step === 0 ? (
+          <>
+            <h2 id="update-title" className="us-in mt-[22px] text-[34px] font-black tracking-[-0.06em] leading-[0.95] max-w-[90%] text-balance" style={{ ['--i' as string]: 1 }}>
+              {title}
+            </h2>
+            <p className="us-in mt-2.5 text-[14px] font-semibold leading-[1.4] text-[#9C978F] max-w-[30ch]" style={{ ['--i' as string]: 2 }}>
+              {why}
+            </p>
+
+            {(themes.length > 0 || !ready) && (
+              <>
+                <span className="us-in mt-7 text-[10px] font-black uppercase tracking-[0.18em] text-[#9C978F]" style={{ ['--i' as string]: 3 }}>
+                  Ce qui change
+                </span>
+                <ul className="us-in mt-3 space-y-2.5" style={{ ['--i' as string]: 4 }} aria-label="Ce qui change">
+                  {!ready && <li className="h-9 rounded-xl bg-white/5 animate-pulse" />}
+                  {themes.map((theme, i) => {
+                    const Icon = (theme.icon && ICONS[theme.icon]) || Sparkles;
+                    return (
+                      <li key={`${theme.title}-${i}`} className="flex items-center gap-3 text-[15px] font-extrabold tracking-[-0.02em]">
+                        <i className="w-9 h-9 shrink-0 rounded-xl bg-white/[0.08] border border-white/[0.09] flex items-center justify-center text-bitter-lime">
+                          <Icon size={18} strokeWidth={2.4} />
+                        </i>
+                        {theme.title}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            {offline && (
+              <p className="us-in mt-6 text-[12.5px] font-semibold text-[#9C978F]" style={{ ['--i' as string]: 3 }}>
+                Les nouveautés s’afficheront une fois reconnecté. Le redémarrage marche quand même.
+              </p>
+            )}
+
+            <span className="flex-1" />
+            {!preview && (
+              <span className="us-in mb-3 flex items-center gap-2 text-[12px] font-bold text-[#9C978F]" style={{ ['--i' as string]: 5 }}>
+                <ShieldCheck size={15} strokeWidth={2.4} className="text-bitter-lime shrink-0" />
+                Tes notes et ta liste sont gardées.
+              </span>
+            )}
+            <div className="us-in space-y-1.5" style={{ ['--i' as string]: 6 }}>
+              <button
+                onClick={preview ? onLater : restart}
+                className="w-full h-[54px] rounded-[18px] bg-bitter-lime text-[#111] font-black text-[15px] flex items-center justify-center gap-2.5 active:scale-[0.98] transition-transform focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-bitter-lime"
+              >
+                {!preview && <RotateCcw size={17} strokeWidth={2.8} />}
+                {preview ? 'Continuer' : 'Redémarrer'}
+              </button>
+              {found && onLater && (
+                <button onClick={onLater} className="w-full h-10 rounded-[18px] text-[12.5px] font-black text-[#9C978F] hover:text-[#F5F3EE] transition-colors">
+                  Plus tard
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Après le bouton : ce qui se passe, étape par étape. */}
+            <h2 id="update-title" className="mt-[22px] text-[34px] font-black tracking-[-0.06em] leading-[0.95]">
+              Mise à jour en cours
+            </h2>
+            <p className="mt-2.5 text-[14px] font-semibold leading-[1.4] text-[#9C978F] max-w-[30ch]">
+              L’app télécharge la nouvelle version, puis se relance toute seule.
+            </p>
+            <div className="us-bar mt-[26px] h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+              <i className="block h-full w-2/5 rounded-full bg-bitter-lime" />
+            </div>
+            <ul className="mt-[18px] space-y-2.5" aria-live="polite">
+              {stepRow(1, 'Tes données sont à l’abri')}
+              {stepRow(2, 'Téléchargement de la nouvelle version')}
+              {stepRow(3, 'Relance de l’app')}
+            </ul>
+            <span className="flex-1" />
+            <span className="flex items-center justify-center gap-2 text-[12px] font-bold text-[#9C978F]">
+              <Clock size={15} strokeWidth={2.4} className="text-bitter-lime" />
+              Quelques secondes.
+            </span>
+          </>
         )}
-
-        {/* Une liste de texte, sans vignettes : les affiches sont déjà dans la pellicule et en fond. */}
-        <ul className="mt-5 pr-14 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Ce qui change">
-          {!ready && <li className="h-16 rounded-2xl bg-white/5 animate-pulse" />}
-          {items.map((item, i) => (
-            <li
-              key={`${item.title}-${i}`}
-              className="us-in py-3 border-t border-white/[0.08] first:border-t-0 first:pt-0"
-              style={{ ['--i' as string]: i + 3 }}
-            >
-              <b className="block text-[14px] font-black tracking-[-0.015em]">{item.title}</b>
-              {item.body && <small className="block mt-1 text-[12px] font-semibold leading-snug text-[#A8A39B]">{item.body}</small>}
-            </li>
-          ))}
-        </ul>
-
-        <div className="us-in mt-3.5 space-y-2" style={{ ['--i' as string]: Math.min(items.length, 6) + 3 }}>
-          {mode !== 'preview' && (
-            <button
-              onClick={restart}
-              disabled={restarting}
-              className="w-full h-[54px] rounded-[18px] bg-bitter-lime text-[#111] font-black text-[15px] flex items-center justify-center gap-2.5 active:scale-[0.98] transition-transform focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-bitter-lime"
-            >
-              <RotateCcw size={17} strokeWidth={2.6} className={restarting ? 'animate-spin' : ''} />
-              {restarting ? 'Redémarrage…' : 'Redémarrer l’app'}
-            </button>
-          )}
-          {(mode === 'found' || mode === 'preview') && onLater ? (
-            <button
-              onClick={onLater}
-              className={`w-full rounded-[18px] font-black transition-colors ${
-                mode === 'preview'
-                  ? 'h-[54px] bg-bitter-lime text-[#111] text-[15px]'
-                  : 'h-11 text-[12.5px] text-[#9C978F] hover:text-[#F5F3EE]'
-              }`}
-            >
-              {mode === 'preview' ? 'Continuer' : 'Plus tard'}
-            </button>
-          ) : (
-            <p className="text-center text-[11px] font-semibold text-[#9C978F]">Deux secondes, et tu reprends où tu en étais.</p>
-          )}
-        </div>
       </div>
-
-      {leader != null && (
-        <div className="absolute inset-0 z-10 bg-[#0F0F0E] flex items-center justify-center" aria-hidden>
-          <div className="relative w-[190px] h-[190px] rounded-full border-2 border-[#2A2A28] flex items-center justify-center">
-            <span className="absolute left-1/2 -top-10 -bottom-10 w-0.5 -translate-x-1/2 bg-[#2A2A28]" />
-            <span className="absolute top-1/2 -left-10 -right-10 h-0.5 -translate-y-1/2 bg-[#2A2A28]" />
-            <span ref={sweepRef} className="us-sweep absolute inset-0 rounded-full" />
-            <b className="relative text-[96px] font-black tracking-[-0.06em] tabular-nums">{leader}</b>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

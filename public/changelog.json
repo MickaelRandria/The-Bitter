@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-12-cine-calendrier",
+  "version": "2026-10-12-ecran-maj",
   "label": "Version du 12 octobre",
   "items": [
     {
@@ -36,5 +36,19 @@
     "https://image.tmdb.org/t/p/w780/9BzF32t0U7mOnpzmQ0dyFKv4uZT.jpg",
     "https://image.tmdb.org/t/p/w780/pICoWjcKSet6sA3yzxOkP8ChwYI.jpg",
     "https://image.tmdb.org/t/p/w780/qJ2tW6WMUDux911r6m7haRef0WH.jpg"
+  ],
+  "highlights": [
+    {
+      "icon": "stats",
+      "title": "Des stats plus belles"
+    },
+    {
+      "icon": "platforms",
+      "title": "Tes plateformes d'abord"
+    },
+    {
+      "icon": "calendar",
+      "title": "Le ciné de la semaine au calendrier"
+    }
   ]
 }
