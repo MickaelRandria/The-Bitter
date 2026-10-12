@@ -65,11 +65,16 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
    * Téléphone tourné en paysage : la vidéo seule, sur tout l'écran. Limité aux
    * petites hauteurs, pour ne pas basculer une tablette ou un ordinateur.
    */
+  /** Chaque rotation : un fondu au noir masque le saut de mise en page. */
+  const [turns, setTurns] = useState(0);
   const [landscape, setLandscape] = useState(() => window.matchMedia?.('(orientation: landscape) and (max-height: 540px)').matches ?? false);
   useEffect(() => {
     const query = window.matchMedia?.('(orientation: landscape) and (max-height: 540px)');
     if (!query) return;
-    const onChange = () => setLandscape(query.matches);
+    const onChange = () => {
+      setLandscape(query.matches);
+      setTurns((n) => n + 1);
+    };
     query.addEventListener?.('change', onChange);
     return () => query.removeEventListener?.('change', onChange);
   }, []);
@@ -130,9 +135,35 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
       .catch(() => setWhere((prev) => ({ ...prev, [key]: [] })));
   }, [current?.tmdbId, current?.mediaType]);
 
+  /**
+   * Quand l'écran change de taille (rotation), la position du fil, elle, ne
+   * bouge pas : on la recale sur la vidéo en cours, sans en changer.
+   */
+  const activeRef = useRef(0);
+  activeRef.current = active;
+  const resizing = useRef(0);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let last = el.clientHeight;
+    const observer = new ResizeObserver(() => {
+      if (el.clientHeight === last) return;
+      last = el.clientHeight;
+      resizing.current = Date.now();
+      el.scrollTop = activeRef.current * el.clientHeight;
+      if (window.scrollX) window.scrollTo(0, window.scrollY);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const onScroll = () => {
     const el = feedRef.current;
     if (!el) return;
+    if (Date.now() - resizing.current < 600) {
+      el.scrollTop = activeRef.current * el.clientHeight;
+      return;
+    }
     const i = Math.round(el.scrollTop / el.clientHeight);
     if (i !== active) setActive(i);
   };
@@ -246,6 +277,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
 
   return createPortal(
     <div className="fixed inset-0 z-[70] bg-black text-white" role="dialog" aria-modal="true" aria-label={t('trailers.tab')}>
+      {turns > 0 && <div key={turns} className="pointer-events-none absolute inset-0 z-[30] bg-black animate-[trailer-turn_0.55s_ease-out_0.12s_both]" />}
       <div
         ref={feedRef}
         onScroll={onScroll}
@@ -269,8 +301,12 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
                 : offers.length
                   ? t('trailers.on', { platform: offers.join(', ') })
                   : '';
-          const frameClass =
-            fill && !landscape ? 'absolute top-0 left-1/2 -translate-x-1/2 h-full aspect-video max-w-none' : 'absolute inset-0 w-full h-full';
+          // En paysage : la vidéo entière, au centre exact de l'écran (bandes noires égales).
+          const frameClass = landscape
+            ? 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 aspect-video max-w-none w-[min(100%,calc(100dvh*16/9))]'
+            : fill
+              ? 'absolute top-0 left-1/2 -translate-x-1/2 h-full aspect-video max-w-none'
+              : 'absolute inset-0 w-full h-full';
           return (
             <section key={`${item.mediaType}-${item.tmdbId}`} className="relative h-full snap-start snap-always overflow-hidden" aria-label={item.title}>
               {/* Le décor du film, sur tout l'écran. */}
