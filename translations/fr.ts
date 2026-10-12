@@ -2693,4 +2693,10 @@ export const fr: Record<string, string> = {
   "pt.perWeek": ", environ {n} par semaine",
   "pt.films": "films",
   "analytics.attention": "attention",
+  "shelves.cinemaBanner": "Cette semaine au ciné",
+  "shelves.cinemaCount": "{n} films sortis · voir dans le calendrier",
+  "shelves.cinemaLoading": "Les sorties de la semaine…",
+  "releases.thisWeekTitle": "Sortis cette semaine",
+  "releases.thisWeekShort": "Cette sem.",
+  "releases.inCinemas": "en salle",
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Tv } from 'lucide-react';
+import { CalendarDays, ChevronRight, Tv } from 'lucide-react';
 import { UserProfile } from '../types';
 import { tmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
@@ -32,9 +32,11 @@ interface Props {
   onPreview: (id: number, mediaType: 'movie' | 'tv') => void;
   /** Ouvre « Mes habitudes » dans le profil, pour choisir ses plateformes. */
   onEditHabits?: () => void;
+  /** Les sorties de la semaine vivent dans le calendrier : le bandeau y mène. */
+  onOpenCalendar?: () => void;
 }
 
-const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEditHabits }) => {
+const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEditHabits, onOpenCalendar }) => {
   const { t } = useLanguage();
   const platforms = myPlatforms(profile.streamingPlatforms);
   const genres = profile.favoriteGenres ?? [];
@@ -83,6 +85,46 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
   return (
     <div className="space-y-6">
       {wanted.map((kind) => {
+        // Le ciné de la semaine : un bandeau d'une ligne, le détail est dans le calendrier.
+        if (kind === 'cinema' && onOpenCalendar) {
+          const films = (rows.cinema ?? []).filter((i) => i.posterPath);
+          if (rows.cinema && films.length === 0) return null;
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => {
+                haptics.medium();
+                onOpenCalendar();
+              }}
+              className="w-full flex items-center gap-3 p-3 pr-4 rounded-[1.6rem] bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 text-left active:scale-[0.98] transition-transform"
+            >
+              <span className="flex shrink-0 pl-1" aria-hidden="true">
+                {rows.cinema == null
+                  ? [0, 1, 2].map((i) => <span key={i} className="-ml-2 first:ml-0 w-9 aspect-[2/3] rounded-lg bg-stone-100 dark:bg-[#161616] ring-2 ring-white dark:ring-[#1a1a1a]" />)
+                  : films.slice(0, 4).map((film, i) => (
+                      <img
+                        key={film.id}
+                        src={tmdbImage(film.posterPath, 'w92')}
+                        alt=""
+                        className="-ml-3 first:ml-0 w-9 aspect-[2/3] rounded-lg object-cover ring-2 ring-white dark:ring-[#1a1a1a] shadow-sm"
+                        style={{ zIndex: 4 - i, transform: `rotate(${(i - 1.5) * 3}deg)` }}
+                      />
+                    ))}
+              </span>
+              <span className="flex-1 min-w-0">
+                <b className="block text-[13.5px] font-black tracking-[-0.02em] text-charcoal dark:text-white">{t('shelves.cinemaBanner')}</b>
+                <small className="block text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+                  {rows.cinema == null ? t('shelves.cinemaLoading') : t('shelves.cinemaCount', { n: String(films.length) })}
+                </small>
+              </span>
+              <span className="shrink-0 flex items-center gap-1 text-[11px] font-black text-forest dark:text-bitter-lime">
+                <CalendarDays size={14} />
+                <ChevronRight size={15} />
+              </span>
+            </button>
+          );
+        }
         if (kind === 'platforms' && platforms.length === 0) {
           return (
         <button

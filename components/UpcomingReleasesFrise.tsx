@@ -54,9 +54,18 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [region]);
 
+  /** Déjà en salle : sortis cette semaine, du plus suivi au moins suivi. */
+  const thisWeek = useMemo(() => {
+    if (!data) return [] as TheatreRelease[];
+    const seen = new Set<number>();
+    return data.thisWeek
+      .filter((film) => !seen.has(film.id) && seen.add(film.id))
+      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
+  }, [data]);
+
   const days = useMemo(() => {
     if (!data) return [] as [string, TheatreRelease[]][];
-    const seen = new Set<number>();
+    const seen = new Set<number>(data.thisWeek.map((film) => film.id));
     const films = data.upcoming
       .filter((film) => film.releaseDate && !seen.has(film.id) && seen.add(film.id))
       .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || (b.popularity ?? 0) - (a.popularity ?? 0));
@@ -170,7 +179,7 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
     );
   }
 
-  if (!days.length) {
+  if (!days.length && !thisWeek.length) {
     return (
       <p className="py-16 text-center text-[11px] font-medium leading-relaxed text-stone-400 dark:text-stone-500">
         {t('releases.empty')}
@@ -180,6 +189,20 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
 
   return (
     <div className="animate-[fadeIn_0.3s_ease-out]">
+      {thisWeek.length > 0 && (
+        <section aria-label={t('releases.thisWeekTitle')} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3">
+          <div className="sticky top-4 self-start pt-1 text-center">
+            <p className="text-[13px] font-black leading-[1.05] tracking-tight text-charcoal dark:text-white">{t('releases.thisWeekShort')}</p>
+            <span className="mt-2 inline-block rounded-full bg-charcoal px-1.5 py-0.5 text-[9px] font-black text-white dark:bg-white dark:text-[#111]">
+              {t('releases.inCinemas')}
+            </span>
+          </div>
+          <div className="min-w-0 space-y-6 border-l-2 border-[#D9FF00] pb-8 pl-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-400">{t('releases.thisWeekTitle')}</p>
+            {thisWeek.map(renderFilm)}
+          </div>
+        </section>
+      )}
       {days.map(([day, films]) => {
         const parts = dateParts(day);
         return (

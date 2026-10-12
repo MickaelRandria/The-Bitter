@@ -48,6 +48,8 @@ interface CalendarViewProps {
   onOpenFilm?: (movie: Movie) => void;
   onWatchWith?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
+  /** Onglet d'ouverture : « À venir » depuis le bandeau ciné de Découvrir. */
+  initialTab?: 'month' | 'upcoming' | 'year';
 }
 
 export default function CalendarView(props: CalendarViewProps) {
@@ -56,7 +58,7 @@ export default function CalendarView(props: CalendarViewProps) {
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const [today, setToday] = useState(() => calendarDay(Date.now()));
   const [currentMonth, setCurrentMonth] = useState(() => calendarDay(Date.now()).slice(0, 7));
-  const [tab, setTab] = useState<'month' | 'upcoming' | 'year'>('month');
+  const [tab, setTab] = useState<'month' | 'upcoming' | 'year'>(() => props.initialTab ?? 'month');
   const [day, setDay] = useState<string | null>(null);
   const [genre, setGenre] = useState('');
   /** Le filtre choisi, gardé sur l'appareil : on revient souvent au même. */

@@ -2687,4 +2687,10 @@ export const en: Record<string, string> = {
   "pt.perWeek": ", about {n} a week",
   "pt.films": "films",
   "analytics.attention": "attention",
+  "shelves.cinemaBanner": "In cinemas this week",
+  "shelves.cinemaCount": "{n} new releases · see in the calendar",
+  "shelves.cinemaLoading": "This week's releases…",
+  "releases.thisWeekTitle": "Released this week",
+  "releases.thisWeekShort": "This wk",
+  "releases.inCinemas": "showing",
 };

@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-stats-profil",
+  "version": "2026-10-12-cine-calendrier",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Le ciné de la semaine, au calendrier",
+      "body": "Dans Découvrir, un bandeau résume les sorties de la semaine ; le calendrier les montre toutes, en tête de « À venir »."
+    },
     {
       "title": "Tes stats, version salle obscure",
       "body": "L'onglet Profil s'ouvre sur ton film le mieux noté en plein écran, avec ton profil de critique en grand."
@@ -17,10 +21,6 @@
     {
       "title": "Tes plateformes d'abord",
       "body": "Choisis tes abonnements dans ton profil : Découvrir, Trailers et les fiches mettent en avant ce que tu peux regarder tout de suite."
-    },
-    {
-      "title": "Découvrir à ta façon",
-      "body": "Au ciné ou en streaming : l'ordre des rangées suit ta façon de regarder. Un compte tout neuf démarre avec ses genres préférés."
     }
   ],
   "posters": [

@@ -684,6 +684,11 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  /** Calendrier ouvert depuis le bandeau ciné de Découvrir : directement sur « À venir ». */
+  const [calendarTab, setCalendarTab] = useState<'upcoming' | undefined>(undefined);
+  useEffect(() => {
+    if (viewMode !== 'Calendar') setCalendarTab(undefined);
+  }, [viewMode]);
   /** Profil ouvert depuis Découvrir : descendre directement à « Mes habitudes ». */
   const [profileFocusHabits, setProfileFocusHabits] = useState(false);
   const [showLetterboxdImport, setShowLetterboxdImport] = useState(false);
@@ -3686,6 +3691,10 @@ const App: React.FC = () => {
                 setProfileFocusHabits(true);
                 setShowProfile(true);
               }}
+              onOpenCalendar={() => {
+                setCalendarTab('upcoming');
+                setViewMode('Calendar');
+              }}
               initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
@@ -3700,6 +3709,7 @@ const App: React.FC = () => {
             />
           ) : viewMode === 'Calendar' ? (
             <CalendarView
+              initialTab={calendarTab}
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
