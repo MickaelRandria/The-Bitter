@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-12-trailers-v2",
+  "version": "2026-10-12-notifications",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Une cloche plus légère",
+      "body": "Les 5 dernières notifications, et « Afficher plus » pour le reste."
+    },
+    {
+      "title": "Activer les notifications d'un geste",
+      "body": "Depuis la cloche ou ton profil : un bouton les active vraiment sur ce téléphone, et explique quoi faire si elles sont bloquées."
+    },
     {
       "title": "Des trailers mieux cadrés",
       "body": "La vidéo est centrée, les actions tiennent en une rangée sous le titre, et rien ne passe sous la barre de navigation."
@@ -13,14 +21,6 @@
     {
       "title": "Les mises à jour s'annoncent",
       "body": "Fini l'écran d'erreur après une nouvelle version : cet écran te dit ce qui change et redémarre l'app."
-    },
-    {
-      "title": "Ma note, en lecture",
-      "body": "Touche l'affiche d'un film noté : ta note, tes critères, ton avis. On ne modifie plus par erreur."
-    },
-    {
-      "title": "Les verdicts des espaces",
-      "body": "Notes scellées jusqu'à la tienne, révélation, paris, débat, et le récap du mois en stories."
     }
   ],
   "posters": [

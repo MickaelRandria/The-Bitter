@@ -23,6 +23,7 @@ import { enablePushNotifications, hasPushSubscription, isPushSupported } from '.
 import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
 import { trackEvent } from '../utils/analytics';
+import PushStatusCard from './PushStatusCard';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface NotificationCenterProps {
@@ -79,6 +80,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [answering, setAnswering] = useState<string | null>(null);
   const [pushNeeded, setPushNeeded] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  /**
+   * Combien de notifications on montre : les cinq dernières, puis dix de plus à
+   * chaque « Afficher plus ». Toutes d'un coup faisaient une fenêtre immense.
+   */
+  const PAGE = 5;
+  const [limit, setLimit] = useState(PAGE);
   /** E-mail de secours : `null` tant qu'on ne sait pas, ou sans adresse. */
   const [emailPref, setEmailPrefState] = useState<boolean | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -240,7 +247,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
       <button
         onClick={() => {
           setOpen((v) => !v);
-          if (!open) loadSocial();
+          if (!open) {
+            setLimit(PAGE);
+            loadSocial();
+          }
         }}
         data-tour="notif-bell"
         className="relative p-2 rounded-full text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
@@ -281,6 +291,9 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
             </div>
           </div>
 
+          {/* Activer les notifications d'ici aussi, tant que cet appareil ne les reçoit pas. */}
+          {userId && <PushStatusCard variant="compact" hideWhenOn source="bell" onToast={onToast} />}
+
           <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
             {isEmpty ? (
               <div className="px-4 py-8 text-center text-stone-400 dark:text-stone-500 text-sm">
@@ -288,7 +301,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               </div>
             ) : (
               <>
-                {social.map((n) => {
+                {social.slice(0, limit).map((n) => {
                   // Un film dont la séance est déjà proposée ou calée : plus besoin de « on y va quand ? ».
                   const planned = social.some(
                     (x) =>
@@ -481,7 +494,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   );
                 })}
 
-                {notifications.map((n) => (
+                {notifications.slice(0, Math.max(0, limit - social.length)).map((n) => (
                   <div
                     key={n.id}
                     onClick={() => handleMarkOne(n.id)}
@@ -511,6 +524,18 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     </div>
                   </div>
                 ))}
+
+                {social.length + notifications.length > limit && (
+                  <button
+                    onClick={() => {
+                      haptics.soft();
+                      setLimit((n) => n + 10);
+                    }}
+                    className="w-full py-3 text-xs font-black text-forest dark:text-bitter-lime hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                  >
+                    {t('notifications.showMore', { n: String(social.length + notifications.length - limit) })}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -536,17 +561,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               />
             </label>
           )}
-          {userId && pushNeeded ? (
-            <div className="px-4 py-3 border-t border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50">
-              <button
-                onClick={enablePush}
-                disabled={pushBusy}
-                className="text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-bitter-lime transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {pushBusy ? <Loader2 size={12} className="animate-spin" /> : '🔔'} {t('social.pushBell')}
-              </button>
-            </div>
-          ) : (
+          {(
             !userId &&
             'Notification' in window &&
             Notification.permission === 'default' && (
