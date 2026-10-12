@@ -506,3 +506,24 @@ export async function restoreFromBackup(userId: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * « Mes habitudes », modifiées depuis le profil : envoyées telles quelles.
+ * `syncProfileFieldsToSupabase` ne remonte ni une liste vidée ni des genres déjà
+ * présents sur le serveur : ce sont justement les gestes de cet écran.
+ */
+export async function saveProfileHabits(
+  userId: string,
+  habits: Pick<UserProfile, 'viewingPreference' | 'streamingPlatforms' | 'favoriteGenres'>
+): Promise<boolean> {
+  if (!supabase) return false;
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (habits.viewingPreference && VIEWING_PREFERENCES.includes(habits.viewingPreference)) {
+    patch.viewing_preference = habits.viewingPreference;
+  }
+  if (habits.streamingPlatforms) patch.streaming_platforms = habits.streamingPlatforms;
+  if (habits.favoriteGenres) patch.favorite_genres = habits.favoriteGenres;
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+  if (error) console.warn('[habits] enregistrement impossible', error.message);
+  return !error;
+}

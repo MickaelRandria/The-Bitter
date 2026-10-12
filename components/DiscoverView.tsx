@@ -52,6 +52,7 @@ import { workKey } from '../utils/workKey';
 import { useImdbRatings } from '../services/imdb';
 import { pickFromLookup } from '../utils/publicRating';
 import PublicRatingBadge from './PublicRatingBadge';
+import PersonalShelves from './PersonalShelves';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
@@ -79,6 +80,8 @@ interface DiscoverViewProps {
    * là où l'on était, plutôt que de repartir sur « Films » à chaque visite.
    */
   initialMediaType?: MediaType;
+  /** Ouvre « Mes habitudes » du profil (choisir ses plateformes). */
+  onEditHabits?: () => void;
 }
 
 interface TMDBItem {
@@ -144,6 +147,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   movies,
   onToast,
   initialMediaType = 'movie',
+  onEditHabits,
 }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
@@ -439,6 +443,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           onSeen={onSeen}
           onOpen={(id, type) => (onOpenFilm ?? onPreview)(id, type)}
           onClose={() => setSurface('foryou')}
+          platformIds={userProfile?.streamingPlatforms}
+          preferPlatforms={userProfile?.viewingPreference === 'streaming'}
         />
       ) : surface === 'free' ? (
         <FreeToWatchSection
@@ -747,6 +753,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         </div>
       )}
       </>
+      )}
+
+      {/* Mes rangées : mes plateformes, le ciné de la semaine, de quoi démarrer. */}
+      {userProfile && !isSearchActive && !aiResult && (
+        <PersonalShelves mediaType={mediaType} profile={userProfile} onPreview={onPreview} onEditHabits={onEditHabits} />
       )}
 
       {/* RESULTS GRID */}

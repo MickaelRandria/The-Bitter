@@ -34,6 +34,7 @@ import {
 } from '../utils/watchOffers';
 import { getNetflixUrl } from '../services/streamingLinks';
 import JustWatchCredit from './JustWatchCredit';
+import { platformOfProvider } from '../utils/platforms';
 
 /** Rien sous le nom pour le cas courant : l'abonnement, ou la location comme l'achat. */
 const STREAMING_ACCESS_LABEL: Record<StreamingAccess, string | null> = {
@@ -63,6 +64,8 @@ interface MovieDetailModalProps {
   profileId?: string;
   favoriteCinema?: FavoriteCinema;
   onToast?: (message: string) => void;
+  /** Mes plateformes : leur offre passe en tête, en grand. */
+  myPlatformIds?: string[];
 }
 
 interface TMDBReview {
@@ -123,6 +126,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   profileId,
   favoriteCinema,
   onToast,
+  myPlatformIds,
 }) => {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
@@ -348,6 +352,15 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const offers = groupWatchOffers(movie?.['watch/providers']?.results?.FR);
+  // Mes abonnements d'abord, une carte par plateforme ; les autres offres restent en ligne.
+  const mine = offers.streaming.filter((o) => {
+    const platform = platformOfProvider(o.id);
+    return o.access === 'subscription' && !!platform && !!myPlatformIds?.includes(platform.id);
+  });
+  const mineIds = new Set(mine.map((o) => platformOfProvider(o.id)!.id));
+  const mineCards = [...new Map(mine.map((o) => [platformOfProvider(o.id)!.id, o])).values()];
+  const otherStreaming = offers.streaming.filter((o) => !mine.includes(o));
+  const justWatchLink: string | undefined = movie?.['watch/providers']?.results?.FR?.link;
   const trailer = movie?.videos?.results?.find((v) => v.type === 'Trailer' && v.site === 'YouTube');
 
   // Review categories — thresholds: ≥7 positive, ≤4 negative, closest to user rating
@@ -517,7 +530,38 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               {/* Providers */}
               {(offers.streaming.length > 0 || offers.transactional.length > 0) && (
                 <div className="mb-8">
-                  {netflixUrl && (
+                  {mineCards.length > 0 && (
+                    <div className="mb-5 space-y-2">
+                      {mineCards.map((offer) => {
+                        const platform = platformOfProvider(offer.id)!;
+                        const href = isNetflixProvider(offer.id) && netflixUrl ? netflixUrl : justWatchLink;
+                        return (
+                          <a
+                            key={platform.id}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => haptics.medium()}
+                            style={{ backgroundColor: platform.color }}
+                            className="relative isolate overflow-hidden flex items-center gap-3 rounded-2xl px-4 py-3.5 text-white shadow-lg active:scale-[0.98] transition-transform"
+                          >
+                            <span className="absolute inset-0 -z-10 bg-[radial-gradient(120%_160%_at_100%_0%,rgba(255,255,255,0.25),transparent_55%),linear-gradient(90deg,rgba(0,0,0,0.35),transparent_70%)]" />
+                            <span aria-hidden="true" className="absolute right-20 -bottom-4 -z-10 text-[56px] font-black tracking-[-0.07em] leading-none whitespace-nowrap opacity-[0.14]">
+                              {platform.mark}
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <b className="block text-[14px] font-black">{platform.name}</b>
+                              <small className="block text-[11px] font-bold opacity-75">{t('fiche.inMySubscription')}</small>
+                            </span>
+                            <span className="shrink-0 flex items-center gap-1.5 rounded-full bg-bitter-lime px-3.5 py-2 text-[12px] font-black text-charcoal">
+                              <Play size={12} fill="currentColor" /> {t('fiche.watch')}
+                            </span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {netflixUrl && !mineIds.has('netflix') && (
                     <a
                       href={netflixUrl}
                       target="_blank"
@@ -529,13 +573,13 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       Regarder sur Netflix
                     </a>
                   )}
-                  {offers.streaming.length > 0 && (
+                  {otherStreaming.length > 0 && (
                     <>
                       <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
-                        Disponible sur
+                        {mineCards.length > 0 ? t('fiche.alsoOn') : 'Disponible sur'}
                       </h3>
                       <OfferRow
-                        offers={offers.streaming}
+                        offers={otherStreaming}
                         labels={STREAMING_ACCESS_LABEL}
                         netflixUrl={netflixUrl}
                       />
@@ -544,7 +588,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   {offers.transactional.length > 0 && (
                     <>
                       <h3
-                        className={`text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3 ${offers.streaming.length > 0 ? 'mt-4' : ''}`}
+                        className={`text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3 ${otherStreaming.length > 0 ? 'mt-4' : ''}`}
                       >
                         En location ou à l'achat
                       </h3>

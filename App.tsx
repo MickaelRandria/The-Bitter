@@ -58,6 +58,7 @@ import {
   syncMovieToSupabase,
   syncMoviesToSupabase,
   syncProfileFieldsToSupabase,
+  saveProfileHabits,
 } from './services/migration';
 import {
   CinemaSubscription,
@@ -683,6 +684,8 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  /** Profil ouvert depuis Découvrir : descendre directement à « Mes habitudes ». */
+  const [profileFocusHabits, setProfileFocusHabits] = useState(false);
   const [showLetterboxdImport, setShowLetterboxdImport] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
@@ -2353,6 +2356,20 @@ const App: React.FC = () => {
     setProfiles((prev) => prev.map((p) => (p.id === activeProfileId ? updater(p) : p)));
   };
 
+  /** « Mes habitudes » : enregistrées sur l'appareil, puis sur le compte. */
+  const handleUpdateHabits = (patch: Pick<UserProfile, 'viewingPreference' | 'streamingPlatforms' | 'favoriteGenres'>) => {
+    if (!activeProfile) return;
+    const next = { ...activeProfile, ...patch };
+    updateActiveProfile((p) => ({ ...p, ...patch }));
+    if (session?.user?.id) {
+      void saveProfileHabits(session.user.id, {
+        viewingPreference: next.viewingPreference,
+        streamingPlatforms: next.streamingPlatforms ?? [],
+        favoriteGenres: next.favoriteGenres ?? [],
+      });
+    }
+  };
+
   /**
    * Cinéma favori : un seul, choisi dans l'annuaire UGC. C'est lui que la fiche
    * film interroge pour proposer des horaires ; le retirer ne fait donc que
@@ -3658,6 +3675,10 @@ const App: React.FC = () => {
                  pas. */
               movies={allMovies.filter((m) => (m.mediaType ?? 'movie') === mediaMode)}
               onToast={setToastMessage}
+              onEditHabits={() => {
+                setProfileFocusHabits(true);
+                setShowProfile(true);
+              }}
               initialMediaType={mediaMode}
             />
           ) : viewMode === 'Calendar' && mediaMode === 'tv' ? (
@@ -4724,6 +4745,7 @@ const App: React.FC = () => {
                 onUpdateTmdbRating={handleUpdateTmdbRating}
                 profileId={session?.user?.id}
                 favoriteCinema={activeProfile?.favoriteCinema}
+                myPlatformIds={activeProfile?.streamingPlatforms}
                 onToast={setToastMessage}
               />
             );
@@ -4811,7 +4833,7 @@ const App: React.FC = () => {
           <ProfileModal
             profile={activeProfile}
             session={session}
-            onClose={() => setShowProfile(false)}
+            onClose={() => { setShowProfile(false); setProfileFocusHabits(false); }}
             onSwitchProfile={() => {
               setShowProfile(false);
               setChoosingProfile(true);
@@ -4826,6 +4848,8 @@ const App: React.FC = () => {
             }}
             onSignOut={handleSignOut}
             onDeleteAccount={session ? () => { setShowProfile(false); setShowDeleteAccount(true); } : undefined}
+            onUpdateHabits={handleUpdateHabits}
+            focusHabits={profileFocusHabits}
             onImportBackup={handleImportBackup}
             onOpenSpaces={() => { setShowProfile(false); setShowSharedSpaces(true); }}
             onLetterboxdImport={() => { setShowProfile(false); setShowLetterboxdImport(true); }}

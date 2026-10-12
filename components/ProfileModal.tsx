@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { avatarSrc } from '../utils/avatar';
 import AvatarPickerModal from './AvatarPickerModal';
 import type { UploadError } from '../services/avatarUpload';
@@ -59,6 +59,10 @@ import { useDialog } from '../utils/useDialog';
 import { useTheme } from '../contexts/ThemeContext';
 import { ConsentChoice, readConsent, saveConsent } from '../utils/consent';
 import { initAnalytics, stopAnalytics } from '../utils/analytics';
+import ProfileHabits, { Habits } from './ProfileHabits';
+import { getDisplayWeightedRating } from '../utils/rating';
+import { getPublicRating } from '../utils/publicRating';
+import { patienceKey, severityKey, severityVsPublic } from '../utils/criticProfile';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -101,6 +105,10 @@ interface ProfileModalProps {
    * n'est pas rendue — elle n'a de sens que pour un compte en ligne.
    */
   onDeleteAccount?: () => void;
+  /** « Mes habitudes » : où je regarde, mes plateformes, mes genres. */
+  onUpdateHabits?: (patch: Habits) => void;
+  /** Ouvert depuis Découvrir pour choisir ses plateformes : on y descend directement. */
+  focusHabits?: boolean;
 }
 
 const ARCHETYPE_ICONS: Record<string, string> = {
@@ -146,6 +154,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   favoriteCinema,
   onManageFavoriteCinema,
   onDeleteAccount,
+  onUpdateHabits,
+  focusHabits = false,
 }) => {
   /**
    * Le consentement est révocable : on le relit à l'ouverture du profil plutôt
@@ -245,6 +255,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     const watched = profile.movies.filter((m) => m.status === 'watched');
     return { watchedCount: watched.length, dominantGenre: dominantGenre(watched) ?? '-' };
   }, [profile.movies]);
+
+  // Ce que disent les vraies notes, à côté du calibrage déclaré.
+  const severity = useMemo(
+    () =>
+      severityVsPublic(
+        profile.movies
+          .filter((m) => m.status === 'watched')
+          .map((m) => ({ mine: getDisplayWeightedRating(m), public: getPublicRating(m)?.value ?? NaN }))
+      ),
+    [profile.movies]
+  );
+  const severityText = severity
+    ? (() => {
+        const { key, percent } = severityKey(severity);
+        return t(key, { percent: String(percent) });
+      })()
+    : null;
+  const gapText = severity
+    ? t(severity.meanGap < 0 ? 'critic.gapBelow' : 'critic.gapAbove', {
+        gap: Math.abs(severity.meanGap).toFixed(1).replace('.', language === 'en' ? '.' : ','),
+        count: String(severity.count),
+      })
+    : null;
+  const habitsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focusHabits) return;
+    const id = window.setTimeout(() => habitsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+    return () => window.clearTimeout(id);
+  }, [focusHabits]);
 
   const archetypeIcon = profile.role ? ARCHETYPE_ICONS[profile.role] : null;
   const archetypeDesc = profile.role ? t(`archetype.${profile.role}`) : null;
@@ -408,6 +447,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
+          {onUpdateHabits && <ProfileHabits ref={habitsRef} profile={profile} onChange={onUpdateHabits} />}
+
                     {/* SECTION 4: CALIBRATION */}
           <div data-tour="profile-calibration">
             <div className="flex items-center justify-between mb-4">
@@ -445,6 +486,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span>{t('profileModal.lenient')}</span>
                   <span>{t('profileModal.harsh')}</span>
                 </div>
+                {/* Ce que montrent les notes, comparées à celles du public. */}
+                <div className="mt-3 pt-3 border-t border-stone-200/70 dark:border-white/5">
+                  {severity ? (
+                    <>
+                      <p className="text-[13px] font-black tracking-[-0.02em] leading-snug text-charcoal dark:text-white">{severityText}</p>
+                      <div className="relative mt-2.5 h-1.5 rounded-full bg-stone-200 dark:bg-stone-800">
+                        <span className="absolute top-1/2 left-1/2 -translate-y-1/2 w-0.5 h-3 bg-stone-300 dark:bg-stone-600" />
+                        <span
+                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-forest dark:bg-bitter-lime ring-2 ring-stone-50 dark:ring-[#1a1a1a]"
+                          style={{ left: `${severity.position * 100}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[8px] font-bold text-stone-300 dark:text-stone-600 uppercase tracking-wider">
+                        <span>{t('critic.kinderEnd')}</span>
+                        <span>{t('critic.likePublic')}</span>
+                        <span>{t('critic.harsherEnd')}</span>
+                      </div>
+                      <p className="mt-2 text-[10.5px] font-medium text-stone-500 dark:text-stone-400 leading-snug">{gapText}</p>
+                    </>
+                  ) : (
+                    <p className="text-[10.5px] font-medium text-stone-500 dark:text-stone-400 leading-snug">{t('critic.notYet')}</p>
+                  )}
+                </div>
               </div>
 
               <div className="bg-stone-50 dark:bg-[#1a1a1a] p-4 rounded-[1.5rem] border border-stone-100 dark:border-white/5">
@@ -467,22 +531,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span>{t('profileModal.contemplative')}</span>
                   <span>{t('profileModal.intense')}</span>
                 </div>
+                <p className="mt-3 pt-3 border-t border-stone-200/70 dark:border-white/5 text-[13px] font-black tracking-[-0.02em] leading-snug text-charcoal dark:text-white">
+                  {t(patienceKey(profile.patienceLevel))}
+                </p>
               </div>
             </div>
 
-            {profile.favoriteGenres && profile.favoriteGenres.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {profile.favoriteGenres.map((g) => (
-                  <span
-                    key={g}
-                    className="px-3 py-1.5 bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 rounded-lg text-[9px] font-black uppercase tracking-wide text-stone-500 dark:text-stone-400"
-                  >
-                    {g}
-                  </span>
-                ))}
-    
-              </div>
-            )}
+            {/* Les genres préférés se règlent dans « Mes habitudes ». */}
 
             {/* Le tuto explique la notation : sa place est sous le calibrage,
                 pas dans un tiroir de réglages. */}
