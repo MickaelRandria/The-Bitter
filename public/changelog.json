@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-12-portrait",
+  "version": "2026-10-12-portrait-fix",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Un portrait plus lisible",
+      "body": "Chaque phrase correspond à son chiffre, sans mise en forme parasite. Les portraits déjà tirés sont à refaire."
+    },
+    {
+      "title": "Le pass ciné en entier",
+      "body": "Le talon du billet descend sur toute la hauteur, sur iPhone aussi."
+    },
     {
       "title": "Ce que tes notes disent",
       "body": "Trois constats, chacun avec son chiffre et deux de tes films qui le montrent. Calculés sur tes vraies notes, mis en mots par Mistral."
@@ -13,14 +21,6 @@
     {
       "title": "Le ciné de la semaine, au calendrier",
       "body": "Dans Découvrir, un bandeau résume les sorties de la semaine ; le calendrier les montre toutes, en tête de « À venir »."
-    },
-    {
-      "title": "Tes stats, version salle obscure",
-      "body": "L'onglet Profil s'ouvre sur ton film le mieux noté en plein écran, avec ton profil de critique en grand."
-    },
-    {
-      "title": "Ton pass ciné",
-      "body": "Ton abonnement en forme de billet : ce que tu as économisé, ou les séances qui manquent."
     }
   ],
   "posters": [

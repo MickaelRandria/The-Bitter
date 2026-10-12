@@ -7,7 +7,7 @@ import { getDisplayWeightedRating } from '../utils/rating';
 import { getPublicRating } from '../utils/publicRating';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { criteriaOf } from '../utils/verdict';
-import { FactTone, MIN_FILMS, PortraitFact, PortraitFilm, computeFacts, describeFacts } from '../utils/portraitFacts';
+import { FactTone, MIN_FILMS, PortraitFact, PortraitFilm, cleanSentence, computeFacts, describeFact } from '../utils/portraitFacts';
 import { useLanguage } from '../contexts/LanguageContext';
 
 /**
@@ -39,13 +39,14 @@ interface StoredItem {
 }
 
 interface Stored {
-  v: 2;
+  v: 3;
   count: number;
   drawnAt: number;
   items: StoredItem[];
 }
 
-const CACHE_KEY = 'bitter_taste_portrait_v2';
+// v3 : les portraits v2 mélangeaient les phrases du modèle et nos chiffres, on les refait.
+const CACHE_KEY = 'bitter_taste_portrait_v3';
 /** Cinq films de plus : le portrait a pu bouger, on le propose. */
 const STALE_AFTER = 5;
 
@@ -54,7 +55,7 @@ export const PORTRAIT_MIN_MOVIES = MIN_FILMS;
 const readLocal = (): Stored | null => {
   try {
     const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-    return raw?.v === 2 && Array.isArray(raw.items) ? raw : null;
+    return raw?.v === 3 && Array.isArray(raw.items) ? raw : null;
   } catch {
     return null;
   }
@@ -109,7 +110,7 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
       if (!uid) return;
       const { data, error: err } = await supabase.from('profiles').select('taste_portrait').eq('id', uid).maybeSingle();
       const remote = !err ? (data as { taste_portrait?: Stored } | null)?.taste_portrait : null;
-      if (alive && remote?.v === 2 && (!stored || remote.drawnAt > stored.drawnAt)) {
+      if (alive && remote?.v === 3 && (!stored || remote.drawnAt > stored.drawnAt)) {
         setStored(remote);
         writeLocal(remote);
       }
@@ -132,14 +133,21 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
         setError(t('portrait.noFacts'));
         return;
       }
-      let texts: string[] = [];
-      try {
-        texts = (await getTastePortrait(describeFacts(facts))).map((tr) => tr.text);
-      } catch {
-        // Sans le modèle, les phrases de secours suffisent : les chiffres sont les nôtres.
-      }
+      // Une demande par constat : chaque phrase reste en face de son chiffre. Une
+      // phrase vide, trop longue ou qui cite un nombre absent du constat est
+      // remplacée par la phrase calculée.
+      const texts = await Promise.all(
+        facts.map(async (fact) => {
+          try {
+            const [first] = await getTastePortrait(describeFact(fact));
+            return cleanSentence(first?.text ?? '', fact);
+          } catch {
+            return null;
+          }
+        })
+      );
       const value: Stored = {
-        v: 2,
+        v: 3,
         count: watched.length,
         drawnAt: Date.now(),
         items: facts.map((f, i) => ({
