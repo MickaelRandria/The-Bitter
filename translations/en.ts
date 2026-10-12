@@ -2693,4 +2693,5 @@ export const en: Record<string, string> = {
   "releases.thisWeekTitle": "Released this week",
   "releases.thisWeekShort": "This wk",
   "releases.inCinemas": "showing",
+  "pt.sessionsLeftMany": "{count} more screenings",
 };

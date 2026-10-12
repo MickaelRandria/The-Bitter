@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-ecran-maj",
+  "version": "2026-10-12-pass-cine",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Le pass ciné tient sur une ligne",
+      "body": "Les séances et leur légende ne sont plus coupées, même sur un petit écran."
+    },
     {
       "title": "Le ciné de la semaine, au calendrier",
       "body": "Dans Découvrir, un bandeau résume les sorties de la semaine ; le calendrier les montre toutes, en tête de « À venir »."
@@ -17,10 +21,6 @@
     {
       "title": "Signature, podium et année",
       "body": "Tes quatre critères, tes trois films préférés et ton mois record, en un coup d'œil."
-    },
-    {
-      "title": "Tes plateformes d'abord",
-      "body": "Choisis tes abonnements dans ton profil : Découvrir, Trailers et les fiches mettent en avant ce que tu peux regarder tout de suite."
     }
   ],
   "posters": [

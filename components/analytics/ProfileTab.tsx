@@ -159,28 +159,31 @@ const CinemaPass: React.FC<{
           </>
         ) : (
           <>
-            <span className="block mt-1.5 text-[23px] font-black tracking-[-0.055em] leading-none whitespace-nowrap">
-              {t('cinemaSub.card.sessionsLeft', { count: String(stats.sessionsToBreakEven) })}
+            <span className="block mt-1.5 text-[clamp(19px,6vw,23px)] font-black tracking-[-0.055em] leading-none whitespace-nowrap">
+              {t(stats.sessionsToBreakEven > 1 ? 'pt.sessionsLeftMany' : 'cinemaSub.card.sessionsLeft', { count: String(stats.sessionsToBreakEven) })}
             </span>
             <span className="block mt-1 text-[11px] font-extrabold opacity-85">{t('cinemaSub.card.toBreakEven')}</span>
           </>
         )}
+        {/* Les cases sur une ligne qui se resserre, la légende dessous : rien ne déborde du billet. */}
         {cells > 0 && (
-          <span className="flex items-center gap-[3px] mt-3" aria-hidden="true">
+          <span className="flex items-center gap-[3px] mt-3 min-w-0" aria-hidden="true">
             {Array.from({ length: cells }, (_, i) => (
               <i
                 key={i}
-                className="relative w-[15px] h-[10px] rounded-[2.5px]"
+                className="relative flex-1 min-w-[5px] max-w-[15px] h-[10px] rounded-[2.5px]"
                 style={{ backgroundColor: i < stats.sessions ? fg : won || fg === '#ffffff' ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)' }}
               >
                 {i === breakEven - 1 && <span className="absolute -right-[3px] -top-[5px] w-[2px] h-[20px] rounded-full bg-bitter-lime" />}
               </i>
             ))}
-            <span className="ml-2 text-[10px] font-extrabold opacity-75 whitespace-nowrap">
-              {won
-                ? t('pt.breakEvenAt', { n: String(breakEven) })
-                : t('cinemaSub.card.valueOnCost', { value: formatCurrency(stats.value, language), cost: formatCurrency(stats.cost, language) })}
-            </span>
+          </span>
+        )}
+        {cells > 0 && (
+          <span className="block mt-1.5 text-[10px] font-extrabold opacity-75 truncate">
+            {won
+              ? t('pt.breakEvenAt', { n: String(breakEven) })
+              : t('cinemaSub.card.valueOnCost', { value: formatCurrency(stats.value, language), cost: formatCurrency(stats.cost, language) })}
           </span>
         )}
       </span>
