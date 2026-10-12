@@ -680,8 +680,8 @@ const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
   return (
     <section aria-label={t('constats.title')}>
       <div className="flex items-baseline justify-between px-1 mb-3">
-        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white">{t('constats.title')}</h3>
-        <span className="text-[11px] font-bold text-forest dark:text-bitter-lime">
+        <h3 className="text-[17px] font-black tracking-[-0.035em] text-charcoal dark:text-white">{t('constats.title')}</h3>
+        <span className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35">
           {t('constats.count', { n: unlocked.length, total: CONSTAT_ORDER.length })}
         </span>
       </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { Movie } from '../types';
 import { computeTasteStats, describeStats } from '../utils/tasteStats';
@@ -8,12 +8,26 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
   movies: Movie[];
+  /** Ouvert depuis le bouton « Mon portrait » : le tirer tout de suite s'il n'existe pas. */
+  autoDraw?: boolean;
 }
 
 /** En dessous, les moyennes ne veulent rien dire et une corrélation encore moins. */
 const MIN_MOVIES = 10;
 
 const CACHE_KEY = 'bitter_taste_portrait_v1';
+
+/** Seuil du portrait, pour que l'appelant n'affiche pas un bouton qui ne mène à rien. */
+export const PORTRAIT_MIN_MOVIES = MIN_MOVIES;
+
+/** Un portrait déjà tiré sur cet appareil. */
+export const hasCachedPortrait = (): boolean => {
+  try {
+    return (JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')?.traits?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+};
 
 interface Cached {
   /** Nombre de films au moment du calcul : le portrait vieillit avec eux. */
@@ -38,7 +52,7 @@ interface Cached {
  * un trait de caractère qui change à chaque ouverture ne serait pas un trait de
  * caractère.
  */
-const TastePortrait: React.FC<Props> = ({ movies }) => {
+const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false }) => {
   const { t } = useLanguage();
   const stats = useMemo(() => computeTasteStats(movies), [movies]);
 
@@ -90,6 +104,12 @@ const TastePortrait: React.FC<Props> = ({ movies }) => {
 
   // Rien à dire tant qu'il n'y a pas de quoi calculer : trois films ne font ni
   // une moyenne ni un motif, et un portrait bâti dessus serait une invention.
+  useEffect(() => {
+    if (autoDraw && traits.length === 0 && stats.count >= MIN_MOVIES) void draw();
+    // Une seule fois, à l'ouverture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (stats.count < MIN_MOVIES) return null;
 
   return (
