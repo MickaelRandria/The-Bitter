@@ -1,0 +1,11 @@
+-- Le portrait « Ce que tes notes disent » gardé sur le compte.
+--
+-- Jusqu'ici il ne vivait que dans le navigateur : perdu en changeant de
+-- téléphone ou quand le stockage se vidait. L'app l'écrit ici après chaque
+-- tirage ({ v: 2, count, drawnAt, items: [...] }) et le relit à l'ouverture.
+--
+-- Pas de nouvelle règle d'accès : la ligne profiles reste lisible et modifiable
+-- par son propriétaire, comme le reste du profil. Le contenu n'a rien de secret
+-- (trois phrases et des titres de films), mais il suit la même règle de lecture
+-- que le reste de la ligne.
+alter table public.profiles add column if not exists taste_portrait jsonb;

@@ -10,7 +10,7 @@ import { getDisplayWeightedRating } from '../../utils/rating';
 import { fmt1 } from '../../utils/verdict';
 import { podiumOf, signatureOf, yearOf } from '../../utils/profileStats';
 import { formatCurrency, getSubscriptionStats } from '../../utils/cinemaSubscription';
-import TastePortrait, { PORTRAIT_MIN_MOVIES, hasCachedPortrait } from '../TastePortrait';
+import TastePortrait, { PORTRAIT_MIN_MOVIES } from '../TastePortrait';
 
 /**
  * L'onglet Profil des statistiques, en salle obscure : le film le mieux noté en
@@ -237,7 +237,8 @@ const ProfileTab: React.FC<Props> = ({
 
   // Le portrait : affiché s'il a déjà été tiré, ou dès qu'on le demande.
   const canPortrait = watched.length >= PORTRAIT_MIN_MOVIES;
-  const [portrait, setPortrait] = useState<'hidden' | 'shown' | 'asked'>(() => (hasCachedPortrait() ? 'shown' : 'hidden'));
+  // Toujours affiché dès 10 films : sans portrait, il propose d'en tirer un.
+  const [portrait, setPortrait] = useState<'shown' | 'asked'>('shown');
   const portraitRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (portrait === 'asked') portraitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -324,9 +325,9 @@ const ProfileTab: React.FC<Props> = ({
       </section>
 
       <div className="flex flex-col gap-[26px] pt-2">
-        {portrait !== 'hidden' && (
+        {canPortrait && (
           <div ref={portraitRef}>
-            <TastePortrait movies={watched} autoDraw={portrait === 'asked'} />
+            <TastePortrait key={portrait} movies={watched} autoDraw={portrait === 'asked'} onOpenFilm={(movie) => onViewMovie?.(movie)} />
           </div>
         )}
 
