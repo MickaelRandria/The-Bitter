@@ -110,7 +110,7 @@ async function candidates(category: TrailerCategory, mediaType: 'movie' | 'tv', 
     const releases = await getTheatreReleases('FR');
     const list = category === 'cinema' ? releases.thisWeek : releases.upcoming;
     return list.map((r) =>
-      fromRow({ id: r.id, title: r.title, poster_path: r.posterPath, release_date: r.releaseDate }, 'movie', category === 'cinema' ? { kind: 'showing' } : { kind: 'soon', date: r.releaseDate })
+      fromRow({ id: r.id, title: r.title, poster_path: r.posterPath, backdrop_path: r.backdropPath, release_date: r.releaseDate }, 'movie', category === 'cinema' ? { kind: 'showing' } : { kind: 'soon', date: r.releaseDate })
     );
   }
   if (category === 'series') {
@@ -146,7 +146,7 @@ async function candidates(category: TrailerCategory, mediaType: 'movie' | 'tv', 
 /** Le fil d'une catégorie : titres pas encore vus, avec une vidéo officielle. */
 export async function getTrailerFeed(category: TrailerCategory, mediaType: 'movie' | 'tv', seeds: TrailerSeed[]): Promise<TrailerItem[]> {
   const known = new Set(seeds.filter((s) => s.status === 'watched').map((s) => s.tmdbId));
-  const cacheKey = `bitter_trailer_feed_v1_${category}_${mediaType}`;
+  const cacheKey = `bitter_trailer_feed_v2_${category}_${mediaType}`;
   const cached = category === 'foryou' ? null : readStore<TrailerItem[]>(cacheKey, 6 * 60 * 60 * 1000);
   if (cached) return cached.filter((i) => !known.has(i.tmdbId));
 

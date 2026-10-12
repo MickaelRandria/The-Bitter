@@ -428,6 +428,8 @@ export interface TheatreRelease {
   voteAverage: number;
   genreIds: number[];
   popularity?: number;
+  /** Image large du film, pour un décor plein écran. */
+  backdropPath?: string | null;
 }
 
 export interface TheatreReleases {
@@ -435,7 +437,7 @@ export interface TheatreReleases {
   upcoming: TheatreRelease[];
 }
 
-const RELEASES_CACHE_KEY = 'bitter_theatre_releases_v4';
+const RELEASES_CACHE_KEY = 'bitter_theatre_releases_v5';
 /** Les sorties changent une fois par semaine : rappeler TMDB plus souvent ne sert à rien. */
 const RELEASES_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -464,6 +466,7 @@ const toRelease = (row: any): TheatreRelease => ({
   voteAverage: row.vote_average || 0,
   genreIds: row.genre_ids || [],
   popularity: Number(row.popularity) || 0,
+  backdropPath: row.backdrop_path ?? null,
 });
 
 const fetchWindow = async (
