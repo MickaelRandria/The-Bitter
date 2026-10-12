@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-gouts",
+  "version": "2026-10-13-fil-du-jour",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Le Fil du jour",
+      "body": "Chaque jour, trois minutes : le film mystère, tes cartes, deux questions du jour et ta série. L'icône brille sur l'accueil tant qu'il n'est pas fait."
+    },
     {
       "title": "Tes goûts, en un coup d'œil",
       "body": "Tes genres en mur d'affiches, tes surprises face au public, tes réalisateurs, tes époques et ton classement complet, sur une seule page."
@@ -17,10 +21,6 @@
     {
       "title": "Ce que tes notes disent",
       "body": "Trois constats, chacun avec son chiffre et deux de tes films qui le montrent. Calculés sur tes vraies notes, mis en mots par Mistral."
-    },
-    {
-      "title": "Le pass ciné tient sur une ligne",
-      "body": "Les séances et leur légende ne sont plus coupées, même sur un petit écran."
     }
   ],
   "posters": [
@@ -39,16 +39,16 @@
   ],
   "highlights": [
     {
+      "icon": "trailers",
+      "title": "Le Fil du jour"
+    },
+    {
       "icon": "stats",
       "title": "Un nouvel onglet Goûts"
     },
     {
       "icon": "stats",
       "title": "Un portrait plus juste"
-    },
-    {
-      "icon": "platforms",
-      "title": "Tes plateformes d'abord"
     }
   ]
 }
