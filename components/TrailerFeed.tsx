@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Eye, Info, Plus, Users, Volume2, VolumeX, Play, X } from 'lucide-react';
+import { Check, Eye, Info, Plus, Users, Volume2, VolumeX, Play, X, Smartphone } from 'lucide-react';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -61,6 +61,18 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
   const [hint, setHint] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<number>>(new Set());
   const [where, setWhere] = useState<Record<string, string[]>>({});
+  /**
+   * Téléphone tourné en paysage : la vidéo seule, sur tout l'écran. Limité aux
+   * petites hauteurs, pour ne pas basculer une tablette ou un ordinateur.
+   */
+  const [landscape, setLandscape] = useState(() => window.matchMedia?.('(orientation: landscape) and (max-height: 540px)').matches ?? false);
+  useEffect(() => {
+    const query = window.matchMedia?.('(orientation: landscape) and (max-height: 540px)');
+    if (!query) return;
+    const onChange = () => setLandscape(query.matches);
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
   const feedRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -132,6 +144,11 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
   useEffect(() => {
     command(sound ? 'unMute' : 'mute');
   }, [sound, command]);
+
+  // Tourner le téléphone, c'est vouloir regarder : on remet le son.
+  useEffect(() => {
+    if (landscape) setSound(true);
+  }, [landscape]);
 
   // Messages du lecteur : progression, et vidéo bloquée (retirée du fil).
   useEffect(() => {
@@ -252,9 +269,8 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
                 : offers.length
                   ? t('trailers.on', { platform: offers.join(', ') })
                   : '';
-          const frameClass = fill
-            ? 'absolute top-0 left-1/2 -translate-x-1/2 h-full aspect-video max-w-none'
-            : 'absolute inset-0 w-full h-full';
+          const frameClass =
+            fill && !landscape ? 'absolute top-0 left-1/2 -translate-x-1/2 h-full aspect-video max-w-none' : 'absolute inset-0 w-full h-full';
           return (
             <section key={`${item.mediaType}-${item.tmdbId}`} className="relative h-full snap-start snap-always overflow-hidden" aria-label={item.title}>
               {/* Le décor du film, sur tout l'écran. */}
@@ -271,7 +287,11 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
               {/* La vidéo : entière au centre, ou zoomée sur toute la hauteur. */}
               <div
                 className={`absolute left-0 right-0 overflow-hidden ${
-                  fill ? 'inset-y-0' : 'top-[42%] -translate-y-1/2 aspect-video [mask-image:linear-gradient(180deg,transparent_0,#000_9%,#000_91%,transparent_100%)]'
+                  landscape
+                    ? 'inset-0 z-[8] bg-black'
+                    : fill
+                      ? 'inset-y-0'
+                      : 'top-[42%] -translate-y-1/2 aspect-video [mask-image:linear-gradient(180deg,transparent_0,#000_9%,#000_91%,transparent_100%)]'
                 }`}
               >
                 {play && (
@@ -289,7 +309,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
                 {(!play || paused) && (
                   <img src={youtubeThumb(item.videoKey)} alt="" loading="lazy" className={`${frameClass} object-cover`} />
                 )}
-                {play && !fill && (
+                {play && !fill && !landscape && (
                   <span className="absolute left-4 right-4 bottom-[12%] h-0.5 rounded-full bg-white/25 overflow-hidden">
                     <i className="block h-full bg-white rounded-full transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
                   </span>
@@ -300,12 +320,20 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
               <span className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/60 to-transparent" />
               <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
 
+              {/* Sous la vidéo : tourner le téléphone pour la voir en plein écran. */}
+              {isActive && play && !fill && !landscape && (
+                <span className="pointer-events-none absolute left-0 right-0 z-[6] top-[calc(42%+28.125vw+14px)] flex items-center justify-center gap-2 text-[11.5px] font-bold text-white/65 animate-[fadeIn_0.6s_ease-out_1s_both]">
+                  <Smartphone size={15} className="animate-[trailer-rotate_3.2s_ease-in-out_infinite]" />
+                  {t('trailers.rotateHint')}
+                </span>
+              )}
+
               {/* Le calque des touchers : l'interface YouTube ne s'affiche jamais. */}
               <button
                 type="button"
                 onClick={() => onTap(item)}
                 aria-label={paused || !play ? t('trailers.play', { title: item.title }) : t('trailers.pause')}
-                className="absolute inset-0 z-[5]"
+                className={`absolute inset-0 ${landscape ? 'z-[9]' : 'z-[5]'}`}
               />
               {isActive && (paused || !play) && (
                 <span className="pointer-events-none absolute left-1/2 top-[42%] z-[6] -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-black/45 backdrop-blur flex items-center justify-center">
@@ -319,7 +347,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
               )}
 
               {/* Le titre, une ligne d'infos, où le voir, la raison. */}
-              <div className="pointer-events-none absolute left-4 right-[84px] z-[6] bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] space-y-1.5">
+              <div className={`${landscape ? 'hidden' : ''} pointer-events-none absolute left-4 right-[84px] z-[6] bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] space-y-1.5`}>
                 {item.videoKind !== 'Trailer' && (
                   <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-bitter-lime">{t(`trailers.kind.${item.videoKind}`)}</span>
                 )}
@@ -333,7 +361,7 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
               </div>
 
               {/* Les actions, à droite : plus de barre de navigation dessous. */}
-              <div className="absolute right-3 z-[6] bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] flex flex-col items-center gap-4">
+              <div className={`${landscape ? 'hidden' : ''} absolute right-3 z-[6] bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] flex flex-col items-center gap-4`}>
                 {onAdd &&
                   action(
                     isListed ? t('trailers.listed') : t('trailers.add'),
@@ -355,8 +383,8 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
         })}
       </div>
 
-      {/* Le haut : sortir, la catégorie, le son. */}
-      <div className="absolute left-0 right-0 top-0 z-10 flex items-center gap-2 px-3 pt-[calc(env(safe-area-inset-top,0px)+10px)]">
+      {/* Le haut : sortir, la catégorie, le son. Caché en paysage. */}
+      <div className={`${landscape ? 'hidden' : ''} absolute left-0 right-0 top-0 z-10 flex items-center gap-2 px-3 pt-[calc(env(safe-area-inset-top,0px)+10px)]`}>
         <button
           type="button"
           onClick={() => {

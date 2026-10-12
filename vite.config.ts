@@ -108,7 +108,8 @@ export default defineConfig({
         // de lancement, qui est sombre.
         background_color: '#0c0c0c',
         display: 'standalone',
-        orientation: 'portrait',
+        // Libre : le fil des trailers passe en plein écran quand on tourne le téléphone.
+        orientation: 'any',
         start_url: '/',
         icons: [
           {
