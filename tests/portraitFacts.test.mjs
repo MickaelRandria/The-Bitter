@@ -17,7 +17,7 @@ function load(relative, deps = {}) {
   return exports;
 }
 const verdict = load('../utils/verdict.ts');
-const { computeFacts, describeFacts, MIN_FILMS } = load('../utils/portraitFacts.ts', { './verdict': verdict });
+const { computeFacts, describeFact, cleanSentence, MIN_FILMS } = load('../utils/portraitFacts.ts', { './verdict': verdict });
 const NOW = Date.UTC(2026, 9, 12);
 
 const film = (i, o = {}) => ({ id: `f${i}`, title: `Film ${i}`, score: 7, criteria: null, at: NOW - i * 864e5, ...o });
@@ -53,7 +53,7 @@ test('films longs : écart négatif, avec l’exception comme second film', () =
   assert.match(fact.evidence[1].detail, /exception/);
 });
 
-test('au plus trois constats, jamais public et genre-public ensemble, et la description les numérote', () => {
+test("au plus trois constats, jamais public et genre-public ensemble, une demande par constat", () => {
   const films = Array.from({ length: 20 }, (_, i) => film(i, {
     score: i < 10 ? 9 : 5, publicScore: 7, genre: i < 10 ? 'Drame' : 'Action', director: i < 4 ? 'Céline Sciamma' : 'X',
     runtime: i < 10 ? 95 : 150,
@@ -63,7 +63,15 @@ test('au plus trois constats, jamais public et genre-public ensemble, et la desc
   assert.ok(facts.length <= 3 && facts.length >= 1);
   const kinds = facts.map((f) => f.kind);
   assert.ok(!(kinds.includes('public') && kinds.includes('genrePublic')));
-  const text = describeFacts(facts);
-  assert.match(text, /^Voici \d constats/);
-  assert.match(text, /\n1\. /);
+  const text = describeFact(facts[0]);
+  assert.match(text, /Constat : /);
+  assert.ok(text.includes(facts[0].figure));
+});
+
+test('phrase du modèle : nettoyée, et refusée si elle invente un nombre', () => {
+  const fact = { claim: 'Tes films de 2h20 et plus ont une note inférieure de 1,4 point.', figure: '−1,4 pt' };
+  assert.equal(cleanSentence('**Au-delà de 2h20**, un film te coûte 1,4 point', fact), 'Au-delà de 2h20, un film te coûte 1,4 point.');
+  assert.equal(cleanSentence('Tu donnes 1,8 point de plus aux films sortis après 2015', fact), null);
+  assert.equal(cleanSentence('  « Les longs films te lassent. »  ', fact), 'Les longs films te lassent.');
+  assert.equal(cleanSentence('', fact), null);
 });

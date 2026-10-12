@@ -105,24 +105,41 @@ const CinemaPass: React.FC<{
 }> = ({ movies, userProfile, onConfigure, onOpenDetails }) => {
   const { t, language } = useLanguage();
   const sub = userProfile?.cinemaSubscription;
-  const ticket = 'relative flex w-full text-left rounded-[22px] overflow-hidden drop-shadow-[0_14px_18px_rgba(0,0,0,0.35)] active:scale-[0.99] transition-transform';
+  const ticket =
+    'relative grid grid-cols-[minmax(0,1fr)_82px] items-stretch w-full text-left rounded-[22px] overflow-hidden drop-shadow-[0_14px_18px_rgba(0,0,0,0.35)] active:scale-[0.99] transition-transform cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-bitter-lime';
+  /** Un bloc qui se comporte en bouton : clic, Entrée et Espace. */
+  const press = (action?: () => void) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: () => {
+      haptics.soft();
+      action?.();
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        haptics.soft();
+        action?.();
+      }
+    },
+  });
   const notch = 'before:absolute before:-left-[10px] before:-top-[9px] before:w-[18px] before:h-[18px] before:rounded-full before:bg-[#0c0c0c] after:absolute after:-left-[10px] after:-bottom-[9px] after:w-[18px] after:h-[18px] after:rounded-full after:bg-[#0c0c0c]';
 
   if (!sub || !sub.active) {
     if (!onConfigure) return null;
     return (
-      <button type="button" onClick={() => { haptics.soft(); onConfigure(); }} className={ticket}>
-        <span className="relative flex-1 min-w-0 px-4 py-3.5 bg-[#24221F] text-white">
+      <div {...press(onConfigure)} className={ticket}>
+        <span className="relative min-w-0 px-4 py-3.5 bg-[#24221F] text-white">
           <span className="block text-[9px] font-black uppercase tracking-[0.17em] text-white/70">{t('cinemaSub.card.title')}</span>
           <span className="block mt-1.5 text-[14px] font-black text-balance">{t('cinemaSub.card.emptyTitle')}</span>
           <span className="block mt-0.5 text-[11px] font-bold text-white/75">{t('cinemaSub.card.emptySub')}</span>
           <span className="inline-flex mt-2.5 px-3 py-2 rounded-full bg-bitter-lime text-charcoal text-[11px] font-black">{t('cinemaSub.card.configure')}</span>
         </span>
-        <span className={`relative w-[82px] shrink-0 flex flex-col items-center justify-center gap-1 bg-[#24221F] text-white border-l-2 border-dashed border-white/25 ${notch}`}>
+        <span className={`relative flex flex-col items-center justify-center gap-1 bg-[#24221F] text-white border-l-2 border-dashed border-white/25 ${notch}`}>
           <b className="text-[26px] font-black tracking-[-0.06em] leading-none">?</b>
           <small className="text-[8.5px] font-black uppercase tracking-[0.14em] opacity-70">{t('pt.sessions')}</small>
         </span>
-      </button>
+      </div>
     );
   }
 
@@ -137,14 +154,13 @@ const CinemaPass: React.FC<{
   const month = new Date().toLocaleDateString(language === 'en' ? 'en-GB' : 'fr-FR', { month: 'long' });
 
   return (
-    <button
-      type="button"
-      onClick={() => { haptics.soft(); onOpenDetails?.(); }}
+    <div
+      {...press(onOpenDetails)}
       className={ticket}
       style={{ color: fg }}
       aria-label={`${t('cinemaSub.card.title')} · ${month}`}
     >
-      <span className="relative isolate flex-1 min-w-0 px-4 pt-3.5 pb-3 overflow-hidden" style={{ backgroundColor: bg }}>
+      <span className="relative isolate min-w-0 px-4 pt-3.5 pb-3 overflow-hidden" style={{ backgroundColor: bg }}>
         <span className="absolute inset-0 -z-10 bg-[radial-gradient(130%_150%_at_0%_0%,rgba(255,255,255,0.2),transparent_55%)]" />
         <span aria-hidden="true" className="absolute -right-1.5 -bottom-4 -z-10 text-[56px] font-black tracking-[-0.07em] leading-none opacity-[0.08] whitespace-nowrap">{brand.mark}</span>
         <span className="block text-[9px] font-black uppercase tracking-[0.17em] opacity-80 truncate">
@@ -188,13 +204,13 @@ const CinemaPass: React.FC<{
         )}
       </span>
       <span
-        className={`relative w-[82px] shrink-0 flex flex-col items-center justify-center gap-1 border-l-2 border-dashed ${notch}`}
+        className={`relative flex flex-col items-center justify-center gap-1 border-l-2 border-dashed ${notch}`}
         style={{ backgroundColor: bg, borderColor: fg === '#ffffff' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)' }}
       >
         <b className="text-[26px] font-black tracking-[-0.06em] leading-none tabular-nums">{stats.sessions}</b>
         <small className="text-[8.5px] font-black uppercase tracking-[0.14em] opacity-70">{t('pt.sessions')}</small>
       </span>
-    </button>
+    </div>
   );
 };
 

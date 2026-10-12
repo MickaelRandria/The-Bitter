@@ -255,10 +255,32 @@ export function computeFacts(films: PortraitFilm[], now: number): PortraitFact[]
   return picked;
 }
 
-/** Ce que reçoit le modèle : les constats dans l'ordre, à reformuler un par un. */
-export function describeFacts(facts: PortraitFact[]): string {
+/** Ce que reçoit le modèle : UN constat, à reformuler en une phrase. */
+export function describeFact(fact: PortraitFact): string {
   return [
-    `Voici ${facts.length} constats déjà vérifiés, dans cet ordre. Pour chacun, écris UNE phrase courte (12 mots au plus), en tutoyant, qui dit la même chose sans rien ajouter. Le chiffre est affiché à côté : tu peux le reprendre dans le champ figure.`,
-    ...facts.map((f, i) => `${i + 1}. ${f.claim} (chiffre affiché : ${f.figure})`),
+    'Un seul constat, déjà vérifié. Écris UNE seule observation : une phrase de 14 mots au plus, en tutoyant, sans gras ni guillemets, qui dit exactement la même chose sans rien ajouter.',
+    `Constat : ${fact.claim}`,
+    `Chiffre affiché à côté de la phrase : ${fact.figure}`,
   ].join('\n');
+}
+
+/** Les nombres d'un texte, normalisés (« 1,4 » et « 1.4 » sont le même). */
+const numbersIn = (text: string): string[] =>
+  (text.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => String(Number(n.replace(',', '.'))));
+
+/**
+ * La phrase du modèle, nettoyée et vérifiée. Null si elle ne tient pas : trop
+ * longue, vide, ou un nombre que le constat ne contient pas (le modèle a alors
+ * inventé, ou parlé d'autre chose).
+ */
+export function cleanSentence(raw: string, fact: PortraitFact): string | null {
+  const text = raw
+    .replace(/\*\*|__|[*_`#]/g, '')
+    .replace(/^["«»“”'\s]+|["«»“”'\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length < 8 || text.length > 140) return null;
+  const allowed = new Set([...numbersIn(fact.claim), ...numbersIn(fact.figure)]);
+  if (numbersIn(text).some((n) => !allowed.has(n))) return null;
+  return /[.!?…]$/.test(text) ? text : `${text}.`;
 }
