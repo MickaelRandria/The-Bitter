@@ -43,8 +43,7 @@ import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
-import CinemaSubscriptionCard from './CinemaSubscriptionCard';
-import TastePortrait from './TastePortrait';
+import ProfileTab from './analytics/ProfileTab';
 import StatsConstats from './StatsConstats';
 import AdnRadialChart from './AdnRadialChart';
 import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
@@ -1576,153 +1575,58 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               ? t('analytics.trendCustom')
               : t('analytics.trendWindow');
 
+  const tabsNode = (
+    <div role="tablist" aria-label={t('analytics.tabsLabel')} className="flex gap-5">
+      {(['overview', 'notes', 'psycho'] as TabMode[]).map((tab) => (
+        <button
+          key={tab}
+          role="tab"
+          aria-selected={activeTab === tab}
+          onClick={() => {
+            haptics.soft();
+            setActiveTab(tab);
+            // Sans ça, un tiroir laissé ouvert se rouvrirait tout seul au retour
+            // sur l'onglet Notes.
+            setOpenSheet(null);
+          }}
+          className={`relative py-1.5 text-[14px] font-black tracking-[-0.02em] transition-colors [text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${activeTab === tab ? 'text-white' : 'text-white/55'}`}
+        >
+          {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : t('analytics.tabDNA')}
+          {activeTab === tab && <i className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-bitter-lime" />}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="pb-24 animate-[fadeIn_0.3s_ease-out]">
-      {/* Navigation Tabs */}
-      <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 mb-8 w-full max-w-md mx-auto transition-colors">
-        {(['overview', 'notes', 'psycho'] as TabMode[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => {
-              haptics.soft();
-              setActiveTab(tab);
-              // Sans ça, un tiroir laissé ouvert se rouvrirait tout seul au retour
-              // sur l'onglet Notes.
-              setOpenSheet(null);
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white dark:bg-[#202020] text-charcoal dark:text-white shadow-sm dark:shadow-black/20' : 'text-stone-400 dark:text-stone-600'}`}
-          >
-            {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : t('analytics.tabDNA')}
-          </button>
-        ))}
-      </div>
+    /* Toute la page en salle obscure, d'un bord à l'autre de l'écran : la classe
+       `dark` y fait basculer les onglets Goûts et ADN sans les réécrire. */
+    <div className="dark -mx-6 -mt-6 -mb-32 px-6 pt-6 pb-32 min-h-[100dvh] bg-[#0c0c0c] text-white animate-[fadeIn_0.3s_ease-out]">
+      {/* Les onglets : posés sur l'image dans Profil, en tête de page ailleurs. */}
+      {activeTab !== 'overview' && <div className="mb-7">{tabsNode}</div>}
 
       {/* ─── TAB : PROFIL ─── */}
       {activeTab === 'overview' && (
-        <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-          {/* Placé sous l'archétype, qui dit ce qu'on est ; celui-ci dit ce que
-              les chiffres montrent, ce qui appelle une lecture plus attentive. */}
-          <TastePortrait movies={movies} />
-
-          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white rounded-[2.5rem] p-8 text-center relative overflow-hidden shadow-xl dark:shadow-black/40 transition-all">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-forest/20 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="relative z-10">
-              <div className="w-20 h-20 bg-white/10 dark:bg-white/5 backdrop-blur-md rounded-3xl flex items-center justify-center text-4xl mb-6 mx-auto shadow-inner border border-white/10 dark:border-white/5">
-                {advancedArchetype.icon}
-              </div>
-              <div className="inline-block bg-forest text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-3">
-                {advancedArchetype.tag}
-              </div>
-              <h2 className="text-3xl font-black mb-3 tracking-tighter">
-                {advancedArchetype.title}
-              </h2>
-              <p className="text-stone-400 dark:text-stone-500 text-sm font-medium leading-relaxed mb-6">
-                "{advancedArchetype.description}"
-              </p>
-              {advancedArchetype.secondaryTrait && (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3 inline-block">
-                  <p className="text-[10px] font-bold text-stone-300 dark:text-stone-400 uppercase tracking-wide">
-                    {t('analytics.sign')} {advancedArchetype.secondaryTrait}
-                  </p>
-                </div>
-              )}
-              <div className="mt-6">
-                <button
-                  onClick={() => {
-                    haptics.soft();
-                    handleShareArchetype();
-                  }}
-                  disabled={isSharing}
-                  className="flex items-center gap-2 mx-auto px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
-                >
-                  <Share2 size={12} />
-                  {isSharing ? t('analytics.sharing') : t('analytics.shareArchetype')}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Ce que les notes disent de la personne : une phrase par constat, le graphique au toucher. */}
-          <StatsConstats movies={movies} />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-[#202020] p-5 rounded-[2rem] border border-stone-100 dark:border-white/10 shadow-sm dark:shadow-black/20 flex flex-col justify-between aspect-square transition-all">
-              <div className="w-10 h-10 bg-stone-50 dark:bg-[#161616] rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500">
-                <Clock size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-black text-charcoal dark:text-white">{totalHours}h</p>
-                <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-wider">
-                  {t('analytics.screenTime')}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-[#202020] p-5 rounded-[2rem] border border-stone-100 dark:border-white/10 shadow-sm dark:shadow-black/20 flex flex-col justify-between aspect-square transition-all">
-              <div className="w-10 h-10 bg-stone-50 dark:bg-[#161616] rounded-2xl flex items-center justify-center text-stone-400 dark:text-stone-500">
-                <Film size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-black text-charcoal dark:text-white">{watchedCount}</p>
-                <p className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-wider">
-                  {t('analytics.analysed')}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Abonnement cinéma : encart compact, trois états gérés en interne. */}
-          {(onConfigureCinemaSubscription || onOpenCinemaDetails) && (
-            <CinemaSubscriptionCard
-              movies={movies}
-              subscription={userProfile?.cinemaSubscription}
-              onConfigure={() => onConfigureCinemaSubscription?.()}
-              onOpenDetails={() => onOpenCinemaDetails?.()}
-            />
-          )}
-
-          {/* Graphique 12 derniers mois */}
-          {last12Months.some((m) => m.count > 0) &&
-            (() => {
-              const maxCount = Math.max(...last12Months.map((m) => m.count), 1);
-              return (
-                <div className="bg-white dark:bg-[#202020] border border-stone-100 dark:border-white/10 p-6 rounded-[2.5rem] shadow-sm dark:shadow-black/20 transition-all">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-stone-50 dark:bg-[#161616] rounded-xl text-stone-400 dark:text-stone-500">
-                      <BarChart2 size={18} />
-                    </div>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
-                      {t('analytics.activity12m')}
-                    </h3>
-                  </div>
-                  <div className="flex items-end gap-1.5 h-20">
-                    {last12Months.map((m, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <div
-                          className="w-full rounded-t-md transition-all duration-700"
-                          style={{
-                            height: `${(m.count / maxCount) * 64}px`,
-                            minHeight: m.count > 0 ? '4px' : '0',
-                            backgroundColor: m.count > 0 ? '#3E5238' : 'transparent',
-                            opacity: m.count > 0 ? 0.4 + (m.count / maxCount) * 0.6 : 1,
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-1.5 mt-2">
-                    {last12Months.map((m, i) => (
-                      <div
-                        key={i}
-                        className="flex-1 text-center text-[7px] font-bold text-stone-300 dark:text-stone-600 uppercase"
-                      >
-                        {m.label.slice(0, 1)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-        </div>
+        <ProfileTab
+          movies={movies}
+          userProfile={userProfile}
+          archetype={advancedArchetype}
+          totalHours={totalHours}
+          delta={tmdbAvg > 0 ? delta : null}
+          months={last12Months}
+          tabs={tabsNode}
+          constats={<StatsConstats movies={movies} />}
+          isSharing={isSharing}
+          onShare={handleShareArchetype}
+          onViewMovie={onViewMovie}
+          onOpenPalmares={() => {
+            setActiveTab('notes');
+            setOpenSheet('taste');
+          }}
+          onConfigureCinemaSubscription={onConfigureCinemaSubscription}
+          onOpenCinemaDetails={onOpenCinemaDetails}
+          onRecalibrate={onRecalibrate}
+        />
       )}
 
       {/* ─── TAB : GOÛTS ─── */}
@@ -2826,7 +2730,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 flex items-center gap-2">
                 <Smartphone size={16} /> {t('analytics.viewingStyle')}
               </h3>
-              <span className="text-2xl font-black text-white">{100 - averages.smartphone}%</span>
+              {/* Le grand chiffre, c'est l'attention : sans légende, on le lisait comme le temps d'écran. */}
+              <span className="text-right">
+                <span className="block text-2xl font-black text-white leading-none">{100 - averages.smartphone}%</span>
+                <span className="block mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-white/45">{t('analytics.attention')}</span>
+              </span>
             </div>
             <div className="w-full bg-white/10 dark:bg-white/5 h-2 rounded-full overflow-hidden mb-4 transition-colors">
               <div
@@ -2841,6 +2749,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       )}
 
+      {activeTab !== 'overview' && (
       <div className="mt-8 text-center">
         <button
           onClick={onRecalibrate}
@@ -2849,6 +2758,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {t('analytics.recalibrate')}
         </button>
       </div>
+      )}
 
       {showTrendDetail &&
         typeof document !== 'undefined' &&

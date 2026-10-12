@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-12-habitudes",
+  "version": "2026-10-12-stats-profil",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Tes stats, version salle obscure",
+      "body": "L'onglet Profil s'ouvre sur ton film le mieux noté en plein écran, avec ton profil de critique en grand."
+    },
+    {
+      "title": "Ton pass ciné",
+      "body": "Ton abonnement en forme de billet : ce que tu as économisé, ou les séances qui manquent."
+    },
+    {
+      "title": "Signature, podium et année",
+      "body": "Tes quatre critères, tes trois films préférés et ton mois record, en un coup d'œil."
+    },
     {
       "title": "Tes plateformes d'abord",
       "body": "Choisis tes abonnements dans ton profil : Découvrir, Trailers et les fiches mettent en avant ce que tu peux regarder tout de suite."
@@ -9,18 +21,6 @@
     {
       "title": "Découvrir à ta façon",
       "body": "Au ciné ou en streaming : l'ordre des rangées suit ta façon de regarder. Un compte tout neuf démarre avec ses genres préférés."
-    },
-    {
-      "title": "Ton profil de critique",
-      "body": "Ton exigence comparée aux notes du public, en une phrase."
-    },
-    {
-      "title": "Tourne ton téléphone",
-      "body": "Dans Trailers, mets ton téléphone en paysage : la vidéo passe en plein écran, bien centrée, avec le son."
-    },
-    {
-      "title": "Trailers en plein écran",
-      "body": "L'onglet Trailers prend tout l'écran : le décor du film en fond, la vidéo sans l'interface YouTube, et rien ne passe sous la barre de navigation."
     }
   ],
   "posters": [

@@ -377,3 +377,7 @@ input[type='range']::-webkit-slider-runnable-track {
 @keyframes trailer-rotate { 0%, 55%, 100% { transform: rotate(0deg); } 25%, 40% { transform: rotate(-90deg); } }
 @keyframes trailer-turn { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .animate-\[trailer-rotate_3\.2s_ease-in-out_infinite\] { animation: none; } }
+
+/* Statistiques · Profil : l'image du hero avance très lentement, le texte monte en place. */
+@keyframes pt-drift { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.07) translate(-1.5%, -2%); } }
+@keyframes pt-rise { from { opacity: 0.001; transform: translateY(8px); } to { opacity: 1; transform: none; } }
