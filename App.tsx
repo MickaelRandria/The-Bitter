@@ -162,6 +162,8 @@ import { imdbLookupFor } from './utils/publicRating';
 
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
+const DailyFil = lazy(() => import('./components/DailyFil'));
+import DailyFilButton from './components/DailyFilButton';
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
   () => import('./components/CinemaSubscriptionSetupModal')
@@ -684,6 +686,7 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [showDailyFil, setShowDailyFil] = useState(false);
   /** Calendrier ouvert depuis le bandeau ciné de Découvrir : directement sur « À venir ». */
   const [calendarTab, setCalendarTab] = useState<'upcoming' | undefined>(undefined);
   useEffect(() => {
@@ -2589,6 +2592,35 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  /**
+   * Le Fil du jour : « Vu » et une note en un geste. Le film entre dans la
+   * collection comme s'il avait été noté depuis sa fiche, avec la même note sur
+   * les quatre critères. Pas d'attente déclarée : elle fausserait « Attente et
+   * réalité ».
+   */
+  const handleFilRate = async (tmdbId: number, rating: number): Promise<boolean> => {
+    if (!activeProfileId) return false;
+    try {
+      const formData = await getMovieDetailsForAdd(tmdbId);
+      if (!formData) throw new Error('fetch failed');
+      handleSaveMovie(
+        {
+          ...formData,
+          status: 'watched',
+          ratings: { story: rating, visuals: rating, acting: rating, sound: rating },
+          hype: undefined,
+          dateWatched: Date.now(),
+        },
+        undefined,
+        { target: null, toast: '' }
+      );
+      return true;
+    } catch {
+      setToastMessage(t('feed.cannotAddToWatchlist'));
+      return false;
+    }
+  };
+
   const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv'): Promise<boolean> => {
     if (!activeProfileId) return false;
     try {
@@ -3499,6 +3531,8 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Le Fil du jour : sur l'accueil, avant la cloche. */}
+              {viewMode === 'Feed' && activeProfile && <DailyFilButton onOpen={() => setShowDailyFil(true)} />}
               {/* Les notifications suivent la partie ouverte : leurs libellés
                   parlent de films, et une série n'a rien à y faire. */}
               <NotificationCenter
@@ -4810,6 +4844,16 @@ const App: React.FC = () => {
               setShowCineAssistant(false);
             }}
           />
+        )}
+        {showDailyFil && activeProfile && (
+          <Suspense fallback={null}>
+            <DailyFil
+              movies={uniqueMovies}
+              onClose={() => setShowDailyFil(false)}
+              onRateWatched={handleFilRate}
+              onAddWatchlist={(tmdbId) => handleQuickWatchlist(tmdbId, 'movie')}
+            />
+          </Suspense>
         )}
         {showCalibration && activeProfile && (
           <OnboardingModal

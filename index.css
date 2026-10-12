@@ -381,3 +381,10 @@ input[type='range']::-webkit-slider-runnable-track {
 /* Statistiques · Profil : l'image du hero avance très lentement, le texte monte en place. */
 @keyframes pt-drift { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.07) translate(-1.5%, -2%); } }
 @keyframes pt-rise { from { opacity: 0.001; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Fil du jour : l'icône brille tant qu'il n'est pas fait. */
+.fil-glow { box-shadow: 0 0 0 2px #D9FF00, 0 0 18px 2px rgba(217,255,0,0.55), 0 6px 14px -6px rgba(0,0,0,0.55); animation: fil-glow 2.4s ease-in-out infinite; }
+.fil-sheen { background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.65) 50%, transparent 60%); animation: fil-sheen 3.2s ease-in-out infinite; }
+@keyframes fil-glow { 50% { box-shadow: 0 0 0 2px #D9FF00, 0 0 26px 5px rgba(217,255,0,0.75), 0 6px 14px -6px rgba(0,0,0,0.55); } }
+@keyframes fil-sheen { 0%, 45% { transform: translateX(-70%); } 85%, 100% { transform: translateX(70%); } }
+@media (prefers-reduced-motion: reduce) { .fil-glow, .fil-sheen { animation: none; } }
