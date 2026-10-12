@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-12-portrait-fix",
+  "version": "2026-10-12-gouts",
   "label": "Version du 12 octobre",
   "items": [
+    {
+      "title": "Tes goûts, en un coup d'œil",
+      "body": "Tes genres en mur d'affiches, tes surprises face au public, tes réalisateurs, tes époques et ton classement complet, sur une seule page."
+    },
     {
       "title": "Un portrait plus lisible",
       "body": "Chaque phrase correspond à son chiffre, sans mise en forme parasite. Les portraits déjà tirés sont à refaire."
@@ -17,10 +21,6 @@
     {
       "title": "Le pass ciné tient sur une ligne",
       "body": "Les séances et leur légende ne sont plus coupées, même sur un petit écran."
-    },
-    {
-      "title": "Le ciné de la semaine, au calendrier",
-      "body": "Dans Découvrir, un bandeau résume les sorties de la semaine ; le calendrier les montre toutes, en tête de « À venir »."
     }
   ],
   "posters": [
@@ -40,11 +40,11 @@
   "highlights": [
     {
       "icon": "stats",
-      "title": "Un portrait plus juste"
+      "title": "Un nouvel onglet Goûts"
     },
     {
       "icon": "stats",
-      "title": "Des stats plus belles"
+      "title": "Un portrait plus juste"
     },
     {
       "icon": "platforms",
