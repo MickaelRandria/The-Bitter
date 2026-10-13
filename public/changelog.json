@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-13-fil-du-jour",
-  "label": "Version du 12 octobre",
+  "version": "2026-10-14-notation-par-forme",
+  "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Noter un documentaire comme un documentaire",
+      "body": "Plus de « Jeu des acteurs » face à des témoins : un documentaire se note sur son propos, la parole qu'il donne, ses images, sa construction et ce qu'il t'apprend."
+    },
+    {
+      "title": "Stand-up et concerts filmés",
+      "body": "Deux grilles à choisir dans « Changer » : la performance, le contenu, la captation, le son, et selon le cas l'humour ou l'effet live."
+    },
+    {
+      "title": "Sans objet",
+      "body": "Un critère qui ne s'applique pas peut être laissé de côté : il ne compte pas dans la note et disparaît de ta story. Celui qui compte le plus reste toujours noté."
+    },
     {
       "title": "Le Fil du jour",
       "body": "Chaque jour, trois minutes : le film mystère, tes cartes, deux questions du jour et ta série. L'icône brille sur l'accueil tant qu'il n'est pas fait."
@@ -9,18 +21,6 @@
     {
       "title": "Tes goûts, en un coup d'œil",
       "body": "Tes genres en mur d'affiches, tes surprises face au public, tes réalisateurs, tes époques et ton classement complet, sur une seule page."
-    },
-    {
-      "title": "Un portrait plus lisible",
-      "body": "Chaque phrase correspond à son chiffre, sans mise en forme parasite. Les portraits déjà tirés sont à refaire."
-    },
-    {
-      "title": "Le pass ciné en entier",
-      "body": "Le talon du billet descend sur toute la hauteur, sur iPhone aussi."
-    },
-    {
-      "title": "Ce que tes notes disent",
-      "body": "Trois constats, chacun avec son chiffre et deux de tes films qui le montrent. Calculés sur tes vraies notes, mis en mots par Mistral."
     }
   ],
   "posters": [
@@ -39,16 +39,16 @@
   ],
   "highlights": [
     {
+      "icon": "stats",
+      "title": "Des grilles pour les documentaires et les spectacles"
+    },
+    {
+      "icon": "stats",
+      "title": "Sans objet : ne note que ce qui compte"
+    },
+    {
       "icon": "trailers",
       "title": "Le Fil du jour"
-    },
-    {
-      "icon": "stats",
-      "title": "Un nouvel onglet Goûts"
-    },
-    {
-      "icon": "stats",
-      "title": "Un portrait plus juste"
     }
   ]
 }

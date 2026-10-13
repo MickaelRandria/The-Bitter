@@ -8,8 +8,14 @@ import {
   RatingProfileId,
   detectRatingProfile,
   getRatingProfile,
+  resolveStoredProfileId,
 } from '../config/ratingProfiles';
-import { buildCriteriaForProfile, calculateWeightedRating } from '../utils/rating';
+import {
+  buildCriteriaForProfile,
+  buildSimpleCriteria,
+  calculateWeightedRating,
+  isStandardSimpleGrid,
+} from '../utils/rating';
 import { localDate } from '../utils/tvProgress';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
@@ -74,7 +80,7 @@ const EpisodeRatingSheet: React.FC<Props> = ({
      le profil de son genre ; le sélecteur permet de choisir « Série » à la main. */
   const detected = useMemo<RatingProfileId>(() => detectRatingProfile(series.genre), [series.genre]);
   const [profileId, setProfileId] = useState<RatingProfileId>(
-    (previous?.profile.id as RatingProfileId) ?? seasonProfileId ?? detected
+    resolveStoredProfileId(previous?.profile.id, previous?.criteria) ?? seasonProfileId ?? detected
   );
   const [showProfilePicker, setShowProfilePicker] = useState(false);
 
@@ -95,11 +101,11 @@ const EpisodeRatingSheet: React.FC<Props> = ({
   const [review, setReview] = useState(entry.review ?? '');
   const [date, setDate] = useState(entry.watchedAt ?? '');
 
-  const criteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile(
-    mode === 'bitter_plus' ? profileId : 'standard',
-    values,
-    customWeights
-  );
+  // En Bitter simple, un documentaire garde ses quatre critères à lui.
+  const criteria: AdaptiveRatingCriterion[] =
+    mode === 'bitter_plus'
+      ? buildCriteriaForProfile(profileId, values, customWeights)
+      : buildSimpleCriteria(profileId, values);
   const simpleAverage =
     criteria.length === 0
       ? 0
@@ -127,7 +133,9 @@ const EpisodeRatingSheet: React.FC<Props> = ({
 
   const handleSave = () => {
     if (!complete) return;
-    const profile = getRatingProfile(mode === 'bitter_plus' ? profileId : 'standard');
+    const profile = getRatingProfile(
+      mode === 'bitter_plus' || !isStandardSimpleGrid(profileId) ? profileId : 'standard'
+    );
     commit({
       rating,
       ratingMode: mode,

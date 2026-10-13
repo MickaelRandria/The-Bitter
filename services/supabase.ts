@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { AdaptiveRatingData } from '../types';
+import { CriterionFamily, familyValue } from '../config/ratingProfiles';
 
 // 🔑 Access environment variables safely
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -730,15 +731,13 @@ export async function getSpaceMembers(spaceId: string): Promise<SpaceRead<SpaceM
  * une note posée en Bitter simple.
  */
 const extractCriteria = (row: any) => {
-  const byKey = new Map<string, number>(
-    (row.adaptive_rating?.criteria ?? []).map((c: any) => [c.key, Number(c.value)])
-  );
   // `quality_metrics` n'existe que dans le modèle local : la table ne le stocke pas.
   // Le repli va donc directement aux quatre colonnes héritées, qui portent bien
   // quatre valeurs distinctes pour une note posée en Bitter simple, et la même
   // valeur quatre fois en Bitter+, cas déjà couvert par `adaptive_rating`.
-  const pick = (adaptiveKey: string, legacy: unknown) => {
-    const fromAdaptive = byKey.get(adaptiveKey);
+  // Par famille : « Le propos » d'un documentaire tient le rôle du scénario.
+  const pick = (adaptiveKey: CriterionFamily, legacy: unknown) => {
+    const fromAdaptive = familyValue(row.adaptive_rating?.criteria, adaptiveKey);
     if (Number.isFinite(fromAdaptive)) return fromAdaptive as number;
     return Number(legacy);
   };

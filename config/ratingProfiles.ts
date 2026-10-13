@@ -15,6 +15,9 @@ export type RatingProfileId =
   | 'adventure'
   | 'historical'
   | 'series'
+  | 'standup'
+  | 'concert'
+  | 'documentary_legacy'
   | 'custom';
 
 /** Available weight levels for a custom profile. */
@@ -39,7 +42,8 @@ export type AnyProfileId = RatingProfileId | LegacyProfileId;
 export type CriterionGroup = 'base' | 'specific';
 export type WeightLabel = 'Essentiel' | 'Important' | 'Standard' | 'Secondaire';
 
-export const ADAPTIVE_RATING_VERSION = 1;
+/** 2 : grilles Documentaire et Spectacle, critères « Sans objet » (14 octobre 2026). */
+export const ADAPTIVE_RATING_VERSION = 2;
 
 export interface CriterionDefinition {
   key: string;
@@ -53,6 +57,14 @@ export interface RatingProfileDefinition {
   id: RatingProfileId;
   label: string;
   criteria: CriterionDefinition[];
+  /**
+   * Les quatre critères de la notation Bitter (sans le +), dans l'ordre
+   * d'affichage, quand ils diffèrent de Scénario / Image / Jeu / Son.
+   *
+   * Un documentaire noté en quatre critères ne doit pas retomber sur « Jeu des
+   * acteurs » : il garde un critère par famille, pris dans sa propre grille.
+   */
+  simpleKeys?: string[];
 }
 
 /**
@@ -228,9 +240,75 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
       },
     ],
   },
+  /**
+   * Le documentaire n'a ni intrigue ni acteurs.
+   *
+   * L'ancienne grille lui appliquait Scénario et Jeu des acteurs : on laissait
+   * le second au milieu faute de mieux, et il tirait la note vers 5. Celle-ci
+   * juge ce qui fait un documentaire — son propos, la parole qu'il donne, ses
+   * images, sa construction. Le propos porte aussi la question de la confiance,
+   * formulée sans exiger de neutralité : un film engagé n'a pas à être neutre.
+   */
   documentary: {
     id: 'documentary',
     label: 'Documentaire',
+    simpleKeys: ['propos', 'parole', 'doc_images', 'sound'],
+    criteria: [
+      {
+        key: 'propos',
+        label: 'Le propos',
+        description:
+          'Le film sait ce qu’il veut dire, il assume son point de vue, et il te donne de quoi le comprendre ?',
+        group: 'base',
+        weight: 1.8,
+      },
+      {
+        key: 'parole',
+        label: 'La parole',
+        description: 'Les gens qu’on entend comptent, et le film leur laisse la place ?',
+        group: 'base',
+        weight: 1.4,
+      },
+      {
+        key: 'doc_images',
+        label: 'Les images',
+        description: 'Ce qu’on te montre, archives ou terrain, est fort et nécessaire ?',
+        group: 'base',
+        weight: 1.4,
+      },
+      {
+        key: 'construction',
+        label: 'La construction',
+        description: 'Tu suis le fil sans te perdre ni décrocher ?',
+        group: 'base',
+        weight: 1.0,
+      },
+      {
+        key: 'sound',
+        label: 'Son & musique',
+        description: 'La musique et le son servent le film, ou ils appuient trop ?',
+        group: 'base',
+        weight: 0.7,
+      },
+      {
+        key: 'impact',
+        label: 'Ce que ça t’apprend',
+        description:
+          'Tu vois le sujet autrement qu’avant d’avoir regardé ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  /**
+   * La grille Documentaire d'avant le 14 octobre 2026.
+   *
+   * Absente du sélecteur : elle ne sert qu'à rouvrir une note posée avec elle
+   * sans lui ajouter des critères jamais notés (voir `resolveStoredProfileId`).
+   */
+  documentary_legacy: {
+    id: 'documentary_legacy',
+    label: 'Documentaire (ancienne grille)',
     criteria: [
       ...buildBase({ scenario: 1.4, image: 1.0, interpretation: 0.7, sound: 1.0 }),
       {
@@ -238,6 +316,99 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
         label: 'Ce que ça t’apprend',
         description:
           'Tu vois le sujet autrement qu’avant d’avoir regardé ?',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  /**
+   * Spectacle filmé : stand-up, concert.
+   *
+   * Même base pour tous — la performance, ce qu'on entend, la façon dont c'est
+   * filmé, le son —, c'est le genre qui change le critère qui compte le plus et
+   * les poids. TMDB ne range pas les spectacles à part : ces grilles se
+   * choisissent à la main.
+   */
+  standup: {
+    id: 'standup',
+    label: 'Spectacle · Stand-up',
+    simpleKeys: ['contenu', 'captation', 'performance', 'sound'],
+    criteria: [
+      {
+        key: 'performance',
+        label: 'La performance',
+        description: 'Sur scène, ça tient : présence, rythme, énergie ?',
+        group: 'base',
+        weight: 1.8,
+      },
+      {
+        key: 'contenu',
+        label: 'Le contenu',
+        description: 'Ce qu’on entend vaut le coup : le texte, les blagues ?',
+        group: 'base',
+        weight: 1.4,
+      },
+      {
+        key: 'captation',
+        label: 'La captation',
+        description: 'On te fait sentir la salle, ou tu regardes une caméra posée au fond ?',
+        group: 'base',
+        weight: 1.0,
+      },
+      {
+        key: 'sound',
+        label: 'Son & musique',
+        description: 'Le son est propre, et la musique ajoute quelque chose ?',
+        group: 'base',
+        weight: 0.7,
+      },
+      {
+        key: 'humor',
+        label: 'Humour',
+        description: 'Tu as ri ? Vraiment ri, pas juste souri poliment.',
+        group: 'specific',
+        weight: 1.8,
+      },
+    ],
+  },
+  concert: {
+    id: 'concert',
+    label: 'Spectacle · Concert',
+    simpleKeys: ['contenu', 'captation', 'performance', 'sound'],
+    criteria: [
+      {
+        key: 'performance',
+        label: 'La performance',
+        description: 'Sur scène, ça tient : présence, rythme, énergie ?',
+        group: 'base',
+        weight: 1.8,
+      },
+      {
+        key: 'contenu',
+        label: 'Le contenu',
+        description: 'Ce qu’on entend vaut le coup : les morceaux, l’ordre, les versions ?',
+        group: 'base',
+        weight: 1.0,
+      },
+      {
+        key: 'captation',
+        label: 'La captation',
+        description: 'On te fait sentir la salle, ou tu regardes une caméra posée au fond ?',
+        group: 'base',
+        weight: 1.4,
+      },
+      {
+        key: 'sound',
+        label: 'Son & musique',
+        description:
+          'Le mixage te met au milieu du groupe, ou on dirait un enregistrement de téléphone ?',
+        group: 'base',
+        weight: 1.8,
+      },
+      {
+        key: 'live',
+        label: 'L’effet live',
+        description: 'Tu avais l’impression d’y être ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -396,6 +567,8 @@ export const PROFILE_OPTIONS: { id: RatingProfileId; label: string }[] = [
   { id: 'music', label: 'Musical / Musique' },
   { id: 'historical', label: 'Historique / Guerre' },
   { id: 'documentary', label: 'Documentaire' },
+  { id: 'standup', label: 'Spectacle · Stand-up' },
+  { id: 'concert', label: 'Spectacle · Concert' },
   { id: 'series', label: 'Série' },
   { id: 'custom', label: 'Profil perso' },
 ];
@@ -455,4 +628,75 @@ export function detectRatingProfile(
 
 export function getRatingProfile(id: RatingProfileId): RatingProfileDefinition {
   return RATING_PROFILES[id];
+}
+
+/**
+ * Les quatre familles historiques : Scénario, Image, Jeu, Son.
+ *
+ * Les stats, le portrait et les colonnes plates de Supabase raisonnent sur ces
+ * quatre axes. Les grilles Documentaire et Spectacle ont leurs propres critères ;
+ * chacun est rattaché à la famille dont il tient le rôle, sinon un documentaire
+ * disparaîtrait des stats par critère, ou y compterait pour zéro. Les critères
+ * propres à un genre (Peur, Humour…) n'ont pas de famille.
+ */
+export type CriterionFamily = 'scenario' | 'image' | 'interpretation' | 'sound';
+
+const FAMILY_BY_KEY: Record<string, CriterionFamily> = {
+  scenario: 'scenario',
+  propos: 'scenario',
+  construction: 'scenario',
+  contenu: 'scenario',
+  image: 'image',
+  doc_images: 'image',
+  captation: 'image',
+  interpretation: 'interpretation',
+  parole: 'interpretation',
+  performance: 'interpretation',
+  sound: 'sound',
+};
+
+export const criterionFamily = (key: string): CriterionFamily | undefined => FAMILY_BY_KEY[key];
+
+/**
+ * La valeur d'une famille dans une note détaillée : la moyenne des critères
+ * qui en relèvent (Propos et Construction pour un documentaire), ou `undefined`
+ * si aucun n'a été noté — un critère mis « Sans objet » n'est pas enregistré.
+ */
+export function familyValue(
+  criteria: readonly { key: string; value: unknown }[] | null | undefined,
+  family: CriterionFamily
+): number | undefined {
+  const values = (criteria ?? [])
+    .filter((c) => FAMILY_BY_KEY[c.key] === family)
+    .map((c) => Number(c.value))
+    .filter(Number.isFinite);
+  if (values.length === 0) return undefined;
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+/**
+ * Le profil sous lequel rouvrir une note enregistrée.
+ *
+ * Une note « documentary » posée avant la nouvelle grille porte Scénario et Jeu
+ * des acteurs : la rouvrir dans la grille actuelle afficherait des critères
+ * jamais notés et changerait la note sans que rien ait été touché. On la rend à
+ * sa grille d'origine.
+ */
+export function resolveStoredProfileId(
+  storedId: string | null | undefined,
+  criteria?: readonly { key: string }[] | null
+): RatingProfileId | null {
+  if (!storedId) return null;
+  if (storedId === 'standard_legacy') return 'standard';
+  if (
+    storedId === 'documentary' &&
+    (criteria ?? []).some((c) => c.key === 'scenario' || c.key === 'interpretation')
+  )
+    return 'documentary_legacy';
+  return storedId in RATING_PROFILES ? (storedId as RatingProfileId) : 'standard';
+}
+
+/** Les clés de la notation Bitter à quatre critères pour ce profil. */
+export function simpleCriteriaKeys(id: RatingProfileId): string[] {
+  return RATING_PROFILES[id]?.simpleKeys ?? ['scenario', 'image', 'interpretation', 'sound'];
 }

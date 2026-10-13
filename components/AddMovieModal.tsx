@@ -55,11 +55,15 @@ import {
   RatingProfileId,
   getRatingProfile,
   DEFAULT_CUSTOM_WEIGHTS,
+  familyValue,
+  resolveStoredProfileId,
 } from '../config/ratingProfiles';
 import {
   buildCriteriaForProfile,
+  buildSimpleCriteria,
   calculateWeightedRating,
   detectRatingProfile,
+  isStandardSimpleGrid,
 } from '../utils/rating';
 import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
 import { useDialog } from '../utils/useDialog';
@@ -244,6 +248,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [useBitterPlus, setUseBitterPlus] = useState(true);
   const [profileId, setProfileId] = useState<RatingProfileId>('standard');
   const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({});
+  /** Critères mis « Sans objet » : hors de la note, de la story et des stats. */
+  const [skippedKeys, setSkippedKeys] = useState<string[]>([]);
   const [quickRating, setQuickRating] = useState<number | null>(null);
   const [emotionalImprints, setEmotionalImprints] = useState<EmotionalImprint[]>([]);
   const [customWeights, setCustomWeights] = useState<Record<string, number>>({ ...DEFAULT_CUSTOM_WEIGHTS });
@@ -307,12 +313,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setSearchType(initialData.mediaType === 'tv' ? 'tv' : 'movie');
         // Restore adaptive rating state when editing
         if (initialData.adaptiveRating) {
-          const adaptiveProfileId = initialData.adaptiveRating.profile.id;
           // « standard_legacy » vient de la conversion des premières notes : ce
           // sont les quatre critères à poids égaux, c'est-à-dire « Standard ».
+          // Un documentaire noté avant le 14 octobre 2026 garde son ancienne grille.
           const restoredProfile: RatingProfileId =
-            adaptiveProfileId === 'standard_legacy' ? 'standard' : (adaptiveProfileId as RatingProfileId);
+            resolveStoredProfileId(
+              initialData.adaptiveRating.profile.id,
+              initialData.adaptiveRating.criteria
+            ) ?? 'standard';
           restoredProfileRef.current = restoredProfile;
+          setSkippedKeys(initialData.adaptiveRating.skipped ?? []);
+          // Une note posée en Bitter à quatre critères se rouvre comme telle.
+          if (initialData.adaptiveRating.mode === 'simple') setUseBitterPlus(false);
           setProfileId(restoredProfile);
           setProfileManuallySet(true);
           const values: Record<string, number> = {};
@@ -349,6 +361,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           restoredProfileRef.current = alreadyRated ? profile : null;
           setProfileId(profile);
           setProfileManuallySet(alreadyRated);
+          setSkippedKeys([]);
           setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
           // Seed values from existing qualityMetrics/ratings
           const qm = initialData.qualityMetrics;
@@ -370,6 +383,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setMode(initialStatus === 'watching' && type !== 'tv' ? 'watched' : initialStatus);
         setSelectedDate(initialWatchedDay ?? new Date().toISOString().split('T')[0]);
         setEmotionalImprints([]);
+        setSkippedKeys([]);
       } else {
         // Ajout à vide : la recherche s'ouvre dans la partie d'où l'on vient.
         // C'était figé sur « movie », donc le « + » du mode Séries proposait
@@ -387,6 +401,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         setProfileId('standard');
         setProfileManuallySet(false);
         setCriteriaValues({});
+        setSkippedKeys([]);
         setCustomWeights({ ...DEFAULT_CUSTOM_WEIGHTS });
         setUseBitterPlus(true);
         setQuickRating(null);
@@ -493,10 +508,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       const values: Record<string, number> = {};
       for (const c of adaptive.criteria) values[c.key] = c.value;
       setCriteriaValues(values);
-      const stored = adaptive.profile?.id;
-      if (stored) {
-        const restored: RatingProfileId =
-          stored === 'standard_legacy' ? 'standard' : (stored as RatingProfileId);
+      setSkippedKeys(adaptive.skipped ?? []);
+      const restored = resolveStoredProfileId(adaptive.profile?.id, adaptive.criteria);
+      if (restored) {
         restoredProfileRef.current = restored;
         setProfileId(restored);
         setProfileManuallySet(true);
@@ -626,20 +640,31 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     criteriaValues,
     customWeights
   );
-  const adaptiveWeightedRating = calculateWeightedRating(adaptiveCriteria);
+  /** Le critère du genre ne s'écarte jamais, même si une ancienne liste le contenait. */
+  const isSkipped = (c: AdaptiveRatingCriterion) => c.group !== 'specific' && skippedKeys.includes(c.key);
+  const ratedAdaptiveCriteria = adaptiveCriteria.filter((c) => !isSkipped(c));
+  const adaptiveWeightedRating = calculateWeightedRating(ratedAdaptiveCriteria);
 
-  // Bitter (simple) mode: 4 base criteria, equal weights, simple average.
-  const bitterCriteria: AdaptiveRatingCriterion[] = buildCriteriaForProfile('standard', criteriaValues);
+  // Bitter (simple) : quatre critères à poids égaux, moyenne simple. Ceux d'un
+  // documentaire ou d'un spectacle sont pris dans sa propre grille.
+  const bitterCriteria: AdaptiveRatingCriterion[] = buildSimpleCriteria(profileId, criteriaValues);
+  const ratedBitterCriteria = bitterCriteria.filter((c) => !isSkipped(c));
   const bitterFinalRating =
-    bitterCriteria.length === 0
+    ratedBitterCriteria.length === 0
       ? 0
       : Math.round(
-          (bitterCriteria.reduce((s, c) => s + c.value, 0) / bitterCriteria.length) * 10
+          (ratedBitterCriteria.reduce((s, c) => s + c.value, 0) / ratedBitterCriteria.length) * 10
         ) / 10;
-  const activeRatingCriteria = useBitterPlus ? adaptiveCriteria : bitterCriteria;
+  const activeRatingCriteria = useBitterPlus ? ratedAdaptiveCriteria : ratedBitterCriteria;
   const isRatingReady =
     mode === 'watchlist' ||
-    activeRatingCriteria.every((criterion) => criteriaValues[criterion.key] != null);
+    (activeRatingCriteria.length > 0 &&
+      activeRatingCriteria.every((criterion) => criteriaValues[criterion.key] != null));
+  const skipControl = {
+    skippedKeys,
+    onToggleSkip: (key: string) =>
+      setSkippedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key])),
+  };
 
   /**
    * Ce que la note dit, pour les amorces d'avis.
@@ -650,7 +675,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    */
   const reviewCriteria = useMemo(() => {
     if (mode !== 'watched') return [];
-    const source = useBitterPlus ? adaptiveCriteria : bitterCriteria;
+    const source = useBitterPlus ? ratedAdaptiveCriteria : ratedBitterCriteria;
 
     if (source.length === 0) return [];
 
@@ -668,7 +693,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     if (!alreadyRated && !source.every((c) => criteriaValues[c.key] != null)) return [];
 
     return source.map((c) => ({ label: c.label, value: c.value }));
-  }, [mode, criteriaValues, useBitterPlus, adaptiveCriteria, bitterCriteria, initialData]);
+  }, [mode, criteriaValues, useBitterPlus, ratedAdaptiveCriteria, ratedBitterCriteria, initialData]);
 
   const setCustomWeight = (key: string, weight: number) => {
     haptics.soft();
@@ -750,23 +775,25 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       // Bitter+ : full adaptive rating with profile, weights, specific criterion.
       const profile = getRatingProfile(profileId);
       const legacyAvg =
-        adaptiveCriteria.length > 0
+        ratedAdaptiveCriteria.length > 0
           ? Math.round(
-              (adaptiveCriteria.reduce((s, c) => s + c.value, 0) / adaptiveCriteria.length) * 10
+              (ratedAdaptiveCriteria.reduce((s, c) => s + c.value, 0) / ratedAdaptiveCriteria.length) * 10
             ) / 10
           : 0;
+      const skipped = adaptiveCriteria.filter(isSkipped).map((c) => c.key);
       finalAdaptiveRating = {
         profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
-        criteria: adaptiveCriteria,
+        criteria: ratedAdaptiveCriteria,
         weightedRating: adaptiveWeightedRating,
         legacyRating: legacyAvg,
         imprints: emotionalImprints.length > 0 ? emotionalImprints : undefined,
+        ...(skipped.length > 0 ? { skipped } : {}),
       };
-      const byKey = new Map(adaptiveCriteria.map((c) => [c.key, c.value]));
-      const scenario = byKey.get('scenario') ?? 5;
-      const image = byKey.get('image') ?? 5;
-      const interpretation = byKey.get('interpretation') ?? 5;
-      const sound = byKey.get('sound') ?? 5;
+      // Par famille : « Le propos » d'un documentaire tient le rôle du scénario.
+      const scenario = familyValue(ratedAdaptiveCriteria, 'scenario') ?? adaptiveWeightedRating;
+      const image = familyValue(ratedAdaptiveCriteria, 'image') ?? adaptiveWeightedRating;
+      const interpretation = familyValue(ratedAdaptiveCriteria, 'interpretation') ?? adaptiveWeightedRating;
+      const sound = familyValue(ratedAdaptiveCriteria, 'sound') ?? adaptiveWeightedRating;
       // Use the weighted rating for the legacy ratings so display helpers reflect it
       finalRatings = {
         story: adaptiveWeightedRating,
@@ -776,6 +803,35 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       };
       // Keep qualityMetrics in sync with the 4 base criteria for backward compat
       finalQualityMetrics = { scenario, acting: interpretation, visual: image, sound };
+    } else if (
+      !isStandardSimpleGrid(profileId) ||
+      ratedBitterCriteria.length < bitterCriteria.length
+    ) {
+      // Bitter sur une grille propre (documentaire, spectacle) ou avec un critère
+      // écarté : les quatre colonnes ne savent dire ni « Le propos » ni « pas
+      // noté ». La note détaillée garde les vrais critères, marquée « simple »
+      // pour se rouvrir en Bitter.
+      const profile = getRatingProfile(profileId);
+      const skipped = bitterCriteria.filter(isSkipped).map((c) => c.key);
+      finalAdaptiveRating = {
+        profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
+        criteria: ratedBitterCriteria,
+        weightedRating: bitterFinalRating,
+        mode: 'simple',
+        ...(skipped.length > 0 ? { skipped } : {}),
+      };
+      finalRatings = {
+        story: bitterFinalRating,
+        visuals: bitterFinalRating,
+        acting: bitterFinalRating,
+        sound: bitterFinalRating,
+      };
+      finalQualityMetrics = {
+        scenario: familyValue(ratedBitterCriteria, 'scenario') ?? bitterFinalRating,
+        visual: familyValue(ratedBitterCriteria, 'image') ?? bitterFinalRating,
+        acting: familyValue(ratedBitterCriteria, 'interpretation') ?? bitterFinalRating,
+        sound: familyValue(ratedBitterCriteria, 'sound') ?? bitterFinalRating,
+      };
     } else {
       // Bitter : 4 base criteria, simple average. No adaptiveRating, no profile.
       finalRatings = {
@@ -1280,6 +1336,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       haptics.soft();
                       setShowProfilePicker(true);
                     }}
+                    skip={skipControl}
                   />
                   <RatingDisclosure
                     title={t('addMovie.experience')}
@@ -1430,6 +1487,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   criteria={bitterCriteria}
                   finalRating={bitterFinalRating}
                   onChange={setCriterionValue}
+                  gridLabel={isStandardSimpleGrid(profileId) ? undefined : getRatingProfile(profileId).label}
+                  skip={skipControl}
                   onSwitchToBitterPlus={() => {
                     haptics.soft();
                     setUseBitterPlus(true);
