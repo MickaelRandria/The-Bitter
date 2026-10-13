@@ -36,6 +36,16 @@ const rating = (movie, profile, value, extra = {}) => ({
   ...extra,
 });
 
+test('les verdicts reconnaissent les personnages animés, le son musical et l’atmosphère', () => {
+  const criteria = [
+    { key: 'scenario', value: 8 }, { key: 'image', value: 6 },
+    { key: 'horror_atmosphere', value: 10 }, { key: 'animated_characters', value: 9 },
+    { key: 'musical_sound', value: 7 }, { key: 'musical_pieces', value: 2 },
+  ];
+  assert.deepEqual(criteriaOf(rating('m', 'a', 5, { adaptive_rating: { criteria } })),
+    { story: 8, visuals: 8, acting: 9, sound: 7 });
+});
+
 test('attendus : la séance calée prime sur les membres, les « pas vu » sortent', () => {
   const active = ['lea', 'mika', 'sam', 'ines'];
   assert.deepEqual(expectedRaters({ activeIds: active, raterIds: [], skipIds: ['sam'] }).sort(), ['ines', 'lea', 'mika']);

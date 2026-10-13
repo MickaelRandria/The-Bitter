@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-14-notation-par-forme",
+  "version": "2026-10-14-notation-par-genre",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Animation : les personnages prennent leur place",
+      "body": "Les personnages se jugent sur leurs expressions, avec ou sans voix. Le critère Animation respecte le style du film, sans exiger des mouvements fluides."
+    },
+    {
+      "title": "Musical : les morceaux et le son",
+      "body": "Le son juge la clarté des voix et des instruments. Les morceaux jugent ce que la musique apporte au film, même quand personne ne chante."
+    },
+    {
+      "title": "Horreur : une place pour l’atmosphère",
+      "body": "En Bitter+, l’atmosphère rejoint l’image, le jeu et le son, avant la peur. En Action, la lisibilité reste dans les scènes d’action. Tes anciennes notes gardent leurs grilles et leurs poids."
+    },
     {
       "title": "Noter un documentaire comme un documentaire",
       "body": "Plus de « Jeu des acteurs » face à des témoins : un documentaire se note sur son propos, la parole qu'il donne, ses images, sa construction et ce qu'il t'apprend."
@@ -40,15 +52,15 @@
   "highlights": [
     {
       "icon": "stats",
-      "title": "Des grilles pour les documentaires et les spectacles"
+      "title": "Animation : les personnages, avec ou sans voix"
     },
     {
       "icon": "stats",
-      "title": "Sans objet : ne note que ce qui compte"
+      "title": "Musical : le son et les morceaux ont chacun leur place"
     },
     {
-      "icon": "trailers",
-      "title": "Le Fil du jour"
+      "icon": "cinema",
+      "title": "Horreur : note aussi l’atmosphère"
     }
   ]
 }

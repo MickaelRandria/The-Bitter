@@ -319,7 +319,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           const restoredProfile: RatingProfileId =
             resolveStoredProfileId(
               initialData.adaptiveRating.profile.id,
-              initialData.adaptiveRating.criteria
+              initialData.adaptiveRating.criteria,
+              initialData.adaptiveRating.profile.version,
+              initialData.adaptiveRating.skipped
             ) ?? 'standard';
           restoredProfileRef.current = restoredProfile;
           setSkippedKeys(initialData.adaptiveRating.skipped ?? []);
@@ -509,7 +511,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
       for (const c of adaptive.criteria) values[c.key] = c.value;
       setCriteriaValues(values);
       setSkippedKeys(adaptive.skipped ?? []);
-      const restored = resolveStoredProfileId(adaptive.profile?.id, adaptive.criteria);
+      const restored = resolveStoredProfileId(adaptive.profile?.id, adaptive.criteria, adaptive.profile?.version, adaptive.skipped);
       if (restored) {
         restoredProfileRef.current = restored;
         setProfileId(restored);
