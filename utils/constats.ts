@@ -1,6 +1,7 @@
 import type { Movie } from '../types';
 import { getDisplayWeightedRating, hasVerdict } from './rating';
 import { getPublicRating } from './publicRating';
+import { familyValue } from '../config/ratingProfiles';
 
 /**
  * « Tes constats » : ce que les notes disent de la personne, en phrases.
@@ -59,16 +60,20 @@ export const filmPointsFrom = (movies: Movie[]): FilmPoint[] =>
   movies
     .filter((m) => m.status === 'watched' && (m.mediaType ?? 'movie') !== 'tv' && hasVerdict(m))
     .map((m) => {
-      const byKey = new Map((m.adaptiveRating?.criteria ?? []).map((c) => [c.key, Number(c.value)]));
-      const qm = m.qualityMetrics as { scenario?: number; visual?: number; acting?: number; sound?: number } | undefined;
+      const grid = m.adaptiveRating?.criteria;
+      // Un critère écarté (« Sans objet ») n'a pas de valeur : qualityMetrics n'y
+      // porte qu'un repli sur la note globale, à ne pas prendre pour un critère.
+      const qm = m.adaptiveRating?.skipped?.length
+        ? undefined
+        : (m.qualityMetrics as { scenario?: number; visual?: number; acting?: number; sound?: number } | undefined);
       // En Bitter+, `ratings` porte quatre fois la note pondérée : les vrais
       // critères sont dans la grille, sinon dans qualityMetrics.
       const criteria: [number, number, number, number] = m.adaptiveRating
         ? [
-            byKey.get('scenario') ?? qm?.scenario ?? NaN,
-            byKey.get('image') ?? qm?.visual ?? NaN,
-            byKey.get('interpretation') ?? qm?.acting ?? NaN,
-            byKey.get('sound') ?? qm?.sound ?? NaN,
+            familyValue(grid, 'scenario') ?? qm?.scenario ?? NaN,
+            familyValue(grid, 'image') ?? qm?.visual ?? NaN,
+            familyValue(grid, 'interpretation') ?? qm?.acting ?? NaN,
+            familyValue(grid, 'sound') ?? qm?.sound ?? NaN,
           ]
         : [m.ratings.story, m.ratings.visuals, m.ratings.acting, m.ratings.sound];
       const watched = m.dateWatched ?? m.dateAdded;

@@ -9,6 +9,7 @@ import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
 import ReportSheet from './ReportSheet';
 import RatingDetailSheet from './RatingDetailSheet';
+import { CriterionFamily, familyValue } from '../config/ratingProfiles';
 
 interface Props {
   member: SpaceMember;
@@ -96,13 +97,11 @@ const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.le
  * quatre champs de `ratings` portent tous la note pondérée, pas quatre critères.
  */
 const myCriteriaOf = (movie: Movie) => {
-  const byKey = new Map<string, number>(
-    (movie.adaptiveRating?.criteria ?? []).map((c) => [c.key, Number(c.value)])
-  );
   const qm = movie.qualityMetrics as any;
 
-  const pick = (adaptiveKey: string, qualityKey: string, legacy: number) => {
-    const fromAdaptive = byKey.get(adaptiveKey);
+  // Par famille : « Le propos » d'un documentaire tient le rôle du scénario.
+  const pick = (adaptiveKey: CriterionFamily, qualityKey: string, legacy: number) => {
+    const fromAdaptive = familyValue(movie.adaptiveRating?.criteria, adaptiveKey);
     if (Number.isFinite(fromAdaptive)) return fromAdaptive as number;
     const fromQuality = qm?.[qualityKey];
     if (Number.isFinite(fromQuality)) return Number(fromQuality);

@@ -70,17 +70,26 @@ export const BitterRatingSection: React.FC<{
   finalRating: number;
   onChange: (key: string, value: number) => void;
   onSwitchToBitterPlus: () => void;
-}> = ({ criteria, finalRating, onChange, onSwitchToBitterPlus }) => {
+  /** Nom de la grille quand ce n'est pas celle d'une fiction (« Documentaire »…). */
+  gridLabel?: string;
+  skip?: SkipControl;
+}> = ({ criteria, finalRating, onChange, onSwitchToBitterPlus, gridLabel, skip }) => {
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
   return (
     <div className="space-y-6">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1 mb-3">
-          Critères de notation
+          {gridLabel ? `Critères · ${gridLabel}` : 'Critères de notation'}
         </p>
         <div className="space-y-3">
           {criteria.map((c) => (
-            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} hideImportance />
+            <AdaptiveCriterionStepper
+              key={c.key}
+              criterion={c}
+              onChange={onChange}
+              hideImportance
+              {...skipStateFor(criteria, c, skip)}
+            />
           ))}
         </div>
       </div>
@@ -135,12 +144,16 @@ export const BitterRatingSection: React.FC<{
         </button>
         {showFormulaHelp && (
           <div className="px-4 pb-4 pt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-400 space-y-2">
-            <p>La note finale est la moyenne des 4 critères.</p>
+            <p>La note finale est la moyenne des critères notés.</p>
             <p>
-              Chaque critère compte autant : <span className="font-bold text-charcoal dark:text-white">Scénario</span>,{' '}
-              <span className="font-bold text-charcoal dark:text-white">Image</span>,{' '}
-              <span className="font-bold text-charcoal dark:text-white">Interprétation</span> et{' '}
-              <span className="font-bold text-charcoal dark:text-white">Sonore</span>.
+              Chaque critère compte autant :{' '}
+              {criteria.map((c, i) => (
+                <React.Fragment key={c.key}>
+                  {i > 0 && (i === criteria.length - 1 ? ' et ' : ', ')}
+                  <span className="font-bold text-charcoal dark:text-white">{c.label}</span>
+                </React.Fragment>
+              ))}
+              . Un critère mis « Sans objet » n’entre pas dans la moyenne.
             </p>
             <p className="text-[11px] text-stone-500 dark:text-stone-500">
               Pour adapter le poids des critères au type de film, passe en Bitter+.
@@ -203,6 +216,7 @@ export const AdaptiveRatingSection: React.FC<{
   onChange: (key: string, value: number) => void;
   onChangeCustomWeight: (key: string, weight: number) => void;
   onOpenProfilePicker: () => void;
+  skip?: SkipControl;
 }> = ({
   profileId,
   profileLabel,
@@ -216,6 +230,7 @@ export const AdaptiveRatingSection: React.FC<{
   onChange,
   onChangeCustomWeight,
   onOpenProfilePicker,
+  skip,
 }) => {
   const { t } = useLanguage();
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
@@ -301,7 +316,13 @@ export const AdaptiveRatingSection: React.FC<{
         </p>
         <div className="space-y-3">
           {base.map((c) => (
-            <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} isSet={ratedKeys[c.key] != null} />
+            <AdaptiveCriterionStepper
+              key={c.key}
+              criterion={c}
+              onChange={onChange}
+              isSet={ratedKeys[c.key] != null}
+              {...skipStateFor(criteria, c, skip)}
+            />
           ))}
         </div>
       </div>
@@ -393,7 +414,8 @@ export const AdaptiveRatingSection: React.FC<{
               </div>
             </div>
             <p className="text-[11px] text-stone-500 dark:text-stone-500">
-              Les poids sont appliqués automatiquement selon le profil de notation.
+              Les poids sont appliqués automatiquement selon le profil de notation. Un
+              critère mis « Sans objet » ne compte pas, et n’apparaît pas dans ta story.
             </p>
           </div>
         )}
@@ -402,15 +424,83 @@ export const AdaptiveRatingSection: React.FC<{
   );
 };
 
+/**
+ * Ce que la grille sait des critères écartés, passé tel quel à chaque section.
+ *
+ * Un critère « Sans objet » sort de la note : un film muet n'a pas de son à
+ * juger, un stand-up rarement de musique. Le laisser à 5 faute de mieux tirait
+ * la note vers le milieu. Le critère propre au genre ne s'écarte pas — c'est
+ * lui qui justifie la grille —, et il en reste toujours au moins un noté.
+ */
+export interface SkipControl {
+  skippedKeys: string[];
+  onToggleSkip: (key: string) => void;
+}
+
+const skipStateFor = (
+  criteria: AdaptiveRatingCriterion[],
+  criterion: AdaptiveRatingCriterion,
+  skip?: SkipControl
+): { skipped: boolean; onToggleSkip?: () => void } => {
+  if (!skip) return { skipped: false };
+  const skipped = skip.skippedKeys.includes(criterion.key);
+  if (criterion.group === 'specific') return { skipped: false };
+  const othersRated = criteria.some(
+    (c) => c.key !== criterion.key && !skip.skippedKeys.includes(c.key)
+  );
+  if (!skipped && !othersRated) return { skipped };
+  return { skipped, onToggleSkip: () => skip.onToggleSkip(criterion.key) };
+};
+
 export const AdaptiveCriterionStepper: React.FC<{
   criterion: AdaptiveRatingCriterion;
   onChange: (key: string, value: number) => void;
   showDescription?: boolean;
   hideImportance?: boolean;
   isSet?: boolean;
-}> = ({ criterion, onChange, showDescription, hideImportance, isSet = true }) => {
+  skipped?: boolean;
+  /** Absent : le critère ne peut pas être écarté (critère du genre, ou dernier noté). */
+  onToggleSkip?: () => void;
+}> = ({ criterion, onChange, showDescription, hideImportance, isSet = true, skipped = false, onToggleSkip }) => {
   const { key, label, value, weight, weightLabel, description } = criterion;
   const currentValue = isSet ? value : 5;
+
+  const skipButton = onToggleSkip && (
+    <button
+      type="button"
+      onClick={() => {
+        haptics.soft();
+        onToggleSkip();
+      }}
+      aria-pressed={skipped}
+      className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border transition-colors active:scale-95 ${
+        skipped
+          ? 'bg-charcoal text-white border-charcoal dark:bg-white dark:text-charcoal dark:border-white'
+          : 'border-dashed border-stone-300 dark:border-white/20 text-stone-400 dark:text-stone-500'
+      }`}
+    >
+      Sans objet
+    </button>
+  );
+
+  if (skipped) {
+    return (
+      <div className="rounded-[1.5rem] p-4 border border-dashed border-stone-300 dark:border-white/15">
+        <div className="flex justify-between items-center gap-2">
+          <span className="text-[10px] sm:text-[11px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest leading-tight break-words min-w-0">
+            {label}
+          </span>
+          <span className="flex items-center gap-3 shrink-0">
+            {skipButton}
+            <span className="text-2xl font-black tracking-tighter text-stone-300 dark:text-stone-600 leading-none">—</span>
+          </span>
+        </div>
+        <p className="text-[11px] leading-snug text-stone-400 dark:text-stone-500 mt-2">
+          Pas noté : il ne compte pas dans la note et n’apparaît pas dans ta story.
+        </p>
+      </div>
+    );
+  }
 
   /**
    * L'explication à la demande.
@@ -450,10 +540,15 @@ export const AdaptiveCriterionStepper: React.FC<{
               </button>
             )}
           </span>
-          {!hideImportance && (
-            <span className="mt-2 inline-flex items-center gap-2">
-              <WeightPips weight={weight} weightLabel={weightLabel} size="sm" />
-              <span className="text-[9px] font-bold text-stone-400 dark:text-stone-500">{weightLabel}</span>
+          {(!hideImportance || skipButton) && (
+            <span className="mt-2 flex flex-wrap items-center gap-2">
+              {!hideImportance && (
+                <>
+                  <WeightPips weight={weight} weightLabel={weightLabel} size="sm" />
+                  <span className="text-[9px] font-bold text-stone-400 dark:text-stone-500">{weightLabel}</span>
+                </>
+              )}
+              {skipButton}
             </span>
           )}
         </div>

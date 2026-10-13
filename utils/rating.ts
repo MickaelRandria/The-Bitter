@@ -14,7 +14,9 @@ import {
   CriterionDefinition,
   RatingProfileId,
   detectRatingProfile as detectFromGenres,
+  familyValue,
   getRatingProfile,
+  simpleCriteriaKeys,
 } from '../config/ratingProfiles';
 
 export function getWeightLabel(weight: number): WeightLabel {
@@ -51,6 +53,36 @@ export function buildCriteriaForProfile(
     };
   });
 }
+
+/**
+ * Les quatre critères de la notation Bitter (sans le +) pour ce profil, à poids
+ * égaux : Scénario / Image / Jeu / Son pour une fiction, un critère par famille
+ * pris dans la grille propre pour un documentaire ou un spectacle.
+ */
+export function buildSimpleCriteria(
+  profileId: RatingProfileId,
+  existingValues?: Record<string, number>
+): AdaptiveRatingCriterion[] {
+  const keys = simpleCriteriaKeys(profileId);
+  const own = getRatingProfile(profileId).criteria;
+  const standard = getRatingProfile('standard').criteria;
+  return keys.map<AdaptiveRatingCriterion>((key) => {
+    const c = (own.find((x) => x.key === key) ?? standard.find((x) => x.key === key))!;
+    return {
+      key: c.key,
+      label: c.label,
+      value: existingValues?.[c.key] ?? 5,
+      weight: 1,
+      weightLabel: 'Standard',
+      group: 'base',
+      description: c.description,
+    };
+  });
+}
+
+/** La grille à quatre critères est-elle celle d'avant, Scénario / Image / Jeu / Son ? */
+export const isStandardSimpleGrid = (profileId: RatingProfileId): boolean =>
+  simpleCriteriaKeys(profileId).join() === 'scenario,image,interpretation,sound';
 
 export function calculateWeightedRating(criteria: AdaptiveRatingCriterion[]): number {
   if (criteria.length === 0) return 0;
@@ -105,12 +137,15 @@ export function mapLegacyRatingToAdaptiveRating(
  * Falls back to 0 for missing base criteria.
  */
 export function adaptiveToLegacyRatings(adaptive: AdaptiveRatingData): RatingCriteria {
-  const byKey = new Map(adaptive.criteria.map((c) => [c.key, c.value]));
+  // Par famille et non par clé : un documentaire note « Le propos », pas
+  // « Scénario ». Une famille sans critère noté retombe sur la note globale
+  // plutôt que sur un zéro que personne n'a donné.
+  const fallback = adaptive.weightedRating ?? 0;
   return {
-    story: byKey.get('scenario') ?? 0,
-    visuals: byKey.get('image') ?? 0,
-    acting: byKey.get('interpretation') ?? 0,
-    sound: byKey.get('sound') ?? 0,
+    story: familyValue(adaptive.criteria, 'scenario') ?? fallback,
+    visuals: familyValue(adaptive.criteria, 'image') ?? fallback,
+    acting: familyValue(adaptive.criteria, 'interpretation') ?? fallback,
+    sound: familyValue(adaptive.criteria, 'sound') ?? fallback,
   };
 }
 

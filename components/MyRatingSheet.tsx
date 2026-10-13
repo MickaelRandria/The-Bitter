@@ -38,11 +38,13 @@ const MyRatingSheet: React.FC<MyRatingSheetProps> = ({ movie, userId, onClose, o
   const locale = language === 'en' ? 'en-GB' : 'fr-FR';
   const score = getDisplayWeightedRating(movie);
   const adaptive = movie.adaptiveRating;
-  const isPlus = !!adaptive?.criteria?.length;
+  /** Une note détaillée existe ; posée en Bitter à quatre critères, ce n'est pas du Bitter+. */
+  const hasGrid = !!adaptive?.criteria?.length;
+  const isPlus = hasGrid && adaptive?.mode !== 'simple';
 
   /** Les critères tels qu'ils ont été posés ; une note simple a la même valeur partout. */
   const criteria = useMemo(() => {
-    if (isPlus) {
+    if (hasGrid) {
       return adaptive!.criteria.map((c) => ({
         key: c.key,
         label: currentCriterionLabel(c.label, c.key),
@@ -59,8 +61,8 @@ const MyRatingSheet: React.FC<MyRatingSheetProps> = ({ movie, userId, onClose, o
       { key: 'interpretation', label: t('criteria.acting'), value: Number(r.acting) },
       { key: 'sound', label: t('criteria.sound'), value: Number(r.sound) },
     ].map((c) => ({ ...c, weight: 1, weightLabel: undefined, specific: false }));
-  }, [movie, isPlus, t]);
-  const flat = !isPlus && criteria.every((c) => c.value === criteria[0].value);
+  }, [movie, hasGrid, t]);
+  const flat = !hasGrid && criteria.every((c) => c.value === criteria[0].value);
 
   /** Où et quand : la dernière séance connue, sinon la date de visionnage. */
   const lastWatch = [...(movie.watches ?? [])].sort((a, b) => (b.watched_at ?? '').localeCompare(a.watched_at ?? ''))[0];

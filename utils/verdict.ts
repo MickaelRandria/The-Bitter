@@ -106,11 +106,17 @@ export const betResult = (guess: number, actual: number): BetResult => {
 export const CRITERIA = ['story', 'visuals', 'acting', 'sound'] as const;
 export type CriterionKey = (typeof CRITERIA)[number];
 
-/** Clés de la grille Bitter+ pour chacun des quatre critères communs. */
+/**
+ * Clés de la grille Bitter+ pour chacun des quatre critères communs.
+ *
+ * Les grilles Documentaire et Spectacle ont leurs propres critères, rattachés
+ * ici à la famille dont ils tiennent le rôle — même table que `FAMILY_BY_KEY`
+ * dans config/ratingProfiles.ts, recopiée parce que ce module reste sans import.
+ */
 const ADAPTIVE_KEYS: Record<CriterionKey, string[]> = {
-  story: ['scenario', 'story'],
-  visuals: ['image', 'visuals'],
-  acting: ['interpretation', 'acting'],
+  story: ['scenario', 'story', 'propos', 'construction', 'contenu'],
+  visuals: ['image', 'visuals', 'doc_images', 'captation'],
+  acting: ['interpretation', 'acting', 'parole', 'performance'],
   sound: ['sound'],
 };
 
@@ -127,9 +133,13 @@ export const criteriaOf = (r: VerdictRating): Record<CriterionKey, number> | nul
   if (Array.isArray(list) && list.length) {
     const out = {} as Record<CriterionKey, number>;
     for (const key of CRITERIA) {
-      const hit = list.find((c) => ADAPTIVE_KEYS[key].includes(c.key));
-      if (!hit || !Number.isFinite(Number(hit.value))) return null;
-      out[key] = Number(hit.value);
+      // Propos et Construction d'un documentaire : la moyenne des deux.
+      const hits = list
+        .filter((c) => ADAPTIVE_KEYS[key].includes(c.key))
+        .map((c) => Number(c.value))
+        .filter(Number.isFinite);
+      if (hits.length === 0) return null;
+      out[key] = hits.reduce((s, v) => s + v, 0) / hits.length;
     }
     return out;
   }

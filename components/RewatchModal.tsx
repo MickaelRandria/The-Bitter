@@ -29,8 +29,15 @@ import {
   getRatingProfile,
   CUSTOM_WEIGHT_LEVELS,
   DEFAULT_CUSTOM_WEIGHTS,
+  resolveStoredProfileId,
 } from '../config/ratingProfiles';
-import { buildCriteriaForProfile, calculateWeightedRating, detectRatingProfile } from '../utils/rating';
+import {
+  buildCriteriaForProfile,
+  buildSimpleCriteria,
+  calculateWeightedRating,
+  detectRatingProfile,
+  isStandardSimpleGrid,
+} from '../utils/rating';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 
@@ -120,14 +127,21 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
     [movie.genre, movie.mediaType]
   );
   const initialProfile: RatingProfileId =
-    !previousIsLegacy && previousProfileId
-      ? (previousProfileId as RatingProfileId)
-      : detectedProfile;
+    (!previousIsLegacy && resolveStoredProfileId(previousProfileId, previousAdaptive?.criteria)) ||
+    detectedProfile;
 
   const [profileId, setProfileId] = useState<RatingProfileId>(initialProfile);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
   // Bitter+ when the previous watch used an adaptive grid, else default to simple Bitter.
-  const [useBitterPlus, setUseBitterPlus] = useState<boolean>(!previousIsLegacy);
+  const [useBitterPlus, setUseBitterPlus] = useState<boolean>(
+    !previousIsLegacy && previousAdaptive?.mode !== 'simple'
+  );
+  /* Un critère écarté à la première séance l'est encore à la suivante : le
+     film n'a pas gagné de musique entre-temps. Pas de bouton ici, l'écran de
+     la note le garde. */
+  const carriedSkips = previousAdaptive?.skipped ?? [];
+  const keepRated = (c: AdaptiveRatingCriterion) =>
+    c.group === 'specific' || !carriedSkips.includes(c.key);
 
   const seedValues = useMemo<Record<string, number>>(() => {
     if (previousAdaptive) {
@@ -164,12 +178,20 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
   const [sentiment, setSentiment] = useState<RewatchSentiment | null>(null);
   const [review, setReview] = useState('');
 
-  const criteria: AdaptiveRatingCriterion[] = useBitterPlus
+  const fullCriteria: AdaptiveRatingCriterion[] = useBitterPlus
     ? buildCriteriaForProfile(profileId, criteriaValues, customWeights)
     : [];
-  const bitterCriteria: AdaptiveRatingCriterion[] = useBitterPlus
+  const fullBitterCriteria: AdaptiveRatingCriterion[] = useBitterPlus
     ? []
-    : buildCriteriaForProfile('standard', criteriaValues);
+    : buildSimpleCriteria(profileId, criteriaValues);
+  // Si tout était écarté pour cette grille, on garde la grille entière.
+  const criteria = fullCriteria.some(keepRated) ? fullCriteria.filter(keepRated) : fullCriteria;
+  const bitterCriteria = fullBitterCriteria.some(keepRated)
+    ? fullBitterCriteria.filter(keepRated)
+    : fullBitterCriteria;
+  const skippedNow = [...fullCriteria, ...fullBitterCriteria]
+    .filter((c) => !criteria.includes(c) && !bitterCriteria.includes(c))
+    .map((c) => c.key);
   const bitterFinalRating =
     bitterCriteria.length === 0
       ? 0
@@ -199,6 +221,24 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
         profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
         criteria,
         weightedRating,
+        ...(skippedNow.length > 0 ? { skipped: skippedNow } : {}),
+      };
+      ratings = {
+        story: weightedRating,
+        visuals: weightedRating,
+        acting: weightedRating,
+        sound: weightedRating,
+      };
+    } else if (!isStandardSimpleGrid(profileId) || skippedNow.length > 0) {
+      // Grille propre ou critère écarté : les quatre colonnes ne savent pas le
+      // dire, la note détaillée garde les vrais critères (voir AddMovieModal).
+      const profile = getRatingProfile(profileId);
+      adaptiveRating = {
+        profile: { id: profile.id, label: profile.label, version: ADAPTIVE_RATING_VERSION },
+        criteria: bitterCriteria,
+        weightedRating,
+        mode: 'simple' as const,
+        ...(skippedNow.length > 0 ? { skipped: skippedNow } : {}),
       };
       ratings = {
         story: weightedRating,

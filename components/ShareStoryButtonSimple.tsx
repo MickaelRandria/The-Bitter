@@ -429,23 +429,30 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       const labelWidth = ctx.measureText(label).width;
       ctx.letterSpacing = '0px';
 
-      // Mini badge "ESSENTIEL" / "IMPORTANT" après le label (sobre)
+      // Mini badge "ESSENTIEL" / "IMPORTANT" après le label (sobre). Un libellé
+      // long (« Ce que ça t'apprend ») ne laisse pas la place au badge et aux
+      // points avant la valeur : on retire d'abord le badge, puis les points,
+      // plutôt que de les faire chevaucher la note.
+      const valueLeft = blockX + blockWidth - 64;
+      const pipsWidth = 30;
       let cursorAfterLabel = blockX + labelWidth + 14;
       if (isHighlighted) {
         ctx.font = '800 11px "Inter", sans-serif';
         ctx.letterSpacing = '2px';
-        ctx.fillStyle = isEssentiel
-          ? COLOR_PRIMARY
-          : 'rgba(217, 255, 0, 0.75)';
         const badgeText = isEssentiel ? 'ESSENTIEL' : 'IMPORTANT';
-        ctx.fillText(badgeText, cursorAfterLabel, itemY + 4);
         const badgeWidth = ctx.measureText(badgeText).width;
-        cursorAfterLabel += badgeWidth + 14;
+        if (cursorAfterLabel + badgeWidth + 14 + pipsWidth <= valueLeft) {
+          ctx.fillStyle = isEssentiel
+            ? COLOR_PRIMARY
+            : 'rgba(217, 255, 0, 0.75)';
+          ctx.fillText(badgeText, cursorAfterLabel, itemY + 4);
+          cursorAfterLabel += badgeWidth + 14;
+        }
         ctx.letterSpacing = '0px';
       }
 
       // Pips d'importance (●●● / ●●○ / ●○○ / ○○○)
-      drawWeightPips(cursorAfterLabel, itemY + 9, spec.weight);
+      if (cursorAfterLabel + pipsWidth <= valueLeft) drawWeightPips(cursorAfterLabel, itemY + 9, spec.weight);
 
       // Valeur à droite — opacité PLEINE, lime, taille constante
       ctx.fillStyle = COLOR_PRIMARY;

@@ -246,6 +246,21 @@ export interface AdaptiveRatingData {
   legacyRating?: number;
   /** Persisté dans le JSON Bitter+ : aucune colonne ou règle d'accès supplémentaire. */
   imprints?: EmotionalImprint[];
+  /**
+   * Critères de la grille que l'utilisateur a choisi de ne pas noter.
+   *
+   * Ils sont absents de `criteria` — c'est ce qui les sort de la note, de la
+   * story, des stats et de tout ce qui lit la note détaillée, sans qu'aucun de
+   * ces écrans ait à les connaître. Cette liste ne sert qu'à les rouvrir dans
+   * le même état. Le critère propre au genre ne peut pas y figurer.
+   */
+  skipped?: string[];
+  /**
+   * « simple » : notation Bitter à quatre critères et moyenne simple. Absent :
+   * Bitter+. Une note simple sur la grille standard sans critère écarté
+   * s'enregistre toujours sans `adaptiveRating`, comme avant.
+   */
+  mode?: 'simple';
 }
 
 /**

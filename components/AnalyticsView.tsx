@@ -48,6 +48,7 @@ import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
 import AdnRadialChart from './AdnRadialChart';
 import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
+import { criterionFamily, familyValue } from '../config/ratingProfiles';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -197,10 +198,10 @@ const buildJudgmentProfile = (movies: Movie[]): JudgmentProfile => {
     const adaptiveRating = movie.adaptiveRating;
     if (!adaptiveRating || !Number.isFinite(adaptiveRating.weightedRating)) return [];
 
-    const valuesByKey = new Map(adaptiveRating.criteria.map((criterion) => [criterion.key, criterion.value]));
     const values = {} as Record<BaseCriterionKey, number>;
     for (const key of BASE_CRITERION_KEYS) {
-      const value = valuesByKey.get(key);
+      // Par famille : « Le propos » d'un documentaire compte comme son scénario.
+      const value = familyValue(adaptiveRating.criteria, key);
       if (!Number.isFinite(value)) return [];
       values[key] = value as number;
     }
@@ -1818,7 +1819,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="-mx-6 mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {primaryJudgmentAxis.evidenceMovies.slice(0, 3).map((movie) => {
                         const criterion = movie.adaptiveRating?.criteria.find(
-                          (item) => item.key === primaryJudgmentAxis.criterionKey
+                          (item) => criterionFamily(item.key) === primaryJudgmentAxis.criterionKey
                         );
                         return (
                           <button
