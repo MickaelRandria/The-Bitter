@@ -127,7 +127,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
     [movie.genre, movie.mediaType]
   );
   const initialProfile: RatingProfileId =
-    (!previousIsLegacy && resolveStoredProfileId(previousProfileId, previousAdaptive?.criteria)) ||
+    (!previousIsLegacy && resolveStoredProfileId(previousProfileId, previousAdaptive?.criteria, previousAdaptive?.profile.version, previousAdaptive?.skipped)) ||
     detectedProfile;
 
   const [profileId, setProfileId] = useState<RatingProfileId>(initialProfile);

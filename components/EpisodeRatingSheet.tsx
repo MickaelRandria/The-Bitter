@@ -80,7 +80,7 @@ const EpisodeRatingSheet: React.FC<Props> = ({
      le profil de son genre ; le sélecteur permet de choisir « Série » à la main. */
   const detected = useMemo<RatingProfileId>(() => detectRatingProfile(series.genre), [series.genre]);
   const [profileId, setProfileId] = useState<RatingProfileId>(
-    resolveStoredProfileId(previous?.profile.id, previous?.criteria) ?? seasonProfileId ?? detected
+    resolveStoredProfileId(previous?.profile.id, previous?.criteria, previous?.profile.version, previous?.skipped) ?? seasonProfileId ?? detected
   );
   const [showProfilePicker, setShowProfilePicker] = useState(false);
 

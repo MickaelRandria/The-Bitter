@@ -18,6 +18,9 @@ export type RatingProfileId =
   | 'standup'
   | 'concert'
   | 'documentary_legacy'
+  | 'animation_legacy'
+  | 'music_legacy'
+  | 'horror_legacy'
   | 'custom';
 
 /** Available weight levels for a custom profile. */
@@ -42,8 +45,8 @@ export type AnyProfileId = RatingProfileId | LegacyProfileId;
 export type CriterionGroup = 'base' | 'specific';
 export type WeightLabel = 'Essentiel' | 'Important' | 'Standard' | 'Secondaire';
 
-/** 2 : grilles Documentaire et Spectacle, critères « Sans objet » (14 octobre 2026). */
-export const ADAPTIVE_RATING_VERSION = 2;
+/** 3 : grilles Animation, Musical et Horreur (14 octobre 2026). */
+export const ADAPTIVE_RATING_VERSION = 3;
 
 export interface CriterionDefinition {
   key: string;
@@ -114,6 +117,17 @@ function buildBase(weights: { scenario: number; image: number; interpretation: n
   }));
 }
 
+/** Questions validées pour les quatre genres revus, sans changer les autres. */
+function buildFictionBase(weights: Parameters<typeof buildBase>[0]) {
+  const descriptions: Record<string, string> = {
+    scenario: 'Tu suis l’histoire et les choix des personnages sans te perdre ?',
+    image: 'Tu trouves les images réussies pour ce que le film veut te raconter ?',
+    interpretation: 'Tu crois aux personnages à travers le jeu des acteurs ?',
+    sound: 'Tu trouves que les sons et la musique servent le film ?',
+  };
+  return buildBase(weights).map((c) => ({ ...c, description: descriptions[c.key] }));
+}
+
 export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> = {
   standard: {
     id: 'standard',
@@ -123,13 +137,28 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
   horror: {
     id: 'horror',
     label: 'Horreur',
+    simpleKeys: ['scenario', 'image', 'interpretation', 'sound'],
     criteria: [
-      ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.8 }),
+      ...buildFictionBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.4 }).map((c) => ({
+        ...c,
+        description: c.key === 'image'
+          ? 'Tu trouves que les images installent un monde inquiétant ?'
+          : c.key === 'sound'
+            ? 'Tu trouves que les bruits, les silences et la musique servent le film ?'
+            : c.description,
+      })),
+      {
+        key: 'horror_atmosphere',
+        label: 'Atmosphère',
+        description: 'Tu ressens une ambiance inquiétante à travers ce que tu vois et entends ?',
+        group: 'base',
+        weight: 1.4,
+      },
       {
         key: 'fear',
         label: 'Peur',
         description:
-          'Tu as eu peur, ou au moins été mal à l’aise ? C’est tout ce qu’on demande à un film d’horreur.',
+          'Tu as eu peur ou ressenti du malaise ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -153,13 +182,19 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
   animation: {
     id: 'animation',
     label: 'Animation',
+    simpleKeys: ['scenario', 'image', 'animated_characters', 'sound'],
     criteria: [
-      ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.0 }),
+      ...buildFictionBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.0 }).map((c) =>
+        c.key === 'interpretation'
+          ? { ...c, key: 'animated_characters', label: 'Les personnages',
+              description: 'Tu crois aux personnages à travers leurs expressions, avec ou sans voix ?' }
+          : c
+      ),
       {
         key: 'animation',
         label: 'Animation',
         description:
-          'Les mouvements sont fluides, et le film a un style à lui plutôt que celui de tout le monde ?',
+          'Tu trouves que les mouvements donnent vie au film dans le style choisi ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -169,12 +204,12 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
     id: 'action',
     label: 'Action',
     criteria: [
-      ...buildBase({ scenario: 0.7, image: 1.4, interpretation: 1.0, sound: 1.4 }),
+      ...buildFictionBase({ scenario: 0.7, image: 1.4, interpretation: 1.0, sound: 1.4 }),
       {
         key: 'action',
         label: 'Scènes d’action',
         description:
-          'Tu comprends ce qui se passe pendant les bagarres et les poursuites, et ça te fait de l’effet ?',
+          'Tu suis les affrontements et les poursuites sans te perdre, et ils te font de l’effet ?',
         group: 'specific',
         weight: 1.8,
       },
@@ -228,16 +263,54 @@ export const RATING_PROFILES: Record<RatingProfileId, RatingProfileDefinition> =
   music: {
     id: 'music',
     label: 'Musical / Musique',
+    simpleKeys: ['scenario', 'image', 'interpretation', 'musical_sound'],
     criteria: [
-      ...buildBase({ scenario: 0.7, image: 1.0, interpretation: 1.4, sound: 1.8 }),
+      ...buildFictionBase({ scenario: 0.7, image: 1.0, interpretation: 1.4, sound: 1.0 }).map((c) => {
+        if (c.key === 'interpretation') return {
+          ...c, description: 'Tu crois aux personnages, y compris quand ils chantent ou jouent de la musique ?',
+        };
+        if (c.key === 'sound') return {
+          ...c, key: 'musical_sound', label: 'Le son',
+          description: 'Tu entends les voix et les instruments clairement, sans que l’un couvre les autres ?',
+        };
+        return c;
+      }),
       {
-        key: 'songs',
-        label: 'Les chansons',
+        key: 'musical_pieces',
+        label: 'Les morceaux',
         description:
-          'Les morceaux sont bons, et ils font avancer le film au lieu de l’arrêter ?',
+          'Tu trouves que les morceaux donnent sa force au film et y ont leur place ?',
         group: 'specific',
         weight: 1.8,
       },
+    ],
+  },
+  // Grilles conservées pour rouvrir les anciennes notes sans changer leur moyenne.
+  animation_legacy: {
+    id: 'animation_legacy', label: 'Animation (ancienne grille)',
+    criteria: [
+      ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.0 }),
+      { key: 'animation', label: 'Animation',
+        description: 'Les mouvements sont fluides, et le film a un style à lui plutôt que celui de tout le monde ?',
+        group: 'specific', weight: 1.8 },
+    ],
+  },
+  music_legacy: {
+    id: 'music_legacy', label: 'Musical / Musique (ancienne grille)',
+    criteria: [
+      ...buildBase({ scenario: 0.7, image: 1.0, interpretation: 1.4, sound: 1.8 }),
+      { key: 'songs', label: 'Les chansons',
+        description: 'Les morceaux sont bons, et ils font avancer le film au lieu de l’arrêter ?',
+        group: 'specific', weight: 1.8 },
+    ],
+  },
+  horror_legacy: {
+    id: 'horror_legacy', label: 'Horreur (ancienne grille)',
+    criteria: [
+      ...buildBase({ scenario: 1.0, image: 1.4, interpretation: 1.0, sound: 1.8 }),
+      { key: 'fear', label: 'Peur',
+        description: 'Tu as eu peur, ou au moins été mal à l’aise ? C’est tout ce qu’on demande à un film d’horreur.',
+        group: 'specific', weight: 1.8 },
     ],
   },
   /**
@@ -649,10 +722,13 @@ const FAMILY_BY_KEY: Record<string, CriterionFamily> = {
   image: 'image',
   doc_images: 'image',
   captation: 'image',
+  horror_atmosphere: 'image',
   interpretation: 'interpretation',
   parole: 'interpretation',
   performance: 'interpretation',
+  animated_characters: 'interpretation',
   sound: 'sound',
+  musical_sound: 'sound',
 };
 
 export const criterionFamily = (key: string): CriterionFamily | undefined => FAMILY_BY_KEY[key];
@@ -684,7 +760,9 @@ export function familyValue(
  */
 export function resolveStoredProfileId(
   storedId: string | null | undefined,
-  criteria?: readonly { key: string }[] | null
+  criteria?: readonly { key: string }[] | null,
+  storedVersion?: number,
+  skipped?: readonly string[] | null
 ): RatingProfileId | null {
   if (!storedId) return null;
   if (storedId === 'standard_legacy') return 'standard';
@@ -693,6 +771,15 @@ export function resolveStoredProfileId(
     (criteria ?? []).some((c) => c.key === 'scenario' || c.key === 'interpretation')
   )
     return 'documentary_legacy';
+  // Un nouveau critère peut être « Sans objet » et donc absent de criteria.
+  // La version et les clés écartées distinguent alors les nouvelles grilles.
+  const keys = new Set([...(criteria ?? []).map((c) => c.key), ...(skipped ?? [])]);
+  if (storedId === 'animation' && !keys.has('animated_characters') && !(storedVersion && storedVersion >= 3))
+    return 'animation_legacy';
+  if (storedId === 'music' && !keys.has('musical_sound') && !keys.has('musical_pieces') && !(storedVersion && storedVersion >= 3))
+    return 'music_legacy';
+  if (storedId === 'horror' && !keys.has('horror_atmosphere') && !(storedVersion && storedVersion >= 3))
+    return 'horror_legacy';
   return storedId in RATING_PROFILES ? (storedId as RatingProfileId) : 'standard';
 }
 

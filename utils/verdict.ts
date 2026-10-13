@@ -115,9 +115,9 @@ export type CriterionKey = (typeof CRITERIA)[number];
  */
 const ADAPTIVE_KEYS: Record<CriterionKey, string[]> = {
   story: ['scenario', 'story', 'propos', 'construction', 'contenu'],
-  visuals: ['image', 'visuals', 'doc_images', 'captation'],
-  acting: ['interpretation', 'acting', 'parole', 'performance'],
-  sound: ['sound'],
+  visuals: ['image', 'visuals', 'doc_images', 'captation', 'horror_atmosphere'],
+  acting: ['interpretation', 'acting', 'parole', 'performance', 'animated_characters'],
+  sound: ['sound', 'musical_sound'],
 };
 
 /**
