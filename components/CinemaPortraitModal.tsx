@@ -67,9 +67,10 @@ export default function CinemaPortraitModal({ movies, profile, onClose, onFilm, 
     <b className="mt-2 block truncate text-[10px]">{movie.title}</b><small className="mt-0.5 block truncate text-[9px] text-white/40">{portraitGenres(movie.genre)[0]}</small>
   </button>)}</div>;
   const heading = (text: string) => <h3 className="mb-3 text-lg font-black tracking-tight">{text}</h3>;
-  return createPortal(<div {...dialog.props} className="fixed inset-0 z-[160] overflow-y-auto bg-[#0c0c0c] text-white">
-    <div className="mx-auto max-w-lg pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
-      <header className="sticky top-0 z-10 flex items-center gap-3 bg-[#0c0c0c]/90 px-6 py-4 backdrop-blur-xl"><button type="button" onClick={onClose} aria-label={t('common.back')} className="grid h-9 w-9 place-items-center rounded-full bg-white/10"><ArrowLeft size={17} /></button><h1 className="text-sm font-black">{t('portraitDetail.title')}</h1><span className="ml-auto text-[9px] font-bold text-white/40">THE BITTER</span></header>
+  return createPortal(<div {...dialog.props} className="fixed inset-0 z-[160] flex h-[100dvh] flex-col overflow-hidden bg-[#0c0c0c] text-white">
+    <header className="mx-auto flex w-full max-w-lg shrink-0 items-center gap-3 bg-[#0c0c0c] px-6 pb-3" style={{ paddingTop: 'calc(var(--sat, 0px) + 0.75rem)' }}><button type="button" onClick={onClose} aria-label={t('common.back')} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10"><ArrowLeft size={17} /></button><h1 className="min-w-0 flex-1 text-sm font-black">{t('portraitDetail.title')}</h1><span className="shrink-0 text-[9px] font-bold text-white/40">THE BITTER</span></header>
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y pinch-zoom' }}>
+    <div className="mx-auto max-w-lg pb-[calc(var(--sab,0px)+32px)]">
       <section className="relative isolate flex min-h-[385px] flex-col justify-end overflow-hidden px-6 pb-6 pt-28">
         {(backdrop || top?.posterUrl) && <img src={backdrop || resizeTmdbImage(top?.posterUrl, 'w780') || ''} alt="" className={`absolute inset-0 -z-20 h-full w-full object-cover ${backdrop ? '' : 'blur-sm'}`} />}
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/20 via-[#0c0c0c]/50 to-[#0c0c0c]" />
@@ -103,6 +104,7 @@ export default function CinemaPortraitModal({ movies, profile, onClose, onFilm, 
         </div> : <p className="text-xs leading-relaxed text-white/50">{t('portraitDetail.noDiscovery')}</p>}</section>
         <section><button type="button" disabled={sharing} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-bitter-lime py-4 text-xs font-black text-charcoal disabled:opacity-50" onClick={async () => { setSharing(true); setShareError(false); try { await shareCinemaPortrait(title, description, evidence.length >= 2 ? evidence : portrait.favorites, { name: profile.firstName, summary: t('portraitDetail.shareSummary', { films: archetype.films.length, genres: archetype.genres.length }) }); } catch { setShareError(true); } finally { setSharing(false); } }}>{sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />}{t('portraitDetail.share')}</button>{shareError && <p role="alert" className="mt-2 text-xs text-orange-300">{t('portraitDetail.shareError')}</p>}<p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] text-white/35"><Check size={11} />{t('portraitDetail.refined')}</p></section>
       </div>
+    </div>
     </div>
   </div>, document.body);
 }

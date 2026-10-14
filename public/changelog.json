@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-14-portrait-cinema",
+  "version": "2026-10-14-portrait-mobile",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Un portrait plus confortable sur mobile",
+      "body": "Le header du portrait respecte la zone de sécurité de l’iPhone. Le contenu dispose d’une zone de défilement dédiée, avec le header fixe au-dessus."
+    },
     {
       "title": "Le détail de ton portrait cinéma",
       "body": "Depuis ton profil ou tes statistiques, Voir mon portrait ouvre une vue dédiée aux neuf archétypes : films-preuves, nuances, évolution et découverte à ajouter à ta liste. Le profil conserve ses informations et ses réglages."
