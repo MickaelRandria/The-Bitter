@@ -14,6 +14,7 @@ import { useEffect, useRef } from 'react';
  */
 let lockCount = 0;
 let savedScrollY = 0;
+const openDialogs: HTMLElement[] = [];
 
 const lockScroll = () => {
   if (lockCount++ > 0) return;
@@ -81,6 +82,7 @@ export function useDialog(onClose?: () => void, label?: string) {
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const node = ref.current;
+    if (node) openDialogs.push(node);
 
     // Focus initial dans la modale, sinon le clavier reste derrière
     const first = node?.querySelector<HTMLElement>(FOCUSABLE);
@@ -89,9 +91,15 @@ export function useDialog(onClose?: () => void, label?: string) {
     const onKeyDown = (e: KeyboardEvent) => {
       // Rien de rendu (modale fermée qui renvoie null) : on ne capte rien
       if (!ref.current) return;
+      // Une feuille peut retirer le bouton qui avait le focus (suppression
+      // d'un commentaire). Échap doit encore fermer la fenêtre au premier plan.
+      const top = openDialogs.filter(dialog => dialog.isConnected).reduce<HTMLElement | null>((highest, dialog) =>
+        !highest || (Number(getComputedStyle(dialog).zIndex) || 0) >= (Number(getComputedStyle(highest).zIndex) || 0) ? dialog : highest, null);
+      if (top !== node) return;
 
       if (e.key === 'Escape' && onCloseRef.current) {
-        e.stopPropagation();
+        e.preventDefault();
+        e.stopImmediatePropagation();
         onCloseRef.current();
         return;
       }
@@ -104,7 +112,10 @@ export function useDialog(onClose?: () => void, label?: string) {
 
       const firstEl = focusables[0];
       const lastEl = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === firstEl) {
+      if (!node.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? lastEl : firstEl).focus();
+      } else if (e.shiftKey && document.activeElement === firstEl) {
         e.preventDefault();
         lastEl.focus();
       } else if (!e.shiftKey && document.activeElement === lastEl) {
@@ -115,6 +126,7 @@ export function useDialog(onClose?: () => void, label?: string) {
 
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
+      if (node) { const index = openDialogs.indexOf(node); if (index !== -1) openDialogs.splice(index, 1); }
       document.removeEventListener('keydown', onKeyDown, true);
       previouslyFocused?.focus?.({ preventScroll: true });
     };

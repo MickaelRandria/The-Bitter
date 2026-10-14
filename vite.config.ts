@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import cinemaNews from './api/cinema-news';
 
 /**
  * Identifiant du build : le commit déployé sur Vercel, sinon l'heure du build.
@@ -55,6 +56,20 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: 'cinema-news-dev',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use('/api/cinema-news', (req, res) => {
+          const reply = {
+            setHeader: (key: string, value: string) => res.setHeader(key, value),
+            status(code: number) { res.statusCode = code; return reply; },
+            json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
+          };
+          void cinemaNews(req, reply);
+        });
+      },
+    },
     react(),
     {
       name: 'bitter-version',

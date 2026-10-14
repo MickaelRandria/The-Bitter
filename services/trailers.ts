@@ -65,13 +65,13 @@ const tmdb = async (path: string, params: Record<string, string> = {}) => {
 };
 
 /** La meilleure vidéo officielle d'un titre : bande-annonce d'abord, en français d'abord. */
-export async function bestVideo(mediaType: 'movie' | 'tv', id: number): Promise<{ key: string; kind: VideoKind } | null> {
-  const cacheKey = `bitter_trailer_video_${mediaType}_${id}`;
-  const cached = readStore<{ key: string; kind: VideoKind } | 'none'>(cacheKey, 7 * DAY);
+export async function bestVideo(mediaType: 'movie' | 'tv', id: number, options: { officialOnly?: boolean } = {}): Promise<{ key: string; kind: VideoKind; publishedAt?: string } | null> {
+  const cacheKey = `bitter_${options.officialOnly ? 'official_' : ''}trailer_video_${mediaType}_${id}`;
+  const cached = readStore<{ key: string; kind: VideoKind; publishedAt?: string } | 'none'>(cacheKey, 7 * DAY);
   if (cached) return cached === 'none' ? null : cached;
   const pick = (results: any[]) =>
     results
-      .filter((v) => v.site === 'YouTube' && v.key && KIND_RANK[v.type] != null)
+      .filter((v) => v.site === 'YouTube' && v.key && KIND_RANK[v.type] != null && (!options.officialOnly || v.official === true))
       .sort((a, b) => KIND_RANK[a.type] - KIND_RANK[b.type] || Number(b.official) - Number(a.official) || (b.size ?? 0) - (a.size ?? 0))[0];
   let found: any = null;
   try {
@@ -80,7 +80,8 @@ export async function bestVideo(mediaType: 'movie' | 'tv', id: number): Promise<
   } catch {
     return null;
   }
-  const value = found ? { key: found.key as string, kind: found.type as VideoKind } : null;
+  const value = found ? { key: found.key as string, kind: found.type as VideoKind,
+    publishedAt: typeof found.published_at === 'string' && Number.isFinite(Date.parse(found.published_at)) ? found.published_at : undefined } : null;
   writeStore(cacheKey, value ?? 'none');
   return value;
 }
