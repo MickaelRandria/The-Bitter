@@ -42,6 +42,11 @@ test('RSS : une URL nettoyée conserve le même identifiant entre deux visites',
   assert.equal(rss.parseCinemaRss(xml(item()), source, now)[0].id,
     rss.parseCinemaRss(xml(item().replace('?utm_source=rss#tracking', '')), source, now)[0].id);
 });
+
+test('RSS : les guillemets échappés par un éditeur restent lisibles', () => {
+  const row = rss.parseCinemaRss(xml(item().replace('Les nouvelles de « Dune » &amp; son univers', 'La série \\"Doctor Who\\" revient')), source, now)[0];
+  assert.equal(row.title, 'La série "Doctor Who" revient');
+});
 test('une actu se relie seulement à un titre connu, au bon type et sans correspondance partielle', () => {
   const news = { ...rss.parseCinemaRss(xml(item()), source, now)[0], title: 'Severance : un retour annoncé' };
   const work = { mediaType: 'tv', tmdbId: 95396, title: 'Severance', poster: null };

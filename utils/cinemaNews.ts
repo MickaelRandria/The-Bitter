@@ -14,7 +14,7 @@ function plain(value: string): string {
       return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : '';
     })
     .replace(/&(amp|quot|apos|lt|gt|nbsp);/g, (_, key) => ({ amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ' })[key])
-    .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    .replace(/<[^>]*>/g, ' ').replace(/\\(["'])/g, '$1').replace(/\s+/g, ' ').trim();
 }
 function field(xml: string, tag: string): string {
   return plain(xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'))?.[1] || '');
