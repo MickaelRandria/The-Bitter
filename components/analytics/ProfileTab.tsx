@@ -44,6 +44,7 @@ interface Props {
   onConfigureCinemaSubscription?: () => void;
   onOpenCinemaDetails?: () => void;
   onRecalibrate?: () => void;
+  onOpenPortrait?: () => void;
 }
 
 const CRITERION_LABEL: Record<string, string> = {
@@ -225,6 +226,7 @@ const ProfileTab: React.FC<Props> = ({
   movies,
   userProfile,
   archetype,
+  onOpenPortrait,
   totalHours,
   delta,
   months,
@@ -317,7 +319,7 @@ const ProfileTab: React.FC<Props> = ({
             <small className={kpiLabel}>{t('pt.kpiPublic')}</small>
           </div>
         </div>
-        <div className={`mt-2.5 grid gap-2 motion-safe:animate-[pt-rise_0.7s_0.32s_cubic-bezier(.16,1,.3,1)_both] ${canPortrait ? 'grid-cols-[1.15fr_1fr]' : 'grid-cols-1'}`}>
+        <div className={`mt-2.5 grid gap-2 motion-safe:animate-[pt-rise_0.7s_0.32s_cubic-bezier(.16,1,.3,1)_both] ${canPortrait || onOpenPortrait ? 'grid-cols-[1.15fr_1fr]' : 'grid-cols-1'}`}>
           <button
             type="button"
             onClick={() => { haptics.soft(); onShare(); }}
@@ -327,14 +329,14 @@ const ProfileTab: React.FC<Props> = ({
             <Share2 size={15} strokeWidth={2.6} />
             {isSharing ? t('analytics.sharing') : t('pt.shareCard')}
           </button>
-          {canPortrait && (
+          {(canPortrait || onOpenPortrait) && (
             <button
               type="button"
-              onClick={() => { haptics.soft(); setPortrait('asked'); }}
+              onClick={() => { haptics.soft(); if (onOpenPortrait) onOpenPortrait(); else setPortrait('asked'); }}
               className="h-11 rounded-[15px] bg-white/10 border border-white/[0.08] text-white text-[12px] font-black flex items-center justify-center gap-2 active:scale-[0.97] transition-transform"
             >
               <Sparkles size={15} strokeWidth={2.4} />
-              {t('pt.portrait')}
+              {t('portraitDetail.open')}
             </button>
           )}
         </div>

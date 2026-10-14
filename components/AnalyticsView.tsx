@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
-import { getAdvancedArchetype } from '../utils/archetypes';
+import { cinemaArchetype } from '../utils/cinemaPortrait';
 import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils/insights';
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
@@ -55,6 +55,7 @@ interface AnalyticsViewProps {
   userProfile: UserProfile | null;
   onNavigateToCalendar?: () => void;
   onRecalibrate?: () => void;
+  onOpenPortrait?: () => void;
   onViewDirector?: (name: string, id?: number) => void;
   /** `onReturn` rouvre la pop-in d'où l'on vient, une fois le film refermé. */
   onViewMovie?: (movie: Movie, onReturn?: () => void) => void;
@@ -960,6 +961,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   movies,
   userProfile,
   onRecalibrate,
+  onOpenPortrait,
   onViewDirector,
   onViewMovie,
   onConfigureCinemaSubscription,
@@ -1097,19 +1099,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
     const distinctGenreCount = new Set(watched.map((m) => m.genre).filter(Boolean)).size;
 
-    const advancedArchetype = getAdvancedArchetype({
-      vibes: averages,
-      quality: {
-        scenario: ratingAverages.story,
-        acting: ratingAverages.acting,
-        visual: ratingAverages.visuals,
-        sound: ratingAverages.sound,
-      },
-      smartphone: averages.smartphone,
-      distinctGenreCount,
-      severityIndex: userProfile?.severityIndex || 5,
-      rhythmIndex: userProfile?.patienceLevel || 5,
-    });
+    const advancedArchetype = cinemaArchetype(userProfile?.movies ?? movies, userProfile);
 
     const totalHours = totalWatchHours(watched);
 
@@ -1431,12 +1421,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       hypeReality,
       pacingInsight,
     };
-  }, [movies, isLocked, userProfile?.severityIndex, userProfile?.patienceLevel, language]);
+  }, [movies, isLocked, userProfile?.movies, userProfile?.severityIndex, userProfile?.patienceLevel, language]);
 
   // Recalibration silencieuse de l'archétype en DB
   useEffect(() => {
     if (
       stats &&
+      stats.advancedArchetype.confirmed &&
       userProfile?.id &&
       userProfile?.role !== stats.advancedArchetype.title &&
       supabase
@@ -1449,7 +1440,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       };
       updateRole();
     }
-  }, [stats?.advancedArchetype.title, userProfile?.id, userProfile?.role]);
+  }, [stats?.advancedArchetype.title, stats?.advancedArchetype.confirmed, userProfile?.id, userProfile?.role]);
 
   if (isLocked) {
     return (
@@ -1631,6 +1622,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           onConfigureCinemaSubscription={onConfigureCinemaSubscription}
           onOpenCinemaDetails={onOpenCinemaDetails}
           onRecalibrate={onRecalibrate}
+          onOpenPortrait={onOpenPortrait}
         />
       )}
 
