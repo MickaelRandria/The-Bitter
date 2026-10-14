@@ -74,7 +74,7 @@ test('le relais RSS reste utile si un éditeur est indisponible, et se met en ca
     const text = xml(item().replaceAll('example.org', info.hosts[0]).replace('Wed, 14 Oct 2026 09:00:00 +0200', new Date().toUTCString()));
     return { ok: true, url, body: new Response(text).body };
   };
-  const api = load('../api/cinema-news.ts', { '../utils/cinemaNews': rss }, fetcher).default;
+  const api = load('../api/cinema-news.ts', { '../utils/cinemaNews.js': rss }, fetcher).default;
   let status, payload; const headers = {};
   const res = { setHeader: (k, v) => { headers[k] = v; }, status: n => { status = n; return res; }, json: body => { payload = body; } };
   await api({ method: 'GET' }, res);
@@ -83,7 +83,7 @@ test('le relais RSS reste utile si un éditeur est indisponible, et se met en ca
   await api({ method: 'POST' }, res); assert.equal(status, 405); assert.equal(calls, 3);
 });
 test('le relais annonce une panne réelle lorsque tous les flux échouent', async () => {
-  const api = load('../api/cinema-news.ts', { '../utils/cinemaNews': rss }, async () => { throw Error('offline'); }).default;
+  const api = load('../api/cinema-news.ts', { '../utils/cinemaNews.js': rss }, async () => { throw Error('offline'); }).default;
   let status, payload; const res = { setHeader() {}, status: n => { status = n; return res; }, json: body => { payload = body; } };
   await api({ method: 'GET' }, res); assert.equal(status, 503); assert.deepEqual(payload.items, []);
 });

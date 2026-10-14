@@ -1,4 +1,4 @@
-import { CINEMA_NEWS_SOURCES, parseCinemaRss } from '../utils/cinemaNews';
+import { CINEMA_NEWS_SOURCES, parseCinemaRss } from '../utils/cinemaNews.js';
 import type { FilNews } from '../utils/cinemaFil';
 
 let cache: { at: number; items: FilNews[]; partial: boolean } | null = null;
