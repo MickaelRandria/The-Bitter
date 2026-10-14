@@ -2112,6 +2112,7 @@ export const fr: Record<string, string> = {
   'agenda.payment.invitation': 'Invitation',
   'agenda.payment.other': 'Autre paiement',
   'agenda.rewatch': 'Revoir',
+  'agenda.rewatchBadge': 'Rewatch',
   'agenda.writeReview': 'Écrire mon avis',
   'agenda.addWatchedDay': 'Ajouter un film vu ce jour',
   'agenda.book': 'Réserver ma place',

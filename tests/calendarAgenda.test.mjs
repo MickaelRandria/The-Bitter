@@ -44,6 +44,9 @@ test('les rewatches gardent leur date et leur note, sans doubler la derni√®re s√
   assert.equal(entries.length, 2);
   assert.equal(entries[0].day, '2026-01-04');
   assert.equal(entries[1].rating, 9.1);
+  assert.equal(entries[0].rewatch, false);
+  assert.equal(entries[1].rewatch, true);
+  assert.equal(calendarHistory([movie({ watches: [{ ...watches[1], watch_number: 2 }] })])[0].rewatch, true);
   assert.equal(
     calendarHistory([movie({ status: 'watchlist' }), movie({ mediaType: 'tv' })]).length,
     0

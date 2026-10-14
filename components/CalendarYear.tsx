@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Loader2, Share2 } from 'lucide-react';
+import { Loader2, RotateCcw, Share2 } from 'lucide-react';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { calendarYear, CalendarWatch } from '../utils/calendarAgenda';
@@ -68,6 +68,7 @@ export default function CalendarYear({
           empty: t('agenda.noFilm'),
           future: t('agenda.soon'),
           record: t('agenda.streakDays', { n: data.longestStreak }),
+          rewatch: t('agenda.rewatchBadge'),
         },
         today
       );
@@ -179,7 +180,7 @@ export default function CalendarYear({
                 aria-label={t('agenda.monthBest', {
                   month: monthNames[month],
                   title: movie?.title ?? t(future ? 'agenda.soon' : 'agenda.noFilm'),
-                })}
+                }) + (entry?.rewatch ? ` · ${t('agenda.rewatchBadge')}` : '')}
                 className={`relative grid aspect-[2/3] w-full place-items-center overflow-hidden rounded-lg text-[10px] font-bold text-stone-500 ${future ? 'border border-dashed border-stone-300 dark:border-white/15' : 'bg-stone-200 dark:bg-[#1A1A19]'}`}
               >
                 {movie?.posterUrl ? (
@@ -192,6 +193,9 @@ export default function CalendarYear({
                 ) : (
                   t(future ? 'agenda.soon' : 'agenda.noFilm')
                 )}
+                {entry?.rewatch && <span className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/80 px-1.5 py-1 text-[8px] font-black text-white">
+                  <RotateCcw size={9} aria-hidden="true" />{t('agenda.rewatchBadge')}
+                </span>}
                 {entry && (
                   <span className="absolute bottom-1 left-1 rounded-full bg-[#D9FF00] px-1.5 py-0.5 text-[10px] font-black text-[#111]">
                     {entry.rating.toLocaleString(locale, {

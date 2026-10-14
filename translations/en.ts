@@ -2106,6 +2106,7 @@ export const en: Record<string, string> = {
   'agenda.payment.invitation': 'Invitation',
   'agenda.payment.other': 'Other payment',
   'agenda.rewatch': 'Rewatch',
+  'agenda.rewatchBadge': 'Rewatch',
   'agenda.writeReview': 'Write my review',
   'agenda.addWatchedDay': 'Add a film watched on this day',
   'agenda.book': 'Book my ticket',
