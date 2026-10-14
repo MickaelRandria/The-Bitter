@@ -137,6 +137,8 @@ export interface CinemaScreening {
   format?: string;
   notes?: string;
   status: CinemaScreeningStatus;
+  /** Confirmation explicite que la note personnelle concerne cette séance. */
+  ratingConfirmedAt?: number;
   reminderOffsetsMinutes: number[];
   /** Séance calée à plusieurs (« voir avec… ») : la proposition d'origine. */
   planId?: string;

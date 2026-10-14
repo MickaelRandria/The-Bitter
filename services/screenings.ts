@@ -13,6 +13,7 @@ interface ScreeningRow {
   format: string | null;
   notes: string | null;
   status: CinemaScreeningStatus;
+  rating_confirmed_at?: string | null;
   reminder_offsets_minutes: unknown;
   plan_id?: string | null;
   booking_url?: string | null;
@@ -57,6 +58,7 @@ const fromRow = (row: ScreeningRow): CinemaScreening => ({
   format: row.format ?? undefined,
   notes: row.notes ?? undefined,
   status: row.status,
+  ratingConfirmedAt: row.rating_confirmed_at ? Date.parse(row.rating_confirmed_at) : undefined,
   reminderOffsetsMinutes: Array.isArray(row.reminder_offsets_minutes)
     ? row.reminder_offsets_minutes.map(Number).filter(Number.isFinite)
     : DEFAULT_REMINDERS,
@@ -141,6 +143,18 @@ export const listRecentScreenings = async (profileId: string): Promise<CinemaScr
       .limit(100).abortSignal(AbortSignal.timeout(8000));
     return error ? [] : (data as ScreeningRow[] || []).map(fromRow);
   } catch { return []; }
+};
+
+export const confirmScreeningRating = async (profileId: string, screeningId: string): Promise<boolean> => {
+  if (!supabase || !profileId) return false;
+  try {
+    const { data, error } = await supabase.from('cinema_screenings')
+      .update({ rating_confirmed_at: new Date().toISOString() })
+      .eq('profile_id', profileId).eq('id', screeningId)
+      .in('status', ['scheduled', 'completed']).lte('starts_at', new Date().toISOString())
+      .select('id').abortSignal(AbortSignal.timeout(8_000)).maybeSingle();
+    return !error && !!data;
+  } catch { return false; }
 };
 
 export const cancelPastScreening = async (profileId: string, screeningId: string): Promise<boolean> => {
