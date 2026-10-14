@@ -375,7 +375,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           });
           setEmotionalImprints([]);
         }
-        if (initialData.dateWatched)
+        if (initialWatchedDay) setSelectedDate(initialWatchedDay);
+        else if (initialData.dateWatched)
           setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
       } else if (tmdbIdToLoad) {
         restoredProfileRef.current = null;

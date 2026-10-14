@@ -49,6 +49,7 @@ import {
   watchRegionOf,
 } from '../utils/discoveryRegion';
 import { workKey } from '../utils/workKey';
+import { isWatchedWork } from '../utils/collectionRules';
 import { useImdbRatings } from '../services/imdb';
 import { pickFromLookup } from '../utils/publicRating';
 import PublicRatingBadge from './PublicRatingBadge';
@@ -228,12 +229,15 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     const watched = new Set<number>();
     const watchlist = new Set<number>();
     (movies || []).forEach((m) => {
-      if (m.tmdbId == null || m.seasonNumber != null) return;
-      if (m.status === 'watched') watched.add(m.tmdbId);
+      if (m.tmdbId == null || m.seasonNumber != null || (m.mediaType ?? 'movie') !== mediaType) return;
+      if (isWatchedWork(m)) watched.add(m.tmdbId);
       else if (m.status === 'watchlist') watchlist.add(m.tmdbId);
     });
     return { watchedIds: watched, watchlistIds: watchlist };
-  }, [movies]);
+  }, [movies, mediaType]);
+
+  // La recherche permet de retrouver un film vu ; les suggestions proposent du nouveau.
+  const visibleItems = isSearchActive ? items : items.filter(item => !watchedIds.has(item.id));
 
   const saveRecentSearch = (query: string) => {
     if (query.length < 2) return;
@@ -767,7 +771,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               </div>
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="py-24 flex flex-col items-center justify-center text-center px-8 bg-white dark:bg-[#1a1a1a] rounded-[3rem] border border-stone-100 dark:border-white/5 shadow-sm transition-all">
             <div className="w-16 h-16 bg-stone-50 dark:bg-[#202020] rounded-full flex items-center justify-center text-stone-300 dark:text-stone-700 mb-6">
               <Search size={24} />
@@ -781,7 +785,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const isWatched = watchedIds.has(item.id);
               const isInWatchlist = watchlistIds.has(item.id);
               const isInCollection = isWatched || isInWatchlist;

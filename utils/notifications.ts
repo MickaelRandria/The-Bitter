@@ -1,6 +1,8 @@
-import { Movie } from '../types';
+import { CinemaScreening, Movie } from '../types';
+import { ratingOf } from './ratingHistory';
+import { screeningRatingDue } from './screeningFollowup';
 
-export type NotificationType = 'streak' | 'weekly' | 'unrated' | 'monthly';
+export type NotificationType = 'streak' | 'weekly' | 'unrated' | 'monthly' | 'screening';
 
 export interface AppNotification {
   id: string;
@@ -9,6 +11,7 @@ export interface AppNotification {
   body: string;
   createdAt: number;
   read: boolean;
+  screeningId?: string;
 }
 
 export interface NotificationPrefs {
@@ -79,7 +82,7 @@ export function sendTestNotification(movies: Movie[]): void {
   }
 }
 
-export function computeNotifications(movies: Movie[], prefs?: NotificationPrefs): AppNotification[] {
+export function computeNotifications(movies: Movie[], prefs?: NotificationPrefs, screenings: CinemaScreening[] = []): AppNotification[] {
   const effectivePrefs = prefs ?? getNotificationPrefs();
   const readIds = getReadIds();
   const watched = movies.filter((m) => m.status === 'watched');
@@ -165,7 +168,7 @@ export function computeNotifications(movies: Movie[], prefs?: NotificationPrefs)
   if (effectivePrefs.unrated) {
     const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
     const unrated = movies.filter(
-      (m) => m.status === 'watchlist' && m.dateAdded <= threeDaysAgo
+      (m) => m.status === 'watched' && ratingOf(m) == null && (m.dateWatched || m.dateAdded) <= threeDaysAgo
     );
     if (unrated.length > 0) {
       const id = `unrated-${unrated.length}`;
@@ -180,6 +183,15 @@ export function computeNotifications(movies: Movie[], prefs?: NotificationPrefs)
         createdAt: now - 2000,
         read: readIds.has(id),
       });
+    }
+  }
+
+  if (effectivePrefs.unrated) {
+    for (const screening of screeningRatingDue(screenings, movies, now)) {
+      const id = `screening-rating-${screening.id}`;
+      notifications.push({ id, type: 'screening', title: 'Ta séance est passée',
+        body: `${screening.title} : si tu l’as vu, donne ton avis.`, screeningId: screening.id,
+        createdAt: screening.startsAt, read: readIds.has(id) });
     }
   }
 

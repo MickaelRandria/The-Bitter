@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CinemaScreening, Movie } from '../types';
+import { screeningRatingDue } from '../utils/screeningFollowup';
 import { loadCalendarSessions } from '../services/calendarAgenda';
 import { fetchLocalReleaseDate, getTheatreReleases, TheatreRelease } from '../services/tmdb';
 import {
@@ -141,8 +142,9 @@ export function useCalendarAgenda(
         tmdbId: movie.tmdbId,
       };
     });
+    const dueIds = new Set(screeningRatingDue(screenings, movies).map(screening => screening.id));
     const sessions = screenings
-      .filter((screening) => screening.status !== 'completed' && screening.startsAt > Date.now())
+      .filter((screening) => (screening.status !== 'completed' && screening.startsAt > Date.now()) || dueIds.has(screening.id))
       .map((screening): AgendaEvent => {
         const plan = plans.find((event) => event.planId === screening.planId);
         return {
