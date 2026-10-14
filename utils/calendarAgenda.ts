@@ -9,6 +9,7 @@ export interface AgendaMovie {
   adaptiveRating?: { weightedRating: number };
   watches?: {
     id: string;
+    watch_number?: number;
     watched_at: string;
     ratings: AgendaMovie['ratings'];
     adaptiveRating?: { weightedRating: number };
@@ -21,6 +22,7 @@ export interface CalendarWatch {
   watchId?: string;
   day: string;
   rating: number;
+  rewatch?: boolean;
 }
 
 export type AgendaKind = 'watched' | 'screening' | 'plan' | 'watchlist-release' | 'release';
@@ -77,7 +79,8 @@ export function calendarHistory(movies: readonly AgendaMovie[]): CalendarWatch[]
   for (const movie of movies) {
     if (movie.status !== 'watched' || movie.mediaType === 'tv' || movie.seasonNumber != null)
       continue;
-    const watches = (movie.watches ?? []).filter((watch) => calendarDay(watch.watched_at));
+    const watches = (movie.watches ?? []).filter((watch) => calendarDay(watch.watched_at))
+      .slice().sort((a, b) => Date.parse(a.watched_at) - Date.parse(b.watched_at));
     if (watches.length) {
       const seen = new Set<string>();
       for (const watch of watches) {
@@ -89,6 +92,7 @@ export function calendarHistory(movies: readonly AgendaMovie[]): CalendarWatch[]
           watchId: watch.id,
           day: calendarDay(watch.watched_at),
           rating: score(watch),
+          rewatch: (watch.watch_number ?? seen.size) > 1,
         });
       }
     } else if (movie.dateWatched != null && calendarDay(movie.dateWatched)) {

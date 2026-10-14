@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-14-note-seance",
+  "version": "2026-10-14-calendrier-rewatch",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Les rewatches se repèrent dans ton année",
+      "body": "Une petite pastille Rewatch indique les films revus dans les affiches du calendrier annuel et dans l’image à partager. Chaque séance garde sa place dans ton historique."
+    },
     {
       "title": "Ta note, la bonne séance",
       "body": "Si un film est déjà noté, Bitter te demande si cette note concerne la séance prévue. La confirmer arrête le rappel sans ajouter de visionnage. Un rewatch s’ouvre seulement si tu choisis de noter une autre séance."

@@ -9,7 +9,7 @@ export async function shareCalendarYear(
   best: (CalendarWatch | null)[],
   movies: Movie[],
   months: string[],
-  labels: { title: string; summary: string; empty: string; future: string; record: string },
+  labels: { title: string; summary: string; empty: string; future: string; record: string; rewatch: string },
   today: string
 ) {
   const canvas = document.createElement('canvas');
@@ -84,6 +84,15 @@ export async function shareCalendarYear(
       ctx.fillText(label, x + 12, y + height / 2, width - 24);
     }
     if (best[month]) {
+      if (best[month]!.rewatch) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.beginPath();
+        ctx.roundRect(x + 10, y + 10, 142, 34, 17);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 20px sans-serif';
+        ctx.fillText(labels.rewatch, x + 23, y + 34, 116);
+      }
       ctx.fillStyle = '#D9FF00';
       ctx.beginPath();
       ctx.roundRect(x + 10, y + height - 48, 72, 34, 17);
