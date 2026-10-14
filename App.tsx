@@ -163,7 +163,6 @@ import { imdbLookupFor } from './utils/publicRating';
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const CinemaFil = lazy(() => import('./components/CinemaFil'));
-import CinemaFilEntry from './components/CinemaFilEntry';
 import DailyFilButton from './components/DailyFilButton';
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
@@ -3746,7 +3745,6 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
-              {activeProfile && <CinemaFilEntry image={allMovies.find(movie => movie.posterUrl)?.posterUrl} onOpen={() => setShowCinemaFil(true)} />}
               {session?.user?.email && voteRequests.length > 0 && (
                 <HomeVoteCard requests={voteRequests} onVote={voteFromHome} onLater={voteLaterFromHome} />
               )}
