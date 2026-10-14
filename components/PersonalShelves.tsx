@@ -7,6 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { myPlatforms } from '../utils/platforms';
 import { ShelfItem, getOnMyPlatforms, getStarterPicks } from '../services/shelves';
 import { getTheatreReleases } from '../services/tmdb';
+import { isWatchedWork } from '../utils/collectionRules';
 
 type ShelfKind = 'platforms' | 'cinema' | 'starter';
 
@@ -42,7 +43,7 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
   const genres = profile.favoriteGenres ?? [];
   const rated = profile.movies.filter((m) => m.status === 'watched').length;
   const seen = useMemo(
-    () => new Set(profile.movies.filter((m) => m.status === 'watched' && (m.mediaType ?? 'movie') === mediaType).map((m) => m.tmdbId)),
+    () => new Set(profile.movies.filter((m) => isWatchedWork(m) && m.seasonNumber == null && (m.mediaType ?? 'movie') === mediaType).map((m) => m.tmdbId)),
     [profile.movies, mediaType]
   );
   const [rows, setRows] = useState<Partial<Record<ShelfKind, ShelfItem[]>>>({});

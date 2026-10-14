@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-14-fil-cinema",
+  "version": "2026-10-14-coherence-collection",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Un film, une fiche dans ta collection",
+      "body": "Noter un film à voir met à jour sa fiche existante et le fait passer dans tes vus. Un ajout rapide ne remet plus un film vu dans la liste à voir."
+    },
+    {
+      "title": "Des suggestions que tu n’as pas déjà vues",
+      "body": "Explorer et les découvertes du Fil écartent tes films vus. La recherche te permet toujours de les retrouver, et leurs actus restent accessibles."
+    },
+    {
+      "title": "Après ta séance, ton avis",
+      "body": "Une séance confirmée passée sans note te propose un rappel dans l’app après sa fin estimée. Donne ton avis, reporte à demain ou indique que tu n’y es pas allé. Une simple envie à voir ne réclame plus de note."
+    },
     {
       "title": "Un Fil pour le cinéma et les séries",
       "body": "Depuis le header, fais défiler des actus de franceinfo et du Monde, des bandes-annonces officielles et des sorties cinéma. Les filtres Films, Séries, Actus et Bandes-annonces t'aident à choisir."
@@ -60,15 +72,15 @@
   "highlights": [
     {
       "icon": "cinema",
-      "title": "Actus et bandes-annonces, dans ton Fil"
+      "title": "À voir puis vu : une seule fiche"
     },
     {
       "icon": "cinema",
-      "title": "Des titres à découvrir selon tes goûts"
+      "title": "Des suggestions que tu n’as pas déjà vues"
     },
     {
       "icon": "cinema",
-      "title": "Réagis et échange autour des cartes"
+      "title": "Après ta séance, donne ton avis"
     }
   ]
 }

@@ -8,6 +8,7 @@ import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
 import { getCinemaFil, getFilCounts, getFilFollows, FilCount, markFilOpened, readFilLocal, setFilLike } from '../services/cinemaFil';
 import { youtubeEmbed } from '../services/trailers';
+import { watchedWorkKeys } from '../utils/collectionRules';
 import { useBlockedUsers } from '../services/moderation';
 import MovieDetailModal from './MovieDetailModal';
 import FilFollowButton from './FilFollowButton';
@@ -49,7 +50,11 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
   const lengthRef = useRef(0);
   const moviesRef = useRef(movies); moviesRef.current = movies;
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
-  const available = useMemo(() => items.filter(item => !item.friendId || !blocked.has(item.friendId)), [items, blocked]);
+  const available = useMemo(() => {
+    const seen = watchedWorkKeys(movies);
+    return items.filter(item => (!item.friendId || !blocked.has(item.friendId))
+      && !(item.kind === 'discovery' && item.work && seen.has(filWorkKey(item.work.mediaType, item.work.tmdbId))));
+  }, [items, blocked, movies]);
   const visible = useMemo(() => filterFil(available, category, media), [available, category, media]);
   const previousFilter = useRef(`${category}:${media}`);
   lengthRef.current = visible.length;

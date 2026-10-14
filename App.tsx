@@ -75,6 +75,11 @@ import {
 import { attachForgottenSubscriptionSessions, withFirstWatchContext } from './utils/cinemaSubscription';
 import { withRatingRevision } from './utils/ratingHistory';
 import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
+import { findCollectionWork, isWatchedWork, removeCollectionWork, uniqueCollection } from './utils/collectionRules';
+import { useScreeningFollowup } from './services/useScreeningFollowup';
+import { screeningMovie } from './utils/screeningFollowup';
+import { calendarDay } from './utils/calendarAgenda';
+import type { CinemaScreening } from './types';
 import {
   backfillProfileToSupabase,
   fetchRemoteMovies,
@@ -1488,30 +1493,41 @@ const App: React.FC = () => {
       // rester coincé sur une erreur réseau.
       .finally(() => setBootstrapping(false));
 
+    // Les appels Supabase doivent se faire après le callback d'auth : le SDK
+    // y tient encore son verrou de session, notamment au retour sur l'onglet.
+    let authTimer: number | undefined;
+    let authDisposed = false;
     // Écouter les changements d'état
     const {
       data: { subscription },
-    } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
+    } = (supabase.auth as any).onAuthStateChange((event: string, session: any) => {
       setSession(session);
 
       if (event === 'SIGNED_IN' && session?.user) {
-        await loadOrCreateProfile(session.user);
-        const result = await migrateLocalStorageToSupabase(session.user.id);
-        console.log('[Migration]', result);
-        const linkedId = localStorage.getItem(linkedProfileKey(session.user.id)) ?? undefined;
-        resyncAllMoviesToSupabase(session.user.id, linkedId);
-        if (!linkedId) {
-          const localProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-          if (localProfiles.length === 1) {
-            localStorage.setItem(linkedProfileKey(session.user.id), localProfiles[0].id);
-            resyncAllMoviesToSupabase(session.user.id, localProfiles[0].id);
-          } else if (localProfiles.length > 1) {
-            setShowProfileLinking(true);
-          }
-        }
+        if (authTimer) window.clearTimeout(authTimer);
+        authTimer = window.setTimeout(() => {
+          if (authDisposed) return;
+          void (async () => {
+            await loadOrCreateProfile(session.user);
+            const result = await migrateLocalStorageToSupabase(session.user.id);
+            console.log('[Migration]', result);
+            const linkedId = localStorage.getItem(linkedProfileKey(session.user.id)) ?? undefined;
+            resyncAllMoviesToSupabase(session.user.id, linkedId);
+            if (!linkedId) {
+              const localProfiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+              if (localProfiles.length === 1) {
+                localStorage.setItem(linkedProfileKey(session.user.id), localProfiles[0].id);
+                resyncAllMoviesToSupabase(session.user.id, localProfiles[0].id);
+              } else if (localProfiles.length > 1) {
+                setShowProfileLinking(true);
+              }
+            }
+          })().catch(error => { if (import.meta.env.DEV) console.warn('[Sync] Retour au compte impossible', error); });
+        }, 0);
       }
 
       if (event === 'SIGNED_OUT') {
+        if (authTimer) window.clearTimeout(authTimer);
         // Session expirée ou fermée depuis un autre appareil : sans l'écran
         // d'accueil, l'app restait sur une interface sans profil, donc vide.
         setPendingProfileSetup(null);
@@ -1527,7 +1543,7 @@ const App: React.FC = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { authDisposed = true; if (authTimer) window.clearTimeout(authTimer); subscription.unsubscribe(); };
   }, []);
 
   /*
@@ -1978,13 +1994,20 @@ const App: React.FC = () => {
     opts: { target?: Movie | null; toast?: string } = {}
   ) => {
     if (!activeProfileId) return;
-    const editing = opts.target !== undefined ? opts.target : editingMovie;
+    const requested = opts.target !== undefined ? opts.target : editingMovie;
+    const editing = requested ?? findCollectionWork(profilesRef.current.find(p => p.id === activeProfileId)?.movies ?? [], data);
     const hasRatings =
-      data.ratings &&
+      data.adaptiveRating != null || data.ratings &&
       (data.ratings.story > 0 ||
         data.ratings.visuals > 0 ||
         data.ratings.acting > 0 ||
         data.ratings.sound > 0);
+
+    if (editing && isWatchedWork(editing) && data.status === 'watchlist' && !hasRatings) {
+      setToastMessage(t('lifecycle.alreadyWatched'));
+      setIsModalOpen(false); setEditingMovie(null); setTmdbIdToLoad(null);
+      return;
+    }
 
     /**
      * Noter ne termine pas une série.
@@ -2012,12 +2035,12 @@ const App: React.FC = () => {
     finalMovie = withFirstWatchContext(finalMovie, viewingContext);
 
     // Recalcul de l'archétype basé sur les films regardés
-    const currentProfile = profiles.find((p) => p.id === activeProfileId);
+    const currentProfile = profilesRef.current.find((p) => p.id === activeProfileId);
     let newRole: string | undefined;
     if (currentProfile) {
-      const updatedMovies = editing
+      const updatedMovies = uniqueCollection(editing
         ? currentProfile.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
-        : [finalMovie, ...currentProfile.movies];
+        : [finalMovie, ...currentProfile.movies]);
       /**
        * L'archétype ne se calcule que sur les films.
        *
@@ -2063,15 +2086,17 @@ const App: React.FC = () => {
       }
     }
 
-    setProfiles((prev) =>
-      prev.map((p) => {
-        if (p.id !== activeProfileId) return p;
-        let updatedMovies = editing
-          ? p.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
-          : [finalMovie, ...p.movies];
-        return { ...p, movies: updatedMovies, ...(newRole ? { role: newRole } : {}) };
-      })
-    );
+    const applySavedMovie = (p: UserProfile) => {
+      if (p.id !== activeProfileId) return p;
+      const updatedMovies = editing
+        ? p.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
+        : [finalMovie, ...p.movies];
+      return { ...p, movies: updatedMovies, ...(newRole ? { role: newRole } : {}) };
+    };
+    // Deux ajouts rapides peuvent finir avant le prochain rendu React.
+    // Le second doit retrouver la fiche que le premier vient d'enregistrer.
+    profilesRef.current = profilesRef.current.map(applySavedMovie);
+    setProfiles(prev => prev.map(applySavedMovie));
     /**
      * Juste après le geste, la question qui va avec : « le voir avec quelqu'un ? »
      * pour un ajout à la liste, « demander son avis ? » pour une première note.
@@ -2594,6 +2619,8 @@ const App: React.FC = () => {
 
   const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv'): Promise<boolean> => {
     if (!activeProfileId) return false;
+    const known = findCollectionWork(profilesRef.current.find(p => p.id === activeProfileId)?.movies ?? [], { tmdbId, mediaType });
+    if (known) { setToastMessage(t(isWatchedWork(known) ? 'lifecycle.alreadyWatched' : 'lifecycle.alreadyInList')); return true; }
     try {
       let formData: MovieFormData | null = null;
       if (mediaType === 'movie') {
@@ -2633,7 +2660,8 @@ const App: React.FC = () => {
         }
       }
       if (!formData) throw new Error('fetch failed');
-      handleSaveMovie({ ...formData, status: 'watchlist' });
+      // Un ajout rapide ne modifie jamais le film éventuellement ouvert dans le formulaire.
+      handleSaveMovie({ ...formData, status: 'watchlist' }, undefined, { target: null });
       return true;
     } catch {
       setToastMessage(t('feed.cannotAddToWatchlist'));
@@ -2676,7 +2704,7 @@ const App: React.FC = () => {
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === activeProfileId
-            ? { ...p, movies: p.movies.filter((m) => m.id !== pendingDelete.id) }
+            ? { ...p, movies: flushed ? removeCollectionWork(p.movies, flushed) : p.movies.filter((m) => m.id !== pendingDelete.id) }
             : p
         )
       );
@@ -2697,7 +2725,7 @@ const App: React.FC = () => {
     const timeoutId = setTimeout(() => {
       setProfiles((prev) =>
         prev.map((p) =>
-          p.id === activeProfileId ? { ...p, movies: p.movies.filter((m) => m.id !== id) } : p
+          p.id === activeProfileId ? { ...p, movies: movie ? removeCollectionWork(p.movies, movie) : p.movies.filter((m) => m.id !== id) } : p
         )
       );
       setPendingDelete(null);
@@ -2783,8 +2811,22 @@ const App: React.FC = () => {
   /** Toutes les œuvres du profil, dédoublonnées — les deux parties confondues. */
   const allMovies = useMemo(() => {
     if (!activeProfile) return [];
-    return Array.from(new Map(activeProfile.movies.map((m) => [m.id, m])).values());
+    return uniqueCollection(activeProfile.movies);
   }, [activeProfile]);
+
+  const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
+  const rateScreening = (screening: CinemaScreening) => {
+    const movie = screeningMovie(screening, allMovies);
+    setMediaMode('movie');
+    if (movie && isWatchedWork(movie) && hasRating(movie)) { setRewatchMovie(movie); return; }
+    if (!screening.tmdbId && !movie) { setViewMode('Calendar'); return; }
+    setEditingMovie(movie ? { ...movie, status: 'watched', dateWatched: screening.startsAt } : null);
+    setTmdbIdToLoad(movie ? null : screening.tmdbId ?? null);
+    setMediaTypeToLoad('movie');
+    setInitialStatusForAdd('watched');
+    setCalendarWatchedDay(calendarDay(screening.startsAt));
+    setIsModalOpen(true);
+  };
 
   /* Au retour d'un épisode lancé depuis l'app, lui demander comment c'était.
      Seulement pour une série du profil ouvert, et sans chasser un mode épisode
@@ -3508,6 +3550,8 @@ const App: React.FC = () => {
                   parlent de films, et une série n'a rien à y faire. */}
               <NotificationCenter
                 movies={uniqueMovies}
+                screenings={mediaMode === 'movie' ? screeningFollowup.due : []}
+                onRateScreening={rateScreening}
                 userId={session?.user?.id ?? null}
                 openSignal={notifOpenSignal}
                 onOpenSpace={openSpaceFromNotification}
@@ -3745,6 +3789,14 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+              {mediaMode === 'movie' && screeningFollowup.prompt && <section className="rounded-3xl border border-sand bg-white p-5 dark:border-white/10 dark:bg-[#161616]" aria-label={t('lifecycle.screeningTitle')}>
+                <h2 className="text-sm font-black">{t('lifecycle.screeningTitle')}</h2>
+                <p className="mt-2 text-sm font-bold">{screeningFollowup.prompt.title}</p>
+                <p className="mt-1 text-xs text-stone-500">{t('lifecycle.screeningBody')}</p>
+                {screeningFollowup.cancelError && <p role="alert" className="mt-2 text-xs text-orange-600">{t('lifecycle.cancelError')}</p>}
+                <div className="mt-4 flex gap-3"><button type="button" className="rounded-full bg-bitter-lime px-4 py-2 text-xs font-black text-charcoal" onClick={() => rateScreening(screeningFollowup.prompt!)}>{t(screeningFollowup.prompt.tmdbId || screeningMovie(screeningFollowup.prompt, allMovies) ? 'lifecycle.rate' : 'lifecycle.openCalendar')}</button><button type="button" className="px-3 py-2 text-xs font-bold text-stone-500" onClick={() => screeningFollowup.snooze(screeningFollowup.prompt!.id)}>{t('lifecycle.later')}</button></div>
+                {screeningFollowup.prompt.status === 'scheduled' && <button type="button" disabled={screeningFollowup.cancelling} className="mt-3 text-xs font-bold text-stone-400 disabled:opacity-50" onClick={() => void screeningFollowup.cancel(screeningFollowup.prompt!.id)}>{t('lifecycle.notAttended')}</button>}
+              </section>}
               {session?.user?.email && voteRequests.length > 0 && (
                 <HomeVoteCard requests={voteRequests} onVote={voteFromHome} onLater={voteLaterFromHome} />
               )}

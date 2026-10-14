@@ -116,7 +116,7 @@ export const listUpcomingScreenings = async (profileId: string): Promise<CinemaS
       .from('cinema_screenings')
       .select('*')
       .eq('profile_id', profileId)
-      .gte('starts_at', new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString())
+      .gte('starts_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
       .neq('status', 'cancelled')
       .order('starts_at', { ascending: true });
     if (error) {
@@ -128,6 +128,30 @@ export const listUpcomingScreenings = async (profileId: string): Promise<CinemaS
     console.warn('[Séances] Calendrier injoignable', error);
     return [];
   }
+};
+
+/** Séances confirmées récentes : relancer un verdict, jamais une réservation en attente. */
+export const listRecentScreenings = async (profileId: string): Promise<CinemaScreening[]> => {
+  if (!supabase || !profileId) return [];
+  try {
+    const { data, error } = await supabase.from('cinema_screenings').select('*')
+      .eq('profile_id', profileId).in('status', ['scheduled', 'completed'])
+      .gte('starts_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+      .lte('starts_at', new Date().toISOString()).order('starts_at', { ascending: false })
+      .limit(100).abortSignal(AbortSignal.timeout(8000));
+    return error ? [] : (data as ScreeningRow[] || []).map(fromRow);
+  } catch { return []; }
+};
+
+export const cancelPastScreening = async (profileId: string, screeningId: string): Promise<boolean> => {
+  if (!supabase || !profileId) return false;
+  try {
+    const { data, error } = await supabase.from('cinema_screenings')
+      .update({ status: 'cancelled' }).eq('profile_id', profileId).eq('id', screeningId)
+      .eq('status', 'scheduled').lte('starts_at', new Date().toISOString())
+      .select('id').abortSignal(AbortSignal.timeout(8000)).maybeSingle();
+    return !error && !!data;
+  } catch { return false; }
 };
 
 /**

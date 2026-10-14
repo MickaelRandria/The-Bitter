@@ -140,7 +140,7 @@ export async function getCinemaFil(movies: Movie[], follows: FilFollow[], langua
     const unique = new Map<string, FilItem>();
     for (const c of candidates) {
       const work = titleFrom(c.row, c.type), key = filWorkKey(work.mediaType, work.tmdbId);
-      if (!work.title || !work.poster || unique.has(key) || (seen.has(key) && !following.has(key))) continue;
+      if (!work.title || !work.poster || unique.has(key) || seen.has(key)) continue;
       unique.set(key, { id: `discovery:${key}`, kind: 'discovery', mediaType: work.mediaType, title: work.title, description: c.row.overview || '',
         image: work.poster, source: 'TMDB', sourceUrl: `https://www.themoviedb.org/${work.mediaType}/${work.tmdbId}`, work,
         reason: following.has(key) ? 'following' : c.reasonTitle ? 'because' : 'trending', reasonTitle: c.reasonTitle });

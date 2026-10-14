@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, Loader2, X } from 'lucide-react';
-import { Movie } from '../types';
+import { CinemaScreening, Movie } from '../types';
 import {
   AppNotification,
   computeNotifications,
@@ -28,6 +28,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface NotificationCenterProps {
   movies: Movie[];
+  screenings?: CinemaScreening[];
+  onRateScreening?: (screening: CinemaScreening) => void;
   /** Compte connecté : sans lui, seules les notifications locales existent. */
   userId?: string | null;
   /** Incrémenté pour ouvrir le panneau de l'extérieur (lien d'une notification push). */
@@ -46,6 +48,7 @@ interface NotificationCenterProps {
 }
 
 const typeIcon: Record<AppNotification['type'], string> = {
+  screening: '🎟️',
   streak: '🔥',
   weekly: '📅',
   unrated: '🎬',
@@ -62,8 +65,11 @@ const ago = (iso: string): string => {
   return days === 1 ? 'hier' : `il y a ${days} j`;
 };
 
+const EMPTY_SCREENINGS: CinemaScreening[] = [];
 const NotificationCenter: React.FC<NotificationCenterProps> = ({
   movies,
+  screenings = EMPTY_SCREENINGS,
+  onRateScreening,
   userId,
   openSignal,
   onOpenSpace,
@@ -91,8 +97,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setNotifications(computeNotifications(movies, getNotificationPrefs()));
-  }, [movies]);
+    setNotifications(computeNotifications(movies, getNotificationPrefs(), screenings));
+  }, [movies, screenings]);
 
   const loadSocial = useCallback(async () => {
     if (!userId) {
@@ -159,6 +165,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const handleMarkOne = (id: string) => {
     markAsRead(id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+  const openLocalNotification = (notification: AppNotification) => {
+    handleMarkOne(notification.id);
+    const screening = screenings.find(row => row.id === notification.screeningId);
+    if (screening && onRateScreening) { setOpen(false); onRateScreening(screening); }
   };
 
   const handleMarkAll = () => {
@@ -497,7 +508,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 {notifications.slice(0, Math.max(0, limit - social.length)).map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => handleMarkOne(n.id)}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openLocalNotification(n)}
+                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openLocalNotification(n); } }}
                     className={`flex gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-stone-50 dark:hover:bg-stone-800 ${
                       !n.read ? 'bg-lime-50 dark:bg-stone-800/60' : ''
                     }`}
@@ -512,14 +526,14 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                               : 'text-stone-600 dark:text-stone-400'
                           }`}
                         >
-                          {n.title}
+                          {n.type === 'screening' ? t('lifecycle.screeningTitle') : n.title}
                         </p>
                         {!n.read && (
                           <span className="shrink-0 w-2 h-2 rounded-full bg-bitter-lime mt-1" />
                         )}
                       </div>
                       <p className="text-xs text-stone-500 dark:text-stone-500 mt-0.5 leading-snug">
-                        {n.body}
+                        {n.type === 'screening' ? t('lifecycle.screeningNotification', { title: screenings.find(row => row.id === n.screeningId)?.title || '' }) : n.body}
                       </p>
                     </div>
                   </div>

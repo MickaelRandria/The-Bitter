@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { ActorInfo, AdaptiveRatingData, Movie, MovieStatus, MovieWatch, RatingRevision, TvProgress } from '../types';
 import { WorkIdentity, WorkKey, workKey } from '../utils/workKey';
+import { uniqueCollection } from '../utils/collectionRules';
 
 /**
  * Synchronisation du profil perso avec Supabase.
@@ -469,7 +470,7 @@ export const backfillProfileToSupabase = async (
   const deletedKeys = await getDeletedWorkKeys(userId);
 
   const withTmdbId = movies.filter((movie) => movie.tmdbId != null);
-  const syncable = withTmdbId.filter((movie) => !deletedKeys.has(workKey(movie)));
+  const syncable = uniqueCollection(withTmdbId).filter((movie) => !deletedKeys.has(workKey(movie)));
   const skippedDeleted = withTmdbId.length - syncable.length;
 
   if (syncable.length === 0) return { pushed: 0, failed: [], skippedDeleted };
@@ -532,7 +533,7 @@ export const mergeRemoteAndLocal = (remote: Movie[], local: Movie[]): Movie[] =>
     else withoutTmdbId.push(movie);
   });
 
-  local.forEach((movie) => {
+  uniqueCollection(local).forEach((movie) => {
     if (movie.tmdbId == null) {
       withoutTmdbId.push(movie);
       return;
