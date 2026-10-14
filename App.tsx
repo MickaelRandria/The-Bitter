@@ -102,7 +102,7 @@ import { CompanionPhase } from './utils/episodeSession';
 import { useEpisodeReturn } from './utils/useEpisodeSession';
 import ErrorBoundary from './components/ErrorBoundary';
 import { restoreBackupPreferences, TheBitterBackup } from './utils/dataBackup';
-import { getAdvancedArchetype } from './utils/archetypes';
+import { cinemaArchetype } from './utils/cinemaPortrait';
 import {
   getSmartTonightPick,
   filterByMoodPreset,
@@ -266,6 +266,7 @@ const PENDING_JOIN_KEY = 'bitter_pending_join';
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
+const CinemaPortraitModal = lazy(() => import('./components/CinemaPortraitModal'));
 const RecommendationsModal = lazy(() => import('./components/RecommendationsModal'));
 const LetterboxdImport = lazy(() => import('./components/LetterboxdImport'));
 
@@ -692,6 +693,9 @@ const App: React.FC = () => {
   const [showNewFeatures, setShowNewFeatures] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [showPortrait, setShowPortrait] = useState(false);
+  const [portraitFromAccount, setPortraitFromAccount] = useState(false);
+  useEffect(() => { setShowPortrait(false); setPortraitFromAccount(false); }, [activeProfileId, session?.user?.id]);
   const [showCinemaFil, setShowCinemaFil] = useState(false);
   /** Calendrier ouvert depuis le bandeau ciné de Découvrir : directement sur « À venir ». */
   const [calendarTab, setCalendarTab] = useState<'upcoming' | undefined>(undefined);
@@ -2035,56 +2039,14 @@ const App: React.FC = () => {
     // en la créant si le film n'en a pas encore.
     finalMovie = withFirstWatchContext(finalMovie, viewingContext);
 
-    // Recalcul de l'archétype basé sur les films regardés
-    const currentProfile = profilesRef.current.find((p) => p.id === activeProfileId);
+    const currentProfile = profilesRef.current.find(p => p.id === activeProfileId);
     let newRole: string | undefined;
     if (currentProfile) {
-      const updatedMovies = uniqueCollection(editing
-        ? currentProfile.movies.map((m) => (m.id === finalMovie.id ? finalMovie : m))
-        : [finalMovie, ...currentProfile.movies]);
-      /**
-       * L'archétype ne se calcule que sur les films.
-       *
-       * Les critères agrégés ici — rythme, tension, facteur smartphone — ont été
-       * étalonnés sur des longs métrages. Une saison de huit heures n'y répond
-       * pas de la même manière, et une série pèserait autant qu'un film alors
-       * qu'elle représente dix fois la durée. Mélanger les deux déformerait le
-       * portrait sans que rien ne l'explique à l'écran.
-       */
-      const watched = updatedMovies.filter(
-        (m) => m.status === 'watched' && (m.mediaType ?? 'movie') !== 'tv'
-      );
-      if (watched.length >= 10) {
-        const getVibe = (m: Movie, key: 'cerebral' | 'emotion' | 'fun' | 'visual' | 'tension'): number => {
-          if (m.vibe) {
-            switch (key) {
-              case 'cerebral': return m.vibe.story;
-              case 'emotion': return m.vibe.emotion;
-              case 'fun': return m.vibe.fun;
-              case 'visual': return m.vibe.visual;
-              case 'tension': return m.vibe.tension;
-            }
-          }
-          switch (key) {
-            case 'cerebral': return m.ratings.story;
-            case 'emotion': return (m.ratings.story + m.ratings.acting) / 2;
-            case 'fun': return m.ratings.acting;
-            case 'visual': return m.ratings.visuals;
-            case 'tension': return (m.ratings.sound + m.ratings.visuals) / 2;
-          }
-        };
-        const avg = (key: 'cerebral' | 'emotion' | 'fun' | 'visual' | 'tension') =>
-          watched.reduce((s, m) => s + getVibe(m, key), 0) / watched.length;
-        const result = getAdvancedArchetype({
-          vibes: { cerebral: avg('cerebral'), emotion: avg('emotion'), fun: avg('fun'), visual: avg('visual'), tension: avg('tension') },
-          quality: { scenario: 5, acting: 5, visual: 5, sound: 5 },
-          smartphone: watched.reduce((s, m) => s + (m.smartphoneFactor ?? 0), 0) / watched.length,
-          distinctGenreCount: new Set(watched.map((m) => m.genre)).size,
-          severityIndex: currentProfile.severityIndex ?? 5,
-          rhythmIndex: currentProfile.patienceLevel ?? 5,
-        });
-        if (result.title !== currentProfile.role) newRole = result.title;
-      }
+      const updatedMovies = editing
+        ? currentProfile.movies.map(m => m.id === finalMovie.id ? finalMovie : m)
+        : [finalMovie, ...currentProfile.movies];
+      const result = cinemaArchetype(updatedMovies, currentProfile);
+      if (result.confirmed && result.title !== currentProfile.role) newRole = result.title;
     }
 
     const applySavedMovie = (p: UserProfile) => {
@@ -3731,6 +3693,7 @@ const App: React.FC = () => {
               userProfile={activeProfile}
               onNavigateToCalendar={() => setViewMode('Calendar')}
               onRecalibrate={() => setShowCalibration(true)}
+              onOpenPortrait={() => { setPortraitFromAccount(false); setShowPortrait(true); }}
               onViewDirector={(name, id) => setPreviewDirector({ name, id })}
               onViewMovie={(movie, onReturn) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie, onReturn)}
               onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
@@ -4963,10 +4926,18 @@ const App: React.FC = () => {
             movies={uniqueMovies}
           />
         )}
+        {showPortrait && activeProfile && <CinemaPortraitModal
+          movies={allMovies} profile={activeProfile}
+          onClose={() => { setShowPortrait(false); if (portraitFromAccount) setShowProfile(true); }}
+          onFilm={movie => { setShowPortrait(false); openFilm(movie.tmdbId, 'movie', movie, () => setShowPortrait(true)); }}
+          onDiscovery={id => { setShowPortrait(false); openFilm(id, 'movie', undefined, () => setShowPortrait(true)); }}
+          onWatchlist={id => handleQuickWatchlist(id, 'movie')}
+        />}
         {showProfile && activeProfile && (
           <ProfileModal
             profile={activeProfile}
             session={session}
+            onOpenPortrait={() => { setShowProfile(false); setPortraitFromAccount(true); setShowPortrait(true); }}
             onClose={() => { setShowProfile(false); setProfileFocusHabits(false); }}
             onSwitchProfile={() => {
               setShowProfile(false);

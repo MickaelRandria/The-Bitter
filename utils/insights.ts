@@ -1,5 +1,5 @@
 import { Movie, UserProfile, PacingType } from '../types';
-import { getAdvancedArchetype } from './archetypes';
+import { cinemaArchetype, portraitFilms } from './cinemaPortrait';
 
 // ─── HELPER ───────────────────────────────────────────────────────────────────
 
@@ -185,9 +185,10 @@ export const computeArchetypeEvolution = (
   watched: Movie[],
   userProfile: UserProfile | null
 ): ArchetypeEvolutionResult | null => {
-  if (watched.length < 5) return null;
+  const films = portraitFilms(watched);
+  if (films.length < 5) return null;
 
-  const sorted = [...watched].sort((a, b) => {
+  const sorted = [...films].sort((a, b) => {
     const ta = a.dateWatched || a.dateAdded;
     const tb = b.dateWatched || b.dateAdded;
     return ta - tb;
@@ -197,44 +198,7 @@ export const computeArchetypeEvolution = (
 
   const computeAt = (n: number): ArchetypeSnapshot => {
     const subset = sorted.slice(0, n);
-    const sums = { cerebral: 0, emotion: 0, fun: 0, visual: 0, tension: 0 };
-    const qSums = { scenario: 0, acting: 0, visual: 0, sound: 0 };
-    let smartphoneSum = 0;
-    const genres = new Set<string>();
-
-    subset.forEach((m) => {
-      sums.cerebral += m.vibe?.story || 5;
-      sums.emotion += m.vibe?.emotion || 5;
-      sums.fun += m.vibe?.fun || 5;
-      sums.visual += m.vibe?.visual || 5;
-      sums.tension += m.vibe?.tension || 5;
-      qSums.scenario += m.ratings.story;
-      qSums.acting += m.ratings.acting;
-      qSums.visual += m.ratings.visuals;
-      qSums.sound += m.ratings.sound;
-      smartphoneSum += m.smartphoneFactor || 0;
-      if (m.genre) genres.add(m.genre);
-    });
-
-    const result = getAdvancedArchetype({
-      vibes: {
-        cerebral: sums.cerebral / n,
-        emotion: sums.emotion / n,
-        fun: sums.fun / n,
-        visual: sums.visual / n,
-        tension: sums.tension / n,
-      },
-      quality: {
-        scenario: qSums.scenario / n,
-        acting: qSums.acting / n,
-        visual: qSums.visual / n,
-        sound: qSums.sound / n,
-      },
-      smartphone: smartphoneSum / n,
-      distinctGenreCount: genres.size,
-      severityIndex: userProfile?.severityIndex || 5,
-      rhythmIndex: userProfile?.patienceLevel || 5,
-    });
+    const result = cinemaArchetype(subset, userProfile);
 
     const last = subset[subset.length - 1];
     return {

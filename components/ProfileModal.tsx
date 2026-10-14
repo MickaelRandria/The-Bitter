@@ -63,6 +63,7 @@ import ProfileHabits, { Habits } from './ProfileHabits';
 import { getDisplayWeightedRating } from '../utils/rating';
 import { getPublicRating } from '../utils/publicRating';
 import { patienceKey, severityKey, severityVsPublic } from '../utils/criticProfile';
+import { cinemaArchetype } from '../utils/cinemaPortrait';
 
 interface ProfileModalProps {
   profile: UserProfile;
@@ -70,6 +71,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onSwitchProfile: () => void;
   onRecalibrate: () => void;
+  onOpenPortrait?: () => void;
   onImportBackup: (backup: TheBitterBackup) => void;
   onSignOut: () => void;
   onOpenSpaces: () => void;
@@ -136,6 +138,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onSwitchProfile,
   onRecalibrate,
+  onOpenPortrait,
   onImportBackup,
   onSignOut,
   onOpenSpaces,
@@ -285,9 +288,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     return () => window.clearTimeout(id);
   }, [focusHabits]);
 
-  const archetypeIcon = profile.role ? ARCHETYPE_ICONS[profile.role] : null;
-  const archetypeDesc = profile.role ? t(`archetype.${profile.role}`) : null;
-  const isArchetypeConfirmed = stats.watchedCount >= 10;
+  const cinemaProfile = useMemo(() => cinemaArchetype(profile.movies, profile), [profile.movies, profile.severityIndex, profile.patienceLevel]);
+  const archetypeIcon = ARCHETYPE_ICONS[cinemaProfile.title];
+  const archetypeDesc = t(`archetype.${cinemaProfile.title}`);
+  const isArchetypeConfirmed = cinemaProfile.confirmed;
 
   return (
     <div {...dialog.props} className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6">
@@ -377,7 +381,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
                     {/* SECTION 2: ARCHETYPE */}
-          {profile.role && archetypeIcon && archetypeDesc && (
+          {archetypeIcon && archetypeDesc && (
             <div className="bg-white dark:bg-[#1a1a1a] rounded-[2rem] p-6 shadow-sm border border-sand dark:border-white/5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-forest/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="flex items-start gap-4 relative z-10">
@@ -387,7 +391,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-lg font-black text-charcoal dark:text-white leading-none">
-                      {profile.role}
+                      {cinemaProfile.title}
                     </h3>
                     <span
                       className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${isArchetypeConfirmed ? 'bg-forest/10 text-forest dark:text-lime-500' : 'bg-stone-100 text-stone-400 dark:bg-stone-800'}`}
@@ -398,6 +402,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <p className="text-xs font-medium text-stone-500 dark:text-stone-400 italic leading-relaxed">
                     "{archetypeDesc}"
                   </p>
+                  {onOpenPortrait && <button type="button" onClick={onOpenPortrait} className="mt-3 rounded-full bg-bitter-lime px-3 py-2 text-[10px] font-black text-charcoal">{t('portraitDetail.open')}</button>}
                 </div>
               </div>
             </div>

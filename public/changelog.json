@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-14-calendrier-rewatch",
+  "version": "2026-10-14-portrait-cinema",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Le détail de ton portrait cinéma",
+      "body": "Depuis ton profil ou tes statistiques, Voir mon portrait ouvre une vue dédiée aux neuf archétypes : films-preuves, nuances, évolution et découverte à ajouter à ta liste. Le profil conserve ses informations et ses réglages."
+    },
+    {
+      "title": "Un portrait fondé sur tes données",
+      "body": "Le calcul est commun au compte, à la notation et aux statistiques. Les genres sont normalisés, les ressentis manquants ne sont pas inventés et les rewatches ne comptent pas comme plusieurs films. Les rubriques indiquent lorsque les données sont insuffisantes."
+    },
     {
       "title": "Les rewatches se repèrent dans ton année",
       "body": "Une petite pastille Rewatch indique les films revus dans les affiches du calendrier annuel et dans l’image à partager. Chaque séance garde sa place dans ton historique."
