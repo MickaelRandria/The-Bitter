@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-14-coherence-collection",
+  "version": "2026-10-14-note-seance",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Ta note, la bonne séance",
+      "body": "Si un film est déjà noté, Bitter te demande si cette note concerne la séance prévue. La confirmer arrête le rappel sans ajouter de visionnage. Un rewatch s’ouvre seulement si tu choisis de noter une autre séance."
+    },
     {
       "title": "Un film, une fiche dans ta collection",
       "body": "Noter un film à voir met à jour sa fiche existante et le fait passer dans tes vus. Un ajout rapide ne remet plus un film vu dans la liste à voir."

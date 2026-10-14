@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CinemaScreening, Movie } from '../types';
-import { cancelPastScreening, listRecentScreenings } from './screenings';
+import { cancelPastScreening, confirmScreeningRating, listRecentScreenings } from './screenings';
 import { screeningRatingDue } from '../utils/screeningFollowup';
 import { getNotificationPrefs } from '../utils/notifications';
 
@@ -10,10 +10,15 @@ export function useScreeningFollowup(profileId: string | undefined, movies: Movi
   const [snoozed, setSnoozed] = useState<Record<string, number>>({});
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState(false);
+  const owner = useRef(profileId);
+  owner.current = profileId;
   const key = `bitter_screening_followup_${profileId ?? 'local'}`;
   useEffect(() => {
     let alive = true;
     setScreenings([]);
+    setLinkError(false); setLinking(false);
     try { const raw = JSON.parse(localStorage.getItem(key) || '{}'); setSnoozed(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}); } catch { setSnoozed({}); }
     const refresh = async () => {
       if (!profileId) return;
@@ -41,5 +46,15 @@ export function useScreeningFollowup(profileId: string | undefined, movies: Movi
     else setCancelError(true);
     setCancelling(false);
   };
-  return { due, prompt: due.find(row => (snoozed[row.id] || 0) <= now), snooze, cancel, cancelling, cancelError };
+  const confirm = async (id: string) => {
+    if (!profileId || linking) return false;
+    setLinking(true); setLinkError(false);
+    const ok = await confirmScreeningRating(profileId, id);
+    if (owner.current !== profileId) return false;
+    if (ok) setScreenings(rows => rows.map(row => row.id === id ? { ...row, ratingConfirmedAt: Date.now() } : row));
+    else setLinkError(true);
+    setLinking(false);
+    return ok;
+  };
+  return { due, screenings, prompt: due.find(row => (snoozed[row.id] || 0) <= now), snooze, cancel, cancelling, cancelError, confirm, linking, linkError };
 }

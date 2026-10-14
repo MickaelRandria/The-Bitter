@@ -65,6 +65,7 @@ interface RewatchModalProps {
   onSave: (watch: MovieWatch) => void;
   /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
   cinemaSubscription?: CinemaSubscription;
+  screeningStartsAt?: number;
 }
 
 // Mapping weight → pips: Essentiel ●●●, Important ●●○, Standard ●○○, Secondaire ○○○
@@ -108,6 +109,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
   onClose,
   onSave,
   cinemaSubscription,
+  screeningStartsAt,
 }) => {
   const dialog = useDialog(onClose);
   const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
@@ -258,7 +260,7 @@ const RewatchModal: React.FC<RewatchModalProps> = ({
     const watch: MovieWatch = {
       id: crypto.randomUUID(),
       watch_number: watchNumber,
-      watched_at: new Date().toISOString(),
+      watched_at: new Date(screeningStartsAt ?? Date.now()).toISOString(),
       ratings,
       review: review.trim() || undefined,
       sentiment,

@@ -61,22 +61,29 @@ test('le rappel attend la fin estimée et ignore les séances annulées ou non c
   assert.equal(followup.screeningRatingDue([{ ...screening, startsAt: now - 3600000 }], [film], now).length, 0);
   assert.equal(followup.screeningRatingDue([screening], [{ ...film, runtime: 360 }], now).length, 0);
 });
-test('une note du jour de la séance fait disparaître le rappel, même datée à minuit', () => {
+test('une note du jour ne prouve pas à quelle séance elle correspond', () => {
   const rated = { ...film, status: 'watched', dateWatched: Date.parse('2026-10-14T00:00:00Z'), ratings: { ...film.ratings, story: 8 } };
-  assert.equal(followup.screeningRatingDue([screening], [rated], now).length, 0);
-  assert.equal(followup.screeningRatingDue([screening], [{ ...rated, ratings: film.ratings, adaptiveRating: { weightedRating: 0 } }], now).length, 0);
+  assert.equal(followup.screeningRatingDue([screening], [rated], now).length, 1);
+  const confirmed = { ...screening, ratingConfirmedAt: now };
+  assert.equal(followup.screeningRatingDue([confirmed], [rated], now).length, 0);
+  assert.equal(followup.screeningRatingDue([confirmed], [{ ...rated, ratings: film.ratings, adaptiveRating: { weightedRating: 0 } }], now).length, 0);
 });
 test('une ancienne note n’annule pas la relance d’une nouvelle séance de rewatch', () => {
   const rated = { ...film, status: 'watched', dateWatched: now - 7 * 86400000, ratings: { ...film.ratings, story: 8 } };
   assert.equal(followup.screeningRatingDue([screening], [rated], now).length, 1);
-  assert.equal(followup.screeningRatingDue([screening], [{ ...rated, watches: [{ watched_at: '2026-10-14T00:00:00Z', ratings: rated.ratings }] }], now).length, 0);
+  assert.equal(followup.screeningRatingDue([screening], [{ ...rated, watches: [{ watched_at: '2026-10-14T00:00:00Z', ratings: rated.ratings }] }], now).length, 1);
 });
 
-test('une séance après minuit à Paris attend la note du bon jour local', () => {
+test('une séance après minuit à Paris exige le lien explicite, quelle que soit la date de note', () => {
   const night = { ...screening, startsAt: Date.parse('2026-10-13T23:30:00Z') };
   const rated = { ...film, status: 'watched', ratings: { ...film.ratings, story: 8 } };
-  assert.equal(followup.screeningRatingDue([night], [{ ...rated, dateWatched: Date.parse('2026-10-14T00:00:00Z') }], now).length, 0);
+  assert.equal(followup.screeningRatingDue([night], [{ ...rated, dateWatched: Date.parse('2026-10-14T00:00:00Z') }], now).length, 1);
   assert.equal(followup.screeningRatingDue([night], [{ ...rated, dateWatched: Date.parse('2026-10-13T00:00:00Z') }], now).length, 1);
+});
+test('confirmer la séance ne confirme pas les autres séances du même film', () => {
+  const second = { ...screening, id: 'screening-2', startsAt: screening.startsAt - 86400000 };
+  assert.deepEqual(followup.screeningRatingDue([{ ...screening, ratingConfirmedAt: now }, second], [film], now).map(row => row.id), [second.id]);
+  assert.equal(followup.screeningRatingDue([{ ...screening, ratingConfirmedAt: NaN }], [film], now).length, 1);
 });
 test('la même référence de série ne répond pas au rappel d’un film', () => {
   const series = { ...film, mediaType: 'tv', status: 'watched', dateWatched: now, ratings: { ...film.ratings, story: 8 } };

@@ -78,6 +78,7 @@ import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
 import { findCollectionWork, isWatchedWork, removeCollectionWork, uniqueCollection } from './utils/collectionRules';
 import { useScreeningFollowup } from './services/useScreeningFollowup';
 import { screeningMovie } from './utils/screeningFollowup';
+import ScreeningRatingLink from './components/ScreeningRatingLink';
 import { calendarDay } from './utils/calendarAgenda';
 import type { CinemaScreening } from './types';
 import {
@@ -2175,6 +2176,7 @@ const App: React.FC = () => {
     setCalendarWatchedDay(undefined);
     if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
+    if (hasRating(finalMovie)) finishScreeningRating(finalMovie);
   };
 
   /** La fiche personnelle d'une œuvre entière, si elle est dans la collection. */
@@ -2785,6 +2787,7 @@ const App: React.FC = () => {
       watches: updatedWatches,
       watch_count: updatedWatches.length,
       ratings: watch.ratings,
+      adaptiveRating: watch.adaptiveRating,
       dateWatched: new Date(watch.watched_at).getTime(),
       first_rating: avgs[0],
       current_rating: avgs[avgs.length - 1],
@@ -2806,6 +2809,7 @@ const App: React.FC = () => {
     setToastMessage('Rewatch enregistré !');
     setRewatchMovie(null);
     finishFilm();
+    finishScreeningRating(updatedMovie);
   };
 
   /** Toutes les œuvres du profil, dédoublonnées — les deux parties confondues. */
@@ -2815,17 +2819,43 @@ const App: React.FC = () => {
   }, [activeProfile]);
 
   const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
-  const rateScreening = (screening: CinemaScreening) => {
+  const [linkScreening, setLinkScreening] = useState<CinemaScreening | null>(null);
+  const [ratingScreening, setRatingScreening] = useState<CinemaScreening | null>(null);
+  const promptMovie = screeningFollowup.prompt ? screeningMovie(screeningFollowup.prompt, allMovies) : undefined;
+  const linkMovie = linkScreening ? screeningMovie(linkScreening, allMovies) : undefined;
+  const ratingScreeningRef = useRef<CinemaScreening | null>(null);
+  useEffect(() => {
+    setLinkScreening(null); setRatingScreening(null); ratingScreeningRef.current = null;
+  }, [session?.user?.id, activeProfileId]);
+  const finishScreeningRating = (movie: Movie) => {
+    const target = ratingScreeningRef.current;
+    ratingScreeningRef.current = null; setRatingScreening(null);
+    if (target) {
+      void screeningFollowup.confirm(target.id).then(ok => {
+        if (!ok && sessionRef.current?.user?.id === target.profileId) setLinkScreening(target);
+      });
+    } else {
+      const candidate = screeningFollowup.due.find(row => screeningMovie(row, [movie]));
+      if (candidate) setLinkScreening(candidate);
+    }
+  };
+  const openScreeningRating = (screening: CinemaScreening) => {
     const movie = screeningMovie(screening, allMovies);
     setMediaMode('movie');
-    if (movie && isWatchedWork(movie) && hasRating(movie)) { setRewatchMovie(movie); return; }
     if (!screening.tmdbId && !movie) { setViewMode('Calendar'); return; }
+    ratingScreeningRef.current = screening; setRatingScreening(screening);
+    if (movie && isWatchedWork(movie) && hasRating(movie)) { setRewatchMovie(movie); return; }
     setEditingMovie(movie ? { ...movie, status: 'watched', dateWatched: screening.startsAt } : null);
     setTmdbIdToLoad(movie ? null : screening.tmdbId ?? null);
     setMediaTypeToLoad('movie');
     setInitialStatusForAdd('watched');
     setCalendarWatchedDay(calendarDay(screening.startsAt));
     setIsModalOpen(true);
+  };
+  const rateScreening = (screening: CinemaScreening) => {
+    const movie = screeningMovie(screening, allMovies);
+    if (movie && isWatchedWork(movie) && hasRating(movie)) setLinkScreening(screening);
+    else openScreeningRating(screening);
   };
 
   /* Au retour d'un épisode lancé depuis l'app, lui demander comment c'était.
@@ -3792,9 +3822,9 @@ const App: React.FC = () => {
               {mediaMode === 'movie' && screeningFollowup.prompt && <section className="rounded-3xl border border-sand bg-white p-5 dark:border-white/10 dark:bg-[#161616]" aria-label={t('lifecycle.screeningTitle')}>
                 <h2 className="text-sm font-black">{t('lifecycle.screeningTitle')}</h2>
                 <p className="mt-2 text-sm font-bold">{screeningFollowup.prompt.title}</p>
-                <p className="mt-1 text-xs text-stone-500">{t('lifecycle.screeningBody')}</p>
+                <p className="mt-1 text-xs text-stone-500">{t(promptMovie && hasRating(promptMovie) ? 'lifecycle.linkBody' : 'lifecycle.screeningBody')}</p>
                 {screeningFollowup.cancelError && <p role="alert" className="mt-2 text-xs text-orange-600">{t('lifecycle.cancelError')}</p>}
-                <div className="mt-4 flex gap-3"><button type="button" className="rounded-full bg-bitter-lime px-4 py-2 text-xs font-black text-charcoal" onClick={() => rateScreening(screeningFollowup.prompt!)}>{t(screeningFollowup.prompt.tmdbId || screeningMovie(screeningFollowup.prompt, allMovies) ? 'lifecycle.rate' : 'lifecycle.openCalendar')}</button><button type="button" className="px-3 py-2 text-xs font-bold text-stone-500" onClick={() => screeningFollowup.snooze(screeningFollowup.prompt!.id)}>{t('lifecycle.later')}</button></div>
+                <div className="mt-4 flex gap-3"><button type="button" className="rounded-full bg-bitter-lime px-4 py-2 text-xs font-black text-charcoal" onClick={() => rateScreening(screeningFollowup.prompt!)}>{t(promptMovie && hasRating(promptMovie) ? 'lifecycle.linkAction' : screeningFollowup.prompt.tmdbId || promptMovie ? 'lifecycle.rate' : 'lifecycle.openCalendar')}</button><button type="button" className="px-3 py-2 text-xs font-bold text-stone-500" onClick={() => screeningFollowup.snooze(screeningFollowup.prompt!.id)}>{t('lifecycle.later')}</button></div>
                 {screeningFollowup.prompt.status === 'scheduled' && <button type="button" disabled={screeningFollowup.cancelling} className="mt-3 text-xs font-bold text-stone-400 disabled:opacity-50" onClick={() => void screeningFollowup.cancel(screeningFollowup.prompt!.id)}>{t('lifecycle.notAttended')}</button>}
               </section>}
               {session?.user?.email && voteRequests.length > 0 && (
@@ -4633,11 +4663,21 @@ const App: React.FC = () => {
             }}
           />
         )}
+        {linkScreening && linkMovie && <ScreeningRatingLink
+          screening={linkScreening} movie={linkMovie}
+          busy={screeningFollowup.linking} error={screeningFollowup.linkError}
+          onClose={() => setLinkScreening(null)}
+          onConfirm={() => { const target = linkScreening; void screeningFollowup.confirm(target.id).then(ok => { if (ok) setLinkScreening(current => current?.id === target.id ? null : current); }); }}
+          onOther={() => { setLinkScreening(null); openScreeningRating(linkScreening); }}
+          onLater={() => { screeningFollowup.snooze(linkScreening.id); setLinkScreening(null); }}
+        />}
         {rewatchMovie && (
           <RewatchModal
             movie={rewatchMovie}
+            screeningStartsAt={ratingScreening?.startsAt}
             onClose={() => {
               setRewatchMovie(null);
+              ratingScreeningRef.current = null; setRatingScreening(null);
               finishFilm();
             }}
             onSave={handleSaveRewatch}
@@ -4649,6 +4689,7 @@ const App: React.FC = () => {
             isOpen={isModalOpen}
             onClose={() => {
               setIsModalOpen(false);
+              ratingScreeningRef.current = null; setRatingScreening(null);
               setCalendarWatchedDay(undefined);
               setEditingMovie(null);
               setSeasonDraft(null);
