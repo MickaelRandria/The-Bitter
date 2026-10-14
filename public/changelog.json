@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-14-notation-par-genre",
+  "version": "2026-10-14-fil-cinema",
   "label": "Version du 14 octobre",
   "items": [
+    {
+      "title": "Un Fil pour le cinéma et les séries",
+      "body": "Depuis le header, fais défiler des actus de franceinfo et du Monde, des bandes-annonces officielles et des sorties cinéma. Les filtres Films, Séries, Actus et Bandes-annonces t'aident à choisir."
+    },
+    {
+      "title": "Des découvertes selon tes goûts",
+      "body": "Tes titres bien notés et ceux que tu suis orientent les découvertes. Ouvre leur fiche ou ajoute-les directement à ta liste à voir."
+    },
+    {
+      "title": "Réagir et en parler",
+      "body": "Avec un compte connecté, aime une carte et échange dans les commentaires. En mode invité, tes réactions et titres suivis restent sur ton appareil."
+    },
     {
       "title": "Animation : les personnages prennent leur place",
       "body": "Les personnages se jugent sur leurs expressions, avec ou sans voix. Le critère Animation respecte le style du film, sans exiger des mouvements fluides."
@@ -27,10 +39,6 @@
       "body": "Un critère qui ne s'applique pas peut être laissé de côté : il ne compte pas dans la note et disparaît de ta story. Celui qui compte le plus reste toujours noté."
     },
     {
-      "title": "Le Fil du jour",
-      "body": "Chaque jour, trois minutes : le film mystère, tes cartes, deux questions du jour et ta série. L'icône brille sur l'accueil tant qu'il n'est pas fait."
-    },
-    {
       "title": "Tes goûts, en un coup d'œil",
       "body": "Tes genres en mur d'affiches, tes surprises face au public, tes réalisateurs, tes époques et ton classement complet, sur une seule page."
     }
@@ -51,16 +59,16 @@
   ],
   "highlights": [
     {
-      "icon": "stats",
-      "title": "Animation : les personnages, avec ou sans voix"
-    },
-    {
-      "icon": "stats",
-      "title": "Musical : le son et les morceaux ont chacun leur place"
+      "icon": "cinema",
+      "title": "Actus et bandes-annonces, dans ton Fil"
     },
     {
       "icon": "cinema",
-      "title": "Horreur : note aussi l’atmosphère"
+      "title": "Des titres à découvrir selon tes goûts"
+    },
+    {
+      "icon": "cinema",
+      "title": "Réagis et échange autour des cartes"
     }
   ]
 }

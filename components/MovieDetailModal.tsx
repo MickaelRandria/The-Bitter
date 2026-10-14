@@ -34,6 +34,8 @@ import {
 } from '../utils/watchOffers';
 import { getNetflixUrl } from '../services/streamingLinks';
 import JustWatchCredit from './JustWatchCredit';
+import FilFollowButton from './FilFollowButton';
+import { FilItem } from '../utils/cinemaFil';
 import { platformOfProvider } from '../utils/platforms';
 
 /** Rien sous le nom pour le cas courant : l'abonnement, ou la location comme l'achat. */
@@ -66,6 +68,8 @@ interface MovieDetailModalProps {
   onToast?: (message: string) => void;
   /** Mes plateformes : leur offre passe en tête, en grand. */
   myPlatformIds?: string[];
+  filItems?: FilItem[];
+  onFilItem?: (item: FilItem) => void;
 }
 
 interface TMDBReview {
@@ -127,6 +131,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   favoriteCinema,
   onToast,
   myPlatformIds,
+  filItems,
+  onFilItem,
 }) => {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
@@ -513,6 +519,20 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              <div className="mb-6">
+                <FilFollowButton profileId={profileId} work={{ tmdbId, mediaType, title, poster: movie.poster_path ? tmdbImage(movie.poster_path, 'w500') : null }} onToast={onToast} />
+              </div>
+              {filItems?.length > 0 && onFilItem && (
+                <section className="mb-6">
+                  <h3 className="mb-3 text-base font-black tracking-tight">{t('cineFil.aroundTitle')}</h3>
+                  <div className="space-y-2">{filItems.filter(item => item.kind !== 'discovery').slice(0, 3).map(item => (
+                    <button key={item.id} type="button" onClick={() => onFilItem(item)} className="flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3 text-left dark:border-white/10 dark:bg-[#1a1a1a]">
+                      <span className="flex-1"><b className="block text-xs font-black">{item.title}</b><small className="mt-1 block text-[10px] text-stone-400">{item.source} · {t(`cineFil.kind.${item.kind}`)}</small></span><ChevronRight size={15} />
+                    </button>
+                  ))}</div>
+                </section>
+              )}
 
               {/* Séances au cinéma favori — avant le streaming : c'est le geste
                   qu'on cherche à rendre immédiat depuis la découverte. */}

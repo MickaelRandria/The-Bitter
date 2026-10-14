@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+.cinema-fil-compact-title { display: none; }
+/* Sur un petit écran, le titre d'une actu reste lisible dans son bloc de contenu. */
+@media (max-height: 690px) {
+  .cinema-fil-headline { display: none; }
+  .cinema-fil-footer-title { display: none; }
+  .cinema-fil-compact-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    font-size: 23px;
+    line-height: 1.1;
+  }
+}
+
 /*
  * Styles applicatifs.
  * Les règles critiques (couleur de fond du body) restent inline dans index.html
