@@ -1516,6 +1516,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   criteria={reviewCriteria}
                   rating={useBitterPlus ? adaptiveWeightedRating : bitterFinalRating}
                   ready={reviewCriteria.length > 0}
+                  names={[formData.director || '', formData.actors || '']}
                   value={formData.comment || ''}
                   onChange={(comment) => setFormData({ ...formData, comment })}
                 />
