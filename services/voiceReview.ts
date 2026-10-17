@@ -23,6 +23,9 @@ const MIME_CANDIDATES = [
   'audio/webm',
 ];
 
+/** L'avis guidé se tape aussi : il lui faut le serveur, pas forcément le micro. */
+export const canUseReviewServer = (): boolean => !!supabase;
+
 export const canDictate = (): boolean =>
   typeof window !== 'undefined' &&
   !!navigator.mediaDevices?.getUserMedia &&
@@ -152,12 +155,40 @@ export async function startRecording(onAutoStop?: () => void): Promise<Recording
   };
 }
 
+/**
+ * Le jeton d'avis rendu par `review-voice` : un avis compte pour une question
+ * du jour, quel que soit le nombre de dictées. On le garde le temps d'un avis
+ * et on le renvoie à chaque appel.
+ */
+export interface ReviewSession {
+  token: string;
+}
+
+export const newReviewSession = (): ReviewSession => ({ token: '' });
+
 export interface Transcript {
   /** Le texte mis au propre, ou la dictée époussetée si la mise au propre a échoué. */
   text: string;
   /** Ce que Voxtral a entendu, mot pour mot. */
   raw: string;
   polished: boolean;
+}
+
+/** Appelle `review-voice` et lit son contrat d'erreur, comme `callAI` pour `ai`. */
+async function callReviewVoice(body: FormData | Record<string, unknown>, session?: ReviewSession) {
+  if (!supabase) throw new DictationError('failed');
+  const { data, error } = await supabase.functions.invoke('review-voice', { body });
+  if (error) {
+    // `invoke` ne remonte que le statut : le message est dans le corps.
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === 'function') {
+      const detail = await response.json().catch(() => null);
+      if (detail?.message) throw new DictationError('failed', detail.message);
+    }
+    throw new DictationError('failed');
+  }
+  if (session && typeof data?.token === 'string' && data.token) session.token = data.token;
+  return data ?? {};
 }
 
 /**
@@ -169,10 +200,9 @@ export interface Transcript {
 export async function transcribeReview(
   audio: Blob,
   names: string[],
-  lang: 'fr' | 'en'
+  lang: 'fr' | 'en',
+  session?: ReviewSession
 ): Promise<Transcript> {
-  if (!supabase) throw new DictationError('failed');
-
   const extension = audio.type.includes('mp4')
     ? 'm4a'
     : audio.type.includes('ogg')
@@ -182,19 +212,50 @@ export async function transcribeReview(
   form.append('audio', audio, `avis.${extension}`);
   form.append('lang', lang);
   form.append('terms', JSON.stringify(names.filter(Boolean)));
+  if (session?.token) form.append('token', session.token);
 
-  const { data, error } = await supabase.functions.invoke('review-voice', { body: form });
-  if (error) {
-    // Même lecture que `callAI` : `invoke` ne remonte que le statut.
-    const response = (error as { context?: Response }).context;
-    if (response && typeof response.json === 'function') {
-      const detail = await response.json().catch(() => null);
-      if (detail?.message) throw new DictationError('failed', detail.message);
-    }
-    throw new DictationError('failed');
-  }
-
-  const text = String(data?.text ?? '').trim();
+  const data = await callReviewVoice(form, session);
+  const text = String(data.text ?? '').trim();
   if (!text) throw new DictationError('empty');
-  return { text, raw: String(data?.raw ?? text).trim(), polished: !!data?.polished };
+  return { text, raw: String(data.raw ?? text).trim(), polished: !!data.polished };
+}
+
+/** Les réponses de l'avis guidé, reliées en un seul texte sans idée ajoutée. */
+export async function assembleReview(
+  answers: { question: string; text: string }[],
+  names: string[],
+  lang: 'fr' | 'en',
+  session: ReviewSession
+): Promise<string> {
+  const data = await callReviewVoice(
+    {
+      action: 'assemble',
+      answers,
+      terms: names.filter(Boolean),
+      lang,
+      token: session.token || undefined,
+    },
+    session
+  );
+  return String(data.text ?? '').trim();
+}
+
+/** Le même avis, coupé d'environ moitié. */
+export async function tightenReview(
+  text: string,
+  names: string[],
+  lang: 'fr' | 'en',
+  session: ReviewSession
+): Promise<string> {
+  const data = await callReviewVoice(
+    {
+      action: 'tighten',
+      text,
+      terms: names.filter(Boolean),
+      lang,
+      token: session.token || undefined,
+    },
+    session
+  );
+  return String(data.text ?? '').trim();
 }

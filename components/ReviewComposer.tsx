@@ -3,14 +3,19 @@ import { Sparkles, Loader2, CornerDownLeft, Mic, Square, X, Undo2 } from 'lucide
 import { getReviewStarters, continueReview, ReviewCriterion } from '../services/ai';
 import {
   canDictate,
+  canUseReviewServer,
+  newReviewSession,
   startRecording,
   transcribeReview,
   DictationError,
   MAX_DICTATION_MS,
   Recording,
+  ReviewSession,
 } from '../services/voiceReview';
 import { haptics } from '../utils/haptics';
+import { guidedQuestions } from '../utils/guidedReview';
 import { useLanguage } from '../contexts/LanguageContext';
+import GuidedReview from './GuidedReview';
 
 interface Props {
   title: string;
@@ -73,6 +78,20 @@ const ReviewComposer: React.FC<Props> = ({
   } | null>(null);
   const recording = useRef<Recording | null>(null);
   const dictationSupported = canDictate();
+
+  // ── Avis guidé ──────────────────────────────────────────────────────────
+  const [guided, setGuided] = useState(false);
+  const guidedAvailable = canUseReviewServer();
+  /** Un avis = une question du jour : dictées et avis guidé partagent le jeton. */
+  const session = useRef<ReviewSession>(newReviewSession());
+  useEffect(() => {
+    session.current = newReviewSession();
+  }, [title]);
+  const guidedPreview = ready
+    ? guidedQuestions(criteria, rating, language === 'en' ? 'en' : 'fr').map((q) =>
+        t(q.key.replace('.q', '.short'), q.params)
+      )
+    : [];
 
   // Une seule demande par film : sans ce garde-fou, chaque ajustement d'un
   // curseur de notation en relancerait une.
@@ -199,7 +218,8 @@ const ReviewComposer: React.FC<Props> = ({
       const result = await transcribeReview(
         audio,
         [title, ...names],
-        language === 'en' ? 'en' : 'fr'
+        language === 'en' ? 'en' : 'fr',
+        session.current
       );
       // La valeur est relue maintenant : on a pu taper pendant la transcription.
       const before = latest.current.value;
@@ -279,6 +299,59 @@ const ReviewComposer: React.FC<Props> = ({
 
       {/* Les amorces disparaissent dès qu'il y a du texte : elles servaient à
           démarrer, les garder ensuite reviendrait à proposer de recommencer. */}
+      {/* L'avis guidé, à côté de l'écriture libre et jamais à sa place : trois
+          questions tirées de la note qu'on vient de poser. */}
+      {!hasText && ready && guidedAvailable && (
+        <div className="p-5 rounded-[1.75rem] bg-charcoal text-white space-y-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+              {t('guided.title')}
+            </p>
+            <p className="text-[11px] font-semibold text-stone-400">
+              {t('guided.length', { n: guidedPreview.length })}
+            </p>
+          </div>
+          <p className="text-[17px] font-extrabold leading-snug tracking-tight">
+            {t('guided.pitch')}
+          </p>
+          <ol className="list-decimal pl-[18px] space-y-1 text-[12px] font-medium text-stone-300">
+            {guidedPreview.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ol>
+          <button
+            type="button"
+            onClick={() => {
+              haptics.soft();
+              setError(null);
+              setGuided(true);
+            }}
+            className="w-full h-12 rounded-full bg-bitter-lime text-charcoal text-[11px] font-black uppercase tracking-[0.16em] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
+            <Mic size={14} />
+            {t('guided.start')}
+          </button>
+        </div>
+      )}
+
+      {guided && (
+        <GuidedReview
+          title={title}
+          names={names}
+          criteria={criteria}
+          rating={rating}
+          session={session.current}
+          canRecord={dictationSupported}
+          onClose={() => setGuided(false)}
+          onUse={(text) => {
+            setGuided(false);
+            setLastDictation(null);
+            onChange(text);
+            focusEnd();
+          }}
+        />
+      )}
+
       {!hasText && ready && (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 ml-1">
