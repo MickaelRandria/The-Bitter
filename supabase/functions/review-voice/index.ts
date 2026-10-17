@@ -153,22 +153,34 @@ Deno.serve(async (req: Request) => {
   let raw = '';
   let seconds: number | null = null;
   {
-    const upstreamForm = new FormData();
-    upstreamForm.append('model', TRANSCRIBE_MODEL);
-    upstreamForm.append('file', audio, `avis.${extension}`);
-    upstreamForm.append('language', lang);
-    upstreamForm.append('temperature', '0');
-    for (const term of terms) upstreamForm.append('context_bias', term);
+    const transcribe = (withBias: boolean, signal: AbortSignal) => {
+      const upstreamForm = new FormData();
+      upstreamForm.append('model', TRANSCRIBE_MODEL);
+      upstreamForm.append('file', audio, `avis.${extension}`);
+      upstreamForm.append('language', lang);
+      upstreamForm.append('temperature', '0');
+      if (withBias) for (const term of terms) upstreamForm.append('context_bias', term);
+      return fetch(TRANSCRIBE_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+        body: upstreamForm,
+        signal,
+      });
+    };
 
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), TRANSCRIBE_TIMEOUT_MS);
     try {
-      const upstream = await fetch(TRANSCRIBE_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-        body: upstreamForm,
-        signal: abort.signal,
-      });
+      let upstream = await transcribe(terms.length > 0, abort.signal);
+      // Le vocabulaire est un bonus : s'il fait rejeter la requête, on
+      // transcrit sans lui plutôt que de perdre la dictée.
+      if ((upstream.status === 400 || upstream.status === 422) && terms.length > 0) {
+        const detail = await upstream.text().catch(() => '');
+        console.warn(
+          `[review-voice] Voxtral ${upstream.status} avec context_bias : ${detail.slice(0, 300)}`
+        );
+        upstream = await transcribe(false, abort.signal);
+      }
       if (!upstream.ok) {
         const detail = await upstream.text().catch(() => '');
         console.error(`[review-voice] Voxtral ${upstream.status} : ${detail.slice(0, 400)}`);
