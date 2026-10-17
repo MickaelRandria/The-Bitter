@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-14-portrait-mobile",
-  "label": "Version du 14 octobre",
+  "version": "2026-10-17-avis-vocal",
+  "label": "Version du 17 octobre",
   "items": [
+    {
+      "title": "Dicte ton avis",
+      "body": "Après ta note, touche Dicter mon avis et parle comme à un ami. Bitter retire les « euh », ponctue, et écrit correctement le titre, le réalisateur et les acteurs. Tu peux retirer la dictée ou garder tes mots exacts. Le vocal n'est pas conservé."
+    },
     {
       "title": "Un portrait plus confortable sur mobile",
       "body": "Le header du portrait respecte la zone de sécurité de l’iPhone. Le contenu dispose d’une zone de défilement dédiée, avec le header fixe au-dessus."
@@ -92,15 +96,15 @@
   "highlights": [
     {
       "icon": "cinema",
+      "title": "Dicte ton avis en quelques secondes"
+    },
+    {
+      "icon": "cinema",
       "title": "À voir puis vu : une seule fiche"
     },
     {
       "icon": "cinema",
       "title": "Des suggestions que tu n’as pas déjà vues"
-    },
-    {
-      "icon": "cinema",
-      "title": "Après ta séance, donne ton avis"
     }
   ]
 }
