@@ -16,7 +16,7 @@ function load(relative) {
   return exports;
 }
 
-const { biasTerms, tidyTranscript, acceptPolish, unwrapPolish, MAX_BIAS_TERMS } = load(
+const { biasTerms, biasWords, tidyTranscript, acceptPolish, unwrapPolish, MAX_BIAS_TERMS } = load(
   '../supabase/functions/review-voice/polish.ts'
 );
 
@@ -33,6 +33,12 @@ test('bias terms keep full names and their surnames, once each', () => {
     'Chalamet',
     'Zendaya',
   ]);
+});
+
+test('Voxtral receives single capitalised words, no spaces or commas', () => {
+  const words = biasWords(biasTerms(["Hunger Games : L'Embrasement", 'Francis Lawrence', 'Jennifer Lawrence, Josh Hutcherson', '1917']));
+  assert.deepEqual(words, ['Hunger', 'Games', "L'Embrasement", 'Francis', 'Lawrence', 'Jennifer', 'Josh', 'Hutcherson', '1917']);
+  assert.ok(words.every((word) => !/[\s,]/.test(word)));
 });
 
 test('bias terms drop the placeholder director, junk and overflow', () => {

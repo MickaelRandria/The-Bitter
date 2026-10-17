@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-17-avis-vocal",
+  "version": "2026-10-17-avis-guide",
   "label": "Version du 17 octobre",
   "items": [
+    {
+      "title": "L'avis guidé",
+      "body": "Après ta note, Bitter te pose trois questions tirées de tes critères : ce qui coinçait, un moment fort, à qui tu le conseillerais. Tu réponds à la voix ou au clavier, et tes réponses deviennent un seul avis, avec tes mots. Resserrer le raccourcit en te montrant ce qui a été coupé. Un avis compte pour une seule question IA du jour."
+    },
     {
       "title": "Dicte ton avis",
       "body": "Après ta note, touche Dicter mon avis et parle comme à un ami. Bitter retire les « euh », ponctue, et écrit correctement le titre, le réalisateur et les acteurs. Tu peux retirer la dictée ou garder tes mots exacts. Le vocal n'est pas conservé."
@@ -96,7 +100,7 @@
   "highlights": [
     {
       "icon": "cinema",
-      "title": "Dicte ton avis en quelques secondes"
+      "title": "L’avis guidé : trois questions, ton avis"
     },
     {
       "icon": "cinema",

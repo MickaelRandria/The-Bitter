@@ -46,6 +46,33 @@ export function biasTerms(input: unknown): string[] {
   return terms;
 }
 
+/**
+ * Le vocabulaire tel que Voxtral l'accepte : des MOTS, un par entrée.
+ *
+ * Constaté en prod le 17 octobre 2026 : « Context bias item "Hunger Games :
+ * L'Embrasement" must not contain commas or whitespace ». Les noms entiers de
+ * `biasTerms` restent pour les consignes de la mise au propre ; la transcription
+ * reçoit leurs mots porteurs, ceux qui commencent par une majuscule ou un
+ * chiffre (« Villeneuve », « L'Embrasement », « 1917 »), débarrassés de la
+ * ponctuation qui les entoure.
+ */
+export function biasWords(terms: string[]): string[] {
+  const seen = new Set<string>();
+  const words: string[] = [];
+  for (const term of terms) {
+    for (const piece of term.split(/[\s,;:–—]+/)) {
+      const word = piece.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (word.length < 3 || !/^[\p{Lu}\p{N}]/u.test(word)) continue;
+      const key = word.toLocaleLowerCase('fr');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      words.push(word);
+      if (words.length >= MAX_BIAS_TERMS) return words;
+    }
+  }
+  return words;
+}
+
 /** Les tics de l'oral, retirés quand la mise au propre n'a pas pu se faire. */
 const FILLERS: Record<'fr' | 'en', RegExp> = {
   fr: /(^|[\s,])(euh+|heu+|hum+|bah|ben|hein|euhm)(?=[\s,.!?]|$)/giu,
@@ -94,23 +121,64 @@ const tokens = (text: string) =>
  * absent de la dictée et des noms du film est un mot ajouté. On tolère les
  * corrections d'accord et d'orthographe, pas une idée en plus.
  */
-export function acceptPolish(raw: string, polished: string, terms: string[] = []): boolean {
+export interface PolishLimits {
+  /** Mots de plus tolérés par rapport à la dictée sans hésitations. */
+  slack?: number;
+  /** En deçà de cette part de la longueur d'origine, le texte a été résumé. */
+  minRatio?: number;
+  /** Part des mots porteurs absents de l'origine qu'on tolère (corrections, liaisons). */
+  addedRatio?: number;
+}
+
+/** Les mots porteurs du texte qu'on ne retrouve ni dans l'origine ni dans les noms du film. */
+const addedWords = (source: string, text: string, terms: string[]) => {
+  const known = new Set([...tokens(source), ...terms.flatMap(tokens)]);
+  // Une faute d'accord corrigée change la fin du mot, pas son début.
+  const stems = new Set([...known].map((word) => word.slice(0, 5)));
+  return tokens(text).filter(
+    (word) => word.length >= 4 && !known.has(word) && !stems.has(word.slice(0, 5))
+  );
+};
+
+export function acceptPolish(
+  raw: string,
+  polished: string,
+  terms: string[] = [],
+  { slack = 2, minRatio = 0.5, addedRatio = 0.1 }: PolishLimits = {}
+): boolean {
   // Un modèle qui commente au lieu de corriger (« Voici le texte corrigé : »).
   if (/^(voici|here is|here's|texte corrig|corrected)/i.test(polished.trim())) return false;
 
   const before = tokens(tidyTranscript(raw)).length;
   const after = tokens(polished);
   if (after.length === 0) return false;
-  if (after.length > before + 2) return false;
-  if (before >= 8 && after.length < before * 0.5) return false;
+  if (after.length > before + slack) return false;
+  if (before >= 8 && after.length < before * minRatio) return false;
 
-  const known = new Set([...tokens(raw), ...terms.flatMap(tokens)]);
-  // Une faute d'accord corrigée change la fin du mot, pas son début.
-  const stems = new Set([...known].map((word) => word.slice(0, 5)));
-  const added = after.filter(
-    (word) => word.length >= 4 && !known.has(word) && !stems.has(word.slice(0, 5))
-  );
-  return added.length <= Math.max(1, Math.floor(after.length * 0.1));
+  const added = addedWords(raw, polished, terms);
+  return added.length <= Math.max(1, Math.floor(after.length * addedRatio));
+}
+
+/**
+ * Le resserrage coupe. Plus court que l'original, sans fondre sous le tiers
+ * (ce serait un résumé), et pas plus de deux mots nouveaux : un « mais » pour
+ * relier deux phrases rapprochées, pas un adjectif.
+ */
+export function acceptTighten(full: string, tight: string, terms: string[] = []): boolean {
+  if (/^(voici|here is|here's|version)/i.test(tight.trim())) return false;
+  const before = tokens(full).length;
+  const after = tokens(tight).length;
+  if (after === 0 || after >= before) return false;
+  if (after < before * 0.3) return false;
+  return addedWords(full, tight, terms).length <= 2;
+}
+
+/** L'avis guidé sans modèle : les réponses mises bout à bout, le verdict à la fin. */
+export function joinAnswers(answers: string[]): string {
+  const parts = answers.map((answer) => answer.trim()).filter(Boolean);
+  const text = parts.join(' ');
+  // Au-delà d'une soixantaine de mots, un bloc unique se lit mal sur téléphone.
+  return text.split(/\s+/).length > 60 ? parts.join('\n\n') : text;
 }
 
 /** Retire ce que le modèle ajoute parfois autour du texte : guillemets, balises. */
