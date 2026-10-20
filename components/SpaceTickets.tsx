@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ActionSheet from './ActionSheet';
 import { Check, ChevronDown, Plus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SharedSpace } from '../services/supabase';
@@ -30,37 +31,17 @@ const MEMBER_TINTS = ['#B45309', '#3E5238', '#3D405B', '#7F5539', '#2F3E46', '#6
  * ses membres ; sur le talon, ce qui m'y attend. L'espace qui attend le plus
  * passe devant. Le dernier billet, en pointillés, crée ou rejoint un espace.
  *
- * Repliés par défaut : une seule barre, avec les espaces en pastilles et ce qui
- * m'attend au total ; un appui déplie les billets. L'accueil reste celui de ma
- * collection, et le choix (déplié ou non) est gardé sur l'appareil.
+ * Un billet compact ouvre une fenêtre de billets complets. Les affiches,
+ * membres et talons gardent leurs actions sans allonger la collection.
  */
-const EXPANDED_KEY = 'bitter_spaces_expanded';
-
-const readExpanded = () => {
-  try {
-    return localStorage.getItem(EXPANDED_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
 const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen, onOpenWaiting, onCreate }) => {
   const { t } = useLanguage();
   const pendingOf = (space: SharedSpace) => overview.get(space.id)?.pending ?? 0;
   const sorted = [...spaces].sort((a, b) => pendingOf(b) - pendingOf(a));
   const totalPending = spaces.reduce((sum, space) => sum + pendingOf(space), 0);
-  const [expanded, setExpanded] = useState(readExpanded);
+  const [expanded, setExpanded] = useState(false);
 
-  const toggle = () => {
-    haptics.soft();
-    setExpanded((was) => {
-      try {
-        localStorage.setItem(EXPANDED_KEY, was ? '0' : '1');
-      } catch {
-        // Stockage indisponible : le choix vaut pour la session.
-      }
-      return !was;
-    });
-  };
+  const toggle = () => { haptics.soft(); setExpanded(value => !value); };
 
   return (
     <section aria-label={t('spaces.bubblesTitle')} className="-mx-6">
@@ -69,7 +50,8 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
           onClick={toggle}
           aria-expanded={expanded}
           aria-controls="space-tickets"
-          className="w-full h-16 pl-3 pr-4 rounded-[1.25rem] bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+          aria-haspopup="dialog"
+          className="relative w-full h-14 pl-3 pr-4 rounded-xl bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
         >
           <span className="flex shrink-0">
             {sorted.slice(0, 4).map((space, i) => (
@@ -83,7 +65,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
             ))}
           </span>
           <span className="flex-1 min-w-0">
-            <span className="block truncate text-[15px] font-black tracking-tight text-charcoal dark:text-white">
+            <span className="block truncate text-[13px] font-black tracking-tight text-charcoal dark:text-white">
               {t('spaces.bubblesTitle')}
             </span>
             {/* Les noms plutôt qu'un compte : on sait d'un coup d'œil de quoi il s'agit. */}
@@ -101,6 +83,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
               {totalPending}
             </span>
           )}
+          <span aria-hidden="true" className="absolute right-14 inset-y-0 border-l border-dashed border-stone-300 dark:border-white/20"><i className="absolute -top-1.5 -left-1.5 h-3 w-3 rounded-full bg-cream dark:bg-[#0c0c0c]" /><i className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-full bg-cream dark:bg-[#0c0c0c]" /></span>
           <ChevronDown
             size={18}
             strokeWidth={2.6}
@@ -110,9 +93,10 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
       </div>
 
       {expanded && (
+        <ActionSheet title={t('spaces.bubblesTitle')} onClose={() => setExpanded(false)}>
         <div
           id="space-tickets"
-          className="mt-1 flex gap-3 overflow-x-auto no-scrollbar px-6 scroll-px-6 pt-2 pb-7 -mb-4 snap-x snap-mandatory animate-[fadeIn_0.3s_ease-out]"
+          className="space-ticket-list grid gap-4 py-2"
         >
           {sorted.map((space) => {
             const info = overview.get(space.id);
@@ -130,6 +114,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
             const onlyVotes = !!info && info.toVote.length === pending;
             const open = () => {
               haptics.soft();
+              setExpanded(false);
               onOpen(space);
             };
             return (
@@ -137,7 +122,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
                 key={space.id}
                 role="group"
                 aria-label={space.name}
-                className="snap-start shrink-0 w-[300px] h-[118px] flex drop-shadow-[0_8px_12px_rgba(26,26,26,0.10)] dark:drop-shadow-none"
+                className="w-full min-w-0 h-[118px] flex drop-shadow-[0_8px_12px_rgba(26,26,26,0.10)] dark:drop-shadow-none"
               >
                 {/* Le billet : inchangé, il ouvre l'espace. */}
                 <button
@@ -214,7 +199,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
                   onClick={() => {
                     if (state === 'me' || state === 'ok') return open();
                     haptics.soft();
-                    onOpenWaiting(space);
+                    setExpanded(false); onOpenWaiting(space);
                   }}
                   aria-label={
                     state === 'wait' || state === 'waitReminded'
@@ -301,10 +286,10 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
           <button
             onClick={() => {
               haptics.soft();
-              onCreate();
+              setExpanded(false); onCreate();
             }}
             aria-label={t('spaces.create')}
-            className="snap-start shrink-0 w-[118px] h-[118px] rounded-[18px] border-2 border-dashed border-stone-300 dark:border-white/15 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"
+            className="w-full min-h-16 rounded-[18px] border-2 border-dashed border-stone-300 dark:border-white/15 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             <Plus size={22} strokeWidth={2.6} className="text-stone-500" />
             <span className="text-[11px] font-extrabold text-stone-500 dark:text-stone-400 text-center leading-tight">
@@ -312,6 +297,7 @@ const SpaceTickets: React.FC<Props> = ({ spaces, overview, currentUserId, onOpen
             </span>
           </button>
         </div>
+        </ActionSheet>
       )}
     </section>
   );

@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
  * sur le body. La position de lecture est mémorisée puis rendue à la fermeture,
  * sinon fermer une modale renverrait en haut de la collection.
  */
+export const DIALOG_CLOSED_EVENT = 'bitter:dialogs-closed';
 let lockCount = 0;
 let savedScrollY = 0;
 const openDialogs: HTMLElement[] = [];
@@ -39,6 +40,7 @@ const unlockScroll = () => {
   style.width = '';
   style.overflowY = '';
   window.scrollTo(0, savedScrollY);
+  window.dispatchEvent(new Event(DIALOG_CLOSED_EVENT));
 };
 
 /**

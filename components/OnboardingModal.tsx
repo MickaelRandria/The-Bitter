@@ -9,6 +9,7 @@ import {
   Layers,
   Loader2,
   Fingerprint,
+  X,
 } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 import { getArchetypeFromOnboarding, inferDepthFromGenres } from '../utils/archetypes';
@@ -19,6 +20,7 @@ import { useDialog } from '../utils/useDialog';
 interface OnboardingModalProps {
   initialName: string;
   userId?: string;
+  onClose?: () => void;
   onComplete: (data: {
     name: string;
     severityIndex: number;
@@ -39,8 +41,7 @@ const GENRES_LIST = [
   'Documentaire',
 ];
 
-const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, onComplete }) => {
-  const dialog = useDialog(undefined);
+const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, onComplete, onClose }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [name] = useState(initialName);
@@ -48,6 +49,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
   const [patienceLevel, setPatienceLevel] = useState(5);
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const dialog = useDialog(isAnalyzing ? undefined : onClose);
   const [archetype, setArchetype] = useState<{
     title: string;
     description: string;
@@ -117,6 +119,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ initialName, userId, 
   return (
     <div {...dialog.props} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-white/80 dark:bg-black/80 backdrop-blur-md transition-colors">
       <div className="w-full max-w-lg bg-white dark:bg-[#1a1a1a] rounded-[2.5rem] shadow-2xl dark:shadow-black/60 p-8 sm:p-10 relative overflow-hidden animate-[scaleIn_0.4s_cubic-bezier(0.16,1,0.3,1)] border border-stone-100 dark:border-white/10 transition-all">
+        {onClose && <button type="button" aria-label={t('common.close')} onClick={onClose} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-stone-100 text-stone-500 dark:bg-white/10"><X size={18} /></button>}
         {step <= totalSteps && (
           <div className="absolute top-0 left-0 h-1.5 bg-stone-100 dark:bg-[#202020] w-full">
             <div

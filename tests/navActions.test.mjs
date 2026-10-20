@@ -15,7 +15,36 @@ function load(relative) {
 }
 
 const nav = load('../utils/navActions.ts');
+const palettes = load('../utils/pageActions.ts');
 const ctx = (extra) => ({ page: 'Feed', feedTab: 'history', mediaMode: 'movie', statsUnlocked: true, ...extra });
+
+test('les palettes suivent la page et la liste consultée', () => {
+  assert.deepEqual(palettes.pageActionsFor(ctx()), ['rate', 'watchlist', 'dictate']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ feedTab: 'queue' })), ['watchlist', 'tonight']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Discover' })), ['mood', 'filters', 'platforms']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'SharedSpace' })), ['propose', 'organize', 'invite']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Analytics' })), ['share', 'recalibrate']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Analytics', statsUnlocked: false })), ['rate', 'recalibrate']);
+});
+
+test('aucune note future et aucune séance cinéma côté séries', () => {
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: true })), ['plan', 'ticket', 'rateDay']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: false })), ['plan', 'ticket']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', mediaMode: 'tv' })), ['series', 'watchlist']);
+});
+
+test('les palettes et les descriptions ont leurs traductions dans les deux langues', () => {
+  const cases = ['Feed', 'Discover', 'SharedSpace', 'Analytics', 'Calendar'].flatMap(page => [ctx({page, pastDay:true}), ctx({page, mediaMode:'tv', feedTab:'queue'})]);
+  for (const language of ['fr','en']) {
+    const labels = load(`../translations/${language}.ts`)[language];
+    for (const c of cases) {
+      const actions = palettes.pageActionsFor(c);
+      assert.ok(labels[palettes.contextLabelKey(c.page,c.feedTab)]);
+      for (const action of actions) assert.ok(labels[`pageActions.${action}`]);
+      assert.ok(labels[`pageActions.desc.${actions[0]}`]);
+    }
+  }
+});
 
 test('le + suit la page côté films', () => {
   assert.equal(nav.primaryActionFor(ctx()), 'addWatched');
@@ -42,10 +71,11 @@ test('chaque action a son libellé', () => {
   assert.equal(nav.primaryLabelKey('plan'), 'nav.primary.plan');
 });
 
-test('le menu d’ajout dépend de la partie et de l’espace', () => {
+test('le menu global dépend de la partie et reste complet depuis un espace', () => {
   assert.deepEqual(nav.addMenuFor('movie', false), ['watched', 'watchlist', 'series', 'ticket', 'dictate']);
   assert.deepEqual(nav.addMenuFor('tv', false), ['series', 'watched', 'watchlist', 'movie', 'ticket', 'dictate']);
-  assert.deepEqual(nav.addMenuFor('movie', true), ['watchlist', 'watched', 'dictate']);
+  assert.deepEqual(nav.addMenuFor('movie', true), nav.addMenuFor('movie', false));
+  assert.deepEqual(nav.addMenuFor('tv', true), nav.addMenuFor('tv', false));
   assert.equal(nav.addMenuLabelKey('watched', 'movie'), 'nav.add.watched');
   assert.equal(nav.addMenuLabelKey('watched', 'tv'), 'nav.add.tv.watched');
   assert.equal(nav.addMenuLabelKey('series', 'tv'), 'nav.add.tv.series');

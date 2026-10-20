@@ -110,6 +110,9 @@ import {
 import MoodPicker from './components/MoodPicker';
 import { initAnalytics, stopAnalytics, trackEvent, trackPageView } from './utils/analytics';
 import ContextualNav, { NavTab } from './components/ContextualNav';
+import PageActionsSheet from './components/PageActionsSheet';
+import ActionSheet from './components/ActionSheet';
+import { pageActionsFor, contextLabelKey, PageAction, DiscoverActionRequest, SpaceActionRequest } from './utils/pageActions';
 import ShareStoryButtonSimple from './components/ShareStoryButtonSimple';
 import { WorkSelection, WorkSelectionProvider } from './contexts/WorkSelectionContext';
 import {
@@ -384,7 +387,7 @@ const SortMenu = memo(
 );
 
 const App: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   // À la racine, donc valable sur tous les écrans : sans ça, le client Supabase
   // reste verrouillé après un passage en arrière-plan et plus aucune requête ne
   // part, jusqu'au redémarrage de l'application. Voir utils/useResumeRefresh.
@@ -609,6 +612,18 @@ const App: React.FC = () => {
    * nouvelle une fois ; on les remet à zéro en le quittant, pour qu'une demande
    * ancienne ne se rejoue pas au retour.
    */
+  const [showPageActions, setShowPageActions] = useState(false);
+  const [globalAddRequest, setGlobalAddRequest] = useState(0);
+  const [calendarContextDay, setCalendarContextDay] = useState(() => calendarDay(Date.now()));
+  const [discoverAction, setDiscoverAction] = useState<DiscoverActionRequest>();
+  const [spaceAction, setSpaceAction] = useState<SpaceActionRequest>();
+  const spaceInvite = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    setShowPageActions(false);
+    setShowTonightControls(false);
+    if (viewMode !== 'Discover') setDiscoverAction(undefined);
+    if (viewMode !== 'SharedSpace') { setSpaceAction(undefined); spaceInvite.current = null; }
+  }, [viewMode, mediaMode]);
   const [calendarPlanRequest, setCalendarPlanRequest] = useState(0);
   const [calendarImportRequest, setCalendarImportRequest] = useState(0);
   useEffect(() => {
@@ -3082,6 +3097,23 @@ const App: React.FC = () => {
     }, 120);
   };
 
+  const renderHomeSpaces = () => (
+    session?.user?.email && mySpaces.length > 0 && (
+                <SpaceTickets
+                  spaces={mySpaces}
+                  overview={spaceOverview}
+                  currentUserId={session.user.id}
+                  onOpen={(space) => {
+                    setActiveSharedSpace(space);
+                    setViewMode('SharedSpace');
+                    haptics.medium();
+                  }}
+                  onOpenWaiting={setWaitingSpace}
+                  onCreate={() => setShowSharedSpaces(true)}
+                />
+              )
+  );
+
   const handleBackToFeed = () => {
     haptics.soft();
     if (viewMode === 'SharedSpace') {
@@ -3159,30 +3191,39 @@ const App: React.FC = () => {
     setCalendarImportRequest((n) => n + 1);
   };
 
-  const handleNavPrimary = () => {
-    switch (navPrimary) {
-      case 'plan':
-        setCalendarPlanRequest((n) => n + 1);
-        return;
-      case 'shareCard':
-        // Envoyé pendant le geste : le partage natif exige une activation récente.
-        window.dispatchEvent(new Event(STATS_SHARE_EVENT));
-        return;
-      case 'propose':
-        openAddModal('watchlist', mediaMode, { fromNav: true });
-        return;
-      case 'startSeries':
-        openAddModal('watching', 'tv', { fromNav: true });
-        return;
-      case 'addWatchlist':
-        openAddModal('watchlist', mediaMode, { fromNav: true });
-        return;
-      default:
-        openAddModal('watched', mediaMode, { fromNav: true });
+  const paletteActions = pageActionsFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5, pastDay: calendarContextDay <= calendarDay(Date.now()) });
+  const paletteLabel = t(contextLabelKey(viewMode, feedTab));
+  const paletteSubtitle = viewMode === 'Calendar' && mediaMode === 'movie'
+    ? new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(calendarContextDay + 'T12:00:00'))
+    : viewMode === 'SharedSpace' ? activeSharedSpace?.name : undefined;
+  const handlePageAction = (action: PageAction) => {
+    setShowPageActions(false);
+    if (action === 'share') { window.dispatchEvent(new Event(STATS_SHARE_EVENT)); return; }
+    if (action === 'recalibrate') { setShowCalibration(true); return; }
+    if (action === 'mood' || action === 'filters' || action === 'platforms') {
+      setDiscoverAction(previous => ({ id: (previous?.id ?? 0) + 1, kind: action })); return;
     }
+    if (action === 'invite') { spaceInvite.current?.(); return; }
+    if (action === 'organize') { setSpaceAction(previous => ({ id: (previous?.id ?? 0) + 1, kind: 'organize' })); return; }
+    if (action === 'propose') { openAddModal('watchlist', mediaMode, { fromNav: true }); return; }
+    if (action === 'plan') { setCalendarPlanRequest(n => n + 1); return; }
+    if (action === 'ticket') { openTicketImport(); return; }
+    if (action === 'rateDay') {
+      if (calendarContextDay > calendarDay(Date.now())) return;
+      openAddModal('watched', 'movie', { fromNav: true }); setCalendarWatchedDay(calendarContextDay); return;
+    }
+    if (action === 'tonight') {
+      const choices = uniqueMovies.filter(m => (m.status || 'watched') === 'watchlist');
+      if (choices.length) setShowTonightControls(true);
+      else { setViewMode('Discover'); setDiscoverAction(previous => ({ id: (previous?.id ?? 0) + 1, kind: 'mood' })); }
+      return;
+    }
+    handleNavAddMenu(action === 'series' ? 'series' : action === 'watchlist' ? 'watchlist' : action === 'dictate' ? 'dictate' : 'watched');
   };
 
   const handleNavAddMenu = (kind: AddMenuKind | 'series' | 'movie' | 'ticket') => {
+    // Les ajouts globaux appartiennent à la collection personnelle.
+    if (viewMode === 'SharedSpace') handleBackToFeed();
     switch (kind) {
       case 'watched':
         openAddModal('watched', mediaMode, { fromNav: true });
@@ -3710,7 +3751,7 @@ const App: React.FC = () => {
           <div className="flex items-center justify-between h-14 max-w-2xl mx-auto w-full">
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-2">
-                {viewMode !== 'Feed' && (
+                {viewMode === 'Deck' && (
                   <button
                     onClick={handleBackToFeed}
                     aria-label={t('nav.back')}
@@ -3727,15 +3768,7 @@ const App: React.FC = () => {
                   The Bitter
                 </h1>
               </div>
-              <button
-                onClick={() => {
-                  haptics.soft();
-                  setShowChangelog(true);
-                }}
-                className="text-[8px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 hover:text-forest transition-colors text-left mt-1.5"
-              >
-                {RELEASE_HISTORY[0].version} • {t('app.notes')}
-              </button>
+
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Le Fil du jour : sur l'accueil, avant la cloche. */}
@@ -3875,6 +3908,8 @@ const App: React.FC = () => {
             <SharedSpaceView
               onOpenFilm={(tmdbId, mediaType, onReturn) => openFilm(tmdbId, mediaType, undefined, onReturn)}
               space={activeSharedSpace}
+              actionRequest={spaceAction}
+              onInviteReady={(handler) => { spaceInvite.current = handler; }}
               currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
               onAddMovie={() => openAddModal('watchlist', mediaMode)}
@@ -3905,6 +3940,7 @@ const App: React.FC = () => {
           ) : viewMode === 'Discover' ? (
             <DiscoverView
               key={mediaMode}
+              actionRequest={discoverAction}
               onSelectMovie={(id, type) => {
                 setTmdbIdToLoad(id);
                 setMediaTypeToLoad(type);
@@ -3956,6 +3992,7 @@ const App: React.FC = () => {
             <CalendarView
               initialTab={calendarTab}
               planRequest={calendarPlanRequest}
+              onContextDay={setCalendarContextDay}
               importRequest={calendarImportRequest}
               onNavShortcut={handleNavAddMenu}
               movies={uniqueMovies}
@@ -3987,7 +4024,7 @@ const App: React.FC = () => {
               advanceTrigger={deckAdvanceTrigger}
             />
           ) : (
-            <div className="max-w-md mx-auto w-full space-y-8 animate-[fadeIn_0.3s_ease-out]">
+            <div className="max-w-md mx-auto w-full space-y-5 animate-[fadeIn_0.3s_ease-out]">
               {mediaMode === 'movie' && screeningFollowup.prompt && <section className="rounded-3xl border border-sand bg-white p-5 dark:border-white/10 dark:bg-[#161616]" aria-label={t('lifecycle.screeningTitle')}>
                 <h2 className="text-sm font-black">{t('lifecycle.screeningTitle')}</h2>
                 <p className="mt-2 text-sm font-bold">{screeningFollowup.prompt.title}</p>
@@ -3999,20 +4036,7 @@ const App: React.FC = () => {
               {session?.user?.email && voteRequests.length > 0 && (
                 <HomeVoteCard requests={voteRequests} onVote={voteFromHome} onLater={voteLaterFromHome} />
               )}
-              {session?.user?.email && mySpaces.length > 0 && (
-                <SpaceTickets
-                  spaces={mySpaces}
-                  overview={spaceOverview}
-                  currentUserId={session.user.id}
-                  onOpen={(space) => {
-                    setActiveSharedSpace(space);
-                    setViewMode('SharedSpace');
-                    haptics.medium();
-                  }}
-                  onOpenWaiting={setWaitingSpace}
-                  onCreate={() => setShowSharedSpaces(true)}
-                />
-              )}
+              {uniqueMovies.length === 0 && renderHomeSpaces()}
               {waitingSpace && session?.user?.id && spaceOverview.get(waitingSpace.id) && (
                 <VoteWaitingSheet
                   space={waitingSpace}
@@ -4067,32 +4091,11 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-7">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptics.soft();
-                      setViewMode('Analytics');
-                    }}
-                    className="flex w-full items-end justify-between border-b border-stone-200/70 pb-4 text-left dark:border-white/10"
-                  >
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600">
-                        {t(mediaMode === 'tv' ? 'tv.mySeries' : 'nav.feed')}
-                      </p>
-                      <h1 className="mt-1 text-3xl font-black tracking-tight text-charcoal dark:text-white">
-                        {uniqueMovies.length} {t(mediaMode === 'tv' ? (uniqueMovies.length === 1 ? 'tv.seriesSingular' : 'tv.seriesLabel') : 'feed.filmsLabel')}
-                      </h1>
-                      <p className="mt-1 text-[11px] font-bold text-stone-400 dark:text-stone-500">
-                        {seriesCounts
-                          ? t('tv.headerCounts', seriesCounts)
-                          : `${feedStats?.watchedCount ?? 0} ${t('feed.watched').toLowerCase()} · ${feedStats?.queueCount ?? queueStats?.count ?? 0} ${t('feed.toWatch').toLowerCase()}`}
-                      </p>
-                    </div>
-                    <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-500">
-                      {t('feed.myStats')} <ChevronRight size={13} strokeWidth={2.5} />
-                    </span>
-                  </button>
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <h1 className="text-[28px] font-black tracking-tight text-charcoal dark:text-white">{t(mediaMode === 'tv' ? 'tv.mySeries' : 'nav.feed')} <span className="text-lg font-medium text-stone-400">· {uniqueMovies.length}</span></h1>
+                    {renderHomeSpaces()}
+                  </div>
                   {mediaMode === 'tv' && (
                     <Suspense fallback={null}>
                       <UpNext
@@ -4269,112 +4272,6 @@ const App: React.FC = () => {
                         </button>
                       </div>
                     )}
-                  {feedTab === 'queue' &&
-                    activeProfile &&
-                    uniqueMovies.filter((m) => (m.status || 'watched') === 'watchlist')
-                      .length > 0 && (
-                      <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            haptics.soft();
-                            setShowTonightControls((open) => !open);
-                          }}
-                          aria-expanded={showTonightControls}
-                          className="w-full rounded-[1.7rem] border border-white/10 bg-charcoal px-5 py-4 text-left text-white shadow-xl shadow-black/10 transition-all active:scale-[0.98] dark:bg-[#1a1a1a]"
-                        >
-                          <span className="flex items-center justify-between gap-4">
-                            <span className="flex items-center gap-3">
-                              <span className="grid h-10 w-10 place-items-center rounded-full bg-bitter-lime text-charcoal">
-                                <Shuffle size={17} strokeWidth={2.5} />
-                              </span>
-                              <span>
-                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-bitter-lime">{t('feed.tonight')}</span>
-                                <span className="mt-0.5 block text-sm font-black">
-                                  {selectedMood ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) }) : t('feed.suggestion')}
-                                </span>
-                              </span>
-                            </span>
-                            <ChevronRight size={18} className={`text-bitter-lime transition-transform ${showTonightControls ? 'rotate-90' : ''}`} />
-                          </span>
-                        </button>
-                        {showTonightControls && (
-                          <div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
-                            <MoodPicker
-                              selectedMood={selectedMood}
-                              onSelectMood={setSelectedMood}
-                              activeVibeSort={activeVibeSort}
-                              onSelectVibeSort={setActiveVibeSort}
-                              matchCount={filteredAndSortedMovies.length}
-                              vibeCount={watchlistVibeCount}
-                              minVibes={MIN_MOVIES_FOR_VIBES}
-                            />
-                            <button
-                              type="button"
-                              onClick={handleTonightPick}
-                              className="w-full rounded-2xl bg-bitter-lime py-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-charcoal shadow-lg shadow-lime-400/20 active:scale-[0.98] transition-all"
-                            >
-                              {selectedMood ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) }) : t('feed.tonight')}
-                            </button>
-                        {tonightPick && !isPickAnimating && (
-                          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-                            {tonightPick.posterUrl && (
-                              <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg">
-                                <img
-                                  src={resizeTmdbImage(tonightPick.posterUrl, 'w185')}
-                                  alt={tonightPick.title}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                  decoding="async"
-                                />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">
-                                {selectedMood
-                                  ? `🎯 ${t('feed.moodActive')} : ${t(`mood.${selectedMood}`)}`
-                                  : t('feed.suggestion')}
-                              </p>
-                              <h4 className="font-black text-lg tracking-tight truncate">
-                                {tonightPick.title}
-                              </h4>
-                              <p className="text-[10px] text-stone-400 font-bold mt-1">
-                                {tonightPick.director} • {tonightPick.year}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => setTonightPick(null)}
-                              aria-label={t('common.close')}
-                              className="p-2 text-stone-500 hover:text-white transition-colors"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                        )}
-                          </div>
-                        )}
-                        {false && watchlistGenres.length > 1 && (
-                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                            <button
-                              onClick={() => setWatchlistGenreFilter('all')}
-                              className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${watchlistGenreFilter === 'all' ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}
-                            >
-                              {t('common.all')}
-                            </button>
-                            {watchlistGenres.map((genre) => (
-                              <button
-                                key={genre}
-                                onClick={() => setWatchlistGenreFilter(genre)}
-                                className={`flex-shrink-0 px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${watchlistGenreFilter === genre ? 'bg-charcoal dark:bg-forest text-white border-charcoal shadow-md' : 'bg-white dark:bg-[#1a1a1a] text-stone-400 dark:text-stone-600 border-stone-200 dark:border-white/5'}`}
-                              >
-                                {genre}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                   {/* Séries suivies : le tri par état, dans l'ordre où on les regarde. */}
                   {mediaMode === 'tv' && feedTab === 'history' && (
                     <div data-tour="series-states" className="-mx-6 flex gap-2 overflow-x-auto no-scrollbar px-6 pb-1 animate-[fadeIn_0.3s_ease-out]">
@@ -4416,12 +4313,6 @@ const App: React.FC = () => {
                     </div>
                   )}
                   <div className="space-y-4 border-b border-sand dark:border-white/5 pb-6">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-300 dark:text-stone-700">
-                        {feedTab === 'history' ? t(mediaMode === 'tv' ? 'tv.mySeries' : 'feed.filmsWatched') : t('feed.toWatchLabel')} (
-                        {filteredAndSortedMovies.length})
-                      </h2>
-                    </div>
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <Search
@@ -4712,7 +4603,11 @@ const App: React.FC = () => {
         mediaMode={mediaMode}
         primary={navPrimary}
         onNavigate={handleNavNavigate}
-        onPrimary={handleNavPrimary}
+        onPrimary={() => setShowPageActions(true)}
+        contextLabel={paletteLabel}
+        contextKey={`${viewMode}:${mediaMode}:${viewMode === 'Feed' ? feedTab : ''}`}
+        globalAddRequest={globalAddRequest}
+        paletteOpen={showPageActions}
         addMenu={navAddMenu}
         onAddMenu={handleNavAddMenu}
         emphasize={uniqueMovies.length < 3}
@@ -4722,6 +4617,62 @@ const App: React.FC = () => {
         onSelectionAction={(action) => void handleSelectionAction(action)}
         onClearSelection={clearSelection}
       />
+      {showPageActions && <PageActionsSheet title={paletteLabel} subtitle={paletteSubtitle} actions={paletteActions} onAction={handlePageAction} onClose={() => setShowPageActions(false)} onAllAdd={() => { setShowPageActions(false); setGlobalAddRequest(n => n + 1); }} dark={viewMode === 'Analytics' && watchedCount >= 5} series={mediaMode === 'tv'} />}
+      {showTonightControls && <ActionSheet title={t('pageActions.tonight')} onClose={() => setShowTonightControls(false)}><div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
+                            {isPickAnimating && <Loader2 size={20} className="animate-spin" />}
+                            <MoodPicker
+                              selectedMood={selectedMood}
+                              onSelectMood={setSelectedMood}
+                              activeVibeSort={activeVibeSort}
+                              onSelectVibeSort={setActiveVibeSort}
+                              matchCount={filteredAndSortedMovies.length}
+                              vibeCount={watchlistVibeCount}
+                              minVibes={MIN_MOVIES_FOR_VIBES}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleTonightPick}
+                              disabled={isPickAnimating}
+                              className="w-full rounded-2xl bg-bitter-lime py-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-charcoal shadow-lg shadow-lime-400/20 active:scale-[0.98] transition-all"
+                            >
+                              {selectedMood ? t('feed.tonightMood', { mood: t(`mood.${selectedMood}`) }) : t('feed.tonight')}
+                            </button>
+                        {tonightPick && !isPickAnimating && (
+                          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-5 rounded-[2rem] shadow-2xl flex gap-4 items-center border border-white/5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+                            {tonightPick.posterUrl && (
+                              <div className="w-16 h-24 rounded-2xl overflow-hidden shrink-0 shadow-lg">
+                                <img
+                                  src={resizeTmdbImage(tonightPick.posterUrl, 'w185')}
+                                  alt={tonightPick.title}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-bitter-lime mb-1">
+                                {selectedMood
+                                  ? `🎯 ${t('feed.moodActive')} : ${t(`mood.${selectedMood}`)}`
+                                  : t('feed.suggestion')}
+                              </p>
+                              <h4 className="font-black text-lg tracking-tight truncate">
+                                {tonightPick.title}
+                              </h4>
+                              <p className="text-[10px] text-stone-400 font-bold mt-1">
+                                {tonightPick.director} • {tonightPick.year}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setTonightPick(null)}
+                              aria-label={t('common.close')}
+                              className="p-2 text-stone-500 hover:text-white transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                          </div></ActionSheet>}
       {storyMovie && (
         <ShareStoryButtonSimple movie={storyMovie} autoOpen onClose={() => setStoryMovie(null)} />
       )}
@@ -5099,6 +5050,7 @@ const App: React.FC = () => {
         {showCalibration && activeProfile && (
           <OnboardingModal
             initialName={activeProfile.firstName}
+            onClose={activeProfile.isOnboarded ? () => setShowCalibration(false) : undefined}
             userId={session?.user?.id || activeProfile.id}
             onComplete={handleCompleteCalibration}
           />
@@ -5110,11 +5062,11 @@ const App: React.FC = () => {
               haptics.soft();
               setShowRecommendationsModal(true);
             }}
-            className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl animate-pulse-glow active:scale-90 transition-all"
+            className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
             style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}
             aria-label={t('app.recosFABLabel')}
           >
-            <Sparkles size={22} className="animate-sparkle" />
+            <Sparkles size={22} />
           </button>
         )}
 
@@ -5141,6 +5093,7 @@ const App: React.FC = () => {
         {showProfile && activeProfile && (
           <ProfileModal
             profile={activeProfile}
+            onOpenChangelog={() => { setShowProfile(false); setShowChangelog(true); }}
             session={session}
             onOpenPortrait={() => { setShowProfile(false); setPortraitFromAccount(true); setShowPortrait(true); }}
             onClose={() => { setShowProfile(false); setProfileFocusHabits(false); }}

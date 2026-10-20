@@ -1938,17 +1938,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       )}
 
-      {activeTab !== 'overview' && (
-      <div className="mt-8 text-center">
-        <button
-          onClick={onRecalibrate}
-          className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-stone-600 hover:text-charcoal dark:hover:text-white transition-colors border-b border-stone-200 dark:border-stone-800 pb-0.5"
-        >
-          {t('analytics.recalibrate')}
-        </button>
-      </div>
-      )}
-
       {showTrendDetail &&
         typeof document !== 'undefined' &&
         createPortal(

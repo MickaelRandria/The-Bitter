@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, Ticket } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, Ticket, SlidersHorizontal } from 'lucide-react';
+import ActionSheet from './ActionSheet';
 import {
   CinemaProgrammeFilm,
   CinemaScreening,
@@ -53,6 +54,7 @@ interface CalendarViewProps {
   initialTab?: 'month' | 'upcoming' | 'year';
   /** Le + de la barre : chaque nouvelle valeur > 0 ouvre « Planifier une séance » (plan(today)). */
   planRequest?: number;
+  onContextDay?: (day: string) => void;
   /** Le menu du + : chaque nouvelle valeur > 0 ouvre l'import de billets. */
   importRequest?: number;
   onNavShortcut?: (kind: NavShortcut) => void;
@@ -66,6 +68,10 @@ export default function CalendarView(props: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(() => calendarDay(Date.now()).slice(0, 7));
   const [tab, setTab] = useState<'month' | 'upcoming' | 'year'>(() => props.initialTab ?? 'month');
   const [day, setDay] = useState<string | null>(null);
+  const [consultedDay, setConsultedDay] = useState(() => calendarDay(Date.now()));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openDay = (date: string) => { setConsultedDay(date); setDay(date); };
+  useEffect(() => { props.onContextDay?.(consultedDay); }, [consultedDay, props.onContextDay]);
   const [genre, setGenre] = useState('');
   /** Le filtre choisi, gardé sur l'appareil : on revient souvent au même. */
   const [filter, setFilter] = useState<CalendarFilter>(() => {
@@ -219,7 +225,7 @@ export default function CalendarView(props: CalendarViewProps) {
     if (planRequest === handledPlan.current) return;
     handledPlan.current = planRequest;
     setImportingTickets(false);
-    plan(today, true);
+    plan(consultedDay, true);
     // `plan` et `today` sont lus au moment de la demande, sans la rejouer quand ils changent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planRequest]);
@@ -365,7 +371,9 @@ export default function CalendarView(props: CalendarViewProps) {
   const navigate = (offset: number) => {
     const date = new Date(Date.UTC(year, month + (tab === 'year' ? 0 : offset), 1));
     if (tab === 'year') date.setUTCFullYear(year + offset);
-    setCurrentMonth(date.toISOString().slice(0, 7));
+    const nextMonth = date.toISOString().slice(0, 7);
+    setCurrentMonth(nextMonth);
+    setConsultedDay(previous => nextMonth + '-' + String(Math.min(Number(previous.slice(8)), new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate())).padStart(2, '0'));
   };
   const monthEvents = [...days]
     .filter(([date]) => date.startsWith(currentMonth))
@@ -386,7 +394,7 @@ export default function CalendarView(props: CalendarViewProps) {
   ) : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-lg pb-28 pt-7 text-charcoal dark:text-white">
+    <div className="mx-auto w-full max-w-lg pb-28 pt-1 text-charcoal dark:text-white">
       <header className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-[27px] font-black capitalize leading-tight tracking-[-.04em]">
@@ -400,11 +408,7 @@ export default function CalendarView(props: CalendarViewProps) {
                     timeZone: 'Europe/Paris',
                   }).format(new Date(`${currentMonth}-01T12:00:00Z`))}
           </h1>
-          {tab !== 'year' && (
-            <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-stone-500">
-              {subtitle}
-            </p>
-          )}
+
         </div>
         {tab !== 'upcoming' && (
           <div data-tour="calendar-nav" className="flex shrink-0">
@@ -445,42 +449,13 @@ export default function CalendarView(props: CalendarViewProps) {
           </button>
         ))}
       </div>
-      {tab !== 'year' && (
-        <div
-          role="radiogroup"
-          aria-label={t('agenda.filterLabel')}
-          className="mt-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {CALENDAR_FILTERS.filter((f) => tab === 'month' || f !== 'watched').map((f) => {
-            const active = (tab === 'month' ? filter : upcomingFilter) === f;
-            return (
-              <button
-                key={f}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => chooseFilter(f)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold transition active:scale-95 ${
-                  active
-                    ? 'bg-charcoal text-white dark:bg-white dark:text-[#111]'
-                    : 'bg-white text-stone-500 ring-1 ring-stone-200 dark:bg-[#1A1A19] dark:text-stone-400 dark:ring-white/10'
-                }`}
-              >
-                {f !== 'all' && (
-                  <i
-                    className="h-2 w-2 rounded-full ring-1 ring-black/15"
-                    style={{ background: eventColors[f === 'watched' ? 'watched' : f === 'sessions' ? 'plan' : 'watchlist-release'] }}
-                  />
-                )}
-                {t(`agenda.filter.${f}`)}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {tab !== 'year' && <div className="mt-3 mb-3 flex flex-wrap items-center gap-2">
+        <button type="button" aria-haspopup="dialog" onClick={() => setSettingsOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-sand bg-white px-4 text-xs font-bold dark:border-white/10 dark:bg-white/5"><SlidersHorizontal size={15} />{t(`agenda.filter.${tab === 'upcoming' ? upcomingFilter : filter}`)}{genre && <span>· {genre}</span>}</button>
+        {filter !== 'all' && <button type="button" onClick={() => chooseFilter('all')} className="min-h-11 text-xs font-bold text-stone-500">{t('feed.clearFilter')}</button>}
+      </div>}
       {tab !== 'upcoming' && (
         <button
-          onClick={() => setCurrentMonth(today.slice(0, 7))}
+          onClick={() => { setCurrentMonth(today.slice(0, 7)); setConsultedDay(today); }}
           className="mb-2 mt-3 text-[10px] font-black text-stone-500"
         >
           {t('agenda.today')}
@@ -494,26 +469,10 @@ export default function CalendarView(props: CalendarViewProps) {
               month={month}
               days={visibleDays}
               today={today}
-              onDay={setDay}
+              selectedDay={consultedDay}
+              onDay={openDay}
             />
             <div className="mt-6 flex flex-col gap-6">
-              {genres.length > 1 && (
-                <label className="flex items-center gap-3 text-[10px] font-black uppercase text-stone-500">
-                  {t('agenda.genre')}
-                  <select
-                    value={genre}
-                    onChange={(event) => setGenre(event.target.value)}
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 text-xs normal-case dark:border-white/10 dark:bg-[#1A1A19] dark:text-white"
-                  >
-                    <option value="">{t('agenda.allGenres')}</option>
-                    {genres.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
               <Suspense fallback={null}>
                 <WeeklyRecapStory
                   movies={movies.filter(
@@ -525,7 +484,7 @@ export default function CalendarView(props: CalendarViewProps) {
             </div>
           </>
         )}
-        {tab === 'upcoming' && (
+        {tab === 'upcoming' && !agenda.loading && !agenda.screenings.some(s => s.startsAt > Date.now()) && (
           <button
             type="button"
             onClick={() =>
@@ -572,7 +531,7 @@ export default function CalendarView(props: CalendarViewProps) {
             history={agenda.history}
             movies={movies}
             today={today}
-            onDay={setDay}
+            onDay={openDay}
             onToast={onToast}
           />
         )}
@@ -590,20 +549,63 @@ export default function CalendarView(props: CalendarViewProps) {
               {t('agenda.retry')}
             </button>
           )}
-          <div className="mt-6 flex flex-col gap-4">
-            <button className={`${agendaAction} w-full`} onClick={() => plan(today)}>
-              <CalendarPlus size={15} />
-              {t('agenda.plan')}
-            </button>
-            <button
-              className="min-h-9 w-full text-[10px] font-bold text-stone-500"
-              onClick={remind}
-            >
-              {t(reminderActive ? 'agenda.reminderActive' : 'agenda.enableReminders')}
-            </button>
-          </div>
+          {!agenda.loading && tab === 'month' && monthEvents.length === 0 && <button className={`${agendaAction} mt-6 w-full`} onClick={() => plan(consultedDay)}><CalendarPlus size={15} />{t('agenda.plan')}</button>}
         </>
       )}
+      {settingsOpen && <ActionSheet title={t('pageActions.calendarSettings')} onClose={() => setSettingsOpen(false)}>
+        {tab !== 'year' && (
+        <div
+          role="radiogroup"
+          aria-label={t('agenda.filterLabel')}
+          className="mt-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {CALENDAR_FILTERS.filter((f) => tab === 'month' || f !== 'watched').map((f) => {
+            const active = (tab === 'month' ? filter : upcomingFilter) === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => chooseFilter(f)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold transition active:scale-95 ${
+                  active
+                    ? 'bg-charcoal text-white dark:bg-white dark:text-[#111]'
+                    : 'bg-white text-stone-500 ring-1 ring-stone-200 dark:bg-[#1A1A19] dark:text-stone-400 dark:ring-white/10'
+                }`}
+              >
+                {f !== 'all' && (
+                  <i
+                    className="h-2 w-2 rounded-full ring-1 ring-black/15"
+                    style={{ background: eventColors[f === 'watched' ? 'watched' : f === 'sessions' ? 'plan' : 'watchlist-release'] }}
+                  />
+                )}
+                {t(`agenda.filter.${f}`)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+        <div className="mt-4">{genres.length > 1 && (
+                <label className="flex items-center gap-3 text-[10px] font-black uppercase text-stone-500">
+                  {t('agenda.genre')}
+                  <select
+                    value={genre}
+                    onChange={(event) => setGenre(event.target.value)}
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 text-xs normal-case dark:border-white/10 dark:bg-[#1A1A19] dark:text-white"
+                  >
+                    <option value="">{t('agenda.allGenres')}</option>
+                    {genres.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}</div>
+        <button type="button" className="mt-4 min-h-11 text-xs font-bold text-stone-500" onClick={remind}>{t(reminderActive ? 'agenda.reminderActive' : 'agenda.enableReminders')}</button>
+        <button type="button" className={`${agendaAction} mt-4 w-full`} onClick={() => setSettingsOpen(false)}>{t('pageActions.backCalendar')}</button>
+      </ActionSheet>}
       {day && (
         <CalendarDaySheet
           day={day}

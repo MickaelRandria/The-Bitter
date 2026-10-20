@@ -70,6 +70,7 @@ interface ProfileModalProps {
   session: any | null;
   onClose: () => void;
   onSwitchProfile: () => void;
+  onOpenChangelog?: () => void;
   onRecalibrate: () => void;
   onOpenPortrait?: () => void;
   onImportBackup: (backup: TheBitterBackup) => void;
@@ -137,6 +138,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   session,
   onClose,
   onSwitchProfile,
+  onOpenChangelog,
   onRecalibrate,
   onOpenPortrait,
   onImportBackup,
@@ -1144,9 +1146,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
         {/* Footer */}
         <div className="p-4 bg-stone-50 dark:bg-[#0a0a0a] text-center border-t border-sand dark:border-white/5">
-          <p className="text-[8px] font-black text-stone-300 dark:text-stone-700 uppercase tracking-[0.3em]">
-            The Bitter {RELEASE_HISTORY[0].version}
-          </p>
+          <button type="button" onClick={onOpenChangelog} className="min-h-11 text-[10px] font-bold text-stone-500 dark:text-stone-400">The Bitter {RELEASE_HISTORY[0].version} · {t('app.notes')}</button>
         </div>
       </div>
 

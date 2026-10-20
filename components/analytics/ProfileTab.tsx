@@ -319,16 +319,7 @@ const ProfileTab: React.FC<Props> = ({
             <small className={kpiLabel}>{t('pt.kpiPublic')}</small>
           </div>
         </div>
-        <div className={`mt-2.5 grid gap-2 motion-safe:animate-[pt-rise_0.7s_0.32s_cubic-bezier(.16,1,.3,1)_both] ${canPortrait || onOpenPortrait ? 'grid-cols-[1.15fr_1fr]' : 'grid-cols-1'}`}>
-          <button
-            type="button"
-            onClick={() => { haptics.soft(); onShare(); }}
-            disabled={isSharing}
-            className="h-11 rounded-[15px] bg-bitter-lime text-charcoal text-[12px] font-black flex items-center justify-center gap-2 active:scale-[0.97] transition-transform disabled:opacity-60"
-          >
-            <Share2 size={15} strokeWidth={2.6} />
-            {isSharing ? t('analytics.sharing') : t('pt.shareCard')}
-          </button>
+        <div className={`mt-2.5 grid gap-2 motion-safe:animate-[pt-rise_0.7s_0.32s_cubic-bezier(.16,1,.3,1)_both] grid-cols-1`}>
           {(canPortrait || onOpenPortrait) && (
             <button
               type="button"
@@ -487,18 +478,7 @@ const ProfileTab: React.FC<Props> = ({
           </section>
         )}
 
-        {onRecalibrate && (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => { haptics.soft(); onRecalibrate(); }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border border-white/[0.08] text-[11px] font-black text-white/55"
-            >
-              <SlidersHorizontal size={13} />
-              {t('analytics.recalibrate')}
-            </button>
-          </div>
-        )}
+
       </div>
     </div>
   );

@@ -31,10 +31,10 @@ import {
   recordTap,
   shouldOfferHoldTip,
   shouldRunFan,
-  shouldShowPageLabel,
 } from '../utils/navActions';
 import type { AddMenuKind, PrimaryKind, SelectedWork, SelectionAction } from '../utils/navActions';
 import { readNavDiscovery, updateNavDiscovery } from '../utils/navDiscovery';
+import { DIALOG_CLOSED_EVENT } from '../utils/useDialog';
 
 export type NavViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 export type NavTab = 'Feed' | 'Discover' | 'Analytics' | 'Calendar';
@@ -43,6 +43,10 @@ export interface ContextualNavProps {
   viewMode: NavViewMode;
   mediaMode: 'movie' | 'tv';
   primary: PrimaryKind;
+  contextLabel?: string;
+  contextKey?: string;
+  globalAddRequest?: number;
+  paletteOpen?: boolean;
   onNavigate: (page: NavTab) => void;
   onPrimary: () => void;
   addMenu: AddMenuKind[];
@@ -179,7 +183,7 @@ function ContextualNav(props: ContextualNavProps) {
   const [fan, setFan] = useState<null | 'anim' | 'text'>(null);
   const [tipPending, setTipPending] = useState(false);
   const [tipVisible, setTipVisible] = useState(false);
-  const [pageLabel, setPageLabel] = useState<PrimaryKind | null>(null);
+  const [pageLabel, setPageLabel] = useState<string | null>(null);
   const [scrollCollapsed, setScrollCollapsed] = useState(false);
   const [blob, setBlob] = useState<BlobBox>(HIDDEN_BLOB);
 
@@ -253,6 +257,8 @@ function ContextualNav(props: ContextualNavProps) {
 
   const closeMenu = useCallback((refocus: boolean) => {
     setMenuOpen(false);
+    setScrollCollapsed(false);
+    scrollBase.current = null;
     if (refocus) plusRef.current?.focus();
   }, []);
 
@@ -568,23 +574,23 @@ function ContextualNav(props: ContextualNavProps) {
   }, [viewMode, isPlusClear, later, startFan]);
 
   // ── Bulle d'action quand le + change de sens ────────────────────────────
-  const prevPrimary = useRef(primary);
+  const contextKey = props.contextKey ?? primary;
+  const prevPrimary = useRef(contextKey);
   const labelTimer = useRef<number | null>(null);
   useEffect(() => {
-    if (prevPrimary.current === primary) return;
-    prevPrimary.current = primary;
+    if (prevPrimary.current === contextKey) return;
+    prevPrimary.current = contextKey;
     const l = live.current;
     const p = latest.current;
     if (l.menuOpen || l.tipVisible || l.fan || p.selection.length > 0 || p.discoveryBlocked) return;
-    if (!shouldShowPageLabel(readNavDiscovery())) return;
     cancel(labelTimer.current);
-    setPageLabel(primary);
+    setPageLabel(latest.current.contextLabel ?? t(primaryLabelKey(primary)));
     labelTimer.current = later(() => {
       labelTimer.current = null;
       setPageLabel(null);
       updateNavDiscovery((s) => ({ ...s, labelShows: s.labelShows + 1 }));
     }, PAGE_LABEL_MS);
-  }, [primary, cancel, later]);
+  }, [contextKey, primary, cancel, later, t]);
 
   // ── Astuce du 3e appui court ────────────────────────────────────────────
   useEffect(() => {
@@ -623,6 +629,23 @@ function ContextualNav(props: ContextualNavProps) {
     setFan(null);
   }, [discoveryBlocked]);
 
+  const lastGlobalRequest = useRef(0);
+  useEffect(() => {
+    if (!props.globalAddRequest || props.globalAddRequest === lastGlobalRequest.current) return;
+    lastGlobalRequest.current = props.globalAddRequest;
+    openMenu();
+  }, [props.globalAddRequest, openMenu]);
+  const wasSelecting = useRef(false);
+  useEffect(() => {
+    if (wasSelecting.current && !selecting) { setScrollCollapsed(false); scrollBase.current = null; }
+    wasSelecting.current = selecting;
+  }, [selecting]);
+  useEffect(() => {
+    const restore = () => { setScrollCollapsed(false); scrollBase.current = null; };
+    window.addEventListener(DIALOG_CLOSED_EVENT, restore);
+    return () => window.removeEventListener(DIALOG_CLOSED_EVENT, restore);
+  }, []);
+
   // ── Mode sélection ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!selecting) return;
@@ -651,7 +674,7 @@ function ContextualNav(props: ContextualNavProps) {
 
   // ── Rendu ────────────────────────────────────────────────────────────────
   const PrimaryIcon = PRIMARY_ICONS[primary];
-  const primaryLabel = t(primaryLabelKey(primary));
+  const primaryLabel = props.contextLabel ?? t(primaryLabelKey(primary));
   const shown = shownSelection.current;
   const fanKinds = addMenu.slice(0, FAN_POSITIONS.length);
 
@@ -724,8 +747,8 @@ function ContextualNav(props: ContextualNavProps) {
             type="button"
             data-tour="nav-add"
             aria-label={t('nav.primary.holdHint', { action: primaryLabel })}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen || props.paletteOpen}
             aria-controls={menuOpen ? menuId : undefined}
             onPointerDown={plusHandlers.onPointerDown}
             onPointerMove={plusHandlers.onPointerMove}
@@ -816,7 +839,7 @@ function ContextualNav(props: ContextualNavProps) {
               role="status"
               className="nav-rise whitespace-nowrap rounded-full bg-charcoal text-white dark:bg-white dark:text-charcoal text-xs font-black px-3 py-1.5 shadow-lg"
             >
-              {t(primaryLabelKey(pageLabel))}
+              {pageLabel}
             </span>
           </div>
         )}

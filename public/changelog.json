@@ -1,130 +1,22 @@
 {
-  "version": "2026-10-20-nav-contextuelle",
+  "version": "2026-10-20-actions-par-page",
   "label": "Version du 20 octobre",
   "items": [
     {
-      "title": "Le + suit la page",
-      "body": "Le bouton central change d'action selon l'écran : ajouter un film vu dans ton historique, ranger un film dans ta liste À voir, planifier une séance dans le calendrier, partager ta carte dans tes stats, proposer un film dans un espace. Une bulle te dit ce qu'il va faire les premières fois."
+      "title": "Les actions suivent ta page",
+      "body": "Touche le bouton central pour noter, planifier, découvrir, partager ou organiser selon la page. Tout ajouter reste accessible ; un appui long y mène directement."
     },
     {
-      "title": "Maintiens le + pour tout ajouter",
-      "body": "Un appui long sur le + ouvre le menu d'ajout, sur n'importe quelle page : film vu, film à voir, série, scanner un billet, dicter un avis. Un anneau se remplit pendant l'appui. Les trois petits points sur le bouton te le rappellent."
+      "title": "Plus de place pour les films",
+      "body": "Recherche, onglets et filtres actifs restent visibles. Les actions secondaires sont regroupées. Le Fil reste dans le header et les espaces gardent leurs tickets de cinéma."
     },
     {
-      "title": "Sélectionne des affiches",
-      "body": "Un appui long sur une affiche, dans ton historique, dans Découvrir ou dans un espace, la sélectionne : la barre du bas devient Noter, À voir, Voir avec et Partager. Touche d'autres affiches pour en ajouter plusieurs d'un coup à ta liste, ou pour partager ta sélection."
+      "title": "Le calendrier garde ta date",
+      "body": "La planification reprend le jour consulté. Noter un film vu ce jour-là apparaît seulement pour aujourd’hui ou une date passée."
     },
     {
-      "title": "Une barre plus discrète",
-      "body": "Quand tu fais défiler vers le bas, la barre se replie autour du + ; elle revient dès que tu remontes."
-    },
-    {
-      "title": "L'avis guidé",
-      "body": "Après ta note, Bitter te pose trois questions tirées de tes critères : ce qui coinçait, un moment fort, à qui tu le conseillerais. Tu réponds à la voix ou au clavier, et tes réponses deviennent un seul avis, avec tes mots. Resserrer le raccourcit en te montrant ce qui a été coupé. Un avis compte pour une seule question IA du jour."
-    },
-    {
-      "title": "Dicte ton avis",
-      "body": "Après ta note, touche Dicter mon avis et parle comme à un ami. Bitter retire les « euh », ponctue, et écrit correctement le titre, le réalisateur et les acteurs. Tu peux retirer la dictée ou garder tes mots exacts. Le vocal n'est pas conservé."
-    },
-    {
-      "title": "Un portrait plus confortable sur mobile",
-      "body": "Le header du portrait respecte la zone de sécurité de l’iPhone. Le contenu dispose d’une zone de défilement dédiée, avec le header fixe au-dessus."
-    },
-    {
-      "title": "Le détail de ton portrait cinéma",
-      "body": "Depuis ton profil ou tes statistiques, Voir mon portrait ouvre une vue dédiée aux neuf archétypes : films-preuves, nuances, évolution et découverte à ajouter à ta liste. Le profil conserve ses informations et ses réglages."
-    },
-    {
-      "title": "Un portrait fondé sur tes données",
-      "body": "Le calcul est commun au compte, à la notation et aux statistiques. Les genres sont normalisés, les ressentis manquants ne sont pas inventés et les rewatches ne comptent pas comme plusieurs films. Les rubriques indiquent lorsque les données sont insuffisantes."
-    },
-    {
-      "title": "Les rewatches se repèrent dans ton année",
-      "body": "Une petite pastille Rewatch indique les films revus dans les affiches du calendrier annuel et dans l’image à partager. Chaque séance garde sa place dans ton historique."
-    },
-    {
-      "title": "Ta note, la bonne séance",
-      "body": "Si un film est déjà noté, Bitter te demande si cette note concerne la séance prévue. La confirmer arrête le rappel sans ajouter de visionnage. Un rewatch s’ouvre seulement si tu choisis de noter une autre séance."
-    },
-    {
-      "title": "Un film, une fiche dans ta collection",
-      "body": "Noter un film à voir met à jour sa fiche existante et le fait passer dans tes vus. Un ajout rapide ne remet plus un film vu dans la liste à voir."
-    },
-    {
-      "title": "Des suggestions que tu n’as pas déjà vues",
-      "body": "Explorer et les découvertes du Fil écartent tes films vus. La recherche te permet toujours de les retrouver, et leurs actus restent accessibles."
-    },
-    {
-      "title": "Après ta séance, ton avis",
-      "body": "Une séance confirmée passée sans note te propose un rappel dans l’app après sa fin estimée. Donne ton avis, reporte à demain ou indique que tu n’y es pas allé. Une simple envie à voir ne réclame plus de note."
-    },
-    {
-      "title": "Un Fil pour le cinéma et les séries",
-      "body": "Depuis le header, fais défiler des actus de franceinfo et du Monde, des bandes-annonces officielles et des sorties cinéma. Les filtres Films, Séries, Actus et Bandes-annonces t'aident à choisir."
-    },
-    {
-      "title": "Des découvertes selon tes goûts",
-      "body": "Tes titres bien notés et ceux que tu suis orientent les découvertes. Ouvre leur fiche ou ajoute-les directement à ta liste à voir."
-    },
-    {
-      "title": "Réagir et en parler",
-      "body": "Tes réactions et titres suivis se synchronisent avec ton compte. Échange dans les commentaires, supprime ton message ou signale un contenu depuis le Fil."
-    },
-    {
-      "title": "Animation : les personnages prennent leur place",
-      "body": "Les personnages se jugent sur leurs expressions, avec ou sans voix. Le critère Animation respecte le style du film, sans exiger des mouvements fluides."
-    },
-    {
-      "title": "Musical : les morceaux et le son",
-      "body": "Le son juge la clarté des voix et des instruments. Les morceaux jugent ce que la musique apporte au film, même quand personne ne chante."
-    },
-    {
-      "title": "Horreur : une place pour l’atmosphère",
-      "body": "En Bitter+, l’atmosphère rejoint l’image, le jeu et le son, avant la peur. En Action, la lisibilité reste dans les scènes d’action. Tes anciennes notes gardent leurs grilles et leurs poids."
-    },
-    {
-      "title": "Noter un documentaire comme un documentaire",
-      "body": "Plus de « Jeu des acteurs » face à des témoins : un documentaire se note sur son propos, la parole qu'il donne, ses images, sa construction et ce qu'il t'apprend."
-    },
-    {
-      "title": "Stand-up et concerts filmés",
-      "body": "Deux grilles à choisir dans « Changer » : la performance, le contenu, la captation, le son, et selon le cas l'humour ou l'effet live."
-    },
-    {
-      "title": "Sans objet",
-      "body": "Un critère qui ne s'applique pas peut être laissé de côté : il ne compte pas dans la note et disparaît de ta story. Celui qui compte le plus reste toujours noté."
-    },
-    {
-      "title": "Tes goûts, en un coup d'œil",
-      "body": "Tes genres en mur d'affiches, tes surprises face au public, tes réalisateurs, tes époques et ton classement complet, sur une seule page."
-    }
-  ],
-  "posters": [
-    "https://image.tmdb.org/t/p/w780/7w6v7FHdTbxuKqAPiMqKxEq8hro.jpg",
-    "https://image.tmdb.org/t/p/w780/jvVlMNTPoTKZT2mD3jlSs9B9kIX.jpg",
-    "https://image.tmdb.org/t/p/w780/tFzSSetNzvdaxms6RLfr2pyu9sM.jpg",
-    "https://image.tmdb.org/t/p/w780/gXUnFIZdLsGnZp2AxKjQIVm5jEM.jpg",
-    "https://image.tmdb.org/t/p/w780/hlNRCWGoFFvmRZERUgNUbntO5EU.jpg",
-    "https://image.tmdb.org/t/p/w780/tGdFDoA9qyt0t6Qr9MFnOl8Z2Jz.jpg",
-    "https://image.tmdb.org/t/p/w780/e5qRxuVJNfgZHfFAxts0wK2Fubb.jpg",
-    "https://image.tmdb.org/t/p/w780/wAofwsldMDNAIzGSEfMJMoUn1KB.jpg",
-    "https://image.tmdb.org/t/p/w780/zLCjFOyjvKqYdkQYYAyTtfJ5mpk.jpg",
-    "https://image.tmdb.org/t/p/w780/9BzF32t0U7mOnpzmQ0dyFKv4uZT.jpg",
-    "https://image.tmdb.org/t/p/w780/pICoWjcKSet6sA3yzxOkP8ChwYI.jpg",
-    "https://image.tmdb.org/t/p/w780/qJ2tW6WMUDux911r6m7haRef0WH.jpg"
-  ],
-  "highlights": [
-    {
-      "icon": "nav",
-      "title": "Le + suit la page où tu es"
-    },
-    {
-      "icon": "nav",
-      "title": "Maintiens le + : film, série, billet, dictée"
-    },
-    {
-      "icon": "spaces",
-      "title": "Appui long sur une affiche : noter, partager"
+      "title": "La barre revient quand tu reviens",
+      "body": "Après une sélection ou la fermeture d’une fenêtre, les onglets de navigation sont à nouveau visibles."
     }
   ]
 }
