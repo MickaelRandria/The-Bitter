@@ -701,23 +701,12 @@ const StatsConstats: React.FC<{ movies: Movie[] }> = ({ movies }) => {
             />
           ) : null;
         })}
-        {locked.map((id) => {
-          const k = constats[id];
-          return (
-            <div
-              key={id}
-              className="snap-start shrink-0 w-[236px] h-[320px] rounded-[1.6rem] border-[1.5px] border-dashed border-stone-300 dark:border-white/15 p-[18px] grid grid-rows-[auto_auto_1fr_auto] gap-2"
-            >
-              <span className="text-[11.5px] font-bold text-stone-400 dark:text-stone-500">{t('constats.locked')}</span>
-              <span className="text-[21px] font-black tracking-tight leading-[1.04] text-stone-500 dark:text-stone-400">{t(`constats.${id}.q`)}</span>
-              <span className="self-center text-[12.5px] leading-relaxed text-stone-500">
-                {t(`constats.${id}.lock`, { n: k.unlocked ? 0 : k.missing })}
-              </span>
-              <Lock size={14} className="text-stone-400 dark:text-stone-600" />
-            </div>
-          );
-        })}
+
       </div>
+      {locked.length > 0 && <details className="mt-2 rounded-2xl border border-stone-200 p-4 dark:border-white/10">
+        <summary className="min-h-8 cursor-pointer text-xs font-bold text-stone-500 dark:text-stone-400">{t('pageActions.locked', { n: locked.length })}</summary>
+        <div className="mt-3 space-y-4">{locked.map(id => { const k = constats[id]; return <div key={id} className="text-xs leading-relaxed text-stone-500"><b className="block text-charcoal dark:text-stone-300">{t(`constats.${id}.q`)}</b>{t(`constats.${id}.lock`, { n: k.unlocked ? 0 : k.missing })}</div>; })}</div>
+      </details>}
       {open && <ConstatSheet id={open} constats={constats} onClose={() => setOpen(null)} />}
     </section>
   );

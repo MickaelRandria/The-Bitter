@@ -128,28 +128,7 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
             </button>
           );
         }
-        if (kind === 'platforms' && platforms.length === 0) {
-          return (
-        <button
-          key={kind}
-          type="button"
-          onClick={() => {
-            haptics.medium();
-            onEditHabits?.();
-          }}
-          className="w-full flex items-center gap-3 p-4 rounded-[1.6rem] bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 text-left active:scale-[0.98] transition-transform"
-        >
-          <span className="w-10 h-10 rounded-xl bg-bitter-lime/25 dark:bg-bitter-lime/15 text-charcoal dark:text-bitter-lime flex items-center justify-center shrink-0">
-            <Tv size={18} />
-          </span>
-          <span className="flex-1 min-w-0">
-            <b className="block text-[13px] font-black text-charcoal dark:text-white">{t('shelves.choosePlatforms')}</b>
-            <small className="block text-[11px] font-medium text-stone-500 dark:text-stone-400">{t('shelves.choosePlatformsBody')}</small>
-          </span>
-          <ChevronRight size={18} className="text-stone-300 shrink-0" />
-        </button>
-          );
-        }
+        if (kind === 'platforms' && platforms.length === 0) return null;
         const items = (rows[kind] ?? []).filter((i) => !seen.has(i.id)).slice(0, 14);
         if (rows[kind] && items.length === 0) return null;
         return (

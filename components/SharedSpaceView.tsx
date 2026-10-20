@@ -1,3 +1,4 @@
+import ActionSheet from './ActionSheet';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ArrowLeft,
@@ -80,6 +81,8 @@ import { SpaceSuggestion, getSpaceSuggestions, proposeSuggestion } from '../serv
 import { agreementOf, expectedRaters, fmt1, guessLeaderboard, mean, spreadOf, verdictState } from '../utils/verdict';
 
 interface SharedSpaceViewProps {
+  actionRequest?: import('../utils/pageActions').SpaceActionRequest;
+  onInviteReady?: (handler: (() => void) | null) => void;
   space: SharedSpace;
   currentUserId: string;
   onBack: () => void;
@@ -158,6 +161,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   onFocusHandled,
   onToast,
   onOpenFilm,
+  actionRequest,
+  onInviteReady,
 }) => {
   const { t } = useLanguage();
   /** La liste des membres, ouverte depuis la rangée d'avatars de l'en-tête. */
@@ -214,6 +219,37 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   }, []);
   /** L'espace peut être renommé pendant la session : on garde la version à jour. */
   const [space, setSpace] = useState(initialSpace);
+  const [choosingPlan, setChoosingPlan] = useState(false);
+  const handledAction = useRef(0);
+  const handleInvite = async () => {
+    haptics.medium();
+    const { origin, protocol, hostname } = window.location;
+    const base = protocol === 'https:' && hostname !== 'localhost' ? origin : 'https://thebitter.watch';
+    const text = `${t('spaces.inviteText', { name: space.name, code: space.invite_code })} ${base}/?join=${encodeURIComponent(space.invite_code)}`;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (e) {
+        if ((e as { name?: string })?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      onToast?.(t('spaces.inviteCopied'));
+    } catch {
+      setActionError(t('shared.copyFailed', { code: space.invite_code }));
+    }
+  };
+  useEffect(() => {
+    onInviteReady?.(() => { void handleInvite(); });
+    return () => onInviteReady?.(null);
+  }, [onInviteReady, space, t]);
+  useEffect(() => {
+    if (!actionRequest || actionRequest.id === handledAction.current) return;
+    handledAction.current = actionRequest.id;
+    setChoosingPlan(true);
+  }, [actionRequest]);
   /**
    * Bandeau de première ouverture.
    *
@@ -1224,7 +1260,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   )}
                   <span className="truncate text-[11px] font-extrabold text-stone-200">{ctx.status}</span>
                 </span>
-                {cta && <span className="pointer-events-auto shrink-0">{cta}</span>}
+                {/* Mêmes gestionnaires que l'affiche : pendant une sélection, « Partant ? »
+                    ou « On y va » cochent la carte au lieu de voter ou d'ouvrir la séance. */}
+                {cta && (
+                  <span {...handlers} style={style} className="pointer-events-auto shrink-0">
+                    {cta}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1295,7 +1337,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     ))}
               </p>
             </div>
-            <span className="pointer-events-auto">{right}</span>
+            <span {...handlers} style={style} className="pointer-events-auto">
+              {right}
+            </span>
           </div>
         </div>
       </div>
@@ -1498,26 +1542,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
    * « Inviter » envoie un lien qui fait rejoindre l'espace d'un appui
    * (`?join=`), le code reste dans le texte pour qui l'ouvre ailleurs.
    */
-  const handleInvite = async () => {
-    haptics.medium();
-    const { origin, protocol, hostname } = window.location;
-    const base = protocol === 'https:' && hostname !== 'localhost' ? origin : 'https://thebitter.watch';
-    const text = `${t('spaces.inviteText', { name: space.name, code: space.invite_code })} ${base}/?join=${encodeURIComponent(space.invite_code)}`;
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ text });
-        return;
-      } catch (e) {
-        if ((e as { name?: string })?.name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      onToast?.(t('spaces.inviteCopied'));
-    } catch {
-      setActionError(t('shared.copyFailed', { code: space.invite_code }));
-    }
-  };
+
 
   return (
     <div className="max-w-2xl mx-auto w-full pb-48 animate-[fadeIn_0.3s_ease-out]">
@@ -1542,8 +1567,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       {/* En-tête : le bandeau des dernières affiches, puis qui est là. Le code
           d'invitation n'occupe plus le haut de l'écran à chaque visite : il
           vit dans les réglages, « Inviter » envoie un lien. */}
-      <header className="mb-8 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-        <div className="relative h-[150px] rounded-[2rem] overflow-hidden grid grid-cols-5 gap-[3px]" style={{ background: tint }}>
+      <header className="mb-5 animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+        <div className="relative h-[90px] rounded-[1.5rem] overflow-hidden grid grid-cols-5 gap-[3px]" style={{ background: tint }}>
           {bandPosters.map((poster, i) =>
             poster ? (
               <img
@@ -1594,14 +1619,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         </div>
 
-        <div className="px-1 -mt-9 relative">
+        <div className="px-1 -mt-5 relative">
           <span
-            className="w-[72px] h-[72px] rounded-full border-4 border-cream dark:border-[#0c0c0c] flex items-center justify-center text-white text-[22px] font-black tracking-tight"
+            className="w-[48px] h-[48px] rounded-full border-4 border-cream dark:border-[#0c0c0c] flex items-center justify-center text-white text-[16px] font-black tracking-tight"
             style={{ background: tint }}
           >
             {monogramOf(space.name)}
           </span>
-          <h1 className="mt-2.5 text-[30px] leading-tight font-black tracking-tighter text-charcoal dark:text-white break-words">
+          <h1 className="mt-2 text-[26px] leading-tight font-black tracking-tighter text-charcoal dark:text-white break-words">
             {space.name}
           </h1>
           <div className="mt-2.5 flex items-center justify-between gap-3">
@@ -1626,13 +1651,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </span>
               <span className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">{membersLabel}</span>
             </button>
-            <button
-              onClick={handleInvite}
-              className="shrink-0 h-11 px-[18px] rounded-full bg-bitter-lime text-charcoal text-xs font-black flex items-center gap-2 active:scale-95 transition-transform"
-            >
-              <UserPlus size={15} strokeWidth={2.6} />
-              {t('spaces.invite')}
-            </button>
+
           </div>
         </div>
       </header>
@@ -2092,6 +2111,12 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         );
       })()}
 
+      {choosingPlan && <ActionSheet title={t('pageActions.organize')} subtitle={space.name} onClose={() => setChoosingPlan(false)}>
+        <div className="space-y-2">
+          {watchlistMovies.map(movie => <button key={movie.id} type="button" onClick={() => { setChoosingPlan(false); openPlan(movie.id); }} className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-sand bg-white p-3 text-left dark:border-white/10 dark:bg-white/5"><MoviePoster url={movie.poster_url ?? undefined} /><span className="text-sm font-black">{movie.title}</span></button>)}
+          {watchlistMovies.length === 0 && <><p className="text-sm text-stone-500">{t('pageActions.noSpaceFilm')}</p><button type="button" onClick={() => { setChoosingPlan(false); onAddMovie(); }} className="mt-3 min-h-11 w-full rounded-xl bg-forest px-4 text-sm font-black text-white">{t('pageActions.propose')}</button></>}
+        </div>
+      </ActionSheet>}
       {showStats && (
         <SpaceStatsView
           spaceName={space.name}

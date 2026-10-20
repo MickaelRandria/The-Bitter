@@ -309,7 +309,10 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
         {/* Carte principale */}
         <div
-          {...pressHandlers}
+          // Dépliée et hors sélection, la carte laisse l'appui long au texte : on
+          // copie son avis sans démarrer une sélection. Un appui court y coche
+          // toujours la carte pendant une sélection.
+          {...(isExpanded && !selecting ? null : pressHandlers)}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}

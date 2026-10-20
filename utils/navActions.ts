@@ -67,12 +67,11 @@ export type AddMenuKind = 'watched' | 'watchlist' | 'series' | 'movie' | 'ticket
  * dans la partie Séries), un billet, une dictée. Dans la partie Séries, l'ordre
  * s'inverse : on commence une série, et le film est le détour.
  *
- * Dans un espace, l'ajout part dans l'espace : seuls « vu » et « à voir » ont un
- * sens (les billets vont au calendrier personnel, les séries ne se proposent pas
- * en espace).
+ * Ce menu reste global depuis un espace. La palette contextuelle propose, elle,
+ * un film au groupe ; les ajouts globaux ouvrent la collection personnelle.
  */
-export const addMenuFor = (mediaMode: MediaMode, inSpace: boolean): AddMenuKind[] => {
-  if (inSpace) return ['watchlist', 'watched', 'dictate'];
+export const addMenuFor = (mediaMode: MediaMode, _inSpace: boolean): AddMenuKind[] => {
+  // Le menu global reste personnel, y compris depuis un espace.
   return mediaMode === 'tv'
     ? ['series', 'watched', 'watchlist', 'movie', 'ticket', 'dictate']
     : ['watched', 'watchlist', 'series', 'ticket', 'dictate'];

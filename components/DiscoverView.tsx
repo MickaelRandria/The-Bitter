@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ActionSheet from './ActionSheet';
+import type { DiscoverActionRequest } from '../utils/pageActions';
+import { myPlatforms } from '../utils/platforms';
 import DOMPurify from 'dompurify';
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
 import { tmdbImage } from '../utils/tmdbImage';
@@ -65,6 +68,7 @@ type SearchMode = 'title' | 'mood';
 import FreeToWatchSection from './FreeToWatchSection';
 
 interface DiscoverViewProps {
+  actionRequest?: DiscoverActionRequest;
   onSelectMovie: (tmdbId: number, mediaType: MediaType) => void;
   onPreview: (tmdbId: number, mediaType: MediaType) => void;
   /** « Gratuit et légal » : ma note si le titre est noté, sinon sa fiche. */
@@ -153,6 +157,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   initialMediaType = 'movie',
   onEditHabits,
   onOpenCalendar,
+  actionRequest,
 }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
@@ -167,6 +172,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('title');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moodOpen, setMoodOpen] = useState(false);
+  const handledRequest = useRef(0);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('popularity');
   const [streamingFilter, setStreamingFilter] = useState<
@@ -390,6 +397,15 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!actionRequest || handledRequest.current === actionRequest.id) return;
+    handledRequest.current = actionRequest.id;
+    if (actionRequest.kind === 'platforms') { onEditHabits?.(); return; }
+    setSurface('foryou');
+    if (actionRequest.kind === 'filters') setFiltersOpen(true);
+    else { handleSearchModeChange('mood'); setMoodOpen(true); }
+  }, [actionRequest]);
+
   const resetFilters = () => {
     haptics.soft();
     setTimePeriod('all_time');
@@ -398,7 +414,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-[fadeIn_0.4s_ease-out] pb-24">
+    <div className="space-y-5 animate-[fadeIn_0.4s_ease-out] pb-24">
       <div className="flex bg-stone-100 dark:bg-[#161616] p-1 rounded-2xl border border-stone-200/50 dark:border-white/5 w-full shadow-inner transition-colors">
         {(mediaType === 'tv' ? (['foryou', 'theatre', 'feed'] as const) : (['foryou', 'feed'] as const)).map((key) => (
           <button
@@ -450,47 +466,13 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         <TvUpcoming followedIds={(movies ?? []).filter(m => m.seasonNumber == null && m.tmdbId != null).map(m => m.tmdbId!)} onPreview={id => onPreview(id, 'tv')} onAdd={onQuickWatchlist ? id => onQuickWatchlist(id, 'tv') : undefined} />
       ) : (
       <>
-      {/* Décrire son envie plutôt que régler six filtres : c'est la question
-          qu'on se pose en ouvrant l'écran, elle passe donc avant le reste. */}
-      <section className="space-y-4">
-        <div className="inline-flex rounded-full border border-stone-200/70 bg-stone-100 p-1 dark:border-white/10 dark:bg-[#161616]">
-          <button
-            type="button"
-            onClick={() => handleSearchModeChange('title')}
-            aria-pressed={searchMode === 'title'}
-            className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${searchMode === 'title' ? 'bg-white text-charcoal shadow-sm dark:bg-[#202020] dark:text-white' : 'text-stone-400 dark:text-stone-600'}`}
-          >
-            <Search size={13} /> {t('discover.titleMode')}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSearchModeChange('mood')}
-            aria-pressed={searchMode === 'mood'}
-            className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${searchMode === 'mood' ? 'bg-charcoal text-white shadow-sm dark:bg-bitter-lime dark:text-charcoal' : 'text-stone-400 dark:text-stone-600'}`}
-          >
-            <Sparkles size={13} /> {t('discover.moodMode')}
-          </button>
-        </div>
+      {moodOpen && <ActionSheet title={t('discover.moodMode')} onClose={() => setMoodOpen(false)}>
+        <MoodSearch mediaType={mediaType} favoriteGenres={userProfile?.favoriteGenres} activeSummary={moodSummary}
+          onResults={(results, summary) => { setMoodSummary(summary); setItems(results); setLoading(false); setMoodOpen(false); }}
+          onClear={() => { setMoodSummary(null); setSearchMode('title'); fetchItems(); }} />
+      </ActionSheet>}
+      {moodSummary && <div className="flex items-center gap-2 text-xs text-stone-500"><button type="button" onClick={() => setMoodOpen(true)} className="min-h-11 text-left">{moodSummary}</button><button type="button" aria-label={t('feed.clearFilter')} className="min-h-11 px-2" onClick={() => { setMoodSummary(null); setSearchMode('title'); setSearchQuery(''); fetchItems(); }}><X size={15} /></button></div>}
 
-      {searchMode === 'mood' && (
-      <MoodSearch
-        mediaType={mediaType}
-        favoriteGenres={userProfile?.favoriteGenres}
-        activeSummary={moodSummary}
-        onResults={(results, summary) => {
-          setMoodSummary(summary);
-          setItems(results);
-          setLoading(false);
-        }}
-        onClear={() => {
-          setMoodSummary(null);
-          fetchItems();
-        }}
-      />
-      )}
-      </section>
-
-      {searchMode === 'title' && (
       <>
       {/* SEARCH BAR */}
       <div className="space-y-3">
@@ -504,7 +486,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
             placeholder={t(mediaType === 'tv' ? 'addMovie.seriesName' : 'discover.search')}
             className="w-full bg-stone-100/50 dark:bg-[#161616] hover:bg-stone-100 dark:hover:bg-[#202020] focus:bg-white dark:focus:bg-[#1a1a1a] border-2 border-transparent focus:border-stone-200 dark:focus:border-white/10 rounded-[2rem] py-5 pl-14 pr-14 text-base font-black outline-none transition-all shadow-sm placeholder:text-stone-300 dark:placeholder:text-stone-700 text-charcoal dark:text-white"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchMode('title'); setMoodSummary(null); setSearchQuery(e.target.value); }}
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
           />
@@ -597,6 +579,12 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-400">
+        {timePeriod !== 'all_time' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setTimePeriod('all_time')}>{t(timePeriod === 'this_month' ? 'discover.month' : 'discover.year')}<X size={12} /></button>}
+        {streamingFilter !== 'all' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setStreamingFilter('all')}>{PROVIDERS.find(p => String(p.id) === String(streamingFilter))?.name}<X size={12} /></button>}
+        {sortBy !== 'popularity' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setSortBy('popularity')}>{sortBy === 'date' ? t('discover.sortDate') : 'A–Z'}<X size={12} /></button>}
+        {userProfile && myPlatforms(userProfile.streamingPlatforms).length > 0 && <button type="button" className="min-h-9 text-left" onClick={onEditHabits}>{myPlatforms(userProfile.streamingPlatforms).map(p => p.name).join(' · ')}</button>}
+      </div>
       {/* AI RESULT */}
       {aiResult && (
         <div className="bg-stone-900 text-white rounded-[2.5rem] p-8 space-y-6 animate-[slideUp_0.4s_ease-out] border border-bitter-lime/20 relative overflow-hidden">
@@ -617,7 +605,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       )}
 
       {/* FILTERS */}
-      {filtersOpen && !aiResult && (
+      {filtersOpen && (
+        <ActionSheet title={t('pageActions.filters')} onClose={() => setFiltersOpen(false)}>
         <div className="space-y-8 rounded-[2rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616] sm:p-5">
           {/* D'où l'on regarde. Côté films, la popularité mondiale de TMDB est
               déjà celle qu'on connaît ici : le réglage n'y changerait rien et n'a
@@ -743,10 +732,11 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               </button>
             </div>
           )}
+          <button type="button" onClick={() => setFiltersOpen(false)} className="min-h-11 w-full rounded-xl bg-forest px-4 py-3 text-xs font-black text-white">{t('pageActions.showResults')}</button>
         </div>
+        </ActionSheet>
       )}
       </>
-      )}
 
       {/* Mes rangées : mes plateformes, le ciné de la semaine, de quoi démarrer. */}
       {userProfile && !isSearchActive && !aiResult && (

@@ -14,6 +14,15 @@ export interface Release {
 
 export const RELEASE_HISTORY: Release[] = [
   {
+    version: 'v0.92', date: '20 Octobre 2026', title: 'Les actions suivent ta page',
+    changes: [
+      { type: 'feature', text: 'Le bouton central ouvre les actions de la page : noter ou ajouter depuis ta collection, planifier dans le calendrier, chercher selon ton envie dans Découvrir, partager tes stats, proposer un film ou organiser une séance dans un espace.' },
+      { type: 'feature', text: 'Tout ajouter reste visible dans chaque palette. Un appui long ouvre directement les ajouts globaux.' },
+      { type: 'style', text: 'Des pages plus légères : les compteurs sont regroupés, les réglages et actions secondaires quittent le contenu. Le Fil du jour reste dans le header, les espaces gardent leurs billets de cinéma dans une fenêtre dédiée.' },
+      { type: 'fix', text: 'Planifier reprend la date consultée. La barre se déplie après une sélection ou la fermeture d’une fenêtre, et son libellé accompagne chaque changement de contexte.' },
+    ],
+  },
+  {
     version: 'v0.91',
     date: '12 Août 2026',
     title: "Une IA qui s'appuie sur tes notes, jamais sur son imagination",

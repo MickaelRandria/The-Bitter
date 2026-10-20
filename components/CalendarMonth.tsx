@@ -9,12 +9,14 @@ export default function CalendarMonth({
   month,
   days,
   today,
+  selectedDay,
   onDay,
 }: {
   year: number;
   month: number;
   days: Map<string, AgendaEvent[]>;
   today: string;
+  selectedDay?: string;
   onDay: (day: string) => void;
 }) {
   const { t, language } = useLanguage();
@@ -49,6 +51,7 @@ export default function CalendarMonth({
               key={day}
               type="button"
               onClick={() => onDay(day)}
+              aria-pressed={day === selectedDay}
               aria-label={t('agenda.openDay', {
                 date: new Intl.DateTimeFormat(locale, {
                   day: 'numeric',
@@ -58,7 +61,7 @@ export default function CalendarMonth({
                 }).format(new Date(`${day}T12:00:00Z`)),
                 n: events.length,
               })}
-              className={`relative aspect-[2/3] min-w-0 overflow-hidden rounded-[10px] bg-stone-200/60 text-left transition active:scale-95 dark:bg-[#151514] ${current ? 'ring-2 ring-[#D9FF00] ring-offset-2 ring-offset-cream dark:ring-offset-[#0c0c0c]' : ''}`}
+              className={`relative aspect-[2/3] min-w-0 overflow-hidden rounded-[10px] bg-stone-200/60 text-left transition active:scale-95 dark:bg-[#151514] ${day === selectedDay ? 'ring-2 ring-forest ring-offset-2 ring-offset-cream dark:ring-forest dark:ring-offset-[#0c0c0c]' : current ? 'ring-2 ring-[#D9FF00] ring-offset-2 ring-offset-cream dark:ring-offset-[#0c0c0c]' : ''}`}
             >
               {main?.posterUrl && (
                 <img

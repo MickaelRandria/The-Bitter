@@ -71,6 +71,7 @@ import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
 import { useDialog } from '../utils/useDialog';
 import { AdaptiveRatingSection, BitterRatingSection, ProfilePicker } from './RatingGrid';
 import { readNavDiscovery, subscribeNavDiscovery } from '../utils/navDiscovery';
+import { canDictate } from '../services/voiceReview';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -316,6 +317,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    * `focusReview`, mais décidé dans la modale, donc oublié à la fermeture.
    */
   const [reviewFocus, setReviewFocus] = useState(false);
+  /** Sans dictée possible, ni pastille « Dicter un avis » ni promesse d'un micro. */
+  const dictationAvailable = useMemo(() => canDictate(), []);
   const opinionRef = useRef<HTMLDetailsElement>(null);
   /** Le défilement vers l'avis ne se fait qu'une fois par ouverture : ensuite, la main est à l'utilisateur. */
   const reviewScrolledRef = useRef(false);
@@ -1273,20 +1276,22 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                           onClick={() => onShortcut('ticket')}
                         />
                       )}
-                      <ShortcutChip
-                        icon={<Mic size={14} />}
-                        label={t('nav.add.dictate')}
-                        pressed={reviewFocus || focusReview}
-                        onClick={() => {
-                          setMode('watched');
-                          setReviewFocus(true);
-                          searchInputRef.current?.focus();
-                        }}
-                      />
+                      {dictationAvailable && (
+                        <ShortcutChip
+                          icon={<Mic size={14} />}
+                          label={t('nav.add.dictate')}
+                          pressed={reviewFocus || focusReview}
+                          onClick={() => {
+                            setMode('watched');
+                            setReviewFocus(true);
+                            searchInputRef.current?.focus();
+                          }}
+                        />
+                      )}
                     </div>
                   </>
                 )}
-                {(reviewFocus || focusReview) && (
+                {dictationAvailable && (reviewFocus || focusReview) && (
                   <p className="text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-400 ml-1" aria-live="polite">
                     {t('nav.shortcuts.dictateHint')}
                   </p>

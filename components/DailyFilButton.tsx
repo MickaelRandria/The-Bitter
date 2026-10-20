@@ -19,7 +19,7 @@ const DailyFilButton: React.FC<{ onOpen: () => void; profileId?: string }> = ({ 
   }, [profileId]);
   const opened = openedAt && parisDay(openedAt) === day;
   return <button type="button" onClick={() => { haptics.medium(); onOpen(); }} aria-label={t('cineFil.headerLabel')} className="relative shrink-0 active:scale-90 transition-transform">
-    <span className={`relative isolate block h-11 w-8 overflow-hidden rounded-lg bg-[#0b0b0b] ${opened ? 'shadow-sm' : 'fil-glow'}`}>
+    <span className={`relative isolate block h-11 w-8 overflow-hidden rounded-lg bg-[#0b0b0b] shadow-sm`}>
       <img src={poster} alt="" className="absolute -inset-1.5 -z-20 h-[calc(100%+12px)] w-[calc(100%+12px)] max-w-none object-cover blur-[3px] saturate-150" />
       <span className="absolute inset-0 -z-10 bg-gradient-to-b from-black/5 to-black/65" />
       <i className="absolute inset-x-0 top-[3px] text-center text-[6px] font-black not-italic tracking-[.12em] text-bitter-lime">FIL</i>
