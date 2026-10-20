@@ -623,3 +623,28 @@ export const getTheatreReleases = async (
 
   return data;
 };
+
+/**
+ * Une affiche sans texte du film, en grand, pour les affiches « Mon année » :
+ * le titre du film ne se bat pas avec le nôtre. TMDB les range sous la langue
+ * nulle. Null quand il n'y en a pas, l'appelant retombe sur l'affiche habituelle.
+ */
+export const fetchTextlessPoster = async (tmdbId: number): Promise<string | null> => {
+  const key = `textless-poster:${tmdbId}`;
+  const cached = getCachedData<string>(key);
+  if (cached !== null) return cached || null;
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/movie/${tmdbId}/images?api_key=${TMDB_API_KEY}&include_image_language=null`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const posters: { file_path: string; iso_639_1: string | null; vote_average: number }[] = data.posters || [];
+    const best = posters.filter((p) => !p.iso_639_1).sort((a, b) => b.vote_average - a.vote_average)[0];
+    const url = best ? `https://image.tmdb.org/t/p/w1280${best.file_path}` : '';
+    setCachedData(key, url);
+    return url || null;
+  } catch {
+    return null;
+  }
+};

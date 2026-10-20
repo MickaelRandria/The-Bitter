@@ -37,6 +37,8 @@ interface CalendarViewProps {
   movies: Movie[];
   profileId?: string;
   favoriteCinema?: FavoriteCinema;
+  /** Prénom affiché sur les affiches « Mon année ». */
+  firstName?: string;
   subscription?: CinemaSubscription;
   onAddToWatchlist?: (tmdbId: number) => Promise<boolean>;
   onRewatch?: (movie: Movie) => void;
@@ -538,6 +540,7 @@ export default function CalendarView(props: CalendarViewProps) {
             history={agenda.history}
             movies={movies}
             today={today}
+            firstName={props.firstName}
             onDay={openDay}
             onToast={onToast}
           />

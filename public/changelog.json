@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-20-actions-par-page",
-  "label": "Version du 20 octobre",
+  "version": "2026-10-21-annee-en-affiches",
+  "label": "Version du 21 octobre",
   "items": [
+    {
+      "title": "Ton année en affiches",
+      "body": "Dans le calendrier, onglet Année, Partager mon année en story crée trois affiches de cinéma à poster en story : ton film de l’année avec tes chiffres en générique, ta révélation, le film qui a le plus dépassé ton attente, et ton navet de l’année, couronne à l’envers."
+    },
+    {
+      "title": "Des affiches sans texte, en grand",
+      "body": "Le fond reprend l’affiche du film sans son titre, en haute définition, pour que ton titre reste le seul à l’écran. Une affiche qui manque de données reste verrouillée et dit quoi faire pour la débloquer."
+    },
     {
       "title": "Les actions suivent ta page",
       "body": "Touche le bouton central pour noter, planifier, découvrir, partager ou organiser selon la page. Tout ajouter reste accessible ; un appui long y mène directement."
@@ -17,6 +25,20 @@
     {
       "title": "La barre revient quand tu reviens",
       "body": "Après une sélection ou la fermeture d’une fenêtre, les onglets de navigation sont à nouveau visibles."
+    }
+  ],
+  "highlights": [
+    {
+      "icon": "calendar",
+      "title": "Ton année en trois affiches"
+    },
+    {
+      "icon": "stats",
+      "title": "Ta révélation et ton navet"
+    },
+    {
+      "icon": "cinema",
+      "title": "Des affiches de cinéma en grand"
     }
   ]
 }

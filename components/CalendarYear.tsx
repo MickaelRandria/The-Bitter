@@ -1,17 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import { Loader2, RotateCcw, Share2 } from 'lucide-react';
+import React, { lazy, Suspense, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { RotateCcw, Share2 } from 'lucide-react';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { calendarYear, CalendarWatch } from '../utils/calendarAgenda';
-import { shareCalendarYear } from '../utils/calendarYearStory';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { agendaAction, agendaLabel } from './CalendarEventCard';
+
+const YearStoriesSheet = lazy(() => import('./yearStories/YearStoriesSheet'));
 
 export default function CalendarYear({
   year,
   history,
   movies,
   today,
+  firstName,
   onDay,
   onToast,
 }: {
@@ -19,6 +22,7 @@ export default function CalendarYear({
   history: CalendarWatch[];
   movies: Movie[];
   today: string;
+  firstName?: string;
   onDay: (day: string) => void;
   onToast?: (message: string) => void;
 }) {
@@ -37,7 +41,7 @@ export default function CalendarYear({
     new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(new Date(2024, 0, day + 1))
   );
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
+  const [storiesOpen, setStoriesOpen] = useState(false);
   const [goal, setGoal] = useState(() => {
     try {
       const saved = Number(localStorage.getItem('bitter_calendar_goal_v1'));
@@ -48,38 +52,6 @@ export default function CalendarYear({
   });
   const intensityColors = ['#1A1A19', '#596300', '#9DB900', '#D9FF00'];
   const selected = selectedDay?.startsWith(`${year}-`) ? (data.days.get(selectedDay) ?? []) : [];
-  const share = async () => {
-    setSharing(true);
-    try {
-      const outcome = await shareCalendarYear(
-        year,
-        data.best,
-        movies,
-        months,
-        {
-          title: t('agenda.yearPosters'),
-          summary: t('agenda.yearSummary', {
-            n: data.total,
-            rating: data.average.toLocaleString(locale, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            }),
-          }),
-          empty: t('agenda.noFilm'),
-          future: t('agenda.soon'),
-          record: t('agenda.streakDays', { n: data.longestStreak }),
-          rewatch: t('agenda.rewatchBadge'),
-        },
-        today
-      );
-      if (outcome !== 'cancelled')
-        onToast?.(t(outcome === 'downloaded' ? 'agenda.storyDownloaded' : 'agenda.storyShared'));
-    } catch {
-      onToast?.(t('agenda.storyError'));
-    } finally {
-      setSharing(false);
-    }
-  };
   return (
     <>
       <p className="mt-4 text-[10px] font-black uppercase tracking-wider text-stone-500">
@@ -289,14 +261,24 @@ export default function CalendarYear({
           </div>
         </div>
       </div>
-      <button
-        onClick={() => void share()}
-        disabled={sharing}
-        className={`${agendaAction} mt-4 w-full`}
-      >
-        {sharing ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+      <button onClick={() => setStoriesOpen(true)} className={`${agendaAction} mt-4 w-full`}>
+        <Share2 size={14} />
         {t('agenda.shareYear')}
       </button>
+      {storiesOpen &&
+        createPortal(
+          <Suspense fallback={null}>
+            <YearStoriesSheet
+              year={year}
+              history={history}
+              movies={movies}
+              firstName={firstName}
+              onClose={() => setStoriesOpen(false)}
+              onToast={onToast}
+            />
+          </Suspense>,
+          document.body
+        )}
     </>
   );
 }
