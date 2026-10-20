@@ -110,6 +110,7 @@ import {
 import MoodPicker from './components/MoodPicker';
 import { initAnalytics, stopAnalytics, trackEvent, trackPageView } from './utils/analytics';
 import ContextualNav, { NavTab } from './components/ContextualNav';
+import { canDictate } from './services/voiceReview';
 import PageActionsSheet from './components/PageActionsSheet';
 import ActionSheet from './components/ActionSheet';
 import { pageActionsFor, contextLabelKey, PageAction, DiscoverActionRequest, SpaceActionRequest } from './utils/pageActions';
@@ -637,6 +638,14 @@ const App: React.FC = () => {
   const [addFromNav, setAddFromNav] = useState(false);
   /** Ouverte par « Dicter un avis » : l'avis passe au premier plan dès le film choisi. */
   const [addFocusReview, setAddFocusReview] = useState(false);
+  // Toutes les fermetures (enregistrement compris) : la prochaine ouverture par
+  // une fiche ou par Découvrir ne doit hériter ni de « Autre chose ? » ni de la dictée.
+  useEffect(() => {
+    if (!isModalOpen) {
+      setAddFromNav(false);
+      setAddFocusReview(false);
+    }
+  }, [isModalOpen]);
   /** Change à chaque ouverture par la barre : la fenêtre repart de zéro même si elle était ouverte. */
   const [addModalSeq, setAddModalSeq] = useState(0);
   /** Affiches cochées par appui long ; la barre du bas devient leur barre d'actions. */
@@ -1762,7 +1771,9 @@ const App: React.FC = () => {
    * est la question suivante. L'envie est partagée, reste le quand.
    */
   const openWatchWith = async (tmdbId: number, mediaType: 'movie' | 'tv', preselect?: string[]) => {
-    const known = uniqueMovies.find(
+    // Toute la collection, pas la seule partie affichée : une série choisie dans
+    // un espace pendant qu'on est côté Films doit être retrouvée.
+    const known = allMovies.find(
       (m) => m.tmdbId === tmdbId && m.seasonNumber == null && (m.mediaType ?? 'movie') === mediaType
     );
     const movie = known ?? (mediaType === 'movie' ? await getMovieDetailsForAdd(tmdbId) : null);
@@ -2080,12 +2091,16 @@ const App: React.FC = () => {
               : t('feed.movieAdded')
       );
     }
-    setEditingMovie(null);
-    setSeasonDraft(null);
-    setTmdbIdToLoad(null);
-    setIsModalOpen(false);
-    setCalendarWatchedDay(undefined);
-    if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
+    // Un lot tourne en arrière-plan : il ne referme pas la fenêtre que
+    // l'utilisateur a pu ouvrir entre-temps.
+    if (!opts.quiet) {
+      setEditingMovie(null);
+      setSeasonDraft(null);
+      setTmdbIdToLoad(null);
+      setIsModalOpen(false);
+      setCalendarWatchedDay(undefined);
+      if (viewMode === 'Deck') setDeckAdvanceTrigger((prev) => prev + 1);
+    }
     if (session?.user?.id) syncMovieToSupabase(session.user.id, finalMovie);
     if (hasRating(finalMovie)) finishScreeningRating(finalMovie);
   };
@@ -3178,7 +3193,12 @@ const App: React.FC = () => {
   const watchedCount = useMemo(() => uniqueMovies.filter((m) => m.status === 'watched').length, [uniqueMovies]);
   // Même seuil que la page Stats elle-même (AnalyticsView, 5 films vus).
   const navPrimary = primaryActionFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5 });
-  const navAddMenu = useMemo(() => addMenuFor(mediaMode, viewMode === 'SharedSpace'), [mediaMode, viewMode]);
+  // Sans micro, sans MediaRecorder ou sans serveur, « Dicter un avis » promettrait un bouton absent.
+  const dictationAvailable = useMemo(() => canDictate(), []);
+  const navAddMenu = useMemo(
+    () => addMenuFor(mediaMode, viewMode === 'SharedSpace').filter((kind) => kind !== 'dictate' || dictationAvailable),
+    [mediaMode, viewMode, dictationAvailable]
+  );
 
   /** Billets : leur import vit dans le calendrier des films. */
   const openTicketImport = () => {
@@ -3191,7 +3211,7 @@ const App: React.FC = () => {
     setCalendarImportRequest((n) => n + 1);
   };
 
-  const paletteActions = pageActionsFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5, pastDay: calendarContextDay <= calendarDay(Date.now()) });
+  const paletteActions = pageActionsFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5, pastDay: calendarContextDay <= calendarDay(Date.now()) }).filter((action) => action !== 'dictate' || dictationAvailable);
   const paletteLabel = t(contextLabelKey(viewMode, feedTab));
   const paletteSubtitle = viewMode === 'Calendar' && mediaMode === 'movie'
     ? new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(calendarContextDay + 'T12:00:00'))
@@ -3994,6 +4014,10 @@ const App: React.FC = () => {
               planRequest={calendarPlanRequest}
               onContextDay={setCalendarContextDay}
               importRequest={calendarImportRequest}
+              onRequestHandled={() => {
+                setCalendarPlanRequest(0);
+                setCalendarImportRequest(0);
+              }}
               onNavShortcut={handleNavAddMenu}
               movies={uniqueMovies}
               profileId={session?.user?.id}

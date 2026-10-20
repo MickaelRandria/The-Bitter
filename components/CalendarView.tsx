@@ -57,6 +57,11 @@ interface CalendarViewProps {
   onContextDay?: (day: string) => void;
   /** Le menu du + : chaque nouvelle valeur > 0 ouvre l'import de billets. */
   importRequest?: number;
+  /**
+   * Appelé une fois la demande traitée : App remet ses compteurs à zéro. Sinon
+   * un remontage (bascule Films → Séries → Films) rejouerait la demande.
+   */
+  onRequestHandled?: () => void;
   onNavShortcut?: (kind: NavShortcut) => void;
 }
 
@@ -226,6 +231,7 @@ export default function CalendarView(props: CalendarViewProps) {
     handledPlan.current = planRequest;
     setImportingTickets(false);
     plan(consultedDay, true);
+    props.onRequestHandled?.();
     // `plan` et `today` sont lus au moment de la demande, sans la rejouer quand ils changent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planRequest]);
@@ -237,6 +243,7 @@ export default function CalendarView(props: CalendarViewProps) {
     if (importRequest === handledImport.current) return;
     handledImport.current = importRequest;
     importTickets();
+    props.onRequestHandled?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importRequest]);
   const remind = () =>

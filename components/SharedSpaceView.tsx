@@ -1260,7 +1260,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   )}
                   <span className="truncate text-[11px] font-extrabold text-stone-200">{ctx.status}</span>
                 </span>
-                {cta && <span className="pointer-events-auto shrink-0">{cta}</span>}
+                {/* Mêmes gestionnaires que l'affiche : pendant une sélection, « Partant ? »
+                    ou « On y va » cochent la carte au lieu de voter ou d'ouvrir la séance. */}
+                {cta && (
+                  <span {...handlers} style={style} className="pointer-events-auto shrink-0">
+                    {cta}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1331,7 +1337,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                     ))}
               </p>
             </div>
-            <span className="pointer-events-auto">{right}</span>
+            <span {...handlers} style={style} className="pointer-events-auto">
+              {right}
+            </span>
           </div>
         </div>
       </div>

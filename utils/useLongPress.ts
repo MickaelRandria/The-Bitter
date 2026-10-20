@@ -92,7 +92,9 @@ export function useLongPress({ enabled, onLongPress, interceptTap, ms = LONG_PRE
       onPointerMove: (e) => {
         const start = origin.current;
         if (!start || timer.current == null) return;
-        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > LONG_PRESS_MOVE_TOLERANCE) cancel();
+        // `>=` : SwipeRow prend le pointeur à 10 px pile ; l'appui long doit
+        // s'annuler sur ce même évènement, avant de ne plus rien recevoir.
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) >= LONG_PRESS_MOVE_TOLERANCE) cancel();
       },
       onPointerUp: cancel,
       onPointerCancel: cancel,
@@ -100,9 +102,13 @@ export function useLongPress({ enabled, onLongPress, interceptTap, ms = LONG_PRE
       onClickCapture: (e) => {
         if (fired.current) {
           fired.current = false;
-          e.preventDefault();
-          e.stopPropagation();
-          return;
+          // Android ne produit pas toujours de clic après un appui long : un clic
+          // clavier ou d'un lecteur d'écran (detail 0) arrivé ensuite doit passer.
+          if (e.detail !== 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
         }
         const tap = latest.current.interceptTap;
         if (tap) {

@@ -201,7 +201,9 @@ function ContextualNav(props: ContextualNavProps) {
   if (selecting) shownSelection.current = selection;
 
   const overlay = menuOpen || tipVisible || fan !== null;
-  const collapsed = scrollCollapsed && !overlay && !selecting;
+  // Jamais repliée pendant une visite guidée : ses étapes demandent de toucher
+  // Découvrir, Calendrier ou Stats, qui seraient alors invisibles.
+  const collapsed = scrollCollapsed && !overlay && !selecting && !discoveryBlocked;
   const activeTab: NavTab | null = (TAB_IDS as string[]).includes(viewMode) ? (viewMode as NavTab) : null;
 
   const live = useRef({ menuOpen, tipVisible, fan, activeTab, collapsed });
