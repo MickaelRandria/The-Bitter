@@ -18,6 +18,8 @@ import { avatarSrc } from '../utils/avatar';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
+import { tmdbWorkKey } from '../utils/navActions';
+import { Selectable, SELECTED_RING, SelectionCheck } from './SelectableWork';
 import { Movie } from '../types';
 import { workKey } from '../utils/workKey';
 import RatingDetailSheet from './RatingDetailSheet';
@@ -203,17 +205,45 @@ const FriendsFeed: React.FC<Props> = ({
             qu'un aperçu de la suivante invite à balayer. Le calage par `snap`
             garantit qu'on retombe toujours sur une carte entière.
           */}
-          <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 pb-1">
+          {/* `-mt-2 pt-2` : de la place au contour d'une carte cochée, que le
+              défilement horizontal rognerait, sans déplacer la rangée. */}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 -mt-2 pt-2 pb-1">
             {entries.map((item) => {
               const mine = item.tmdbId != null ? myRatingByTmdb.get(workKey({ tmdbId: item.tmdbId, mediaType: item.mediaType, seasonNumber: item.seasonNumber })) : undefined;
               const gap = mine != null ? item.rating - mine : null;
               const detailOpen = openDetail === item.movieId;
+              // Une saison renvoie à sa série, comme le bouton plein cadre.
+              const workId = item.seriesTmdbId ?? item.tmdbId;
 
+              // Les gestionnaires vont sur l'article : pendant une sélection, ils
+              // captent aussi les boutons posés sur l'affiche (note, signalement,
+              // « à voir »), qui cochent alors au lieu d'agir.
               return (
-                <article
+                <Selectable
                   key={item.movieId}
-                  className="relative shrink-0 snap-start w-[78%] max-w-[300px] aspect-[9/16] rounded-[1.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616] border border-sand dark:border-white/10"
+                  work={
+                    workId == null
+                      ? null
+                      : {
+                          key: tmdbWorkKey(item.mediaType, workId),
+                          tmdbId: workId,
+                          mediaType: item.mediaType,
+                          title: item.title,
+                          year: item.year || undefined,
+                          posterUrl: resizeTmdbImage(item.posterUrl, 'w500'),
+                          source: 'discover',
+                        }
+                  }
                 >
+                  {({ selected, selecting, handlers, style }) => (
+                <article
+                  {...handlers}
+                  style={style}
+                  className={`relative shrink-0 snap-start w-[78%] max-w-[300px] aspect-[9/16] rounded-[1.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616] border border-sand dark:border-white/10 transition-[transform,opacity] duration-200 motion-reduce:transition-none ${
+                    selected ? SELECTED_RING : selecting ? 'opacity-80' : ''
+                  }`}
+                >
+                  <SelectionCheck selected={selected} className="top-12 right-3" />
                   <button
                     onClick={() => {
                       if (item.tmdbId == null) return;
@@ -347,6 +377,8 @@ const FriendsFeed: React.FC<Props> = ({
                   </div>
 
                 </article>
+                  )}
+                </Selectable>
               );
             })}
           </div>

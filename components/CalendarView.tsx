@@ -26,6 +26,7 @@ import CalendarYear from './CalendarYear';
 import CalendarDaySheet from './CalendarDaySheet';
 import { agendaAction, agendaGhost, CalendarActions, eventColors } from './CalendarEventCard';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
+import NavAddShortcuts, { NavShortcut } from './NavAddShortcuts';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import UpcomingReleasesFrise from './UpcomingReleasesFrise';
 
@@ -50,6 +51,11 @@ interface CalendarViewProps {
   onToast?: (message: string) => void;
   /** Onglet d'ouverture : « À venir » depuis le bandeau ciné de Découvrir. */
   initialTab?: 'month' | 'upcoming' | 'year';
+  /** Le + de la barre : chaque nouvelle valeur > 0 ouvre « Planifier une séance » (plan(today)). */
+  planRequest?: number;
+  /** Le menu du + : chaque nouvelle valeur > 0 ouvre l'import de billets. */
+  importRequest?: number;
+  onNavShortcut?: (kind: NavShortcut) => void;
 }
 
 export default function CalendarView(props: CalendarViewProps) {
@@ -78,7 +84,7 @@ export default function CalendarView(props: CalendarViewProps) {
       /* Le choix vaut pour la session. */
     }
   };
-  const [composer, setComposer] = useState<{ mode: 'programme' | 'manual'; day: string } | null>(
+  const [composer, setComposer] = useState<{ mode: 'programme' | 'manual'; day: string; fromNav?: boolean } | null>(
     null
   );
   /** Import des billets UGC par image : l'entrée la plus rapide pour une place déjà réservée. */
@@ -174,14 +180,59 @@ export default function CalendarView(props: CalendarViewProps) {
       setBusyId('');
     }
   };
-  const plan = (date: string) => {
+  const plan = (date: string, fromNav = false) => {
     if (!profileId) {
       onToast?.(t('agenda.loginSessions'));
       return;
     }
     setDay(null);
-    setComposer({ mode: favoriteCinema ? 'programme' : 'manual', day: date });
+    setComposer({ mode: favoriteCinema ? 'programme' : 'manual', day: date, fromNav });
   };
+  /** Même geste que le bouton « Importer mes billets » de l'onglet À venir. */
+  const importTickets = () => {
+    if (!profileId) {
+      onToast?.('Connecte-toi pour importer tes billets et recevoir leurs rappels.');
+      return;
+    }
+    setDay(null);
+    setComposer(null);
+    // Les billets importés arrivent dans « À venir » : on y est déjà en les voyant apparaître.
+    setTab('upcoming');
+    setImportingTickets(true);
+  };
+
+  /**
+   * Demandes venues de la barre du bas. App remet ses compteurs à 0 en quittant
+   * le calendrier : la dernière valeur traitée part donc de 0, pas de la valeur
+   * de montage, car App peut ouvrir le calendrier et poser la demande d'un même
+   * geste. La ref évite aussi le double traitement des effets en StrictMode.
+   */
+  const handledPlan = useRef(0);
+  const handledImport = useRef(0);
+  const planRequest = props.planRequest ?? 0;
+  const importRequest = props.importRequest ?? 0;
+  useEffect(() => {
+    if (planRequest <= 0) {
+      handledPlan.current = 0;
+      return;
+    }
+    if (planRequest === handledPlan.current) return;
+    handledPlan.current = planRequest;
+    setImportingTickets(false);
+    plan(today, true);
+    // `plan` et `today` sont lus au moment de la demande, sans la rejouer quand ils changent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planRequest]);
+  useEffect(() => {
+    if (importRequest <= 0) {
+      handledImport.current = 0;
+      return;
+    }
+    if (importRequest === handledImport.current) return;
+    handledImport.current = importRequest;
+    importTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importRequest]);
   const remind = () =>
     void run('reminder', async () => {
       if (!profileId) {
@@ -330,6 +381,10 @@ export default function CalendarView(props: CalendarViewProps) {
           ).length,
         })
       : t('agenda.nextMonths');
+  const navShortcuts = composer?.fromNav && props.onNavShortcut ? (
+    <NavAddShortcuts onAction={(kind) => { setComposer(null); props.onNavShortcut?.(kind); }} />
+  ) : undefined;
+
   return (
     <div className="mx-auto w-full max-w-lg pb-28 pt-7 text-charcoal dark:text-white">
       <header className="flex items-center justify-between gap-2">
@@ -587,6 +642,7 @@ export default function CalendarView(props: CalendarViewProps) {
         profileId &&
         (composer.mode === 'programme' ? (
           <ScreeningProgrammePicker
+            navShortcuts={navShortcuts}
             profileId={profileId}
             favoriteCinema={favoriteCinema}
             initialDate={composer.day}
@@ -598,6 +654,7 @@ export default function CalendarView(props: CalendarViewProps) {
           />
         ) : (
           <CinemaScreeningComposer
+            navShortcuts={navShortcuts}
             profileId={profileId}
             initialDate={new Date(`${composer.day}T12:00:00`)}
             onClose={() => setComposer(null)}

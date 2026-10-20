@@ -403,3 +403,35 @@ input[type='range']::-webkit-slider-runnable-track {
 @keyframes fil-glow { 50% { box-shadow: 0 0 0 2px #D9FF00, 0 0 26px 5px rgba(217,255,0,0.75), 0 6px 14px -6px rgba(0,0,0,0.55); } }
 @keyframes fil-sheen { 0%, 45% { transform: translateX(-70%); } 85%, 100% { transform: translateX(70%); } }
 @media (prefers-reduced-motion: reduce) { .fil-glow, .fil-sheen { animation: none; } }
+
+/* Barre du bas contextuelle (components/ContextualNav.tsx). */
+.nav-pill { transition: max-width .38s cubic-bezier(.3, 1.2, .5, 1), opacity .25s, transform .3s cubic-bezier(.3, 1.3, .5, 1), visibility .3s, background-color .2s; }
+.nav-tab { transition: width .38s cubic-bezier(.3, 1.2, .5, 1), opacity .22s, color .2s; }
+.nav-blob { transition: left .17s ease, width .17s ease, top .17s ease, opacity .2s; }
+.nav-selbar { transition: opacity .25s, transform .35s cubic-bezier(.3, 1.3, .5, 1), visibility .35s; }
+/* Pilule pendant une sélection, barre de sélection au repos : effacées, hors focus et hors lecteur d'écran. */
+.nav-off { opacity: 0; transform: translateY(14px) scale(.94); pointer-events: none; visibility: hidden; }
+/* Le + change d'action : la nouvelle icône entre en tournant. */
+@keyframes nav-morph { from { transform: scale(.2) rotate(-120deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.nav-morph { animation: nav-morph .4s cubic-bezier(.3, 1.5, .5, 1); }
+/* Appui long abouti : petit rebond du +. */
+@keyframes nav-pop { 0% { transform: scale(.86); } 60% { transform: scale(1.12); } 100% { transform: none; } }
+.nav-pop { animation: nav-pop .35s cubic-bezier(.3, 1.6, .5, 1); }
+/* Éventail : les options sortent du +, s'arrêtent, rentrent. */
+@keyframes nav-fan { 0% { transform: translate(0, 0) scale(.3); opacity: 0; } 25%, 75% { transform: translate(var(--x), var(--y)) scale(1); opacity: 1; } 100% { transform: translate(0, 0) scale(.3); opacity: 0; } }
+.nav-fan-item { opacity: 0; animation: nav-fan 1.8s cubic-bezier(.3, 1.3, .5, 1) both; }
+/* Menu d'ajout : il naît du +. */
+@keyframes nav-menu-in { from { transform: scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+.nav-menu-in { transform-origin: 50% 110%; animation: nav-menu-in .32s cubic-bezier(.3, 1.4, .5, 1) both; }
+@keyframes nav-fade { from { opacity: 0; } to { opacity: 1; } }
+.nav-fade { animation: nav-fade .2s ease-out both; }
+/* Bulles (action de la page, astuce, éventail) : montent en place. */
+@keyframes nav-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.nav-rise { animation: nav-rise .25s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .nav-pill, .nav-tab, .nav-selbar { transition: none; }
+  .nav-blob { transition: none !important; }
+  .nav-off { transform: none; }
+  .nav-morph, .nav-pop, .nav-menu-in, .nav-fade, .nav-rise { animation: none; }
+  .nav-fan-item { display: none; }
+}

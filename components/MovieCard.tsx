@@ -1,4 +1,4 @@
-import React, { useState, memo, useRef } from 'react';
+import React, { useState, memo, useRef, useMemo, useEffect } from 'react';
 import { Movie, WeightLabel } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle } from 'lucide-react';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
@@ -10,6 +10,10 @@ import { ImdbMark } from './PublicRatingBadge';
 import { useLanguage } from '../contexts/LanguageContext';
 import { firstRating } from '../utils/ratingHistory';
 import { PROFILE_OPTIONS } from '../config/ratingProfiles';
+import { workKey } from '../utils/workKey';
+import type { SelectedWork } from '../utils/navActions';
+import { longPressStyle, useSelectableWork } from '../utils/useLongPress';
+import { SELECTED_RING, SelectionCheck } from './SelectableWork';
 
 interface MovieCardProps {
   movie: Movie;
@@ -124,6 +128,36 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
 
+    // Sélection par appui long. Une saison n'est pas une œuvre qu'on note, met
+    // en liste ou partage seule, et une saisie manuelle n'a pas de référence
+    // TMDB : ces cartes gardent leur comportement habituel.
+    const work = useMemo<SelectedWork | null>(
+      () =>
+        movie?.tmdbId == null || movie.seasonNumber != null
+          ? null
+          : {
+              key: workKey(movie),
+              tmdbId: movie.tmdbId,
+              mediaType: movie.mediaType ?? 'movie',
+              title: movie.title,
+              year: movie.year,
+              posterUrl: movie.posterUrl,
+              source: 'feed',
+            },
+      [movie?.tmdbId, movie?.seasonNumber, movie?.mediaType, movie?.title, movie?.year, movie?.posterUrl]
+    );
+    const { selected, selecting, handlers: pressHandlers } = useSelectableWork(work);
+
+    // Une sélection qui démarre referme un glissement à moitié engagé : la carte
+    // ne doit pas rester décalée sur « Supprimer » pendant qu'on coche.
+    useEffect(() => {
+      if (!selecting) return;
+      touchStartRef.current = null;
+      setSwipeX(0);
+      setIsSwiping(false);
+      setShowDeleteConfirm(false);
+    }, [selecting]);
+
     if (!movie?.ratings) return null;
 
     const adaptive = movie.adaptiveRating;
@@ -156,7 +190,13 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
     const SWIPE_THRESHOLD = 80;
 
+    // Pendant une sélection, un appui court coche la carte : le glissement
+    // (supprimer, éditer) est neutralisé dès le contact.
     const handleTouchStart = (e: React.TouchEvent) => {
+      if (selecting) {
+        touchStartRef.current = null;
+        return;
+      }
       touchStartRef.current = {
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
@@ -165,7 +205,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
-      if (!touchStartRef.current) return;
+      if (!touchStartRef.current || selecting) return;
       const deltaX = e.touches[0].clientX - touchStartRef.current.x;
       const deltaY = e.touches[0].clientY - touchStartRef.current.y;
       if (Math.abs(deltaY) > Math.abs(deltaX) && !isSwiping) return;
@@ -176,6 +216,11 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
     const handleTouchEnd = () => {
       if (!touchStartRef.current) return;
+      if (selecting) {
+        handleCancelSwipe();
+        touchStartRef.current = null;
+        return;
+      }
       if (swipeX < -SWIPE_THRESHOLD) {
         setSwipeX(-SWIPE_THRESHOLD - 20);
         setShowDeleteConfirm(true);
@@ -214,7 +259,15 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     `;
 
     return (
-      <div className="relative overflow-hidden rounded-[2.5rem]" ref={cardRef}>
+      // Le contour de sélection est posé ici et non sur la carte : la carte porte
+      // un `transform` en ligne (le glissement) qui écraserait le `scale` du
+      // contour, et ce conteneur la rognerait.
+      <div
+        className={`relative overflow-hidden rounded-[2.5rem] transition-[transform,opacity] duration-200 motion-reduce:transition-none ${
+          selected ? SELECTED_RING : selecting ? 'opacity-80' : ''
+        }`}
+        ref={cardRef}
+      >
         {/* Actions révélées */}
         <div className="absolute inset-0 flex rounded-[2.5rem] overflow-hidden bg-stone-100 dark:bg-[#161616]">
           <div
@@ -256,6 +309,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
 
         {/* Carte principale */}
         <div
+          {...pressHandlers}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -269,6 +323,9 @@ const MovieCard: React.FC<MovieCardProps> = memo(
           }}
           className={cardClasses}
           style={{
+            // Carte dépliée : l'avis et le commentaire restent copiables, seul
+            // le menu d'image iOS est retenu. Repliée, rien n'y est à copier.
+            ...(work ? (isExpanded ? { WebkitTouchCallout: 'none' } : longPressStyle) : null),
             backgroundImage: hasPoster
               ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.85)), url(${movie.posterUrl})`
               : 'none',
@@ -650,11 +707,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(
             </div>
           </div>
 
-          {!isExpanded && (
+          {!isExpanded && !selecting && (
             <div className="absolute bottom-8 right-8 opacity-20 dark:opacity-40 group-hover:translate-y-1 transition-all duration-300">
               <ChevronDown size={24} />
             </div>
           )}
+
+          {/* À la place du chevron : les coins du haut portent déjà genre et notes. */}
+          {work && <SelectionCheck selected={selected} className="bottom-7 right-7" />}
 
           {/* Les indices « Éditer / Sup. » au survol ont été retirés : ils n'existaient
               pas au doigt et faisaient une troisième affordance concurrente du swipe

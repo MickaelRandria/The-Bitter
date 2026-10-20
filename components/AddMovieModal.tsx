@@ -26,6 +26,8 @@ import {
   FastForward,
   Check,
   PlayCircle,
+  Mic,
+  Ticket,
 } from 'lucide-react';
 import { GENRES, TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL } from '../constants';
 import {
@@ -68,6 +70,7 @@ import {
 import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
 import { useDialog } from '../utils/useDialog';
 import { AdaptiveRatingSection, BitterRatingSection, ProfilePicker } from './RatingGrid';
+import { readNavDiscovery, subscribeNavDiscovery } from '../utils/navDiscovery';
 
 interface AddMovieModalProps {
   isOpen: boolean;
@@ -118,6 +121,12 @@ interface AddMovieModalProps {
   sharedRatingToEdit?: { story: number; visuals: number; acting: number; sound: number; review?: string; adaptive_rating?: AdaptiveRatingData | null } | null;
   /** Abonnement actif : active l'option « inclus dans mon abonnement ». */
   cinemaSubscription?: CinemaSubscription;
+  /** Ouvert depuis le + de la barre : affiche la ligne « Autre chose ? » sous la recherche. */
+  showShortcuts?: boolean;
+  /** Raccourcis qui quittent la modale : App la ferme puis lance l'action. */
+  onShortcut?: (kind: 'series' | 'movie' | 'ticket') => void;
+  /** Ouvert par « Dicter un avis » : met l'avis en avant dès que le film est choisi. */
+  focusReview?: boolean;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -231,6 +240,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   sharedMovieToRate,
   sharedRatingToEdit,
   cinemaSubscription,
+  showShortcuts = false,
+  onShortcut,
+  focusReview = false,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
@@ -298,6 +310,21 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const searchTimeoutRef = useRef<number | null>(null);
   /** Le profil affiché vient de la démo du tuto et doit être rendu à la détection auto. */
   const tourPreviewRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * « Dicter un avis » choisi dans « Autre chose ? » : même effet que la prop
+   * `focusReview`, mais décidé dans la modale, donc oublié à la fermeture.
+   */
+  const [reviewFocus, setReviewFocus] = useState(false);
+  const opinionRef = useRef<HTMLDetailsElement>(null);
+  /** Le défilement vers l'avis ne se fait qu'une fois par ouverture : ensuite, la main est à l'utilisateur. */
+  const reviewScrolledRef = useRef(false);
+  /** Le rappel « maintiens le + » s'efface dès que le geste est connu, même modale ouverte. */
+  const [holdLearned, setHoldLearned] = useState(() => readNavDiscovery().learned);
+  useEffect(
+    () => subscribeNavDiscovery(() => setHoldLearned(readNavDiscovery().learned)),
+    []
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -418,7 +445,32 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     if (!isOpen) return;
     setSeriesStart('fresh');
     setLastSeen(null);
+    setReviewFocus(false);
+    reviewScrolledRef.current = false;
+    setHoldLearned(readNavDiscovery().learned);
   }, [isOpen]);
+
+  /**
+   * Ouvert pour dicter un avis : dès que le film est choisi, « Ton avis » se
+   * déplie et vient au centre, le micro désigné. L'enregistrement attend le
+   * geste de l'utilisateur (iOS refuse d'ouvrir le micro sans lui).
+   */
+  const highlightReview =
+    (focusReview || reviewFocus) && mode === 'watched' && formData.tmdbId != null;
+  useEffect(() => {
+    if (!isOpen || !highlightReview || reviewScrolledRef.current) return;
+    const details = opinionRef.current;
+    if (!details) return;
+    reviewScrolledRef.current = true;
+    details.open = true;
+    const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // Une image plus tard : le contenu du <details> vient d'être déplié et le
+    // formulaire de notation finit de s'afficher, la position n'est juste qu'après.
+    const frame = window.requestAnimationFrame(() => {
+      details.scrollIntoView({ block: 'center', behavior: motion ? 'smooth' : 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, highlightReview]);
 
   useEffect(() => {
     setSeriesDetails(null);
@@ -1133,6 +1185,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
 
                 <div className="relative">
                   <input
+                    ref={searchInputRef}
                     data-tour="add-search"
                     type="text"
                     className="w-full bg-white dark:bg-[#161616] border-2 border-stone-100 dark:border-white/5 focus:border-charcoal dark:focus:border-white/20 p-5 rounded-2xl font-black text-xl outline-none transition-all shadow-sm pr-12 text-charcoal dark:text-white placeholder:text-stone-300 dark:placeholder:text-stone-700"
@@ -1190,6 +1243,67 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* « Autre chose ? » : ouvert par le +, on peut encore changer d'idée
+              sans refermer pour chercher le bon bouton. Seulement à l'étape de
+              recherche, avant qu'un film soit choisi. */}
+          {(showShortcuts || focusReview || reviewFocus) &&
+            !isEditMode &&
+            !sharedSpace &&
+            !sharedMovieToRate &&
+            formData.tmdbId == null && (
+              <div className="space-y-3">
+                {showShortcuts && (
+                  <>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 dark:text-stone-600 ml-1">
+                      {t('nav.shortcuts.other')}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {onShortcut && (
+                        <ShortcutChip
+                          icon={searchType === 'tv' ? <Film size={14} /> : <Tv size={14} />}
+                          label={t(searchType === 'tv' ? 'nav.add.movie' : 'nav.add.series')}
+                          onClick={() => onShortcut(searchType === 'tv' ? 'movie' : 'series')}
+                        />
+                      )}
+                      {onShortcut && (
+                        <ShortcutChip
+                          icon={<Ticket size={14} />}
+                          label={t('nav.add.ticket')}
+                          onClick={() => onShortcut('ticket')}
+                        />
+                      )}
+                      <ShortcutChip
+                        icon={<Mic size={14} />}
+                        label={t('nav.add.dictate')}
+                        pressed={reviewFocus || focusReview}
+                        onClick={() => {
+                          setMode('watched');
+                          setReviewFocus(true);
+                          searchInputRef.current?.focus();
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+                {(reviewFocus || focusReview) && (
+                  <p className="text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-400 ml-1" aria-live="polite">
+                    {t('nav.shortcuts.dictateHint')}
+                  </p>
+                )}
+                {showShortcuts && !holdLearned && (
+                  <p className="flex items-center gap-2 text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-400 ml-1">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-forest text-white ring-2 ring-bitter-lime"
+                    >
+                      <Plus size={12} strokeWidth={3} />
+                    </span>
+                    {t('nav.discovery.faster')}
+                  </p>
+                )}
+              </div>
+            )}
 
           {mode === 'watching' && (
             <div className="space-y-5 animate-[fadeIn_0.3s_ease-out]">
@@ -1508,9 +1622,14 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 />
               </RatingDisclosure>
 
-              <RatingDisclosure title={t('addMovie.opinion')}>
+              <RatingDisclosure
+                title={t('addMovie.opinion')}
+                open={highlightReview}
+                detailsRef={opinionRef}
+              >
                 <div className="space-y-4">
                 <ReviewComposer
+                  highlightDictation={highlightReview}
                   title={formData.title}
                   year={formData.year}
                   criteria={reviewCriteria}
@@ -1597,8 +1716,20 @@ const RatingDisclosure: React.FC<{
   title: string;
   description?: string;
   children: React.ReactNode;
-}> = ({ title, description, children }) => (
-  <details className="group rounded-[1.75rem] border border-stone-100 bg-white shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
+  /**
+   * Vrai : le bloc se déplie (au montage, et à chaque passage à vrai). Il reste
+   * ensuite à l'utilisateur, qui peut le replier. Absent : fermé par défaut.
+   */
+  open?: boolean;
+  detailsRef?: React.RefObject<HTMLDetailsElement>;
+}> = ({ title, description, children, open = false, detailsRef }) => {
+  const localRef = useRef<HTMLDetailsElement>(null);
+  const ref = detailsRef ?? localRef;
+  useEffect(() => {
+    if (open && ref.current) ref.current.open = true;
+  }, [open, ref]);
+  return (
+  <details ref={ref} className="group rounded-[1.75rem] border border-stone-100 bg-white shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 marker:content-none">
       <span className="min-w-0">
         <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-charcoal dark:text-white">
@@ -1614,6 +1745,32 @@ const RatingDisclosure: React.FC<{
     </summary>
     <div className="space-y-4 px-4 pb-4">{children}</div>
   </details>
+  );
+};
+
+/** Pastille de « Autre chose ? ». */
+const ShortcutChip: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+}> = ({ icon, label, onClick, pressed }) => (
+  <button
+    type="button"
+    aria-pressed={pressed}
+    onClick={() => {
+      haptics.soft();
+      onClick();
+    }}
+    className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-black transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest dark:focus-visible:ring-bitter-lime ${
+      pressed
+        ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal'
+        : 'bg-stone-100 text-charcoal dark:bg-[#161616] dark:text-stone-200'
+    }`}
+  >
+    <span aria-hidden="true">{icon}</span>
+    {label}
+  </button>
 );
 
 const FeelingPicker: React.FC<{

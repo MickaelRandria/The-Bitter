@@ -8,6 +8,8 @@ import { myPlatforms } from '../utils/platforms';
 import { ShelfItem, getOnMyPlatforms, getStarterPicks } from '../services/shelves';
 import { getTheatreReleases } from '../services/tmdb';
 import { isWatchedWork } from '../utils/collectionRules';
+import { tmdbWorkKey } from '../utils/navActions';
+import { Selectable, SELECTED_RING, SelectionCheck } from './SelectableWork';
 
 type ShelfKind = 'platforms' | 'cinema' | 'starter';
 
@@ -157,7 +159,9 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
               {head[kind].sub && <span className="text-[10.5px] font-bold text-stone-400 dark:text-stone-500 truncate">{head[kind].sub}</span>}
             </div>
             {kind === 'starter' && <p className="px-1 -mt-1.5 text-[11.5px] font-medium text-stone-500 dark:text-stone-400">{t('shelves.starterHint')}</p>}
-            <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
+            {/* `-mt-2 pt-2` : de la place au contour d'une affiche cochée, que le
+                défilement horizontal rognerait, sans déplacer la rangée. */}
+            <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 -mt-2 pt-2 pb-1">
               {rows[kind] == null
                 ? [...Array(5)].map((_, i) => (
                     <div key={i} className="shrink-0 w-[104px] aspect-[2/3] rounded-[1.4rem] bg-stone-100 dark:bg-[#161616] relative overflow-hidden">
@@ -165,23 +169,44 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
                     </div>
                   ))
                 : items.map((item) => (
-                    <button
+                    <Selectable
                       key={item.id}
-                      type="button"
-                      onClick={() => {
-                        haptics.medium();
-                        onPreview(item.id, mediaType);
+                      work={{
+                        key: tmdbWorkKey(mediaType, item.id),
+                        tmdbId: item.id,
+                        mediaType,
+                        title: item.title,
+                        year: item.year,
+                        posterUrl: tmdbImage(item.posterPath, 'w500') || undefined,
+                        source: 'discover',
                       }}
-                      className="shrink-0 w-[104px] text-left active:scale-95 transition-transform"
                     >
-                      <img
-                        src={tmdbImage(item.posterPath, 'w185')}
-                        alt=""
-                        loading="lazy"
-                        className="w-full aspect-[2/3] object-cover rounded-[1.4rem] bg-stone-100 dark:bg-[#161616] shadow-sm"
-                      />
-                      <span className="mt-1.5 block text-[11px] font-black leading-tight text-charcoal dark:text-white line-clamp-2">{item.title}</span>
-                    </button>
+                      {({ selected, selecting, handlers, style }) => (
+                        <button
+                          {...handlers}
+                          style={style}
+                          type="button"
+                          onClick={() => {
+                            haptics.medium();
+                            onPreview(item.id, mediaType);
+                          }}
+                          className={`shrink-0 w-[104px] text-left active:scale-95 transition-[transform,opacity] ${selecting && !selected ? 'opacity-80' : ''}`}
+                        >
+                          <span
+                            className={`relative block rounded-[1.4rem] transition-transform duration-200 motion-reduce:transition-none ${selected ? SELECTED_RING : ''}`}
+                          >
+                            <img
+                              src={tmdbImage(item.posterPath, 'w185')}
+                              alt=""
+                              loading="lazy"
+                              className="w-full aspect-[2/3] object-cover rounded-[1.4rem] bg-stone-100 dark:bg-[#161616] shadow-sm"
+                            />
+                            <SelectionCheck selected={selected} />
+                          </span>
+                          <span className="mt-1.5 block text-[11px] font-black leading-tight text-charcoal dark:text-white line-clamp-2">{item.title}</span>
+                        </button>
+                      )}
+                    </Selectable>
                   ))}
             </div>
           </section>
