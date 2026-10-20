@@ -1,7 +1,23 @@
 {
-  "version": "2026-10-17-avis-guide",
-  "label": "Version du 17 octobre",
+  "version": "2026-10-20-nav-contextuelle",
+  "label": "Version du 20 octobre",
   "items": [
+    {
+      "title": "Le + suit la page",
+      "body": "Le bouton central change d'action selon l'écran : ajouter un film vu dans ton historique, ranger un film dans ta liste À voir, planifier une séance dans le calendrier, partager ta carte dans tes stats, proposer un film dans un espace. Une bulle te dit ce qu'il va faire les premières fois."
+    },
+    {
+      "title": "Maintiens le + pour tout ajouter",
+      "body": "Un appui long sur le + ouvre le menu d'ajout, sur n'importe quelle page : film vu, film à voir, série, scanner un billet, dicter un avis. Un anneau se remplit pendant l'appui. Les trois petits points sur le bouton te le rappellent."
+    },
+    {
+      "title": "Sélectionne des affiches",
+      "body": "Un appui long sur une affiche, dans ton historique, dans Découvrir ou dans un espace, la sélectionne : la barre du bas devient Noter, À voir, Voir avec et Partager. Touche d'autres affiches pour en ajouter plusieurs d'un coup à ta liste, ou pour partager ta sélection."
+    },
+    {
+      "title": "Une barre plus discrète",
+      "body": "Quand tu fais défiler vers le bas, la barre se replie autour du + ; elle revient dès que tu remontes."
+    },
     {
       "title": "L'avis guidé",
       "body": "Après ta note, Bitter te pose trois questions tirées de tes critères : ce qui coinçait, un moment fort, à qui tu le conseillerais. Tu réponds à la voix ou au clavier, et tes réponses deviennent un seul avis, avec tes mots. Resserrer le raccourcit en te montrant ce qui a été coupé. Un avis compte pour une seule question IA du jour."
@@ -99,16 +115,16 @@
   ],
   "highlights": [
     {
-      "icon": "cinema",
-      "title": "L’avis guidé : trois questions, ton avis"
+      "icon": "nav",
+      "title": "Le + suit la page où tu es"
     },
     {
-      "icon": "cinema",
-      "title": "À voir puis vu : une seule fiche"
+      "icon": "nav",
+      "title": "Maintiens le + : film, série, billet, dictée"
     },
     {
-      "icon": "cinema",
-      "title": "Des suggestions que tu n’as pas déjà vues"
+      "icon": "spaces",
+      "title": "Appui long sur une affiche : noter, partager"
     }
   ]
 }

@@ -54,6 +54,8 @@ import { useImdbRatings } from '../services/imdb';
 import { pickFromLookup } from '../utils/publicRating';
 import PublicRatingBadge from './PublicRatingBadge';
 import PersonalShelves from './PersonalShelves';
+import { Selectable, SELECTED_RING, SelectionCheck } from './SelectableWork';
+import { tmdbWorkKey } from '../utils/navActions';
 
 type SortOption = 'popularity' | 'date' | 'alpha';
 type MediaType = 'movie' | 'tv';
@@ -789,16 +791,35 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
               const isWatched = watchedIds.has(item.id);
               const isInWatchlist = watchlistIds.has(item.id);
               const isInCollection = isWatched || isInWatchlist;
+              const date = item.release_date || item.first_air_date;
+              // Les gestionnaires vont sur la racine de la tuile : pendant une
+              // sélection, ils captent aussi le clic du bouton plein cadre et des
+              // boutons d'action, qui cochent alors au lieu d'ouvrir ou d'ajouter.
               return (
-                <div
+                <Selectable
                   key={item.id}
+                  work={{
+                    key: tmdbWorkKey(imdbMedia, item.id),
+                    tmdbId: item.id,
+                    mediaType: imdbMedia,
+                    title: item.title ?? item.name ?? '',
+                    year: date ? Number(date.slice(0, 4)) || undefined : undefined,
+                    posterUrl: tmdbImage(item.poster_path, 'w500') || undefined,
+                    source: 'discover',
+                  }}
+                >
+                  {({ selected, selecting, handlers, style }) => (
+                <div
+                  {...handlers}
+                  style={style}
                   onClick={() => {
                     haptics.medium();
                     onPreview(item.id, mediaType);
                   }}
-                  className="group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer"
+                  className={`group relative flex flex-col gap-3 animate-[fadeIn_0.4s_ease-out] cursor-pointer ${selecting && !selected ? 'opacity-80' : ''}`}
                 >
-                  <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-black/20 group-hover:shadow-xl dark:group-hover:shadow-black/40 group-hover:-translate-y-1 transition-all duration-500 bg-stone-100 dark:bg-[#161616]">
+                  <div className={`relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-black/20 group-hover:shadow-xl dark:group-hover:shadow-black/40 group-hover:-translate-y-1 transition-all duration-500 bg-stone-100 dark:bg-[#161616] ${selected ? SELECTED_RING : ''}`}>
+                    <SelectionCheck selected={selected} className="top-3 right-3" />
                     <img
                       src={tmdbImage(item.poster_path, 'w342')}
                       className={`w-full h-full object-cover ${isInCollection ? 'opacity-80' : ''}`}
@@ -900,6 +921,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                     </p>
                   </div>
                 </div>
+                  )}
+                </Selectable>
               );
             })}
           </div>

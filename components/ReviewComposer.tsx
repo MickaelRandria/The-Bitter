@@ -29,6 +29,11 @@ interface Props {
   ready: boolean;
   /** Réalisateur, acteurs… : le vocabulaire que la dictée doit savoir écrire. */
   names?: string[];
+  /**
+   * Ouvert par « Dicter un avis » : le bouton micro est désigné, sans démarrer
+   * l'enregistrement — iOS n'ouvre le micro que sur un geste de l'utilisateur.
+   */
+  highlightDictation?: boolean;
 }
 
 /**
@@ -58,6 +63,7 @@ const ReviewComposer: React.FC<Props> = ({
   onChange,
   ready,
   names = [],
+  highlightDictation = false,
 }) => {
   const { t, language } = useLanguage();
   const [starters, setStarters] = useState<string[]>([]);
@@ -471,8 +477,20 @@ const ReviewComposer: React.FC<Props> = ({
               type="button"
               onClick={startDictation}
               disabled={dictation === 'working' || continuing}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-bitter-lime text-charcoal text-[10px] font-black uppercase tracking-[0.15em] active:scale-95 transition-transform disabled:opacity-60"
+              className={`relative isolate flex items-center gap-2 px-4 py-2.5 rounded-full bg-bitter-lime text-charcoal text-[10px] font-black uppercase tracking-[0.15em] active:scale-95 transition-transform disabled:opacity-60 ${
+                highlightDictation
+                  ? 'ring-2 ring-bitter-lime ring-offset-2 ring-offset-white dark:ring-offset-[#1a1a1a]'
+                  : ''
+              }`}
             >
+              {/* Halo qui respire autour du micro : seulement si le mouvement est
+                  accepté, l'anneau fixe suffit sinon à le désigner. */}
+              {highlightDictation && dictation === 'idle' && (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-2 -z-10 rounded-full bg-bitter-lime/30 motion-safe:animate-pulse motion-reduce:hidden"
+                />
+              )}
               {dictation === 'working' ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (

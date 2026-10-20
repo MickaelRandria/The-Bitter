@@ -3,8 +3,6 @@
   Search,
   SlidersHorizontal,
   X,
-  LayoutGrid,
-  PieChart,
   Clock,
   CheckCircle2,
   Sparkles,
@@ -17,7 +15,6 @@
   Clapperboard,
   Tv,
   Wand2,
-  CalendarDays,
   BarChart3,
   Hourglass,
   ArrowDown,
@@ -111,7 +108,22 @@ import {
   VibeAxis,
 } from './utils/tonightPick';
 import MoodPicker from './components/MoodPicker';
-import { initAnalytics, stopAnalytics, trackEvent } from './utils/analytics';
+import { initAnalytics, stopAnalytics, trackEvent, trackPageView } from './utils/analytics';
+import ContextualNav, { NavTab } from './components/ContextualNav';
+import ShareStoryButtonSimple from './components/ShareStoryButtonSimple';
+import { WorkSelection, WorkSelectionProvider } from './contexts/WorkSelectionContext';
+import {
+  AddMenuKind,
+  OwnedStatus,
+  STATS_SHARE_EVENT,
+  SelectedWork,
+  SelectionAction,
+  addMenuFor,
+  primaryActionFor,
+  selectionActionsFor,
+  selectionShareLines,
+  toggleWork,
+} from './utils/navActions';
 import { readConsent, saveConsent } from './utils/consent';
 import MovieCard from './components/MovieCard';
 import WelcomePage from './components/WelcomePage';
@@ -273,114 +285,6 @@ const LetterboxdImport = lazy(() => import('./components/LetterboxdImport'));
 type SortOption = 'Date' | 'Rating' | 'Year' | 'Title';
 type ViewMode = 'Feed' | 'Analytics' | 'Discover' | 'Calendar' | 'Deck' | 'SharedSpace';
 type FeedTab = 'history' | 'queue';
-
-const BottomNav = memo(
-  ({
-    viewMode,
-    setViewMode,
-    setIsModalOpen,
-    feedTab,
-    setInitialStatusForAdd,
-    setMediaTypeToLoad,
-    mediaMode,
-    movieCount,
-    t,
-  }: {
-    viewMode: ViewMode;
-    setViewMode: (v: ViewMode) => void;
-    setIsModalOpen: (o: boolean) => void;
-    feedTab: FeedTab;
-    setInitialStatusForAdd: (s: MovieStatus | 'watching') => void;
-    setMediaTypeToLoad: (m: 'movie' | 'tv') => void;
-    mediaMode: 'movie' | 'tv';
-    movieCount: number;
-    t: (key: string, params?: Record<string, string | number>) => string;
-  }) => {
-    const navItemClass = (isActive: boolean) =>
-      `p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-sand dark:bg-[#1a1a1a] text-charcoal dark:text-white shadow-sm opacity-100 scale-105' : 'text-stone-300 dark:text-stone-600 opacity-50 hover:opacity-100'}`;
-
-    return (
-      <nav
-        className="fixed left-6 right-6 z-50 max-w-sm mx-auto"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
-      >
-        <div
-          className="bg-white/95 dark:bg-black/95 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl rounded-[2.5rem] px-4 py-3.5 flex justify-between items-center transition-colors"
-          style={{ willChange: 'transform' }}
-        >
-          <button
-            data-tour="nav-feed"
-            onClick={() => {
-              haptics.soft();
-              setViewMode('Feed');
-            }}
-            aria-label={t(mediaMode === 'tv' ? 'tv.mySeries' : 'nav.feed')}
-            aria-current={viewMode === 'Feed' ? 'page' : undefined}
-            className={navItemClass(viewMode === 'Feed')}
-          >
-            <LayoutGrid size={22} />
-          </button>
-          <button
-            data-tour="nav-discover"
-            onClick={() => {
-              haptics.soft();
-              setViewMode('Discover');
-            }}
-            aria-label={t('nav.discover')}
-            aria-current={viewMode === 'Discover' ? 'page' : undefined}
-            className={navItemClass(viewMode === 'Discover')}
-          >
-            <Clapperboard size={22} />
-          </button>
-          <button
-            data-tour="nav-add"
-            onClick={() => {
-              haptics.medium();
-              // Une série s'ajoute d'abord pour être commencée : c'est ce qui
-              // la fait entrer dans « À suivre ». « Vu » et « À voir » restent à
-              // un geste dans la fenêtre.
-              setInitialStatusForAdd(
-                mediaMode === 'tv' ? 'watching' : feedTab === 'queue' ? 'watchlist' : 'watched'
-              );
-              // Le « + » ajoute dans la partie où l'on se trouve : en mode
-              // Séries, il ouvre la recherche de séries, pas celle de films.
-              setMediaTypeToLoad(mediaMode);
-              setIsModalOpen(true);
-            }}
-            aria-label={mediaMode === 'tv' ? t('nav.addSeries') : t('nav.add')}
-            className={`bg-forest text-white p-4.5 rounded-full shadow-xl shadow-forest/20 mx-2 active:scale-90 transition-transform duration-150 ${movieCount < 3 ? 'animate-pulse ring-4 ring-forest/20' : ''}`}
-          >
-            <Plus size={24} strokeWidth={3} />
-          </button>
-          <button
-            data-tour="nav-analytics"
-            onClick={() => {
-              haptics.soft();
-              setViewMode('Analytics');
-            }}
-            aria-label={t('nav.analytics')}
-            aria-current={viewMode === 'Analytics' ? 'page' : undefined}
-            className={navItemClass(viewMode === 'Analytics')}
-          >
-            <PieChart size={22} />
-          </button>
-          <button
-            data-tour="nav-calendar"
-            onClick={() => {
-              haptics.soft();
-              setViewMode('Calendar');
-            }}
-            aria-label={t('nav.calendar')}
-            aria-current={viewMode === 'Calendar' ? 'page' : undefined}
-            className={navItemClass(viewMode === 'Calendar')}
-          >
-            <CalendarDays size={22} />
-          </button>
-        </div>
-      </nav>
-    );
-  }
-);
 
 /**
  * Menu de tri maison : le <select> natif ouvrait le picker système d'iOS au milieu
@@ -699,8 +603,33 @@ const App: React.FC = () => {
   const [showCinemaFil, setShowCinemaFil] = useState(false);
   /** Calendrier ouvert depuis le bandeau ciné de Découvrir : directement sur « À venir ». */
   const [calendarTab, setCalendarTab] = useState<'upcoming' | undefined>(undefined);
+  /**
+   * Demandes envoyées au calendrier par la barre du bas : « Planifier une séance »
+   * (le +) et « Scanner un billet » (son menu). CalendarView traite chaque valeur
+   * nouvelle une fois ; on les remet à zéro en le quittant, pour qu'une demande
+   * ancienne ne se rejoue pas au retour.
+   */
+  const [calendarPlanRequest, setCalendarPlanRequest] = useState(0);
+  const [calendarImportRequest, setCalendarImportRequest] = useState(0);
   useEffect(() => {
-    if (viewMode !== 'Calendar') setCalendarTab(undefined);
+    if (viewMode !== 'Calendar' || mediaMode !== 'movie') {
+      setCalendarTab(undefined);
+      setCalendarPlanRequest(0);
+      setCalendarImportRequest(0);
+    }
+  }, [viewMode, mediaMode]);
+  /** Fenêtre d'ajout ouverte par la barre du bas : elle propose « Autre chose ? ». */
+  const [addFromNav, setAddFromNav] = useState(false);
+  /** Ouverte par « Dicter un avis » : l'avis passe au premier plan dès le film choisi. */
+  const [addFocusReview, setAddFocusReview] = useState(false);
+  /** Change à chaque ouverture par la barre : la fenêtre repart de zéro même si elle était ouverte. */
+  const [addModalSeq, setAddModalSeq] = useState(0);
+  /** Affiches cochées par appui long ; la barre du bas devient leur barre d'actions. */
+  const [selection, setSelection] = useState<SelectedWork[]>([]);
+  /** Story d'un film vu, ouverte par « Partager » dans la barre de sélection. */
+  const [storyMovie, setStoryMovie] = useState<Movie | null>(null);
+  useEffect(() => {
+    trackPageView(viewMode);
   }, [viewMode]);
   /** Profil ouvert depuis Découvrir : descendre directement à « Mes habitudes ». */
   const [profileFocusHabits, setProfileFocusHabits] = useState(false);
@@ -1992,11 +1921,13 @@ const App: React.FC = () => {
    * `opts.target` désigne la fiche à modifier quand ce n'est pas celle ouverte
    * dans le formulaire : un verdict donné dans un espace se pose sur la fiche
    * personnelle du même film. `opts.toast` remplace le message habituel.
+   * `opts.quiet` tait le message et les questions qui suivent (partage, espaces) :
+   * un ajout en lot depuis la barre de sélection n'affiche qu'un message, le sien.
    */
   const handleSaveMovie = (
     data: MovieFormData,
     viewingContext?: ViewingContext,
-    opts: { target?: Movie | null; toast?: string } = {}
+    opts: { target?: Movie | null; toast?: string; quiet?: boolean } = {}
   ) => {
     if (!activeProfileId) return;
     const requested = opts.target !== undefined ? opts.target : editingMovie;
@@ -2095,6 +2026,7 @@ const App: React.FC = () => {
       getDisplayWeightedRating(previous) !== getDisplayWeightedRating(finalMovie) ||
       (previous.comment?.trim() || '') !== (finalMovie.comment?.trim() || '');
     const checkSpaces =
+      !opts.quiet &&
       !!userId &&
       verdictChanged &&
       viewMode !== 'SharedSpace' &&
@@ -2113,7 +2045,9 @@ const App: React.FC = () => {
         }
       });
     }
-    if (nudgeKind) {
+    if (opts.quiet) {
+      // L'appelant affiche lui-même le bilan du lot.
+    } else if (nudgeKind) {
       // Avec des espaces à vérifier, la barre attend leur réponse.
       if (!checkSpaces) setSocialNudge({ kind: nudgeKind, movie: finalMovie });
     } else if (opts.toast && !newRole) {
@@ -2581,10 +2515,18 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleQuickWatchlist = async (tmdbId: number, mediaType: 'movie' | 'tv'): Promise<boolean> => {
+  /** `quiet` : ajout dans un lot, dont l'appelant affiche lui-même le bilan. */
+  const handleQuickWatchlist = async (
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    quiet = false
+  ): Promise<boolean> => {
     if (!activeProfileId) return false;
     const known = findCollectionWork(profilesRef.current.find(p => p.id === activeProfileId)?.movies ?? [], { tmdbId, mediaType });
-    if (known) { setToastMessage(t(isWatchedWork(known) ? 'lifecycle.alreadyWatched' : 'lifecycle.alreadyInList')); return true; }
+    if (known) {
+      if (!quiet) setToastMessage(t(isWatchedWork(known) ? 'lifecycle.alreadyWatched' : 'lifecycle.alreadyInList'));
+      return true;
+    }
     try {
       let formData: MovieFormData | null = null;
       if (mediaType === 'movie') {
@@ -2625,10 +2567,10 @@ const App: React.FC = () => {
       }
       if (!formData) throw new Error('fetch failed');
       // Un ajout rapide ne modifie jamais le film éventuellement ouvert dans le formulaire.
-      handleSaveMovie({ ...formData, status: 'watchlist' }, undefined, { target: null });
+      handleSaveMovie({ ...formData, status: 'watchlist' }, undefined, { target: null, quiet });
       return true;
     } catch {
-      setToastMessage(t('feed.cannotAddToWatchlist'));
+      if (!quiet) setToastMessage(t('feed.cannotAddToWatchlist'));
       return false;
     }
   };
@@ -3150,6 +3092,266 @@ const App: React.FC = () => {
     setViewMode('Feed');
   };
 
+  // ── Barre du bas contextuelle ─────────────────────────────────────────────
+
+  /** Changer d'onglet depuis un espace referme l'espace, comme le bouton retour. */
+  const handleNavNavigate = useCallback(
+    (page: NavTab) => {
+      if (viewMode === 'SharedSpace') {
+        setActiveSharedSpace(null);
+        setSpacesReload((n) => n + 1);
+      }
+      setViewMode(page);
+    },
+    [viewMode]
+  );
+
+  /**
+   * Ouvre la fenêtre d'ajout à neuf. `initialStatusForAdd` et `mediaTypeToLoad`
+   * ne sont jamais remis à zéro à la fermeture : chaque entrée doit les poser.
+   */
+  const openAddModal = (
+    status: MovieStatus | 'watching',
+    mediaType: 'movie' | 'tv',
+    opts: { fromNav?: boolean; focusReview?: boolean } = {}
+  ) => {
+    setEditingMovie(null);
+    setSeasonDraft(null);
+    setTmdbIdToLoad(null);
+    setSharedMovieToRate(null);
+    setSharedRatingToEdit(null);
+    setCalendarWatchedDay(undefined);
+    setInitialStatusForAdd(status);
+    setMediaTypeToLoad(mediaType);
+    setAddFromNav(opts.fromNav ?? false);
+    setAddFocusReview(opts.focusReview ?? false);
+    setAddModalSeq((n) => n + 1);
+    setIsModalOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setIsModalOpen(false);
+    ratingScreeningRef.current = null;
+    setRatingScreening(null);
+    setCalendarWatchedDay(undefined);
+    setEditingMovie(null);
+    setSeasonDraft(null);
+    setTmdbIdToLoad(null);
+    setSharedMovieToRate(null);
+    setSharedRatingToEdit(null);
+    setAddFromNav(false);
+    setAddFocusReview(false);
+  };
+
+  const watchedCount = useMemo(() => uniqueMovies.filter((m) => m.status === 'watched').length, [uniqueMovies]);
+  // Même seuil que la page Stats elle-même (AnalyticsView, 5 films vus).
+  const navPrimary = primaryActionFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5 });
+  const navAddMenu = useMemo(() => addMenuFor(mediaMode, viewMode === 'SharedSpace'), [mediaMode, viewMode]);
+
+  /** Billets : leur import vit dans le calendrier des films. */
+  const openTicketImport = () => {
+    if (viewMode === 'SharedSpace') {
+      setActiveSharedSpace(null);
+      setSpacesReload((n) => n + 1);
+    }
+    if (mediaMode !== 'movie') setMediaMode('movie');
+    setViewMode('Calendar');
+    setCalendarImportRequest((n) => n + 1);
+  };
+
+  const handleNavPrimary = () => {
+    switch (navPrimary) {
+      case 'plan':
+        setCalendarPlanRequest((n) => n + 1);
+        return;
+      case 'shareCard':
+        // Envoyé pendant le geste : le partage natif exige une activation récente.
+        window.dispatchEvent(new Event(STATS_SHARE_EVENT));
+        return;
+      case 'propose':
+        openAddModal('watchlist', mediaMode, { fromNav: true });
+        return;
+      case 'startSeries':
+        openAddModal('watching', 'tv', { fromNav: true });
+        return;
+      case 'addWatchlist':
+        openAddModal('watchlist', mediaMode, { fromNav: true });
+        return;
+      default:
+        openAddModal('watched', mediaMode, { fromNav: true });
+    }
+  };
+
+  const handleNavAddMenu = (kind: AddMenuKind | 'series' | 'movie' | 'ticket') => {
+    switch (kind) {
+      case 'watched':
+        openAddModal('watched', mediaMode, { fromNav: true });
+        return;
+      case 'watchlist':
+        openAddModal('watchlist', mediaMode, { fromNav: true });
+        return;
+      case 'series':
+        // Une série rejoint la partie Séries : on y passe, comme avec la bascule.
+        if (mediaMode !== 'tv') setMediaMode('tv');
+        openAddModal('watching', 'tv', { fromNav: true });
+        return;
+      case 'movie':
+        if (mediaMode !== 'movie') setMediaMode('movie');
+        openAddModal('watched', 'movie', { fromNav: true });
+        return;
+      case 'ticket':
+        closeAddModal();
+        openTicketImport();
+        return;
+      case 'dictate':
+        openAddModal('watched', mediaMode, { fromNav: true, focusReview: true });
+        return;
+    }
+  };
+
+  /** Un raccourci « Autre chose ? » de la fenêtre d'ajout : on la quitte pour l'autre parcours. */
+  const handleAddShortcut = (kind: 'series' | 'movie' | 'ticket') => {
+    if (kind === 'ticket') {
+      closeAddModal();
+      openTicketImport();
+      return;
+    }
+    handleNavAddMenu(kind);
+  };
+
+  const ownedStatusOf = (work: SelectedWork): OwnedStatus => {
+    if (work.tmdbId == null) return null;
+    const known = findCollectionWork(activeProfile?.movies ?? [], { tmdbId: work.tmdbId, mediaType: work.mediaType });
+    return known ? (isWatchedWork(known) ? 'watched' : 'watchlist') : null;
+  };
+  const selectionOwned = selection.map(ownedStatusOf);
+  const navSelectionActions = selectionActionsFor(selection, selectionOwned, !!session?.user?.id);
+
+  const shareSelectionAsText = async (items: SelectedWork[]) => {
+    const lines = selectionShareLines(items);
+    const text =
+      items.length === 1
+        ? t('nav.selection.shareOne', { title: lines[0] })
+        : [t('nav.selection.shareTitle'), ...lines.map((line) => `• ${line}`)].join('\n');
+    const full = `${text}\nhttps://thebitter.watch`;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: t('nav.selection.shareTitle'), text: full });
+        return;
+      } catch (error) {
+        if ((error as DOMException)?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(full);
+      setToastMessage(t('nav.selection.copied'));
+    } catch {
+      setToastMessage(t('social.failed'));
+    }
+  };
+
+  const handleSelectionAction = async (action: SelectionAction) => {
+    const items = selection;
+    if (!items.length || !navSelectionActions[action]) return;
+    const single = items.length === 1 ? items[0] : null;
+    setSelection([]);
+
+    if (action === 'share') {
+      const known =
+        single?.tmdbId != null
+          ? findCollectionWork(activeProfile?.movies ?? [], { tmdbId: single.tmdbId, mediaType: single.mediaType })
+          : undefined;
+      // Un film vu et noté a sa story ; le reste part en texte.
+      if (known && known.status === 'watched' && hasRating(known) && !isSeries(known)) {
+        setStoryMovie(known);
+        return;
+      }
+      await shareSelectionAsText(items);
+      return;
+    }
+
+    if (action === 'watchWith') {
+      if (single?.tmdbId != null) void openWatchWith(single.tmdbId, single.mediaType);
+      return;
+    }
+
+    if (action === 'rate') {
+      if (!single) return;
+      if (single.source === 'space' && single.spaceMovie) {
+        // Dans un espace, la note va à l'espace, sur la même échelle pour tous.
+        setEditingMovie(null);
+        setTmdbIdToLoad(null);
+        setSharedMovieToRate(single.spaceMovie);
+        setSharedRatingToEdit(single.spaceRating ?? personalVerdictFor(single.spaceMovie));
+        setIsModalOpen(true);
+        return;
+      }
+      if (single.tmdbId == null) return;
+      const known = findCollectionWork(activeProfile?.movies ?? [], { tmdbId: single.tmdbId, mediaType: single.mediaType });
+      if (known && isSeries(known)) {
+        setOpenSeries(known);
+        return;
+      }
+      if (known) {
+        setSeasonDraft(null);
+        setTmdbIdToLoad(null);
+        handleMarkAsWatched(known);
+        return;
+      }
+      setEditingMovie(null);
+      setSeasonDraft(null);
+      setTmdbIdToLoad(single.tmdbId);
+      setMediaTypeToLoad(single.mediaType);
+      setInitialStatusForAdd(single.mediaType === 'tv' ? 'watching' : 'watched');
+      setIsModalOpen(true);
+      return;
+    }
+
+    // À voir : un seul bilan pour tout le lot, au lieu d'un message par titre.
+    const targets = items.filter((work, i) => work.tmdbId != null && !selectionOwned[i]);
+    if (!targets.length) {
+      setToastMessage(t('nav.selection.nothingToAdd'));
+      return;
+    }
+    let added = 0;
+    let failed = 0;
+    for (const work of targets) {
+      // En série : chaque ajout relit la collection que le précédent vient d'écrire.
+      if (await handleQuickWatchlist(work.tmdbId as number, work.mediaType, true)) added++;
+      else failed++;
+    }
+    if (failed) {
+      setToastMessage(t('nav.selection.addFailed', { count: failed }));
+    } else {
+      haptics.success();
+      setToastMessage(
+        added === 1
+          ? t('nav.selection.addedOne', { title: targets[0].title })
+          : t('nav.selection.added', { count: added })
+      );
+    }
+  };
+
+  const clearSelection = useCallback(() => setSelection([]), []);
+  const selectionEnabled = !tourActive && pendingTour === null;
+  const selectedKeys = useMemo(() => new Set(selection.map((work) => work.key)), [selection]);
+  const workSelection = useMemo<WorkSelection>(
+    () => ({
+      enabled: selectionEnabled,
+      active: selection.length > 0,
+      items: selection,
+      isSelected: (key) => selectedKeys.has(key),
+      begin: (work) => setSelection([work]),
+      toggle: (work) => setSelection((items) => toggleWork(items, work)),
+      clear: () => setSelection([]),
+    }),
+    [selection, selectedKeys, selectionEnabled]
+  );
+  // La sélection appartient à l'écran où elle a commencé.
+  useEffect(() => {
+    setSelection([]);
+  }, [viewMode, mediaMode, tourActive]);
+
   const handleSignOut = () => {
     setShowProfile(false);
     setShowSignOutConfirm(true);
@@ -3643,6 +3845,7 @@ const App: React.FC = () => {
       {/* En mode espace partagé le header n'est pas rendu, donc plus personne ne
           réserve la hauteur de l'encoche : le bouton retour se retrouvait dessous,
           hors d'atteinte. C'est ici qu'il faut compenser, pas dans la vue. */}
+      <WorkSelectionProvider value={workSelection}>
       <main
         className="flex-1 px-6 pb-32"
         style={{
@@ -3674,7 +3877,7 @@ const App: React.FC = () => {
               space={activeSharedSpace}
               currentUserId={session?.user?.id || ''}
               onBack={handleBackToFeed}
-              onAddMovie={() => setIsModalOpen(true)}
+              onAddMovie={() => openAddModal('watchlist', mediaMode)}
               onRateMovie={(movie, existingRating) => {
                 setSharedMovieToRate(movie);
                 setSharedRatingToEdit(existingRating ?? personalVerdictFor(movie));
@@ -3720,7 +3923,7 @@ const App: React.FC = () => {
                 setInitialStatusForAdd(type === 'tv' ? 'watching' : 'watched');
                 setIsModalOpen(true);
               }}
-              onQuickWatchlist={handleQuickWatchlist}
+              onQuickWatchlist={(id, type) => handleQuickWatchlist(id, type)}
               userProfile={activeProfile}
               /* Cet écran ne montre plus qu'une moitié du catalogue à la fois :
                  l'onglet Films n'y propose que des films, l'onglet Séries que des
@@ -3752,6 +3955,9 @@ const App: React.FC = () => {
           ) : viewMode === 'Calendar' ? (
             <CalendarView
               initialTab={calendarTab}
+              planRequest={calendarPlanRequest}
+              importRequest={calendarImportRequest}
+              onNavShortcut={handleNavAddMenu}
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
@@ -4499,22 +4705,26 @@ const App: React.FC = () => {
         </Suspense>
         </ErrorBoundary>
       </main>
+      </WorkSelectionProvider>
 
-      <BottomNav
+      <ContextualNav
         viewMode={viewMode}
-        setViewMode={setViewMode}
-        setIsModalOpen={() => {
-          setEditingMovie(null);
-          setTmdbIdToLoad(null);
-          setIsModalOpen(true);
-        }}
-        feedTab={feedTab}
-        setInitialStatusForAdd={setInitialStatusForAdd}
-        setMediaTypeToLoad={setMediaTypeToLoad}
         mediaMode={mediaMode}
-        movieCount={uniqueMovies.length}
-        t={t}
+        primary={navPrimary}
+        onNavigate={handleNavNavigate}
+        onPrimary={handleNavPrimary}
+        addMenu={navAddMenu}
+        onAddMenu={handleNavAddMenu}
+        emphasize={uniqueMovies.length < 3}
+        discoveryBlocked={tourActive || pendingTour !== null || activeTooltip !== null}
+        selection={selection}
+        selectionActions={navSelectionActions}
+        onSelectionAction={(action) => void handleSelectionAction(action)}
+        onClearSelection={clearSelection}
       />
+      {storyMovie && (
+        <ShareStoryButtonSimple movie={storyMovie} autoOpen onClose={() => setStoryMovie(null)} />
+      )}
 
       {/* Cine Assistant Button removed for now */}
 
@@ -4649,17 +4859,12 @@ const App: React.FC = () => {
         )}
         {isModalOpen && (
           <AddMovieModal
+            key={addModalSeq}
             isOpen={isModalOpen}
-            onClose={() => {
-              setIsModalOpen(false);
-              ratingScreeningRef.current = null; setRatingScreening(null);
-              setCalendarWatchedDay(undefined);
-              setEditingMovie(null);
-              setSeasonDraft(null);
-              setTmdbIdToLoad(null);
-              setSharedMovieToRate(null);
-              setSharedRatingToEdit(null);
-            }}
+            onClose={closeAddModal}
+            showShortcuts={addFromNav}
+            onShortcut={handleAddShortcut}
+            focusReview={addFocusReview}
             onSave={viewMode === 'SharedSpace' ? handleSaveFromSpace : handleSaveMovie}
             /* Le brouillon de saison ne fait que préremplir : c'est
                `editingMovie` qui décide si l'on modifie ou si l'on ajoute. */
@@ -4879,7 +5084,7 @@ const App: React.FC = () => {
               profileId={session?.user?.id || activeProfile.id}
               movies={pendingDelete ? allMovies.filter(movie => movie.id !== pendingDelete.id) : allMovies}
               onClose={() => setShowCinemaFil(false)}
-              onAdd={handleQuickWatchlist}
+              onAdd={(id, media) => handleQuickWatchlist(id, media)}
               platformIds={activeProfile.streamingPlatforms}
               onAction={(id, media, status) => {
                 if (status === 'watchlist') { void handleQuickWatchlist(id, media); return; }

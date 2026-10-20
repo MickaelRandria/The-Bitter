@@ -26,6 +26,8 @@ const PREFERENCE_KEYS = [
   // La partie (Films ou Séries) où l'on se trouvait : une préférence d'usage,
   // au même titre que le thème ou la langue.
   'bitter_media_mode',
+  // Où l'on en est de la découverte de l'appui long sur le + de la barre du bas.
+  'bitter_nav_discovery',
 ] as const;
 
 type PreferenceKey = (typeof PREFERENCE_KEYS)[number];

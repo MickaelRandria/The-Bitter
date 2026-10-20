@@ -13,6 +13,13 @@ type StoryFormat = 'classic' | 'editorial';
 interface ShareStoryButtonSimpleProps {
   movie: Movie;
   compact?: boolean;
+  /**
+   * Ouvert par une autre commande (barre de sélection) : pas de bouton, la
+   * feuille de choix du visuel s'ouvre dès le montage.
+   */
+  autoOpen?: boolean;
+  /** Avec `autoOpen` : la feuille est fermée sans choix, ou le partage est fini (réussi ou non). */
+  onClose?: () => void;
 }
 
 /**
@@ -148,10 +155,16 @@ const StoryFormatSheet: React.FC<{
 const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   movie,
   compact = false,
+  autoOpen = false,
+  onClose,
 }) => {
   const { t } = useLanguage();
   const [isSharing, setIsSharing] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
+  const [showOptions, setShowOptions] = useState(autoOpen);
+  /** Fin de l'ouverture automatique : prévient l'appelant, qui démonte le composant. */
+  const finish = () => {
+    if (autoOpen) onClose?.();
+  };
 
   const adaptive = movie.adaptiveRating;
   const globalRating = getDisplayWeightedRating(movie).toFixed(1);
@@ -968,7 +981,10 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     setShowOptions(true);
   };
 
-  const closeOptions = () => setShowOptions(false);
+  const closeOptions = () => {
+    setShowOptions(false);
+    finish();
+  };
 
   const handleShare = async (type: StoryFormat) => {
     setShowOptions(false);
@@ -1035,6 +1051,7 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       alert(`Impossible de générer la story : ${error instanceof Error ? error.message : 'erreur inconnue'}`);
     } finally {
       setIsSharing(false);
+      finish();
     }
   };
 
@@ -1077,7 +1094,19 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
 
   return (
     <>
-      {trigger}
+      {autoOpen
+        ? isSharing && (
+            // Sans déclencheur, la génération de l'image (une à deux secondes)
+            // doit quand même se voir.
+            <div
+              role="status"
+              aria-label={t('story.pickTitle')}
+              className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 pointer-events-none"
+            >
+              <Loader2 size={28} className="text-white animate-spin" />
+            </div>
+          )
+        : trigger}
       {showOptions &&
         typeof document !== 'undefined' &&
         createPortal(

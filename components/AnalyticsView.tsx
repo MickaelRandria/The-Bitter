@@ -49,6 +49,7 @@ import StatsConstats from './StatsConstats';
 import AdnRadialChart from './AdnRadialChart';
 import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
 import { criterionFamily, familyValue } from '../config/ratingProfiles';
+import { STATS_SHARE_EVENT } from '../utils/navActions';
 
 interface AnalyticsViewProps {
   movies: Movie[];
@@ -1441,6 +1442,33 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       updateRole();
     }
   }, [stats?.advancedArchetype.title, stats?.advancedArchetype.confirmed, userProfile?.id, userProfile?.role]);
+
+  /**
+   * Le + de la barre partage la carte d'archétype (STATS_SHARE_EVENT, envoyé par
+   * App). L'écouteur est posé une fois et appelle la dernière version du partage,
+   * qui dépend des stats. Il est déclaré avant les retours anticipés : un hook ne
+   * peut pas dépendre du verrou des stats.
+   */
+  const shareArchetypeRef = useRef(handleShareArchetype);
+  shareArchetypeRef.current = handleShareArchetype;
+  const hasStatsRef = useRef(false);
+  hasStatsRef.current = !!stats;
+  /** Partage déjà lancé, par le bouton de la carte ou par le + de la barre. */
+  const isSharingRef = useRef(false);
+  isSharingRef.current = isSharing;
+  /** Verrou immédiat : `isSharing` n'est relu qu'au rendu suivant, deux appuis rapides passeraient. */
+  const sharingRef = useRef(false);
+  useEffect(() => {
+    const onShareRequest = () => {
+      if (!hasStatsRef.current || sharingRef.current || isSharingRef.current) return;
+      sharingRef.current = true;
+      void shareArchetypeRef.current().finally(() => {
+        sharingRef.current = false;
+      });
+    };
+    window.addEventListener(STATS_SHARE_EVENT, onShareRequest);
+    return () => window.removeEventListener(STATS_SHARE_EVENT, onShareRequest);
+  }, []);
 
   if (isLocked) {
     return (

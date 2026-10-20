@@ -17,6 +17,7 @@ import { CinemaScreeningInput, TMDBSearchResult } from '../types';
 import { CinemaCity, CinemaOption, searchCinemaCities, searchCinemasNearCity } from '../services/cinemaDirectory';
 import { createScreening } from '../services/screenings';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { useDialog } from '../utils/useDialog';
 
 interface CinemaScreeningComposerProps {
   profileId: string;
@@ -25,6 +26,7 @@ interface CinemaScreeningComposerProps {
   onCreated: () => void;
   onAddToWatchlist?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
+  navShortcuts?: React.ReactNode;
 }
 
 const fieldClass =
@@ -65,7 +67,9 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
   onCreated,
   onAddToWatchlist,
   onToast,
+  navShortcuts,
 }) => {
+  const dialog = useDialog(onClose, 'Planifier une séance');
   const start = useMemo(() => initialStart(initialDate), [initialDate]);
   const [title, setTitle] = useState('');
   const [dateValue, setDateValue] = useState(toDateValue(start));
@@ -212,7 +216,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
+    <div {...dialog.props} className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <button className="absolute inset-0 bg-charcoal/70 backdrop-blur-md" onClick={onClose} aria-label="Fermer" />
       <section className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111] sm:rounded-[2rem]">
         <header className="flex items-start justify-between border-b border-stone-200/80 px-6 pb-5 pt-6 dark:border-white/10">
@@ -344,6 +348,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
           <button onClick={() => void save()} disabled={isSaving} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-charcoal text-[11px] font-black uppercase tracking-[0.15em] text-white transition hover:scale-[1.01] disabled:opacity-50 dark:bg-bitter-lime dark:text-charcoal">
             {isSaving ? <Loader2 size={17} className="animate-spin" /> : <CalendarPlus size={17} />}{isSaving ? 'Planification…' : 'Planifier la séance'}
           </button>
+          {navShortcuts}
         </div>
       </section>
     </div>

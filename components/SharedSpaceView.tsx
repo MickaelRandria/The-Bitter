@@ -48,6 +48,10 @@ import PlanPanel from './PlanPanel';
 import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
 import SpaceTodoStack from './SpaceTodoStack';
 import SwipeRow from './SwipeRow';
+import { SELECTED_RING, Selectable, SelectionCheck } from './SelectableWork';
+import { useWorkSelection } from '../contexts/WorkSelectionContext';
+import { longPressStyle } from '../utils/useLongPress';
+import type { SelectedWork } from '../utils/navActions';
 import { backdropKey, useBackdrops } from '../services/backdrops';
 import { monogramOf, tintOf } from '../utils/spaceLook';
 import { TodoItem, buildTodo, personalVerdicts as personalWorks, readSkipped, skipTodo } from '../services/spaceTodo';
@@ -783,6 +787,24 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     return map;
   }, [allRatings]);
 
+  /**
+   * Affiches sélectionnables par appui long : la barre du bas devient alors la
+   * barre d'actions. On joint la fiche d'espace et ma note, pour que « Noter »
+   * rouvre la même grille que depuis le verdict.
+   */
+  const selection = useWorkSelection();
+  const workOf = (movie: SharedMovie): SelectedWork => ({
+    key: `space:${movie.id}`,
+    tmdbId: movie.tmdb_id ?? undefined,
+    mediaType: movie.media_type ?? 'movie',
+    title: movie.title,
+    year: movie.year ? Number(movie.year) : undefined,
+    posterUrl: movie.poster_url ?? undefined,
+    source: 'space',
+    spaceMovie: movie,
+    spaceRating: (ratingsByMovie.get(movie.id) ?? []).find((r) => r.profile_id === currentUserId) ?? null,
+  });
+
   /** Films qu'on attend que je note : leurs notes restent floutées pour moi. */
   const rateTodoIds = useMemo(
     () => new Set(todo.filter((i) => i.kind === 'rate').map((i) => i.movie.id)),
@@ -1119,17 +1141,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       </button>
     ) : null;
     return (
+      <Selectable key={movie.id} work={workOf(movie)}>
+      {({ selected, selecting, handlers, style }) => (
       <div
-        key={movie.id}
         id={`space-movie-${movie.id}`}
-        className="rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)]"
+        className={`rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)] transition-transform duration-200 motion-reduce:transition-none ${selected ? SELECTED_RING : ''}`}
       >
+        {/* Pendant une sélection, un appui court coche : le glissé ne vote plus. */}
         <SwipeRow
           rightLabel={t('todo.keen')}
           leftLabel={t('todo.notKeen')}
           onSwipeRight={() => void swipeVote(movie.id, true)}
           onSwipeLeft={() => void swipeVote(movie.id, false)}
           surfaceClassName="bg-charcoal"
+          disabled={selection.active}
         >
           <div className={`relative text-white ${headliner ? 'h-[280px]' : 'h-[136px]'}`}>
             {image.src && (
@@ -1156,11 +1181,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               <span className="absolute left-0 top-[18px] bottom-[18px] w-1 rounded-r bg-bitter-lime" />
             )}
             <button
+              {...handlers}
+              style={style}
               onClick={() => handleExpandMovie(movie.id)}
-              aria-expanded={isExpanded}
+              aria-expanded={selecting ? undefined : isExpanded}
+              aria-pressed={selecting ? selected : undefined}
               aria-label={t('spaces.openFilm', { title: movie.title })}
-              className="absolute inset-0"
+              className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bitter-lime"
             />
+            <SelectionCheck selected={selected} className="top-3 right-3" />
             <div
               className={`pointer-events-none absolute left-5 right-4 bottom-4 top-[18px] flex flex-col ${headliner ? 'justify-end' : 'justify-between'}`}
             >
@@ -1202,6 +1231,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         </SwipeRow>
         {isExpanded && <div className="bg-cream dark:bg-[#0c0c0c]">{renderWatchDetail(movie, ctx)}</div>}
       </div>
+      )}
+      </Selectable>
     );
   };
 
@@ -1214,18 +1245,20 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   ) => {
     const image = imageOf(movie);
     return (
+      <Selectable key={movie.id} work={workOf(movie)}>
+      {({ selected, selecting, handlers, style }) => (
       <div
-        key={movie.id}
         id={`space-movie-${movie.id}`}
-        className="rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)]"
+        className={`rounded-[1.6rem] overflow-hidden bg-charcoal shadow-[0_18px_30px_-22px_rgba(26,26,26,0.7)] transition-transform duration-200 motion-reduce:transition-none ${selected ? SELECTED_RING : ''}`}
       >
         <div className="relative h-[124px] text-white">
           {image.src && (
             <img
               src={image.src}
               alt=""
+              draggable={false}
               className="absolute inset-0 w-full h-full object-cover"
-              style={image.poster ? { objectPosition: 'center 22%' } : undefined}
+              style={image.poster ? { ...longPressStyle, objectPosition: 'center 22%' } : longPressStyle}
               loading="lazy"
               decoding="async"
               onError={hideBroken}
@@ -1236,10 +1269,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             style={{ background: 'linear-gradient(90deg, rgba(12,12,12,0.92) 0%, rgba(12,12,12,0.62) 60%, rgba(12,12,12,0.35) 100%)' }}
           />
           <button
+            {...handlers}
+            style={style}
             onClick={() => openVerdict(movie.id)}
+            aria-pressed={selecting ? selected : undefined}
             aria-label={t('spaces.openFilm', { title: movie.title })}
-            className="absolute inset-0"
+            className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bitter-lime"
           />
+          <SelectionCheck selected={selected} className="top-3 right-3" />
           <div className="pointer-events-none absolute inset-0 pl-5 pr-4 py-4 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               {kicker && (
@@ -1262,6 +1299,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           </div>
         </div>
       </div>
+      )}
+      </Selectable>
     );
   };
 
@@ -1414,12 +1453,17 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             ? t('verdict.rowWaitMine', { names: names(ctx.missing) })
             : t('verdict.rowWait', { names: names(ctx.missing) });
     return (
+      <Selectable key={movie.id} work={workOf(movie)}>
+      {({ selected, selecting, handlers, style }) => (
       <button
-        key={movie.id}
+        {...handlers}
+        style={style}
         id={`space-movie-${movie.id}`}
         onClick={() => openVerdict(movie.id)}
-        className="w-full flex items-center gap-3 rounded-[1.4rem] bg-white dark:bg-[#161616] border border-sand dark:border-white/10 p-2.5 pr-3.5 text-left active:scale-[0.99] transition-transform"
+        aria-pressed={selecting ? selected : undefined}
+        className={`relative w-full flex items-center gap-3 rounded-[1.4rem] bg-white dark:bg-[#161616] border border-sand dark:border-white/10 p-2.5 pr-3.5 text-left active:scale-[0.99] transition-transform motion-reduce:transition-none ${selected ? SELECTED_RING : ''}`}
       >
+        <SelectionCheck selected={selected} className="-top-1.5 -right-1.5" />
         <Poster url={movie.poster_url} className="w-[46px] aspect-[2/3] rounded-[10px] shrink-0" />
         <span className="flex-1 min-w-0">
           <b className="block text-[14px] font-black leading-tight text-charcoal dark:text-white truncate">{movie.title}</b>
@@ -1445,6 +1489,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           <ProgressRing done={ctx.raterIds.length} total={ctx.expected.length} />
         )}
       </button>
+      )}
+      </Selectable>
     );
   };
 
@@ -1691,6 +1737,18 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             <p className="text-xs text-stone-500 dark:text-stone-500 max-w-[220px] leading-relaxed">
               {t('spaces.emptyBody')}
             </p>
+            {/* Espace vide : l'invitation à proposer le premier film reste sur
+                place, sans compter sur la découverte du + de la barre. */}
+            <button
+              onClick={() => {
+                haptics.medium();
+                onAddMovie();
+              }}
+              className="mt-6 h-12 pl-5 pr-6 rounded-full bg-charcoal dark:bg-white text-white dark:text-charcoal text-[13px] font-black flex items-center gap-2.5 active:scale-95 transition-transform motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bitter-lime focus-visible:ring-offset-2"
+            >
+              <Plus size={18} strokeWidth={3} className="text-bitter-lime dark:text-forest" />
+              {t('spaces.addFilm')}
+            </button>
           </div>
         ) : (
           <>
@@ -1747,9 +1805,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   <div className="space-y-4">
                     {podium.map(({ movie, ctx }, i) => {
                       return (
-                        <div key={movie.id} id={`space-movie-${movie.id}`}>
+                        <Selectable key={movie.id} work={workOf(movie)}>
+                        {({ selected, selecting, handlers, style }) => (
+                        <div id={`space-movie-${movie.id}`}>
                           <button
+                            {...handlers}
+                            style={style}
                             onClick={() => openVerdict(movie.id)}
+                            aria-pressed={selecting ? selected : undefined}
                             aria-label={t('spaces.openFilm', { title: movie.title })}
                             className="w-full flex items-end gap-1 text-left active:scale-[0.99] transition-transform"
                           >
@@ -1759,11 +1822,16 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             >
                               {i + 1}
                             </span>
-                            <span className="relative w-[104px] aspect-[2/3] shrink-0 rounded-2xl overflow-hidden bg-stone-200 dark:bg-[#1a1a1a] shadow-[0_14px_24px_-14px_rgba(26,26,26,0.6)]">
+                            <span
+                              className={`relative w-[104px] aspect-[2/3] shrink-0 rounded-2xl overflow-hidden bg-stone-200 dark:bg-[#1a1a1a] shadow-[0_14px_24px_-14px_rgba(26,26,26,0.6)] transition-transform duration-200 motion-reduce:transition-none ${selected ? SELECTED_RING : ''}`}
+                            >
+                              <SelectionCheck selected={selected} />
                               {(movie.poster_url || imageOf(movie).src) && (
                                 <img
                                   src={movie.poster_url ? resizeTmdbImage(movie.poster_url, 'w342') : imageOf(movie).src}
                                   alt=""
+                                  draggable={false}
+                                  style={longPressStyle}
                                   className="w-full h-full object-cover"
                                   loading="lazy"
                                   decoding="async"
@@ -1785,6 +1853,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                             </span>
                           </button>
                         </div>
+                        )}
+                        </Selectable>
                       );
                     })}
                   </div>
@@ -1881,19 +1951,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         )}
       </div>
 
-      {/* Un seul bouton pour ajouter : le formulaire demande ensuite « vu » ou
-          « à voir ». Il y en avait deux, selon l'onglet ouvert. */}
-      <button
-        onClick={() => {
-          haptics.medium();
-          onAddMovie();
-        }}
-        className="fixed right-5 z-40 h-14 pl-5 pr-6 rounded-full bg-charcoal dark:bg-white text-white dark:text-charcoal text-[13px] font-black flex items-center gap-2.5 shadow-[0_14px_30px_-10px_rgba(26,26,26,0.5)] active:scale-95 transition-transform"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7.5rem)' }}
-      >
-        <Plus size={18} strokeWidth={3} className="text-bitter-lime dark:text-forest" />
-        {t('spaces.addFilm')}
-      </button>
+      {/* Plus de bouton flottant : dans un espace, le + de la barre du bas
+          devient « Proposer un film ». */}
 
       {/* Les membres : ouverts depuis la rangée d'avatars de l'en-tête. */}
       {showMembers && (

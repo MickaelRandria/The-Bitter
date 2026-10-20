@@ -38,6 +38,7 @@ interface ScreeningProgrammePickerProps {
   onManualEntry: () => void;
   onAddToWatchlist?: (tmdbId: number) => void;
   onToast?: (message: string) => void;
+  navShortcuts?: React.ReactNode;
 }
 
 const DEFAULT_REMINDERS = [2_880, 30];
@@ -87,6 +88,7 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
   onManualEntry,
   onAddToWatchlist,
   onToast,
+  navShortcuts,
 }) => {
   const dialog = useDialog(onClose, 'Choisir une séance');
 
@@ -656,6 +658,7 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
           >
             <PenLine size={13} /> Saisir une séance à la main
           </button>
+          {navShortcuts}
         </div>
       </section>
     </div>

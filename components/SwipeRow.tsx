@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
@@ -11,6 +11,11 @@ interface Props {
   className?: string;
   /** Fond de la ligne qui glisse : opaque, pour cacher ce qu'elle révèle. */
   surfaceClassName?: string;
+  /**
+   * Neutralise le geste (pendant une sélection d'affiches par appui long, un
+   * appui court coche : glisser ne doit pas voter en même temps).
+   */
+  disabled?: boolean;
 }
 
 /** Au-delà de cette distance, lâcher la ligne vaut réponse. */
@@ -34,12 +39,23 @@ const SwipeRow: React.FC<Props> = ({
   onSwipeLeft,
   className = '',
   surfaceClassName = 'bg-white dark:bg-[#1a1a1a]',
+  disabled = false,
 }) => {
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; y: number; id: number; locked: boolean } | null>(null);
   const moved = useRef(false);
   const armed = useRef(false);
+
+  // Désactivée en cours de route : la ligne revient en place, sans vote.
+  useEffect(() => {
+    if (!disabled) return;
+    start.current = null;
+    moved.current = false;
+    armed.current = false;
+    setDragging(false);
+    setDrag(0);
+  }, [disabled]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -106,12 +122,12 @@ const SwipeRow: React.FC<Props> = ({
         </span>
       </div>
       <div
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={finish}
-        onPointerCancel={finish}
+        onPointerDown={disabled ? undefined : onPointerDown}
+        onPointerMove={disabled ? undefined : onPointerMove}
+        onPointerUp={disabled ? undefined : finish}
+        onPointerCancel={disabled ? undefined : finish}
         onClickCapture={(e) => {
-          if (moved.current) {
+          if (!disabled && moved.current) {
             e.stopPropagation();
             e.preventDefault();
             moved.current = false;
