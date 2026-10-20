@@ -4022,6 +4022,7 @@ const App: React.FC = () => {
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
+              firstName={activeProfile?.firstName}
               subscription={activeProfile?.cinemaSubscription}
               onAddToWatchlist={(tmdbId) => handleQuickWatchlist(tmdbId, 'movie')}
               onRewatch={setRewatchMovie}
