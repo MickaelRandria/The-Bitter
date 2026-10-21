@@ -13,6 +13,29 @@ import PublicRatingBadge from './PublicRatingBadge';
 
 const MIN_MOVIES_FOR_AI = 10;
 
+/**
+ * La raison cite des titres et des notes (« tu as mis 9 au scénario de X ») :
+ * ce sont eux qui la rendent vraie, on les fait ressortir du reste de la phrase.
+ * Les années (quatre chiffres) restent en texte courant.
+ */
+const REASON_HIGHLIGHT = /(«[^»]+»|“[^”]+”|"[^"]+"|\b\d{1,2}(?:[.,]\d)?(?:\s?\/\s?10)?\b)/g;
+
+function formatReason(reason: string): React.ReactNode[] {
+  return reason
+    .trim()
+    .split(REASON_HIGHLIGHT)
+    .filter(Boolean)
+    .map((part, i) => {
+      if (/^[«“"]/.test(part)) {
+        return <em key={i} className="not-italic font-bold text-charcoal dark:text-white">{part}</em>;
+      }
+      if (/^\d/.test(part)) {
+        return <strong key={i} className="font-black tabular-nums text-forest dark:text-bitter-lime">{part}</strong>;
+      }
+      return part;
+    });
+}
+
 interface RecommendationsModalProps {
   sourceMovie: Movie | null;
   isOpen: boolean;
@@ -428,20 +451,21 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
             /* Une justification ne tient pas sous une vignette de trois par
                rangée, et c'est elle qui vaut le détour : sans elle il ne reste
                que cinq affiches, ce que la version précédente faisait déjà. */
-            <div className="space-y-3">
+            <ul className="space-y-3">
               {recommendations.map((movie) => {
                 const isAdded = existingTmdbIds.has(movie.id);
                 const isAdding = addingId === movie.id;
+                const year = movie.release_date?.split('-')[0];
                 return (
-                  <div
+                  <li
                     key={movie.id}
-                    className="flex gap-3 p-3 rounded-3xl bg-stone-50 dark:bg-white/5 animate-[fadeIn_0.5s_ease-out]"
+                    className="flex gap-3.5 p-3.5 rounded-3xl bg-stone-50 dark:bg-white/5 animate-[fadeIn_0.5s_ease-out]"
                   >
-                    <div className="w-16 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800">
+                    <div className="w-[72px] shrink-0 self-start aspect-[2/3] rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 shadow-sm">
                       {movie.poster_path && (
                         <img
                           src={tmdbImage(movie.poster_path, 'w342')}
-                          alt={movie.title}
+                          alt=""
                           className="w-full h-full object-cover"
                           loading="lazy"
                           decoding="async"
@@ -449,38 +473,43 @@ const RecommendationsModal: React.FC<RecommendationsModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                      <div className="flex items-baseline gap-2">
-                        <h4 className="font-black text-[12px] text-charcoal dark:text-white leading-tight uppercase tracking-tight truncate">
-                          {movie.title}
-                        </h4>
-                        <span className="text-[10px] font-bold text-stone-400 shrink-0">
-                          {movie.release_date?.split('-')[0] || ''}
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <h4 className="font-black text-[15px] text-charcoal dark:text-white leading-tight tracking-tight line-clamp-2">
+                            {movie.title}
+                          </h4>
+                          <div className="mt-1 flex items-center gap-2 text-[11px] font-bold text-stone-400">
+                            {year && <span>{year}</span>}
+                            <PublicRatingBadge
+                              rating={pickFromLookup(imdbRatings, 'movie', Number(movie.id), movie.vote_average)}
+                              className="text-stone-400"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => !isAdded && !isAdding && handleAdd(movie.id)}
+                          disabled={isAdded || isAdding}
+                          aria-label={`${t('reco.add')} : ${movie.title}`}
+                          className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-transform active:scale-90 ${isAdded ? 'bg-forest text-white' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
+                        >
+                          {isAdding ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : isAdded ? (
+                            <Check size={15} strokeWidth={3} />
+                          ) : (
+                            <Plus size={15} strokeWidth={3} />
+                          )}
+                        </button>
                       </div>
-                      <p className="text-[12px] font-medium text-stone-500 dark:text-stone-400 leading-snug">
-                        {reasons.get(movie.id)}
+                      <p className="mt-2.5 border-l-2 border-forest/40 dark:border-bitter-lime/50 pl-2.5 text-[13px] leading-relaxed text-stone-600 dark:text-stone-300 text-pretty">
+                        {formatReason(reasons.get(movie.id) ?? '')}
                       </p>
                     </div>
-
-                    <button
-                      onClick={() => !isAdded && !isAdding && handleAdd(movie.id)}
-                      disabled={isAdded || isAdding}
-                      aria-label={t('reco.add')}
-                      className={`self-center w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-transform active:scale-90 ${isAdded ? 'bg-forest text-white' : 'bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal'}`}
-                    >
-                      {isAdding ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : isAdded ? (
-                        <Check size={16} strokeWidth={3} />
-                      ) : (
-                        <Plus size={16} strokeWidth={3} />
-                      )}
-                    </button>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           ) : (
             <div className="grid grid-cols-3 gap-3">
               {recommendations.map((movie) => {

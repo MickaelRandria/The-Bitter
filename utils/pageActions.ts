@@ -4,6 +4,7 @@ export type PageAction =
   | 'rate'
   | 'watchlist'
   | 'dictate'
+  | 'recos'
   | 'tonight'
   | 'plan'
   | 'ticket'
@@ -39,7 +40,7 @@ export function pageActionsFor(c: PageActionContext): PageAction[] {
   if (c.feedTab === 'queue') return ['watchlist', 'tonight'];
   return c.mediaMode === 'tv'
     ? ['series', 'watchlist', 'dictate']
-    : ['rate', 'watchlist', 'dictate'];
+    : ['rate', 'watchlist', 'dictate', 'recos'];
 }
 
 export const contextLabelKey = (page: NavPage, tab: 'history' | 'queue') =>

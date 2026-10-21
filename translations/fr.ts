@@ -11,6 +11,7 @@ export const fr: Record<string, string> = {
   "pageActions.watchlist": "Ajouter à ma liste",
   "pageActions.seriesWatchlist": "Ajouter une série à voir",
   "pageActions.dictate": "Dicter un avis",
+  "pageActions.recos": "Mes recos perso",
   "pageActions.tonight": "Choisir un film pour ce soir",
   "pageActions.plan": "Planifier une séance",
   "pageActions.ticket": "Importer un billet",
@@ -39,6 +40,7 @@ export const fr: Record<string, string> = {
   "pageActions.desc.mood": "Une ambiance, une durée, quelques mots.",
   "pageActions.desc.share": "Ton portrait et tes chiffres, réunis.",
   "pageActions.desc.propose": "Votre prochain film à voir ensemble.",
+  "pageActions.desc.recos": "Cinq films choisis d’après tes notes.",
 
   "portraitDetail.title": "Mon portrait cinéma",
   "portraitDetail.open": "Voir mon portrait",
@@ -1074,7 +1076,6 @@ export const fr: Record<string, string> = {
   'app.signOutDesc': 'Tes films et ta collection restent sauvegardés sur cet appareil.',
   'app.signOutConfirm': 'Confirmer la déconnexion',
   'app.notes': 'Notes',
-  'app.recosFABLabel': 'Recommandations personnalisées',
   // Séries
   'series.nextEpisode': 'Prochain épisode',
   'series.firstEpisode': 'Pour commencer',

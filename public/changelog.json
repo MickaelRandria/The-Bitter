@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-21-annee-en-affiches",
+  "version": "2026-10-21-recos-bouton-central",
   "label": "Version du 21 octobre",
   "items": [
+    {
+      "title": "Tes recos perso dans le bouton central",
+      "body": "Le bouton rond qui flottait au-dessus de ta collection a disparu : touche le + puis Mes recos perso, juste sous Noter un film, Ajouter à ma liste et Dicter un avis."
+    },
+    {
+      "title": "Des recos plus faciles à lire",
+      "body": "Chaque film affiche son titre en entier, son année et sa note du public. La raison de la reco se lit d’un bloc, avec les films et les notes qu’elle cite mis en avant."
+    },
     {
       "title": "Ton année en affiches",
       "body": "Dans le calendrier, onglet Année, Partager mon année en story crée trois affiches de cinéma à poster en story : ton film de l’année avec tes chiffres en générique, ta révélation, le film qui a le plus dépassé ton attente, et ton navet de l’année, couronne à l’envers."
@@ -37,8 +45,8 @@
       "title": "Ta révélation et ton navet"
     },
     {
-      "icon": "cinema",
-      "title": "Des affiches de cinéma en grand"
+      "icon": "recos",
+      "title": "Tes recos dans le bouton central"
     }
   ]
 }

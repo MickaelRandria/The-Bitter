@@ -3211,7 +3211,7 @@ const App: React.FC = () => {
     setCalendarImportRequest((n) => n + 1);
   };
 
-  const paletteActions = pageActionsFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5, pastDay: calendarContextDay <= calendarDay(Date.now()) }).filter((action) => action !== 'dictate' || dictationAvailable);
+  const paletteActions = pageActionsFor({ page: viewMode, feedTab, mediaMode, statsUnlocked: watchedCount >= 5, pastDay: calendarContextDay <= calendarDay(Date.now()) }).filter((action) => (action !== 'dictate' || dictationAvailable) && (action !== 'recos' || isAIUnlocked));
   const paletteLabel = t(contextLabelKey(viewMode, feedTab));
   const paletteSubtitle = viewMode === 'Calendar' && mediaMode === 'movie'
     ? new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(calendarContextDay + 'T12:00:00'))
@@ -3220,6 +3220,7 @@ const App: React.FC = () => {
     setShowPageActions(false);
     if (action === 'share') { window.dispatchEvent(new Event(STATS_SHARE_EVENT)); return; }
     if (action === 'recalibrate') { setShowCalibration(true); return; }
+    if (action === 'recos') { setShowRecommendationsModal(true); return; }
     if (action === 'mood' || action === 'filters' || action === 'platforms') {
       setDiscoverAction(previous => ({ id: (previous?.id ?? 0) + 1, kind: action })); return;
     }
@@ -5080,21 +5081,6 @@ const App: React.FC = () => {
             onComplete={handleCompleteCalibration}
           />
         )}
-        {/* FAB Recos Perso */}
-        {viewMode === 'Feed' && isAIUnlocked && (
-          <button
-            onClick={() => {
-              haptics.soft();
-              setShowRecommendationsModal(true);
-            }}
-            className="fixed left-4 z-40 w-14 h-14 bg-forest dark:bg-lime-400 text-white dark:text-charcoal rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
-            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}
-            aria-label={t('app.recosFABLabel')}
-          >
-            <Sparkles size={22} />
-          </button>
-        )}
-
         {showRecommendationsModal && (
           <RecommendationsModal
             isOpen={showRecommendationsModal}

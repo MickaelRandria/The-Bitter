@@ -11,6 +11,7 @@ export const en: Record<string, string> = {
   "pageActions.watchlist": "Add to my watchlist",
   "pageActions.seriesWatchlist": "Add a series to my watchlist",
   "pageActions.dictate": "Dictate a review",
+  "pageActions.recos": "My picks",
   "pageActions.tonight": "Pick something for tonight",
   "pageActions.plan": "Plan a screening",
   "pageActions.ticket": "Import a ticket",
@@ -39,6 +40,7 @@ export const en: Record<string, string> = {
   "pageActions.desc.mood": "An atmosphere, a running time, a few words.",
   "pageActions.desc.share": "Your portrait and numbers, together.",
   "pageActions.desc.propose": "Your next film to watch together.",
+  "pageActions.desc.recos": "Five films chosen from your ratings.",
 
   "portraitDetail.title": "My cinema portrait",
   "portraitDetail.open": "View my portrait",
@@ -1069,7 +1071,6 @@ export const en: Record<string, string> = {
   'app.signOutDesc': 'Your films and collection remain saved on this device.',
   'app.signOutConfirm': 'Confirm sign out',
   'app.notes': 'Notes',
-  'app.recosFABLabel': 'Personalized recommendations',
   // Series
   'series.nextEpisode': 'Next episode',
   'series.firstEpisode': 'To start',

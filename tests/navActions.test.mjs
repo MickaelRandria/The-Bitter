@@ -19,7 +19,7 @@ const palettes = load('../utils/pageActions.ts');
 const ctx = (extra) => ({ page: 'Feed', feedTab: 'history', mediaMode: 'movie', statsUnlocked: true, ...extra });
 
 test('les palettes suivent la page et la liste consultée', () => {
-  assert.deepEqual(palettes.pageActionsFor(ctx()), ['rate', 'watchlist', 'dictate']);
+  assert.deepEqual(palettes.pageActionsFor(ctx()), ['rate', 'watchlist', 'dictate', 'recos']);
   assert.deepEqual(palettes.pageActionsFor(ctx({ feedTab: 'queue' })), ['watchlist', 'tonight']);
   assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Discover' })), ['mood', 'filters', 'platforms']);
   assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'SharedSpace' })), ['propose', 'organize', 'invite']);
