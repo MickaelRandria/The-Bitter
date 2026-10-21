@@ -6,6 +6,7 @@ import {
   Check,
   Clapperboard,
   Clock,
+  Music,
   RotateCcw,
   ShieldCheck,
   Sparkles,
@@ -55,6 +56,7 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; strokeWidth?: n
   spaces: Users,
   notifications: Bell,
   cinema: Ticket,
+  music: Music,
 };
 
 /**

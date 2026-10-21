@@ -70,6 +70,7 @@ import {
 import { ADAPTIVE_RATING_VERSION } from '../config/ratingProfiles';
 import { useDialog } from '../utils/useDialog';
 import { AdaptiveRatingSection, BitterRatingSection, ProfilePicker } from './RatingGrid';
+import SoundtrackRatingPanel from './soundtrack/SoundtrackRatingPanel';
 import { readNavDiscovery, subscribeNavDiscovery } from '../utils/navDiscovery';
 import { canDictate } from '../services/voiceReview';
 
@@ -723,6 +724,22 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     onToggleSkip: (key: string) =>
       setSkippedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key])),
   };
+
+  /**
+   * La bande originale, glissée dans la carte « Sonore » : un film seulement,
+   * reconnu par TMDB. Elle n'entre pas dans la note ; l'avis rejoint les tags.
+   */
+  const soundtrackTmdbId =
+    formData.mediaType !== 'tv' && formData.seasonNumber == null ? formData.tmdbId : undefined;
+  const soundtrackExtra = (key: string) =>
+    key === 'sound' && soundtrackTmdbId != null ? (
+      <SoundtrackRatingPanel
+        tmdbId={soundtrackTmdbId}
+        title={formData.title}
+        tags={formData.tags}
+        onTagsChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+      />
+    ) : null;
 
   /**
    * Ce que la note dit, pour les amorces d'avis.
@@ -1459,6 +1476,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                       setShowProfilePicker(true);
                     }}
                     skip={skipControl}
+                    criterionExtra={soundtrackExtra}
                   />
                   <RatingDisclosure
                     title={t('addMovie.experience')}
@@ -1611,6 +1629,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   onChange={setCriterionValue}
                   gridLabel={isStandardSimpleGrid(profileId) ? undefined : getRatingProfile(profileId).label}
                   skip={skipControl}
+                  criterionExtra={soundtrackExtra}
                   onSwitchToBitterPlus={() => {
                     haptics.soft();
                     setUseBitterPlus(true);

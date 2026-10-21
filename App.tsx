@@ -2472,6 +2472,20 @@ const App: React.FC = () => {
     );
   };
 
+  /** Les morceaux aimés depuis la fiche : rangés dans les tags du film, puis propagés au compte. */
+  const handleUpdateMovieTags = (movieId: string, tags: string[]) => {
+    if (!activeProfileId) return;
+    const target = activeProfile?.movies.find((m) => m.id === movieId);
+    if (!target) return;
+    const updated: Movie = { ...target, tags };
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id !== activeProfileId ? p : { ...p, movies: p.movies.map((m) => (m.id === movieId ? updated : m)) }
+      )
+    );
+    if (session?.user?.id) void syncMovieToSupabase(session.user.id, updated);
+  };
+
   /**
    * Enregistre la progression d'une série et la propage au compte.
    *
@@ -5003,6 +5017,8 @@ const App: React.FC = () => {
                     : undefined
                 }
                 onUpdateTmdbRating={handleUpdateTmdbRating}
+                collectionTags={collectionMovie?.tags}
+                onUpdateTags={handleUpdateMovieTags}
                 profileId={session?.user?.id}
                 favoriteCinema={activeProfile?.favoriteCinema}
                 myPlatformIds={activeProfile?.streamingPlatforms}

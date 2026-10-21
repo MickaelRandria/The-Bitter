@@ -37,6 +37,8 @@ import JustWatchCredit from './JustWatchCredit';
 import FilFollowButton from './FilFollowButton';
 import { FilItem } from '../utils/cinemaFil';
 import { platformOfProvider } from '../utils/platforms';
+import SoundtrackBlock from './soundtrack/SoundtrackBlock';
+import { readSoundtrack, toggleFavorite } from '../utils/soundtrackTags';
 
 /** Rien sous le nom pour le cas courant : l'abonnement, ou la location comme l'achat. */
 const STREAMING_ACCESS_LABEL: Record<StreamingAccess, string | null> = {
@@ -62,6 +64,9 @@ interface MovieDetailModalProps {
   collectionTmdbRating?: number;
   collectionUserRating?: number;
   onUpdateTmdbRating?: (movieId: string, newRating: number) => void;
+  /** Tags du film dans la collection : on y range les morceaux aimés de la BO. */
+  collectionTags?: string[];
+  onUpdateTags?: (movieId: string, tags: string[]) => void;
   /** Séances UGC : sans profil connecté ni cinéma favori, la section ne s'affiche pas. */
   profileId?: string;
   favoriteCinema?: FavoriteCinema;
@@ -127,6 +132,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   collectionTmdbRating,
   collectionUserRating,
   onUpdateTmdbRating,
+  collectionTags,
+  onUpdateTags,
   profileId,
   favoriteCinema,
   onToast,
@@ -617,6 +624,20 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   )}
                   <JustWatchCredit className="mt-1" />
                 </div>
+              )}
+
+              {/* Bande originale : rien ne s'affiche si aucun album ne correspond. */}
+              {mediaType !== 'tv' && (
+                <SoundtrackBlock
+                  tmdbId={tmdbId}
+                  title={title}
+                  favorites={readSoundtrack(collectionTags).favorites}
+                  onToggleFavorite={
+                    collectionMovieId && onUpdateTags
+                      ? (trackId) => onUpdateTags(collectionMovieId, toggleFavorite(collectionTags, trackId))
+                      : undefined
+                  }
+                />
               )}
 
               {/* Synopsis */}
