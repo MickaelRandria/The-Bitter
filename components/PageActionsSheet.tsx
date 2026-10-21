@@ -22,6 +22,7 @@ const icons = {
   rate: Star,
   watchlist: BookmarkPlus,
   dictate: Mic,
+  recos: Sparkles,
   tonight: Sparkles,
   plan: CalendarPlus,
   ticket: Ticket,
