@@ -67,6 +67,9 @@ interface MovieDetailModalProps {
   /** Tags du film dans la collection : on y range les morceaux aimés de la BO. */
   collectionTags?: string[];
   onUpdateTags?: (movieId: string, tags: string[]) => void;
+  /** Ta note Son et ton avis, pour la liste complète de la bande originale. */
+  collectionSound?: number | null;
+  collectionReview?: string;
   /** Séances UGC : sans profil connecté ni cinéma favori, la section ne s'affiche pas. */
   profileId?: string;
   favoriteCinema?: FavoriteCinema;
@@ -134,6 +137,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   onUpdateTmdbRating,
   collectionTags,
   onUpdateTags,
+  collectionSound,
+  collectionReview,
   profileId,
   favoriteCinema,
   onToast,
@@ -632,6 +637,9 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   tmdbId={tmdbId}
                   title={title}
                   favorites={readSoundtrack(collectionTags).favorites}
+                  backdrop={movie.backdrop_path ? tmdbImage(movie.backdrop_path, 'w780') : undefined}
+                  sound={collectionSound}
+                  review={collectionReview}
                   onToggleFavorite={
                     collectionMovieId && onUpdateTags
                       ? (trackId) => onUpdateTags(collectionMovieId, toggleFavorite(collectionTags, trackId))

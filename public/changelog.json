@@ -1,7 +1,15 @@
 {
-  "version": "2026-10-21-bandes-originales",
+  "version": "2026-10-21-oreilles-de-cinema",
   "label": "Version du 21 octobre",
   "items": [
+    {
+      "title": "Tes oreilles de cinéma",
+      "body": "Dans tes stats, onglet Goûts : ta note Son moyenne, tes sommets à l’oreille et les compositeurs qui reviennent dans tes films. Touche une affiche pour écouter sa bande originale : la page prend les couleurs du film et un petit lecteur reste au-dessus de la barre."
+    },
+    {
+      "title": "La bande originale, plus immersive",
+      "body": "Tous les titres d’un film s’ouvrent maintenant dans son ambiance : l’image du film en fond, la pochette qui respire pendant l’extrait, ta note Son, et ton avis qui défile au rythme de la musique."
+    },
     {
       "title": "La bande originale de chaque film",
       "body": "Dans la fiche d’un film, retrouve sa bande originale : la pochette, le compositeur et les trois morceaux les plus écoutés, avec un extrait de 30 secondes à écouter sans quitter The Bitter. L’album complet s’ouvre dans Deezer, Spotify ou Apple Music."
@@ -50,15 +58,15 @@
   "highlights": [
     {
       "icon": "music",
+      "title": "Tes oreilles de cinéma"
+    },
+    {
+      "icon": "music",
       "title": "La BO de chaque film en extraits"
     },
     {
       "icon": "calendar",
       "title": "Ton année en trois affiches"
-    },
-    {
-      "icon": "recos",
-      "title": "Tes recos dans le bouton central"
     }
   ]
 }
