@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-21-recos-bouton-central",
+  "version": "2026-10-21-bandes-originales",
   "label": "Version du 21 octobre",
   "items": [
+    {
+      "title": "La bande originale de chaque film",
+      "body": "Dans la fiche d’un film, retrouve sa bande originale : la pochette, le compositeur et les trois morceaux les plus écoutés, avec un extrait de 30 secondes à écouter sans quitter The Bitter. L’album complet s’ouvre dans Deezer, Spotify ou Apple Music."
+    },
+    {
+      "title": "Tous les titres, et tes coups de cœur",
+      "body": "Voir tous les titres ouvre l’album en grand : chaque morceau s’écoute en extrait, et un cœur garde ceux qui t’ont marqué."
+    },
+    {
+      "title": "La BO dans ta note Son",
+      "body": "En notant, sous Son & musique : dis si la bande originale était marquante, et réécoute ses titres pour mettre un cœur à celui qui t’est resté. Facultatif, ta note ne change pas."
+    },
     {
       "title": "Tes recos perso dans le bouton central",
       "body": "Le bouton rond qui flottait au-dessus de ta collection a disparu : touche le + puis Mes recos perso, juste sous Noter un film, Ajouter à ma liste et Dicter un avis."
@@ -37,12 +49,12 @@
   ],
   "highlights": [
     {
-      "icon": "calendar",
-      "title": "Ton année en trois affiches"
+      "icon": "music",
+      "title": "La BO de chaque film en extraits"
     },
     {
-      "icon": "stats",
-      "title": "Ta révélation et ton navet"
+      "icon": "calendar",
+      "title": "Ton année en trois affiches"
     },
     {
       "icon": "recos",

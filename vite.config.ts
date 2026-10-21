@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import cinemaNews from './api/cinema-news';
+import soundtrack from './api/soundtrack';
 
 /**
  * Identifiant du build : le commit déployé sur Vercel, sinon l'heure du build.
@@ -67,6 +68,21 @@ export default defineConfig({
             json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
           };
           void cinemaNews(req, reply);
+        });
+        // Même relais pour la bande originale, avec la query rangée comme sur Vercel.
+        server.middlewares.use('/api/soundtrack', (req, res) => {
+          const params = new URL(req.url ?? '', 'http://localhost').searchParams;
+          const query: Record<string, string | string[]> = {};
+          for (const key of new Set(params.keys())) {
+            const values = params.getAll(key);
+            query[key] = values.length > 1 ? values : values[0];
+          }
+          const reply = {
+            setHeader: (key: string, value: string) => res.setHeader(key, value),
+            status(code: number) { res.statusCode = code; return reply; },
+            json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
+          };
+          void soundtrack({ method: req.method, query }, reply);
         });
       },
     },

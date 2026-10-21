@@ -73,7 +73,9 @@ export const BitterRatingSection: React.FC<{
   /** Nom de la grille quand ce n'est pas celle d'une fiction (« Documentaire »…). */
   gridLabel?: string;
   skip?: SkipControl;
-}> = ({ criteria, finalRating, onChange, onSwitchToBitterPlus, gridLabel, skip }) => {
+  /** Ce qui s'ajoute dans la carte d'un critère, par clé (voir AdaptiveCriterionStepper). */
+  criterionExtra?: (key: string) => React.ReactNode;
+}> = ({ criteria, finalRating, onChange, onSwitchToBitterPlus, gridLabel, skip, criterionExtra }) => {
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
   return (
     <div className="space-y-6">
@@ -89,6 +91,7 @@ export const BitterRatingSection: React.FC<{
               onChange={onChange}
               hideImportance
               {...skipStateFor(criteria, c, skip)}
+              extra={criterionExtra?.(c.key)}
             />
           ))}
         </div>
@@ -217,6 +220,7 @@ export const AdaptiveRatingSection: React.FC<{
   onChangeCustomWeight: (key: string, weight: number) => void;
   onOpenProfilePicker: () => void;
   skip?: SkipControl;
+  criterionExtra?: (key: string) => React.ReactNode;
 }> = ({
   profileId,
   profileLabel,
@@ -231,6 +235,7 @@ export const AdaptiveRatingSection: React.FC<{
   onChangeCustomWeight,
   onOpenProfilePicker,
   skip,
+  criterionExtra,
 }) => {
   const { t } = useLanguage();
   const [showFormulaHelp, setShowFormulaHelp] = useState(false);
@@ -322,6 +327,7 @@ export const AdaptiveRatingSection: React.FC<{
               onChange={onChange}
               isSet={ratedKeys[c.key] != null}
               {...skipStateFor(criteria, c, skip)}
+              extra={criterionExtra?.(c.key)}
             />
           ))}
         </div>
@@ -338,7 +344,7 @@ export const AdaptiveRatingSection: React.FC<{
           </p>
           <div className="grid grid-cols-1 gap-3">
             {specific.map((c) => (
-              <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} showDescription isSet={ratedKeys[c.key] != null} />
+              <AdaptiveCriterionStepper key={c.key} criterion={c} onChange={onChange} showDescription isSet={ratedKeys[c.key] != null} extra={criterionExtra?.(c.key)} />
             ))}
           </div>
         </div>
@@ -461,7 +467,9 @@ export const AdaptiveCriterionStepper: React.FC<{
   skipped?: boolean;
   /** Absent : le critère ne peut pas être écarté (critère du genre, ou dernier noté). */
   onToggleSkip?: () => void;
-}> = ({ criterion, onChange, showDescription, hideImportance, isSet = true, skipped = false, onToggleSkip }) => {
+  /** Contenu ajouté au bas de la carte, sous le curseur : la bande originale sous « Sonore ». */
+  extra?: React.ReactNode;
+}> = ({ criterion, onChange, showDescription, hideImportance, isSet = true, skipped = false, onToggleSkip, extra }) => {
   const { key, label, value, weight, weightLabel, description } = criterion;
   const currentValue = isSet ? value : 5;
 
@@ -599,6 +607,7 @@ export const AdaptiveCriterionStepper: React.FC<{
         </button>
       </div>
       <div className="mt-1 flex justify-between px-11 text-[9px] font-bold text-stone-300 dark:text-stone-600"><span>0</span><span>10</span></div>
+      {extra}
     </div>
   );
 };
