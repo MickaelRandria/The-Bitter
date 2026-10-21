@@ -16,7 +16,7 @@ function load(relative) {
   return exports;
 }
 
-const { biasTerms, biasWords, tidyTranscript, acceptPolish, unwrapPolish, MAX_BIAS_TERMS } = load(
+const { biasTerms, biasWords, tidyTranscript, acceptPolish, acceptRewrite, acceptTighten, unwrapPolish, MAX_BIAS_TERMS } = load(
   '../supabase/functions/review-voice/polish.ts'
 );
 
@@ -86,4 +86,34 @@ test('unwrap strips quotes and fences the model sometimes adds', () => {
   assert.equal(unwrapPolish('« Un film magnifique. »'), 'Un film magnifique.');
   assert.equal(unwrapPolish('"Great film."'), 'Great film.');
   assert.equal(unwrapPolish('```\nUn film.\n```'), 'Un film.');
+});
+
+const guided = [
+  { question: "Scénario au sommet, Rythme à 4. Qu'est-ce qui coinçait ?", text: 'bah le milieu trop lent, on s’ennuie un peu' },
+  { question: "Image : 9. Un moment précis qui t'a marqué ?", text: 'la scène de la plage au coucher du soleil' },
+  { question: 'À qui tu le conseillerais, et à qui non ?', text: 'aux fans de SF, pas à ma mère' },
+];
+
+test('the guided review may be rewritten with the questions as context', () => {
+  const rewrite =
+    "Le rythme m'a gêné : le milieu est trop lent, on s'ennuie un peu. Mais la scène de la plage au coucher du soleil m'a vraiment marqué. Je le conseillerais aux fans de SF, pas à ma mère.";
+  assert.equal(acceptRewrite(guided, rewrite), true);
+});
+
+test('the guided rewrite is refused when it invents praise, pads or makes a list', () => {
+  const invented =
+    "Un chef-d'œuvre absolu, porté par une mise en scène virtuose et des acteurs bouleversants, même si le milieu traîne. La scène de la plage est sublime, inoubliable, magistrale. À conseiller aux fans de SF, pas à ma mère.";
+  assert.equal(acceptRewrite(guided, invented), false);
+  const padded = Array(4).fill("Le milieu est trop lent et la scène de la plage au coucher du soleil m'a marqué.").join(' ');
+  assert.equal(acceptRewrite(guided, padded), false);
+  assert.equal(acceptRewrite(guided, '- Rythme : lent\n- Image : la plage'), false);
+  assert.equal(acceptRewrite(guided, 'Voici ton avis : le milieu est lent.'), false);
+  assert.equal(acceptRewrite(guided, 'Lent.'), false);
+});
+
+test('tightening tolerates a few linking words on a longer review', () => {
+  const full =
+    "Le rythme m'a gêné, le milieu est trop lent et on s'ennuie un peu, surtout pendant la longue partie au vaisseau où il ne se passe presque rien. Mais la scène de la plage au coucher du soleil m'a vraiment marqué, c'est le plus beau moment du film. Je le conseillerais aux fans de SF, pas à ma mère.";
+  assert.equal(acceptTighten(full, "Le milieu est trop lent, on s'ennuie un peu. Mais la scène de la plage m'a marqué. Pour les fans de SF, pas pour ma mère."), true);
+  assert.equal(acceptTighten(full, 'Un film raté, sauvé par une plage splendide et grandiose pour cinéphiles exigeants.'), false);
 });

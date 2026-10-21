@@ -161,8 +161,8 @@ export function acceptPolish(
 
 /**
  * Le resserrage coupe. Plus court que l'original, sans fondre sous le tiers
- * (ce serait un résumé), et pas plus de deux mots nouveaux : un « mais » pour
- * relier deux phrases rapprochées, pas un adjectif.
+ * (ce serait un résumé), et presque aucun mot nouveau : un « mais » pour relier
+ * deux phrases rapprochées, un sujet repris, pas un adjectif.
  */
 export function acceptTighten(full: string, tight: string, terms: string[] = []): boolean {
   if (/^(voici|here is|here's|version)/i.test(tight.trim())) return false;
@@ -170,12 +170,60 @@ export function acceptTighten(full: string, tight: string, terms: string[] = [])
   const after = tokens(tight).length;
   if (after === 0 || after >= before) return false;
   if (after < before * 0.3) return false;
-  return addedWords(full, tight, terms).length <= 2;
+  return addedWords(full, tight, terms).length <= Math.max(2, Math.floor(after * 0.08));
+}
+
+/**
+ * Les mots qu'une rédaction ajoute forcément pour rendre des réponses lisibles
+ * sans leur question : liaisons, verbes d'opinion, sujets. Ils ne portent aucun
+ * jugement, on ne les compte donc pas comme des mots inventés.
+ */
+const REWRITE_GLUE = tokens(
+  `vraiment pourtant cependant toutefois ensuite enfin aussi surtout plutôt quand même comme
+  avec sans dans pour donc alors puis était étaient avait reste restent quelque chose côté
+  film films scène scènes moment moments passage personnage personnages histoire
+  trouvé trouve trouvais pense pensé conseille conseillerais recommande recommanderais
+  déconseille déconseillerais aimé aime adoré plu plaît marqué marque gêné dérangé
+  really though however then finally also especially rather still with without
+  felt find found think thought recommend would loved liked bothered stuck`
+);
+
+/**
+ * Accepte ou refuse la rédaction de l'avis guidé.
+ *
+ * Ici le modèle doit reformuler : « la scène de la plage », réponse à « un
+ * moment qui t'a marqué ? », ne devient un avis qu'en reprenant la question.
+ * Le vocabulaire connu comprend donc les questions, les noms du film et les
+ * mots de liaison ; au-delà, un mot porteur nouveau sur cinq au plus. La
+ * longueur reste proche des réponses : une rédaction qui double le texte en a
+ * inventé la moitié.
+ */
+export function acceptRewrite(
+  answers: { question: string; text: string }[],
+  candidate: string,
+  terms: string[] = []
+): boolean {
+  const text = candidate.trim();
+  if (/^(voici|here is|here's|avis|review|texte)\b/i.test(text)) return false;
+  // Un titre ou une liste : le modèle a fait une fiche, pas un avis.
+  if (/^\s*(#|[-•*]\s|\d+[.)]\s)/m.test(text)) return false;
+
+  const spoken = answers.map((answer) => answer.text).join(' ');
+  const before = tokens(tidyTranscript(spoken)).length;
+  const after = tokens(text);
+  if (after.length === 0) return false;
+  if (after.length > before * 1.6 + 12) return false;
+  if (before >= 8 && after.length < before * 0.5) return false;
+
+  const context = [spoken, ...answers.map((answer) => answer.question), ...REWRITE_GLUE].join(' ');
+  const added = addedWords(context, text, terms);
+  return added.length <= Math.max(3, Math.floor(after.length * 0.2));
 }
 
 /** L'avis guidé sans modèle : les réponses mises bout à bout, le verdict à la fin. */
-export function joinAnswers(answers: string[]): string {
-  const parts = answers.map((answer) => answer.trim()).filter(Boolean);
+export function joinAnswers(answers: string[], lang: 'fr' | 'en' = 'fr'): string {
+  // Chaque réponse devient au moins une phrase : majuscule, point, sans « euh ».
+  const parts = answers.map((answer) => tidyTranscript(answer, lang)).filter(Boolean);
   const text = parts.join(' ');
   // Au-delà d'une soixantaine de mots, un bloc unique se lit mal sur téléphone.
   return text.split(/\s+/).length > 60 ? parts.join('\n\n') : text;
