@@ -16,7 +16,9 @@ const TrackList: React.FC<{
   onToggleFavorite?: (trackId: number) => void;
   /** Numérote les morceaux : la liste complète oui, l'aperçu « les plus écoutés » aussi. */
   numbered?: boolean;
-}> = ({ tracks, tone, favorites = [], onToggleFavorite, numbered = true }) => {
+  /** Faux quand l'écran montre déjà l'avancée ailleurs (le bloc « En cours »). */
+  showProgress?: boolean;
+}> = ({ tracks, tone, favorites = [], onToggleFavorite, numbered = true, showProgress = true }) => {
   const { t } = useLanguage();
   const player = usePreviewPlayer();
   const dark = tone === 'dark';
@@ -78,7 +80,7 @@ const TrackList: React.FC<{
                 </button>
               )}
             </div>
-            {current && (
+            {current && showProgress && (
               <div className="flex items-center gap-2 pb-2.5 pl-11 pr-4" aria-hidden="true">
                 <div className={`h-[3px] flex-1 overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-stone-200 dark:bg-white/10'}`}>
                   <div

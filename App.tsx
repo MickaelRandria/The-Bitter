@@ -185,6 +185,7 @@ import { imdbLookupFor } from './utils/publicRating';
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const CinemaFil = lazy(() => import('./components/CinemaFil'));
+import { soundScore } from './utils/soundScore';
 import DailyFilButton from './components/DailyFilButton';
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
@@ -5019,6 +5020,8 @@ const App: React.FC = () => {
                 onUpdateTmdbRating={handleUpdateTmdbRating}
                 collectionTags={collectionMovie?.tags}
                 onUpdateTags={handleUpdateMovieTags}
+                collectionSound={collectionMovie ? soundScore(collectionMovie) : null}
+                collectionReview={collectionMovie?.comment || undefined}
                 profileId={session?.user?.id}
                 favoriteCinema={activeProfile?.favoriteCinema}
                 myPlatformIds={activeProfile?.streamingPlatforms}

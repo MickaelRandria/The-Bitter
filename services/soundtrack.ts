@@ -56,11 +56,45 @@ async function filmHints(tmdbId: number, localTitle?: string) {
         .map((person: { name: string }) => person.name)
     ),
   ];
+  rememberComposers(tmdbId, composers.slice(0, 3));
   return {
     titles: [...new Set([movie.original_title, movie.title, localTitle].filter(Boolean) as string[])],
     year: Number(String(movie.release_date ?? '').slice(0, 4)) || undefined,
     composers: composers.slice(0, 3),
   };
+}
+
+/**
+ * Les compositeurs d'un film, gardés sur l'appareil : la page Goûts les lit
+ * pour toute la collection, et un générique ne change pas.
+ */
+const COMPOSERS_KEY = 'bitter:composers:v1';
+let composerMemo: Record<string, string[]> | null = null;
+
+function composerStore(): Record<string, string[]> {
+  if (composerMemo) return composerMemo;
+  try {
+    composerMemo = JSON.parse(localStorage.getItem(COMPOSERS_KEY) || '{}') ?? {};
+  } catch {
+    composerMemo = {};
+  }
+  return composerMemo!;
+}
+
+function rememberComposers(tmdbId: number, composers: string[]) {
+  const store = composerStore();
+  store[tmdbId] = composers;
+  try {
+    localStorage.setItem(COMPOSERS_KEY, JSON.stringify(store));
+  } catch {
+    // Stockage plein ou bloqué : la mémoire de la session suffit.
+  }
+}
+
+export async function getComposers(tmdbId: number): Promise<string[]> {
+  const known = composerStore()[tmdbId];
+  if (known) return known;
+  return (await filmHints(tmdbId)).composers;
 }
 
 async function load(tmdbId: number, localTitle?: string): Promise<SoundtrackAlbum[]> {

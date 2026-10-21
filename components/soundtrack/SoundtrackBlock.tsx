@@ -22,7 +22,11 @@ const SoundtrackBlock: React.FC<{
   favorites?: number[];
   /** Absent : le film n'est pas dans la collection, on ne peut rien y ranger. */
   onToggleFavorite?: (trackId: number) => void;
-}> = ({ tmdbId, title, favorites, onToggleFavorite }) => {
+  /** Pour l'ambiance de la liste complète : une image du film, ta note Son, ton avis. */
+  backdrop?: string;
+  sound?: number | null;
+  review?: string;
+}> = ({ tmdbId, title, favorites, onToggleFavorite, backdrop, sound, review }) => {
   const { t } = useLanguage();
   const [albums, setAlbums] = useState<SoundtrackAlbum[] | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -104,6 +108,10 @@ const SoundtrackBlock: React.FC<{
       {showAll && albums && (
         <SoundtrackSheet
           albums={albums}
+          filmTitle={title}
+          backdrop={backdrop}
+          sound={sound}
+          review={review}
           favorites={favorites}
           onToggleFavorite={onToggleFavorite}
           onClose={() => setShowAll(false)}

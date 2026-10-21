@@ -94,3 +94,24 @@ test('l’avis sur la BO vit dans les tags sans toucher aux autres', () => {
   assert.ok(list.includes('perso'));
   assert.deepEqual(tags.readSoundtrack(undefined), { verdict: null, favorites: [] });
 });
+
+const score = load('../utils/soundScore.ts');
+
+test('la note Son vient du critère sound, jamais d’une note plate', () => {
+  const flat = { ratings: { story: 7, visuals: 7, acting: 7, sound: 7 } };
+  assert.equal(score.soundScore(flat), null);
+  assert.equal(score.soundScore({ ratings: { story: 6, visuals: 8.5, acting: 7, sound: 5.5 } }), 5.5);
+  const adaptive = { ratings: { story: 8.9, visuals: 8.9, acting: 8.9, sound: 8.9 }, adaptiveRating: { criteria: [{ key: 'scenario', value: 9 }, { key: 'sound', value: 9.5 }] } };
+  assert.equal(score.soundScore(adaptive), 9.5);
+  const skipped = { ratings: { story: 6, visuals: 8, acting: 7, sound: 5 }, adaptiveRating: { criteria: [{ key: 'scenario', value: 6 }], skipped: ['sound'] } };
+  assert.equal(score.soundScore(skipped), null);
+});
+
+test('l’avis se découpe en fragments de mots entiers', () => {
+  const parts = score.reviewFragments('J’ai senti mon souffle coupé jusqu’à ce que les questions de Caleb se transforment en un miroir tendu vers mes propres certitudes.');
+  assert.equal(parts.length, 4);
+  assert.ok(parts.every((p) => p.length > 0 && !p.startsWith(' ')));
+  assert.equal(parts.join(' ').split(' ').length, 22);
+  assert.deepEqual(score.reviewFragments('Génial.'), ['Génial.']);
+  assert.deepEqual(score.reviewFragments(''), []);
+});

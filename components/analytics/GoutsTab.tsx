@@ -6,6 +6,7 @@ import { resizeTmdbImage } from '../../utils/tmdbImage';
 import { getDisplayWeightedRating } from '../../utils/rating';
 import { getPublicRating } from '../../utils/publicRating';
 import { fmt1 } from '../../utils/verdict';
+import SoundtrackSection from './SoundtrackSection';
 import {
   GoutFilm,
   contrarian,
@@ -381,7 +382,10 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
         </section>
       )}
 
-      {/* 7 · Ton classement. */}
+      {/* 7 · La bande originale : ta note Son, tes sommets, tes compositeurs. */}
+      <SoundtrackSection movies={watched} />
+
+      {/* 8 · Ton classement. */}
       <section ref={rankRef} className={`${sec} scroll-mt-6`}>
         <Head title={t('gouts.ranking')} aside={t('gouts.films', { n: String(ranked.length) })} />
         <div className="flex flex-col">
