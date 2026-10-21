@@ -17,7 +17,7 @@ function load(relative) {
 }
 
 const { guidedQuestions, compareTightened, formatScore } = load('../utils/guidedReview.ts');
-const { acceptTighten, acceptPolish, joinAnswers } = load('../supabase/functions/review-voice/polish.ts');
+const { acceptTighten, acceptRewrite, joinAnswers } = load('../supabase/functions/review-voice/polish.ts');
 const { mintToken, verifyToken, TOKEN_TTL_MS } = load('../supabase/functions/review-voice/token.ts');
 
 const dune = [
@@ -73,26 +73,25 @@ test('tightening must cut without adding or summarising', () => {
   assert.equal(acceptTighten(full, "L'histoire est bancale et laborieuse, mais la bande-son grandiose reste magistrale."), false);
 });
 
-test('assembling may add a few linking words, not an opinion', () => {
+test('the guided rewrite may rephrase from the questions, not add an opinion', () => {
   const answers = [
-    "L'histoire traîne au milieu et Feyd arrive trop tard.",
-    "Le combat dans l'arène, j'avais des frissons.",
-    'À voir en salle.',
+    { question: "Scénario au sommet, Rythme à 4. Qu'est-ce qui coinçait ?", text: "L'histoire traîne au milieu et Feyd arrive trop tard." },
+    { question: "Son : 9. Un moment précis qui t'a marqué ?", text: "Le combat dans l'arène, j'avais des frissons." },
+    { question: 'À qui tu le conseillerais, et à qui non ?', text: 'À voir en salle.' },
   ];
-  const joined = joinAnswers(answers);
-  const limits = { slack: 8, minRatio: 0.6, addedRatio: 0.12 };
   assert.equal(
-    acceptPolish(joined, "L'histoire traîne au milieu et Feyd arrive trop tard. Par contre, le combat dans l'arène, j'avais des frissons. À voir en salle.", [], limits),
+    acceptRewrite(answers, "Le rythme coince : l'histoire traîne au milieu et Feyd arrive trop tard. Par contre, le combat dans l'arène m'a marqué, j'avais des frissons. À voir en salle."),
     true
   );
   assert.equal(
-    acceptPolish(joined, "L'histoire traîne et Feyd arrive tard, mais la photographie somptueuse et la partition magistrale font un spectacle total. À voir en salle.", [], limits),
+    acceptRewrite(answers, "L'histoire traîne et Feyd arrive tard, mais la photographie somptueuse et la partition magistrale font un spectacle total. À voir en salle."),
     false
   );
 });
 
 test('long guided reviews are split into paragraphs', () => {
-  const long = Array.from({ length: 3 }, (_, i) => `Réponse ${i} ` + 'mot '.repeat(25).trim() + '.');
+  const words = 'le film traîne au milieu mais la fin rattrape tout avec une scène folle dans la neige et un silence'.split(' ');
+  const long = Array.from({ length: 3 }, (_, i) => `Réponse ${i} ` + words.join(' ') + '.');
   assert.match(joinAnswers(long), /\n\n/);
   assert.doesNotMatch(joinAnswers(['Court.', 'Aussi.']), /\n/);
 });

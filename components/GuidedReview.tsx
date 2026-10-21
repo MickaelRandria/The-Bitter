@@ -41,9 +41,10 @@ const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
  * chacune, puis un seul texte.
  *
  * Proposé à côté de l'écriture libre, jamais à sa place. Les questions viennent
- * de `guidedQuestions` (calculées, sans modèle) ; le texte final est fait des
- * réponses, reliées sans idée ajoutée. « Resserrer » coupe, et montre ce qu'il
- * a coupé : on ne publie pas sous son nom un texte qu'on n'a pas pu vérifier.
+ * de `guidedQuestions` (calculées, sans modèle) ; le texte final est rédigé à
+ * partir des réponses et de leurs questions, sans idée ajoutée. « Resserrer »
+ * coupe, et montre ce qu'il a coupé : on ne publie pas sous son nom un texte
+ * qu'on n'a pas pu vérifier.
  */
 const GuidedReview: React.FC<Props> = ({
   title,
@@ -78,6 +79,8 @@ const GuidedReview: React.FC<Props> = ({
   const [tight, setTight] = useState('');
   const [showTight, setShowTight] = useState(false);
   const [busy, setBusy] = useState<'assemble' | 'tighten' | null>(null);
+  /** La rédaction n'a pas pu se faire : les réponses sont seulement mises bout à bout. */
+  const [unwritten, setUnwritten] = useState(false);
   const [picking, setPicking] = useState(false);
   const finished = step >= questions.length;
 
@@ -171,11 +174,14 @@ const GuidedReview: React.FC<Props> = ({
       .filter((answer) => answer.text);
     setTight('');
     setShowTight(false);
+    setUnwritten(false);
     if (filled.length === 0) return setFull('');
     setBusy('assemble');
     setError(null);
     try {
-      setFull(await assembleReview(filled, terms, lang, session));
+      const result = await assembleReview(filled, terms, lang, session);
+      setFull(result.text);
+      setUnwritten(!result.polished);
     } catch (e) {
       // Rien de perdu : les réponses mises bout à bout restent un avis.
       setFull(filled.map((answer) => answer.text).join(' '));
@@ -512,6 +518,12 @@ const GuidedReview: React.FC<Props> = ({
                       {t('guided.wordCount', { n: countWords(shown) })}
                     </p>
                   </div>
+
+                  {unwritten && !showTight && (
+                    <p className="px-1 text-[12px] font-semibold leading-snug text-stone-500">
+                      {t('guided.unwritten')}
+                    </p>
+                  )}
 
                   {showTight &&
                     comparison &&

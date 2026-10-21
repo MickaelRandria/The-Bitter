@@ -4,12 +4,12 @@
  * Sur 90 films notés, un seul portait un avis écrit (voir `ReviewComposer`).
  * Parler deux phrases en sortant de la salle coûte bien moins que les taper.
  *
- * Trois actions, une seule règle : le modèle range, il n'écrit pas à la place.
+ * Trois actions, une seule règle : le modèle n'ajoute aucun avis à la place.
  * - Dictée (multipart `audio`) : Voxtral TRANSCRIT, avec le titre, le
  *   réalisateur et les acteurs comme vocabulaire imposé ; Ministral MET AU
  *   PROPRE (hésitations, faux départs, ponctuation).
- * - `assemble` (JSON) : les réponses de l'avis guidé deviennent un seul texte,
- *   reliées et mises en paragraphes, sans idée ajoutée.
+ * - `assemble` (JSON) : Ministral RÉDIGE un seul avis fluide à partir des
+ *   réponses de l'avis guidé et de leurs questions, sans idée ajoutée.
  * - `tighten` (JSON) : le même avis, coupé d'environ moitié.
  * Chaque sortie passe un garde-fou de `polish.ts` ; refusée, on rend l'entrée.
  *
@@ -22,6 +22,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
   acceptPolish,
+  acceptRewrite,
   acceptTighten,
   biasTerms,
   biasWords,
@@ -92,23 +93,31 @@ const polishInstructions = (lang: Lang, terms: string[]) =>
 - Garde son vocabulaire, son argot, ses gros mots, son tutoiement et l'ordre de ses idées. N'ajoute jamais une idée, un adjectif ni une conclusion, ne résume pas, n'embellis pas.
 - Réponds uniquement par le texte nettoyé, rien avant ni après.`;
 
+/**
+ * Les réponses de l'avis guidé sont elliptiques : « le rythme », « oui, la
+ * fin », « aux fans de SF ». Mises bout à bout, elles ne veulent rien dire sans
+ * leur question. Le modèle RÉDIGE donc ici, à partir d'elles seules ; c'est la
+ * seule action où il reformule, et `acceptRewrite` borne ce qu'il ajoute.
+ */
 const assembleInstructions = (lang: Lang, terms: string[]) =>
   lang === 'en'
-    ? `Someone answered questions about a film they just watched. Turn their answers into ONE review, as if they had written it in one go.
+    ? `You write film reviews on behalf of someone who just watched a film. They answered a few questions out loud; their answers are often fragments ("the pacing", "yes, the ending") that only make sense next to the question. Write THEIR review, in the first person, as a text they could have written in one go and that reads clearly without the questions.
 
-- Keep their words, phrasing, tone and opinions. The questions are only context: never quote them.
-- You may drop what merely repeats a question, join sentences with a linking word (but, and, so…) and put the verdict last.
-- Over 60 words, split into 2 paragraphs separated by a blank line. No title, list or quotation marks.
+- Rephrase freely so it flows: full sentences, an explicit subject (bring in what the question was about when the answer implies it), natural transitions between ideas, the verdict last.
+- Their opinion and nothing else: every judgement, nuance and degree comes from their answers. Never invent an idea, a scene, praise, criticism or a fact about the film.
+- Keep their voice: casual stays casual, keep their strong expressions, humour and swearing. Do not sound like a press critic, no stock phrases ("masterpiece", "a must-see").
+- Never quote the questions.
+- Stay close to the length of their answers, no padding. Over 60 words, 2 paragraphs separated by a blank line. No title, no list, no quotation marks around the text.
 - Names, spelled from this list: ${namesLine(terms, lang)}.
-- Never add an idea, an adjective or a judgement.
 - Reply with the review only.`
-    : `Une personne a répondu à des questions sur un film qu'elle vient de voir. Fais de ses réponses UN SEUL avis, comme si elle l'avait écrit d'une traite.
+    : `Tu rédiges l'avis d'une personne qui vient de voir un film. Elle a répondu à voix haute à quelques questions ; ses réponses sont souvent des fragments (« le rythme », « oui, la fin ») qui n'ont de sens qu'à côté de la question. Écris SON avis, à la première personne, comme un texte qu'elle aurait écrit d'une traite et qu'on comprend sans les questions.
 
-- Garde ses mots, ses tournures, son ton, son tutoiement et ses jugements. Les questions ne sont que du contexte : ne les cite jamais.
-- Tu peux retirer ce qui répète la question, relier les phrases par un mot de liaison (mais, et, du coup…) et placer le verdict à la fin.
-- Au-delà de 60 mots, coupe en 2 paragraphes séparés par une ligne vide. Pas de titre, pas de liste, pas de guillemets.
+- Reformule librement pour que ce soit fluide : phrases complètes, sujet explicite (reprends ce dont parle la question quand la réponse le sous-entend), transitions naturelles entre les idées, verdict à la fin.
+- Son avis, rien que son avis : chaque jugement, chaque nuance et son intensité viennent de ses réponses. N'invente ni idée, ni scène, ni compliment, ni critique, ni information sur le film.
+- Garde sa voix : le familier reste familier, garde ses expressions fortes, son humour, ses gros mots. N'écris pas comme un critique de presse, pas de formules toutes faites (« chef-d'œuvre », « à ne pas manquer »).
+- Ne cite jamais les questions.
+- Reste proche de la longueur de ses réponses, sans remplissage. Au-delà de 60 mots, 2 paragraphes séparés par une ligne vide. Pas de titre, pas de liste, pas de guillemets autour du texte.
 - Les noms, écrits d'après cette liste : ${namesLine(terms, lang)}.
-- N'ajoute jamais une idée, un adjectif ni un jugement.
 - Réponds uniquement par l'avis.`;
 
 const tightenInstructions = (lang: Lang) =>
@@ -127,7 +136,12 @@ const tightenInstructions = (lang: Lang) =>
 - Réponds uniquement par l'avis resserré.`;
 
 /** Un appel texte à Ministral, avec relais sur le 8B quand le 14B est saturé. */
-async function chat(apiKey: string, system: string, user: string): Promise<string | null> {
+async function chat(
+  apiKey: string,
+  system: string,
+  user: string,
+  temperature = 0
+): Promise<string | null> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), CHAT_TIMEOUT_MS);
   try {
@@ -145,7 +159,7 @@ async function chat(apiKey: string, system: string, user: string): Promise<strin
             { role: 'system', content: system },
             { role: 'user', content: user },
           ],
-          temperature: 0,
+          temperature,
           max_tokens: 900,
         }),
         signal: abort.signal,
@@ -264,10 +278,8 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Une seule réponse : rien à relier, donc rien à compter.
-  if (action === 'assemble' && answers.length === 1) {
-    return json({ text: joinAnswers([answers[0].text]), polished: false, token });
-  }
+  // Même une seule réponse passe par la rédaction : « aux fans de SF, pas à ma
+  // mère » ne se comprend pas sans sa question.
 
   // ── Une question du jour par avis ────────────────────────────────────────
   let nextToken = typeof token === 'string' ? token : '';
@@ -299,17 +311,26 @@ Deno.serve(async (req: Request) => {
 
   // ── Mise en forme de l'avis guidé ────────────────────────────────────────
   if (action === 'assemble') {
-    const joined = joinAnswers(answers.map((answer) => answer.text));
+    const joined = joinAnswers(answers.map((answer) => answer.text), lang);
     const prompt = answers
-      .map((answer) => `Question : ${answer.question}\nRéponse : ${answer.text}`)
+      .map((answer, i) =>
+        lang === 'en'
+          ? `Question ${i + 1}: ${answer.question}\nTheir answer: ${answer.text}`
+          : `Question ${i + 1} : ${answer.question}\nSa réponse : ${answer.text}`
+      )
       .join('\n\n');
-    const candidate = await chat(apiKey, assembleInstructions(lang, terms), prompt);
-    // Relier coûte quelques mots de liaison : la marge est plus large que pour une dictée.
-    const ok =
-      !!candidate &&
-      acceptPolish(joined, candidate, terms, { slack: 8, minRatio: 0.6, addedRatio: 0.12 });
-    if (candidate && !ok) console.warn('[review-voice] mise en forme refusée par le garde-fou');
-    return json({ text: ok ? candidate : joined, polished: ok, token: nextToken });
+    // Un peu de latitude pour la tournure ; refusée, une seconde fois au plus juste.
+    let text: string | null = null;
+    for (const temperature of [0.3, 0]) {
+      const candidate = await chat(apiKey, assembleInstructions(lang, terms), prompt, temperature);
+      if (!candidate) break;
+      if (acceptRewrite(answers, candidate, terms)) {
+        text = candidate;
+        break;
+      }
+      console.warn(`[review-voice] rédaction refusée par le garde-fou (t=${temperature})`);
+    }
+    return json({ text: text ?? joined, polished: !!text, token: nextToken });
   }
 
   // ── Resserrage ───────────────────────────────────────────────────────────

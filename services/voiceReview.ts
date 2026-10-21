@@ -220,13 +220,16 @@ export async function transcribeReview(
   return { text, raw: String(data.raw ?? text).trim(), polished: !!data.polished };
 }
 
-/** Les réponses de l'avis guidé, reliées en un seul texte sans idée ajoutée. */
+/**
+ * Les réponses de l'avis guidé, rédigées en un seul avis fluide sans idée
+ * ajoutée. `polished` faux : le serveur a dû les mettre bout à bout.
+ */
 export async function assembleReview(
   answers: { question: string; text: string }[],
   names: string[],
   lang: 'fr' | 'en',
   session: ReviewSession
-): Promise<string> {
+): Promise<{ text: string; polished: boolean }> {
   const data = await callReviewVoice(
     {
       action: 'assemble',
@@ -237,7 +240,7 @@ export async function assembleReview(
     },
     session
   );
-  return String(data.text ?? '').trim();
+  return { text: String(data.text ?? '').trim(), polished: !!data.polished };
 }
 
 /** Le même avis, coupé d'environ moitié. */
