@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-21-oreilles-de-cinema",
-  "label": "Version du 21 octobre",
+  "version": "2026-10-23-stories-photo",
+  "label": "Version du 23 octobre",
   "items": [
+    {
+      "title": "Ta photo dans ta story",
+      "body": "En partageant une note, deux nouveaux visuels utilisent ta propre photo : La séance, ta photo en plein cadre avec ton avis et ta note, et Le relevé, toutes tes notes posées dessus sur une ligne. Ta photo reste sur ton téléphone, rien n’est envoyé."
+    },
+    {
+      "title": "Place tes notes où tu veux",
+      "body": "Dans l’aperçu, fais glisser le bloc de notes et pince-le pour changer sa taille : des repères montrent les zones qu’Instagram cache et le milieu de l’image. La photo se cadre au doigt, en couleurs du film ou telle quelle."
+    },
+    {
+      "title": "Le sticker seul, pour une vidéo",
+      "body": "Le bouton « … » de l’aperçu enregistre tes notes sur fond transparent, à poser sur une vidéo dans ta story Instagram."
+    },
     {
       "title": "Tes oreilles de cinéma",
       "body": "Dans tes stats, onglet Goûts : ta note Son moyenne, tes sommets à l’oreille et les compositeurs qui reviennent dans tes films. Touche une affiche pour écouter sa bande originale : la page prend les couleurs du film et un petit lecteur reste au-dessus de la barre."
@@ -57,16 +69,16 @@
   ],
   "highlights": [
     {
+      "icon": "photo",
+      "title": "Ta photo dans ta story"
+    },
+    {
       "icon": "music",
       "title": "Tes oreilles de cinéma"
     },
     {
       "icon": "music",
       "title": "La BO de chaque film en extraits"
-    },
-    {
-      "icon": "calendar",
-      "title": "Ton année en trois affiches"
     }
   ]
 }
