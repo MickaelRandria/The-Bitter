@@ -285,15 +285,14 @@ interface Palette {
   dot: string;
   /** Contour du point quand il serait trop pâle sur une photo claire. */
   ring: string | null;
-  shadow: boolean;
   badgeFill: string;
   badgeEdge: string;
 }
 
 const PALETTES: Record<StickerColor, Palette> = {
-  blanc: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: TEXT, dot: ACCENT, ring: null, shadow: true, badgeFill: 'rgba(0,0,0,0.28)', badgeEdge: 'rgba(255,255,255,0.55)' },
-  noir: { fg: '#0c0c0c', soft: 'rgba(12,12,12,0.72)', note: '#0c0c0c', dot: ACCENT, ring: '#0c0c0c', shadow: false, badgeFill: 'rgba(255,255,255,0.5)', badgeEdge: 'rgba(12,12,12,0.6)' },
-  accent: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: ACCENT, dot: TEXT, ring: null, shadow: true, badgeFill: 'rgba(0,0,0,0.32)', badgeEdge: 'rgba(255,255,255,0.5)' },
+  blanc: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: TEXT, dot: ACCENT, ring: null, badgeFill: 'rgba(0,0,0,0.28)', badgeEdge: 'rgba(255,255,255,0.55)' },
+  noir: { fg: '#0c0c0c', soft: 'rgba(12,12,12,0.72)', note: '#0c0c0c', dot: ACCENT, ring: '#0c0c0c', badgeFill: 'rgba(255,255,255,0.5)', badgeEdge: 'rgba(12,12,12,0.6)' },
+  accent: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: ACCENT, dot: TEXT, ring: null, badgeFill: 'rgba(0,0,0,0.32)', badgeEdge: 'rgba(255,255,255,0.5)' },
 };
 
 function dot(c: CanvasRenderingContext2D, x: number, y: number, r: number, pal: Palette) {
@@ -451,9 +450,6 @@ function releveBadge(ctx: CanvasRenderingContext2D, data: PhotoStoryData, look: 
     draw: (c) => {
       c.textBaseline = 'alphabetic';
       c.save();
-      c.shadowColor = 'rgba(0,0,0,0.22)';
-      c.shadowBlur = 30;
-      c.shadowOffsetY = 8;
       c.beginPath();
       roundRectPath(c, 0, 0, BADGE, BADGE, 69);
       c.fillStyle = pal.badgeFill;
@@ -565,14 +561,13 @@ export function measureBlock(layout: PhotoStoryLayout, data: PhotoStoryData, loo
 }
 
 function shadowFor(c: CanvasRenderingContext2D, transparent: boolean, look?: StickerLook) {
-  if (look && !PALETTES[look.color].shadow) {
-    // Texte noir sur photo claire : une ombre le salirait.
+  if (look) {
+    // Le relevé est brut, façon Strava : ni voile, ni ombre, juste le texte.
     c.shadowColor = 'transparent';
     return;
   }
-  // Le halo est léger : c'est l'ombre des lettres qui tient la lisibilité.
-  c.shadowColor = transparent ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.55)';
-  c.shadowBlur = transparent ? 8 : 26;
+  c.shadowColor = transparent ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.35)';
+  c.shadowBlur = transparent ? 8 : 30;
   c.shadowOffsetY = 3;
 }
 
@@ -690,8 +685,8 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
       ctx.restore();
     }
   } else if (o.layout === 'releve') {
-    // Aucun voile sur le relevé : la photo reste telle quelle. La lisibilité
-    // tient à l'ombre des lettres, et au texte noir choisi sur une photo claire.
+    // Aucun voile sur le relevé : la photo reste telle quelle. Sur une photo
+    // claire, c'est le texte noir, choisi d'office, qui reste lisible.
   } else {
     // Bandeau vert sapin derrière le bloc ; posé en bas, il descend jusqu'au bord.
     const t = (x: number) => `rgba(0,14,11,${Math.min(1, x).toFixed(3)})`;
