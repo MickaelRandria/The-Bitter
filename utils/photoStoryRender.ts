@@ -8,9 +8,11 @@
 import {
   PhotoFraming,
   PhotoStoryLayout,
+  ReleveStyle,
   SAFE_BOTTOM,
   SAFE_TOP,
   Size,
+  StickerColor,
   StickerPlacement,
   STORY_H,
   STORY_W,
@@ -30,6 +32,8 @@ export interface PhotoStoryData {
   review: string;
   /** « 13.09.26 », absent quand on ne connaît pas la date. */
   dateLabel: string | null;
+  /** Le verdict en un mot (« VALIDÉ »), tiré de la note. */
+  verdict: string;
 }
 
 /** Une photo prête à dessiner : déjà décodée, tournée et réduite. */
@@ -264,17 +268,87 @@ interface Block {
   draw: (ctx: CanvasRenderingContext2D) => void;
 }
 
-/** Le relevé : Film, Note, puis toutes les notes sur une ligne, façon Strava. */
-function releveBlock(ctx: CanvasRenderingContext2D, data: PhotoStoryData): Block {
+/** Style, couleur et verdict du sticker du relevé. */
+export interface StickerLook {
+  style: ReleveStyle;
+  color: StickerColor;
+  /** Le verdict en un mot, dans une pastille au-dessus du bloc. */
+  verdict: boolean;
+}
+
+export const DEFAULT_LOOK: StickerLook = { style: 'ligne', color: 'blanc', verdict: true };
+
+interface Palette {
+  fg: string;
+  soft: string;
+  note: string;
+  dot: string;
+  /** Contour du point quand il serait trop pâle sur une photo claire. */
+  ring: string | null;
+  shadow: boolean;
+  badgeFill: string;
+  badgeEdge: string;
+}
+
+const PALETTES: Record<StickerColor, Palette> = {
+  blanc: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: TEXT, dot: ACCENT, ring: null, shadow: true, badgeFill: 'rgba(0,0,0,0.28)', badgeEdge: 'rgba(255,255,255,0.55)' },
+  noir: { fg: '#0c0c0c', soft: 'rgba(12,12,12,0.72)', note: '#0c0c0c', dot: ACCENT, ring: '#0c0c0c', shadow: false, badgeFill: 'rgba(255,255,255,0.5)', badgeEdge: 'rgba(12,12,12,0.6)' },
+  accent: { fg: TEXT, soft: 'rgba(255,255,255,0.86)', note: ACCENT, dot: TEXT, ring: null, shadow: true, badgeFill: 'rgba(0,0,0,0.32)', badgeEdge: 'rgba(255,255,255,0.5)' },
+};
+
+function dot(c: CanvasRenderingContext2D, x: number, y: number, r: number, pal: Palette) {
+  c.fillStyle = pal.dot;
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fill();
+  if (pal.ring) {
+    c.strokeStyle = pal.ring;
+    c.lineWidth = Math.max(2, r * 0.4);
+    c.stroke();
+  }
+}
+
+/** La pastille du verdict : un contour, le point de la marque, le mot. */
+function verdictPill(ctx: CanvasRenderingContext2D, word: string) {
+  ctx.font = `900 31px ${FONT}`;
+  const tw = trackedWidth(ctx, word, 5);
+  const width = tw + 37 * 2 + 16 + 14;
+  const height = 64;
+  return {
+    width,
+    height,
+    draw: (c: CanvasRenderingContext2D, cx: number, top: number, pal: Palette) => {
+      const x = cx - width / 2;
+      c.save();
+      c.shadowColor = 'transparent';
+      c.beginPath();
+      roundRectPath(c, x, top, width, height, height / 2);
+      c.strokeStyle = pal.fg;
+      c.lineWidth = 4;
+      c.stroke();
+      c.restore();
+      dot(c, x + 37 + 8, top + height / 2, 8, pal);
+      c.fillStyle = pal.fg;
+      c.font = `900 31px ${FONT}`;
+      drawTracked(c, word, x + 37 + 16 + 14, top + height / 2 + 11, 5, 'left');
+    },
+  };
+}
+
+/** Le relevé, style Ligne : Film, Note, puis toutes les notes sur une ligne. */
+function releveLigne(ctx: CanvasRenderingContext2D, data: PhotoStoryData, look: StickerLook): Block {
+  const pal = PALETTES[look.color];
   const row = criteriaRowMetrics(data.criteria.length);
   const rowWidth = data.criteria.length * row.itemWidth + Math.max(0, data.criteria.length - 1) * row.gap;
+  const pill = look.verdict ? verdictPill(ctx, data.verdict) : null;
   const title = fitTracked(ctx, data.title.toUpperCase() || 'SANS TITRE', 800, 75, 40, 0.04, 920);
-  const width = Math.max(rowWidth, trackedWidth(ctx, title.text, title.tracking), 560);
+  const width = Math.max(rowWidth, trackedWidth(ctx, title.text, title.tracking), pill?.width ?? 0, 560);
 
   ctx.font = `500 25px ${FONT}`;
   const labels = data.criteria.map((c) => wrapLines(c.label, row.itemWidth - 6, 2, (s) => ctx.measureText(s).width));
 
-  const bFilm = 26;
+  const shift = pill ? pill.height + 53 : 0;
+  const bFilm = shift + 26;
   const bTitle = bFilm + 14 + title.size * 0.73;
   const bNote = bTitle + 58 + 26;
   const bScore = bNote + 14 + 117 * 0.73;
@@ -289,35 +363,35 @@ function releveBlock(ctx: CanvasRenderingContext2D, data: PhotoStoryData): Block
     draw: (c) => {
       c.textAlign = 'center';
       c.textBaseline = 'alphabetic';
-      c.fillStyle = 'rgba(255,255,255,0.86)';
+      pill?.draw(c, cx, 0, pal);
+      c.textAlign = 'center';
+      c.fillStyle = pal.soft;
       c.font = `500 29px ${FONT}`;
       c.fillText('Film', cx, bFilm);
-      c.fillStyle = TEXT;
+      c.fillStyle = pal.fg;
       c.font = `800 ${title.size}px ${FONT}`;
       drawTracked(c, title.text, cx, bTitle, title.tracking, 'center');
 
-      c.fillStyle = 'rgba(255,255,255,0.86)';
+      c.fillStyle = pal.soft;
       c.font = `500 29px ${FONT}`;
       c.fillText('Note', cx, bNote);
-      c.fillStyle = TEXT;
+      c.fillStyle = pal.note;
       c.font = `700 117px ${FONT}`;
       const scoreW = c.measureText(data.note).width;
       const dotR = 9.5;
       const scoreX = cx - (8 + dotR * 2) / 2;
       c.fillText(data.note, scoreX, bScore);
-      c.fillStyle = ACCENT;
-      c.beginPath();
-      c.arc(scoreX + scoreW / 2 + 8 + dotR, bScore - dotR, dotR, 0, Math.PI * 2);
-      c.fill();
+      dot(c, scoreX + scoreW / 2 + 8 + dotR, bScore - dotR, dotR, pal);
 
       const startX = cx - rowWidth / 2;
       data.criteria.forEach((criterion, i) => {
         const x = startX + i * (row.itemWidth + row.gap) + row.itemWidth / 2;
-        c.fillStyle = 'rgba(255,255,255,0.88)';
+        c.textAlign = 'center';
+        c.fillStyle = pal.soft;
         c.font = `500 25px ${FONT}`;
         const lines = labels[i];
         lines.forEach((line, k) => c.fillText(line, x, bLabels - (lines.length - 1 - k) * 30));
-        c.fillStyle = TEXT;
+        c.fillStyle = pal.fg;
         c.font = `700 ${row.valueSize}px ${FONT}`;
         c.fillText(criterion.value.toFixed(1), x, bValues);
       });
@@ -325,14 +399,94 @@ function releveBlock(ctx: CanvasRenderingContext2D, data: PhotoStoryData): Block
       c.font = `800 37px ${FONT}`;
       const brandW = trackedWidth(c, 'THE BITTER', 5.2);
       const brandX = cx - (brandW + 16) / 2;
-      c.fillStyle = TEXT;
+      c.fillStyle = pal.fg;
       drawTracked(c, 'THE BITTER', brandX, bBrand, 5.2, 'left');
-      c.fillStyle = ACCENT;
-      c.beginPath();
-      c.arc(brandX + brandW + 10, bBrand - 5.5, 5.5, 0, Math.PI * 2);
-      c.fill();
+      dot(c, brandX + brandW + 10, bBrand - 5.5, 5.5, pal);
     },
   };
+}
+
+/** Style Compact : le titre et une grosse note, rien d'autre. */
+function releveCompact(ctx: CanvasRenderingContext2D, data: PhotoStoryData, look: StickerLook): Block {
+  const pal = PALETTES[look.color];
+  const pill = look.verdict ? verdictPill(ctx, data.verdict) : null;
+  const title = fitTracked(ctx, data.title.toUpperCase() || 'SANS TITRE', 800, 53, 32, 0.06, 920);
+  ctx.font = `700 224px ${FONT}`;
+  const scoreW = ctx.measureText(data.note).width;
+  const width = Math.max(trackedWidth(ctx, title.text, title.tracking), scoreW + 11 + 30, pill?.width ?? 0, 420);
+  const shift = pill ? pill.height + 40 : 0;
+  const bTitle = shift + title.size * 0.73;
+  const bScore = bTitle + 44 + 224 * 0.73;
+  const bBrand = bScore + 56 + 20;
+  const height = bBrand + 8;
+  const cx = width / 2;
+  return {
+    size: { width, height },
+    draw: (c) => {
+      c.textBaseline = 'alphabetic';
+      pill?.draw(c, cx, 0, pal);
+      c.fillStyle = pal.fg;
+      c.font = `800 ${title.size}px ${FONT}`;
+      drawTracked(c, title.text, cx, bTitle, title.tracking, 'center');
+      c.textAlign = 'left';
+      c.fillStyle = pal.note;
+      c.font = `700 224px ${FONT}`;
+      const x = cx - (scoreW + 11 + 30) / 2;
+      c.fillText(data.note, x, bScore);
+      dot(c, x + scoreW + 11 + 15, bScore - 15, 15, pal);
+      c.fillStyle = pal.soft;
+      c.font = `800 27px ${FONT}`;
+      drawTracked(c, 'THE BITTER', cx, bBrand, 5.4, 'center');
+    },
+  };
+}
+
+/** Style Badge : un carré flouté à coller dans un coin. */
+const BADGE = 363;
+function releveBadge(ctx: CanvasRenderingContext2D, data: PhotoStoryData, look: StickerLook): Block {
+  const pal = PALETTES[look.color];
+  const title = fitTracked(ctx, data.title.toUpperCase() || 'SANS TITRE', 800, 24, 24, 0.12, BADGE - 74);
+  return {
+    size: { width: BADGE, height: BADGE },
+    draw: (c) => {
+      c.textBaseline = 'alphabetic';
+      c.save();
+      c.shadowColor = 'rgba(0,0,0,0.22)';
+      c.shadowBlur = 30;
+      c.shadowOffsetY = 8;
+      c.beginPath();
+      roundRectPath(c, 0, 0, BADGE, BADGE, 69);
+      c.fillStyle = pal.badgeFill;
+      c.fill();
+      c.restore();
+      c.save();
+      c.shadowColor = 'transparent';
+      c.beginPath();
+      roundRectPath(c, 2, 2, BADGE - 4, BADGE - 4, 67);
+      c.strokeStyle = pal.badgeEdge;
+      c.lineWidth = 4;
+      c.stroke();
+      c.restore();
+      c.textAlign = 'left';
+      c.fillStyle = pal.fg;
+      c.font = `800 45px ${FONT}`;
+      const bW = c.measureText('B').width;
+      c.fillText('B', 37, 37 + 33);
+      dot(c, 37 + bW + 7, 37 + 28, 5.5, pal);
+      c.fillStyle = pal.note;
+      c.font = `700 133px ${FONT}`;
+      c.fillText(data.note, 34, BADGE - 37 - 24 - 30);
+      c.fillStyle = pal.fg;
+      c.font = `800 ${title.size}px ${FONT}`;
+      drawTracked(c, title.text, 37, BADGE - 37, title.tracking);
+    },
+  };
+}
+
+function releveBlock(ctx: CanvasRenderingContext2D, data: PhotoStoryData, look: StickerLook): Block {
+  if (look.style === 'compact') return releveCompact(ctx, data, look);
+  if (look.style === 'badge') return releveBadge(ctx, data, look);
+  return releveLigne(ctx, data, look);
 }
 
 /** La séance : titre, infos, avis, note géante et critères sur deux colonnes. */
@@ -398,19 +552,24 @@ function seanceBlock(ctx: CanvasRenderingContext2D, data: PhotoStoryData): Block
   };
 }
 
-function blockFor(ctx: CanvasRenderingContext2D, layout: PhotoStoryLayout, data: PhotoStoryData) {
-  return layout === 'releve' ? releveBlock(ctx, data) : seanceBlock(ctx, data);
+function blockFor(ctx: CanvasRenderingContext2D, layout: PhotoStoryLayout, data: PhotoStoryData, look: StickerLook) {
+  return layout === 'releve' ? releveBlock(ctx, data, look) : seanceBlock(ctx, data);
 }
 
 /** Taille du bloc à l'échelle 1, pour placer et borner le sticker. */
-export function measureBlock(layout: PhotoStoryLayout, data: PhotoStoryData): Size {
+export function measureBlock(layout: PhotoStoryLayout, data: PhotoStoryData, look: StickerLook = DEFAULT_LOOK): Size {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return { width: 900, height: 640 };
-  return blockFor(ctx, layout, data).size;
+  return blockFor(ctx, layout, data, look).size;
 }
 
-function shadowFor(c: CanvasRenderingContext2D, transparent: boolean) {
+function shadowFor(c: CanvasRenderingContext2D, transparent: boolean, look?: StickerLook) {
+  if (look && !PALETTES[look.color].shadow) {
+    // Texte noir sur photo claire : une ombre le salirait.
+    c.shadowColor = 'transparent';
+    return;
+  }
   c.shadowColor = transparent ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.35)';
   c.shadowBlur = transparent ? 8 : 30;
   c.shadowOffsetY = 3;
@@ -429,6 +588,8 @@ export interface RenderOptions {
   filmLook: boolean;
   /** Séance allégée : le bloc seul, sans logo, affiche ni signature. */
   light?: boolean;
+  /** Style, couleur et verdict du relevé. */
+  look?: StickerLook;
 }
 
 let grainTile: HTMLCanvasElement | null = null;
@@ -505,15 +666,31 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
     ctx.fillRect(0, 0, STORY_W, STORY_H);
   }
 
-  const block = blockFor(ctx, o.layout, o.data);
+  const look = o.look ?? DEFAULT_LOOK;
+  const block = blockFor(ctx, o.layout, o.data, look);
   const s = o.placement.scale;
   const w = block.size.width * s;
   const h = block.size.height * s;
   const left = o.placement.cx - w / 2;
   const top = o.placement.cy - h / 2;
-  const a = veilAlpha(o.layout, sampleLuminance(ctx, left, top, w, h));
+  const luminance = sampleLuminance(ctx, left, top, w, h);
+  const a = veilAlpha(o.layout, luminance);
 
-  if (o.layout === 'releve') {
+  if (o.layout === 'releve' && look.style === 'badge') {
+    // Le badge floute la photo derrière lui (là où le navigateur sait flouter un canvas).
+    if (o.photo && 'filter' in ctx) {
+      const r = coverRect({ width: o.photo.width, height: o.photo.height }, o.framing);
+      ctx.save();
+      ctx.beginPath();
+      roundRectPath(ctx, left, top, w, h, 69 * s);
+      ctx.clip();
+      ctx.filter = 'blur(24px)';
+      ctx.drawImage(o.photo, r.x, r.y, r.width, r.height);
+      ctx.restore();
+    }
+  } else if (o.layout === 'releve' && look.color === 'noir') {
+    // Texte noir : la photo est claire, on la laisse telle quelle.
+  } else if (o.layout === 'releve') {
     // Un halo sombre suit le bloc, où qu'on le pose.
     ctx.save();
     ctx.translate(o.placement.cx, o.placement.cy);
@@ -550,11 +727,11 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
   ctx.save();
   ctx.translate(left, top);
   ctx.scale(s, s);
-  shadowFor(ctx, false);
+  shadowFor(ctx, false, o.layout === 'releve' ? look : undefined);
   block.draw(ctx);
   ctx.restore();
   ctx.restore();
-  return { left, top, width: w, height: h, size: block.size };
+  return { left, top, width: w, height: h, size: block.size, luminance };
 }
 
 /** roundRect manque aux Safari d'avant la 16 : on trace le chemin à la main. */
@@ -631,10 +808,14 @@ function drawSeanceFrame(ctx: CanvasRenderingContext2D, o: RenderOptions) {
  * Le sticker seul, sur fond transparent, recadré au plus près : à coller sur
  * une vidéo dans Instagram.
  */
-export function renderStickerOnly(layout: PhotoStoryLayout, data: PhotoStoryData): HTMLCanvasElement {
+export function renderStickerOnly(
+  layout: PhotoStoryLayout,
+  data: PhotoStoryData,
+  look: StickerLook = DEFAULT_LOOK,
+): HTMLCanvasElement {
   const probe = document.createElement('canvas').getContext('2d');
   if (!probe) throw new Error('Canvas non supporté');
-  const block = blockFor(probe, layout, data);
+  const block = blockFor(probe, layout, data, look);
   const pad = 48;
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(block.size.width + pad * 2);
@@ -642,7 +823,7 @@ export function renderStickerOnly(layout: PhotoStoryLayout, data: PhotoStoryData
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas non supporté');
   ctx.translate(pad, pad);
-  shadowFor(ctx, true);
+  shadowFor(ctx, true, layout === 'releve' ? look : undefined);
   block.draw(ctx);
   return canvas;
 }
