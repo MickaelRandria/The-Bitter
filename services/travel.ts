@@ -211,6 +211,13 @@ export async function travelMinutes(
   return Object.fromEntries(entries.filter((e): e is NonNullable<typeof e> => !!e));
 }
 
+/** « 45 min », « 1 h », « 1 h 05 ». */
+export const formatMinutes = (minutes: number): string => {
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return rest ? `${Math.floor(minutes / 60)} h ${String(rest).padStart(2, '0')}` : `${minutes / 60} h`;
+};
+
 export const currentPosition = () =>
   new Promise<LatLng>((resolve, reject) => {
     if (!('geolocation' in navigator)) {
