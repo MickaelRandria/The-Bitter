@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
+  Camera,
   Check,
   Clapperboard,
   Clock,
@@ -57,6 +58,7 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; strokeWidth?: n
   notifications: Bell,
   cinema: Ticket,
   music: Music,
+  photo: Camera,
 };
 
 /**

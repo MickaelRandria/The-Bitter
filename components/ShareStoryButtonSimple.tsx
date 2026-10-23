@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Instagram, LayoutTemplate, Loader2, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Instagram, Loader2, Lock, Share2, Ticket, X } from 'lucide-react';
 import { Movie } from '../types';
 import { getDisplayRatingCriteria, getDisplayWeightedRating } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { dataUrlToBlob } from '../utils/dataUrl';
 import { getPublicRating } from '../utils/publicRating';
+import {
+  DEFAULT_FRAMING,
+  LAST_STORY_KEY,
+  PhotoStoryLayout,
+  StoryChoice,
+  defaultPlacement,
+  parseStoryChoice,
+  shortDate,
+} from '../utils/photoStory';
+import { PhotoStoryData, ensureStoryFonts, loadImage, measureBlock, renderPhotoStory } from '../utils/photoStoryRender';
+import PhotoStoryComposer from './PhotoStoryComposer';
 
 type StoryFormat = 'classic' | 'editorial';
 
@@ -30,12 +41,68 @@ interface ShareStoryButtonSimpleProps {
  */
 const StoryFormatSheet: React.FC<{
   onSelect: (format: StoryFormat) => void;
+  onPickPhoto: (layout: PhotoStoryLayout) => void;
   onClose: () => void;
-}> = ({ onSelect, onClose }) => {
+  last: StoryChoice | null;
+  /** Vignettes des stories avec photo, calculées avec l'affiche du film. */
+  thumbs: Partial<Record<PhotoStoryLayout, string>>;
+  /** « 13 sept. » quand la dernière séance était en salle : invite à ajouter sa photo. */
+  cinemaDate: string | null;
+}> = ({ onSelect, onPickPhoto, onClose, last, thumbs, cinemaDate }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('story.pickTitle'));
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  const card = (opts: {
+    id: StoryChoice;
+    thumb?: string;
+    title: string;
+    desc: string;
+    photo?: boolean;
+    beta?: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        opts.onClick();
+      }}
+      className={`w-full flex items-center gap-3.5 text-left py-2.5 pl-2.5 pr-4 rounded-[1.4rem] border active:scale-[0.98] transition-all group ${
+        opts.photo
+          ? 'border-lime-400/30 bg-lime-400/[0.08] hover:bg-lime-400/15'
+          : 'border-white/10 bg-white/5 hover:bg-white/10'
+      }`}
+    >
+      <span className="w-[46px] h-[82px] shrink-0 rounded-lg overflow-hidden bg-white/10">
+        {opts.thumb && <img src={opts.thumb} alt="" className="w-full h-full object-cover" />}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="text-[12px] font-black uppercase tracking-widest text-white leading-tight">{opts.title}</span>
+          {opts.beta && (
+            <span className="px-2 py-0.5 rounded-full bg-lime-400 text-black text-[9px] font-black uppercase tracking-widest">
+              {t('story.beta')}
+            </span>
+          )}
+          {last === opts.id && (
+            <span className="px-2 py-0.5 rounded-full border border-white/20 text-stone-300 text-[9px] font-extrabold uppercase tracking-widest">
+              {t('story.last')}
+            </span>
+          )}
+        </span>
+        <span className="block text-[11px] font-medium text-stone-400 mt-1.5 leading-relaxed">{opts.desc}</span>
+      </span>
+      <ArrowRight
+        size={18}
+        strokeWidth={2.5}
+        className={`shrink-0 group-hover:translate-x-1 transition-all ${
+          opts.photo ? 'text-lime-400/60 group-hover:text-lime-400' : 'text-stone-500 group-hover:text-white'
+        }`}
+      />
+    </button>
+  );
 
   return (
     <div
@@ -51,12 +118,12 @@ const StoryFormatSheet: React.FC<{
       <div
         {...dialog.props}
         onClick={stop}
-        className="relative w-full sm:max-w-md bg-[#0c0c0c] rounded-t-[3rem] sm:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] px-7 pt-7"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)' }}
+        className="relative w-full sm:max-w-md max-h-[94dvh] overflow-y-auto bg-[#0c0c0c] rounded-t-[3rem] sm:rounded-[3rem] border border-white/10 shadow-2xl animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] px-6 pt-7"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.25rem)' }}
       >
         <div className="absolute top-[-30%] right-[-20%] w-[260px] h-[260px] bg-lime-400/10 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="relative z-10 flex items-start justify-between gap-4 mb-6">
+        <div className="relative z-10 flex items-start justify-between gap-4 mb-5">
           <div className="min-w-0">
             <h2 className="text-2xl font-black text-white tracking-tighter leading-tight">
               {t('story.pickTitle')}
@@ -78,72 +145,69 @@ const StoryFormatSheet: React.FC<{
           </button>
         </div>
 
-        <div className="relative z-10 space-y-3">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect('classic');
-            }}
-            className="w-full flex items-start gap-4 text-left p-5 rounded-[1.75rem] border border-white/10 bg-white/5 active:scale-[0.98] transition-all hover:bg-white/10 group"
-          >
-            <span className="w-11 h-11 shrink-0 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center">
-              <LayoutTemplate size={19} strokeWidth={2} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[12px] font-black uppercase tracking-widest text-white leading-tight">
-                {t('story.classic')}
-              </span>
-              <span className="block text-[11px] font-medium text-stone-400 mt-1.5 leading-relaxed">
-                {t('story.classicDesc')}
-              </span>
-            </span>
-            <ArrowRight
-              size={18}
-              strokeWidth={2.5}
-              className="shrink-0 mt-1 text-stone-500 group-hover:translate-x-1 group-hover:text-white transition-all"
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect('editorial');
-            }}
-            className="w-full flex items-start gap-4 text-left p-5 rounded-[1.75rem] border border-lime-400/30 bg-lime-400/10 active:scale-[0.98] transition-all hover:bg-lime-400/15 group"
-          >
-            <span className="w-11 h-11 shrink-0 rounded-2xl bg-lime-400 text-black flex items-center justify-center">
-              <Sparkles size={19} strokeWidth={2.2} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="flex items-center gap-2 flex-wrap">
-                <span className="text-[12px] font-black uppercase tracking-widest text-white leading-tight">
-                  {t('story.variant')}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-lime-400 text-black text-[9px] font-black uppercase tracking-widest">
-                  {t('story.beta')}
-                </span>
-              </span>
-              <span className="block text-[11px] font-medium text-stone-400 mt-1.5 leading-relaxed">
-                {t('story.variantDesc')}
-              </span>
-            </span>
-            <ArrowRight
-              size={18}
-              strokeWidth={2.5}
-              className="shrink-0 mt-1 text-lime-400/60 group-hover:translate-x-1 group-hover:text-lime-400 transition-all"
-            />
-          </button>
+        <h3 className="relative z-10 text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2.5">
+          {t('story.noPhoto')}
+        </h3>
+        <div className="relative z-10 space-y-2">
+          {card({
+            id: 'classic',
+            thumb: '/story-thumbs/classique.jpg',
+            title: t('story.classic'),
+            desc: t('story.classicDesc'),
+            onClick: () => onSelect('classic'),
+          })}
+          {card({
+            id: 'editorial',
+            thumb: '/story-thumbs/variante.jpg',
+            title: t('story.variant'),
+            desc: t('story.variantDesc'),
+            beta: true,
+            onClick: () => onSelect('editorial'),
+          })}
         </div>
 
+        <div className="relative z-10 flex items-center gap-2 mt-5 mb-2.5">
+          <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400">{t('story.withPhoto')}</h3>
+          <span className="px-2 py-0.5 rounded-full bg-[#D9FF00] text-black text-[8.5px] font-black uppercase tracking-widest">
+            {t('story.new')}
+          </span>
+        </div>
+        {cinemaDate && (
+          <p className="relative z-10 flex items-center gap-2 mb-2 px-3 py-2.5 rounded-2xl bg-[#D9FF00]/[0.07] text-[11px] font-semibold text-stone-200">
+            <Ticket size={15} className="text-[#D9FF00] shrink-0" />
+            {t('story.cinemaHint', { date: cinemaDate })}
+          </p>
+        )}
+        <div className="relative z-10 space-y-2">
+          {card({
+            id: 'seance',
+            thumb: thumbs.seance,
+            title: t('story.seance'),
+            desc: t('story.seanceDesc'),
+            photo: true,
+            onClick: () => onPickPhoto('seance'),
+          })}
+          {card({
+            id: 'releve',
+            thumb: thumbs.releve,
+            title: t('story.releve'),
+            desc: t('story.releveDesc'),
+            photo: true,
+            onClick: () => onPickPhoto('releve'),
+          })}
+        </div>
+
+        <p className="relative z-10 flex items-center justify-center gap-1.5 mt-3.5 text-[10px] font-medium text-stone-400">
+          <Lock size={11} strokeWidth={2.2} />
+          {t('story.privacy')}
+        </p>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          className="relative z-10 w-full mt-4 py-4 text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-white transition-colors"
+          className="relative z-10 w-full mt-1 py-4 text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-white transition-colors"
         >
           {t('common.cancel')}
         </button>
@@ -158,9 +222,14 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   autoOpen = false,
   onClose,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [isSharing, setIsSharing] = useState(false);
   const [showOptions, setShowOptions] = useState(autoOpen);
+  const [lastChoice, setLastChoice] = useState<StoryChoice | null>(null);
+  const [photoThumbs, setPhotoThumbs] = useState<Partial<Record<PhotoStoryLayout, string>>>({});
+  const [composer, setComposer] = useState<{ file: File; layout: PhotoStoryLayout } | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const pendingLayout = useRef<PhotoStoryLayout>('seance');
   /** Fin de l'ouverture automatique : prévient l'appelant, qui démonte le composant. */
   const finish = () => {
     if (autoOpen) onClose?.();
@@ -169,6 +238,89 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
   const adaptive = movie.adaptiveRating;
   const globalRating = getDisplayWeightedRating(movie).toFixed(1);
   const profileLabel = adaptive?.profile.label;
+  const fileStem = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+  const photoStoryData = useMemo<PhotoStoryData>(() => {
+    const director = movie.director.trim();
+    const hasDirector = director && !/^(inconnu|unknown|n\/?a)$/i.test(director);
+    return {
+      title: movie.title.trim(),
+      meta: [movie.genre.trim().toUpperCase(), movie.year ? String(movie.year) : '', hasDirector ? director.toUpperCase() : '']
+        .filter(Boolean)
+        .join(' · '),
+      note: globalRating,
+      criteria: getDisplayRatingCriteria(movie).map((c) => ({ label: c.label, value: c.value })),
+      review: movie.comment?.trim() || movie.review || '',
+      dateLabel: movie.dateWatched ? shortDate(movie.dateWatched) : null,
+    };
+  }, [movie, globalRating]);
+
+  // La dernière séance était en salle : on invite à y ajouter sa photo.
+  const lastWatch = movie.watches?.length ? movie.watches[movie.watches.length - 1] : undefined;
+  const cinemaDate =
+    lastWatch?.viewingContext?.locationType === 'cinema' && lastWatch.watched_at
+      ? new Date(lastWatch.watched_at).toLocaleDateString(language === 'en' ? 'en-GB' : 'fr-FR', {
+          day: 'numeric',
+          month: 'short',
+        })
+      : null;
+
+  const rememberChoice = (choice: StoryChoice) => {
+    try {
+      localStorage.setItem(LAST_STORY_KEY, choice);
+    } catch {
+      // Navigation privée : on s'en passe.
+    }
+  };
+
+  useEffect(() => {
+    if (!showOptions) return;
+    try {
+      setLastChoice(parseStoryChoice(localStorage.getItem(LAST_STORY_KEY)));
+    } catch {
+      setLastChoice(null);
+    }
+    // Vignettes des stories avec photo : l'affiche tient lieu de photo.
+    let cancelled = false;
+    const posterUrl = movie.posterUrl?.replace(/\/t\/p\/[^/]+\//, '/t/p/w500/');
+    if (!posterUrl) return;
+    (async () => {
+      const poster = await loadImage(posterUrl);
+      if (!poster || cancelled) return;
+      await ensureStoryFonts(photoStoryData.title.toUpperCase());
+      const photo = document.createElement('canvas');
+      photo.width = poster.naturalWidth;
+      photo.height = poster.naturalHeight;
+      photo.getContext('2d')?.drawImage(poster, 0, 0);
+      const next: Partial<Record<PhotoStoryLayout, string>> = {};
+      for (const layout of ['seance', 'releve'] as const) {
+        const full = document.createElement('canvas');
+        const box = measureBlock(layout, photoStoryData);
+        renderPhotoStory(full, {
+          layout,
+          data: photoStoryData,
+          photo,
+          framing: DEFAULT_FRAMING,
+          placement: defaultPlacement(layout, box),
+          poster,
+          filmLook: false,
+        });
+        const small = document.createElement('canvas');
+        small.width = 180;
+        small.height = 320;
+        small.getContext('2d')?.drawImage(full, 0, 0, 180, 320);
+        try {
+          next[layout] = small.toDataURL('image/jpeg', 0.75);
+        } catch {
+          // Affiche servie sans CORS : pas de vignette, la carte reste lisible.
+        }
+      }
+      if (!cancelled) setPhotoThumbs(next);
+    })().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [showOptions, movie.posterUrl, photoStoryData]);
 
   const generateClassicStoryImage = async (): Promise<string> => {
     // --- CONSTANTES DE DESIGN ---
@@ -986,20 +1138,64 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     finish();
   };
 
-  const handleShare = async (type: StoryFormat) => {
-    setShowOptions(false);
-    setIsSharing(true);
-    haptics.medium();
-
-    const downloadFallback = (imageDataUrl: string, fileName: string) => {
+  /** Ouvre la feuille de partage du système, ou télécharge l'image à défaut. */
+  const deliverImage = async (blob: Blob, fileName: string) => {
+    const downloadFallback = () => {
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = imageDataUrl;
+      link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
       alert('📥 Verdict prêt pour ta story !');
     };
+
+    const file = new File([blob], fileName, { type: blob.type });
+
+    // Native share API: available on mobile + some desktops, but often fails
+    // on desktop Chrome with AbortError even when canShare() returns true.
+    // We try it first, and fall back to download on any non-cancellation error.
+    const canUseShare =
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [file] });
+
+    if (canUseShare) {
+      try {
+        await navigator.share({
+          title: `Verdict Bitter: ${movie.title}`,
+          text: `Analyse de ${movie.title} : ${globalRating}/10.`,
+          files: [file],
+        });
+      } catch (shareErr) {
+        const isAbort = shareErr instanceof Error && shareErr.name === 'AbortError';
+        // AbortError can mean either "user cancelled" (do nothing) or
+        // "browser refused to open the share sheet" (fall back to download).
+        // We can't reliably distinguish on desktop, so we fall back to download
+        // when the page is focused (= the user hasn't actually interacted with
+        // a native share sheet). On mobile, the share sheet steals focus, so
+        // document.hasFocus() returns false → we correctly treat it as a cancel.
+        if (isAbort && document.hasFocus()) {
+          // Likely the browser couldn't open the share UI at all → download instead
+          downloadFallback();
+        } else if (!isAbort) {
+          throw shareErr;
+        }
+        // else: real user cancel on mobile → do nothing
+      }
+    } else {
+      downloadFallback();
+    }
+  };
+
+  const handleShare = async (type: StoryFormat) => {
+    setShowOptions(false);
+    setIsSharing(true);
+    haptics.medium();
+    rememberChoice(type);
 
     try {
       const imageDataUrl =
@@ -1007,45 +1203,7 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       // Décodage local plutôt qu'un fetch() : une data URL passe par `connect-src`,
       // que la CSP de production restreint aux origines légitimes. La requête y
       // était refusée, et Safari la remontait en « Load failed ». Voir utils/dataUrl.ts.
-      const blob = dataUrlToBlob(imageDataUrl);
-      const fileName = `bitter-verdict-${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
-
-      // Native share API: available on mobile + some desktops, but often fails
-      // on desktop Chrome with AbortError even when canShare() returns true.
-      // We try it first, and fall back to download on any non-cancellation error.
-      const canUseShare =
-        typeof navigator !== 'undefined' &&
-        typeof navigator.share === 'function' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] });
-
-      if (canUseShare) {
-        try {
-          await navigator.share({
-            title: `Verdict Bitter: ${movie.title}`,
-            text: `Analyse de ${movie.title} : ${globalRating}/10.`,
-            files: [file],
-          });
-        } catch (shareErr) {
-          const isAbort = shareErr instanceof Error && shareErr.name === 'AbortError';
-          // AbortError can mean either "user cancelled" (do nothing) or
-          // "browser refused to open the share sheet" (fall back to download).
-          // We can't reliably distinguish on desktop, so we fall back to download
-          // when the page is focused (= the user hasn't actually interacted with
-          // a native share sheet). On mobile, the share sheet steals focus, so
-          // document.hasFocus() returns false → we correctly treat it as a cancel.
-          if (isAbort && document.hasFocus()) {
-            // Likely the browser couldn't open the share UI at all → download instead
-            downloadFallback(imageDataUrl, fileName);
-          } else if (!isAbort) {
-            throw shareErr;
-          }
-          // else: real user cancel on mobile → do nothing
-        }
-      } else {
-        downloadFallback(imageDataUrl, fileName);
-      }
+      await deliverImage(dataUrlToBlob(imageDataUrl), `${fileStem}.png`);
     } catch (error) {
       console.error('Erreur Story:', error);
       alert(`Impossible de générer la story : ${error instanceof Error ? error.message : 'erreur inconnue'}`);
@@ -1053,6 +1211,34 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       setIsSharing(false);
       finish();
     }
+  };
+
+  /** Stories avec photo : la galerie s'ouvre tout de suite, dans le geste du toucher. */
+  const handlePickPhoto = (layout: PhotoStoryLayout) => {
+    pendingLayout.current = layout;
+    photoInputRef.current?.click();
+  };
+
+  const handlePhotoChosen = (file: File | undefined) => {
+    if (!file) return;
+    haptics.medium();
+    rememberChoice(pendingLayout.current);
+    setShowOptions(false);
+    setComposer({ file, layout: pendingLayout.current });
+  };
+
+  const sharePhotoStory = async (blob: Blob, fileName: string) => {
+    try {
+      await deliverImage(blob, fileName);
+    } catch (error) {
+      console.error('Erreur Story:', error);
+      alert(`Impossible de partager la story : ${error instanceof Error ? error.message : 'erreur inconnue'}`);
+    }
+  };
+
+  const closeComposer = () => {
+    setComposer(null);
+    finish();
   };
 
   const gradientStyles = 'bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045]';
@@ -1110,9 +1296,42 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       {showOptions &&
         typeof document !== 'undefined' &&
         createPortal(
-          <StoryFormatSheet onSelect={handleShare} onClose={closeOptions} />,
+          <StoryFormatSheet
+            onSelect={handleShare}
+            onPickPhoto={handlePickPhoto}
+            onClose={closeOptions}
+            last={lastChoice}
+            thumbs={photoThumbs}
+            cinemaDate={cinemaDate}
+          />,
           document.body,
         )}
+      {composer &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <PhotoStoryComposer
+            file={composer.file}
+            initialLayout={composer.layout}
+            data={photoStoryData}
+            posterUrl={movie.posterUrl?.replace(/\/t\/p\/[^/]+\//, '/t/p/w500/')}
+            fileStem={fileStem}
+            onShare={sharePhotoStory}
+            onClose={closeComposer}
+          />,
+          document.body,
+        )}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          handlePhotoChosen(file);
+        }}
+      />
     </>
   );
 };
