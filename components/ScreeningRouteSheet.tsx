@@ -9,7 +9,9 @@ import {
   CinemaPlace,
   LatLng,
   MODE_EXTRA_MINUTES,
+  TRANSITOUS_SOURCES,
   TRAVEL_MODES,
+  TransitTrip,
   TravelMode,
   correctCinemaPlace,
   formatMinutes,
@@ -21,6 +23,7 @@ import {
   readSavedMode,
   saveGeoConsent,
   saveMode,
+  transitTrip,
   travelMinutes,
 } from '../services/travel';
 
@@ -57,6 +60,9 @@ export default function ScreeningRouteSheet({
   const [minutes, setMinutes] = useState<Partial<Record<TravelMode, number>>>({});
   const [mode, setMode] = useState<TravelMode | null>(readSavedMode);
   const [now, setNow] = useState(Date.now());
+  /** undefined : en cours ; null : pas de transports utiles. */
+  const [transit, setTransit] = useState<{ trip: TransitTrip; late: boolean } | null | undefined>(undefined);
+  const [transitTick, setTransitTick] = useState(0);
   const [fixing, setFixing] = useState(false);
   const [typed, setTyped] = useState('');
   const [fixBusy, setFixBusy] = useState(false);
@@ -106,14 +112,24 @@ export default function ScreeningRouteSheet({
   useEffect(() => {
     if (!origin || !place) return;
     const controller = new AbortController();
-    travelMinutes(origin, place, controller.signal).then((found) => {
+    Promise.all([
+      travelMinutes(origin, place, controller.signal),
+      transitTrip(origin, place, screening.startsAt, Date.now(), controller.signal).catch(() => null),
+    ]).then(([found, bus]) => {
+      if (controller.signal.aborted) return;
       setMinutes(found);
-      setPhase(Object.keys(found).length ? 'ready' : 'failed');
-      // Sans choix enregistré : à pied si c'est court, sinon en voiture.
-      setMode((current) => current ?? ((found.walk ?? 99) <= 20 ? 'walk' : 'car'));
+      setTransit(bus);
+      setPhase(Object.keys(found).length || bus ? 'ready' : 'failed');
+      // Sans choix enregistré : à pied si c'est court, sinon les transports, sinon la voiture.
+      setMode((current) => current ?? ((found.walk ?? 99) <= 20 ? 'walk' : bus ? 'transit' : 'car'));
     });
     return () => controller.abort();
-  }, [origin, place]);
+  }, [origin, place, screening.startsAt, transitTick]);
+
+  // Le bus conseillé est passé : on cherche le suivant.
+  useEffect(() => {
+    if (transit && !transit.late && now > transit.trip.departAt + 60_000) setTransitTick((n) => n + 1);
+  }, [now, transit]);
 
   const pick = (next: TravelMode) => {
     setMode(next);
@@ -123,10 +139,14 @@ export default function ScreeningRouteSheet({
   const active = mode ?? 'car';
   const links = mapsLinks(screening.cinemaName, screening.cinemaAddress, place, active);
   const duration = minutes[active];
-  const plan = useMemo(
-    () => (duration != null ? departureFor(screening.startsAt, duration, active, now) : null),
-    [duration, active, screening.startsAt, now]
-  );
+  const plan = useMemo(() => {
+    if (active === 'transit') {
+      if (!transit) return null;
+      const late = transit.late || transit.trip.departAt < now;
+      return { leaveAt: transit.trip.departAt, arriveAt: transit.trip.arriveAt, late };
+    }
+    return duration != null ? departureFor(screening.startsAt, duration, active, now) : null;
+  }, [duration, active, screening.startsAt, now, transit]);
   const leaveIn = plan && !plan.late ? Math.round((plan.leaveAt - now) / 60_000) : 0;
   const started = screening.startsAt <= now;
 
@@ -264,10 +284,12 @@ export default function ScreeningRouteSheet({
             <div className="rounded-[28px] bg-charcoal p-5 text-cream dark:bg-black">
               {started ? (
                 <p className="text-2xl font-black tracking-tight">{t('route.started')}</p>
-              ) : active === 'transit' || !plan ? (
+              ) : !plan ? (
                 <>
-                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-stone-400">{t('route.transitLabel')}</p>
-                  <p className="mt-1 text-[26px] font-black leading-tight tracking-[-0.04em]">{t('route.transitBody')}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-stone-400">{t(`route.mode.${active}`)}</p>
+                  <p className="mt-1 text-[26px] font-black leading-tight tracking-[-0.04em]">
+                    {active === 'transit' && transit === undefined ? t('route.transitLoading') : t('route.transitBody')}
+                  </p>
                 </>
               ) : plan.late ? (
                 <>
@@ -313,7 +335,15 @@ export default function ScreeningRouteSheet({
                   >
                     <Icon size={20} />
                     <span className="text-[13px] font-black tabular-nums">
-                      {key === 'transit' ? t('route.seeMaps') : value != null ? formatMinutes(value + MODE_EXTRA_MINUTES[key]) : '—'}
+                      {key === 'transit'
+                        ? transit
+                          ? formatMinutes(transit.trip.minutes)
+                          : transit === null
+                            ? t('route.seeMaps')
+                            : '…'
+                        : value != null
+                          ? formatMinutes(value + MODE_EXTRA_MINUTES[key])
+                          : '—'}
                     </span>
                   </button>
                 );
@@ -327,10 +357,47 @@ export default function ScreeningRouteSheet({
                   ? t('route.bikeNote')
                   : active === 'walk'
                     ? t('route.walkNote')
-                    : t('route.transitNote')}
+                    : transit
+                      ? t(transit.trip.realTime ? 'route.transitRealtime' : 'route.transitScheduled')
+                      : t('route.transitNote')}
             </p>
 
-            {plan?.late && !started && active !== 'transit' && (
+            {active === 'transit' && transit && (
+              <ol className="flex flex-col gap-3 rounded-[22px] bg-white p-4 dark:bg-[#1A1A19]">
+                {transit.trip.legs.map((leg, index) => (
+                  <li key={index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
+                    {leg.line ? (
+                      <span
+                        className="min-w-8 rounded-md px-1.5 py-0.5 text-center text-xs font-black"
+                        style={{ background: leg.color ?? '#1A1A1A', color: leg.textColor ?? '#FFFFFF' }}
+                      >
+                        {leg.line}
+                      </span>
+                    ) : (
+                      <Footprints size={16} className="mx-2 mt-0.5 text-stone-500" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-extrabold">
+                        {leg.line
+                          ? t('route.legRide', { headsign: leg.headsign ?? leg.to })
+                          : leg.to
+                            ? t('route.legWalkTo', { to: leg.to })
+                            : t('route.legWalkEnd')}
+                      </p>
+                      {leg.line && (
+                        <p className="mt-0.5 text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                          {t('route.legBoard', { time: clock(leg.departAt), from: leg.from })}
+                          {leg.to ? ` · ${t('route.legAlight', { to: leg.to })}` : ''}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs font-extrabold tabular-nums">{formatMinutes(leg.minutes)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {plan?.late && !started && (
               <div className="flex flex-col gap-2 rounded-[22px] bg-sand p-4 dark:bg-white/5">
                 <p className="text-[10px] font-black uppercase tracking-[.15em] text-stone-500 dark:text-stone-400">
                   {t('route.tellSomeone')}
@@ -417,6 +484,18 @@ export default function ScreeningRouteSheet({
                   <a href={links.citymapper} target="_blank" rel="noreferrer" className="font-black text-forest dark:text-bitter-lime">Citymapper</a>
                 </>
               )}
+            </p>
+            <p className="text-center text-[10px] text-stone-400">
+              {active === 'transit' && transit && (
+                <>
+                  {t('route.creditTransit')}{' '}
+                  <a href={TRANSITOUS_SOURCES} target="_blank" rel="noreferrer" className="underline">Transitous</a>
+                  {' · '}
+                </>
+              )}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">
+                © OpenStreetMap
+              </a>
             </p>
             {place && (
               <div className="rounded-2xl border border-stone-200 p-3 text-[11px] text-stone-500 dark:border-white/10 dark:text-stone-400">
