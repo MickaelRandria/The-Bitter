@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-23-releve-styles",
+  "version": "2026-10-23-trajet-seance",
   "label": "Version du 23 octobre",
   "items": [
+    {
+      "title": "Quand partir pour ta séance",
+      "body": "Touche le rappel d’une séance, ou « Itinéraire » sur sa carte dans le calendrier : The Bitter calcule le trajet en voiture, à vélo et à pied depuis là où tu es, et te dit à quelle heure partir. En retard ? Tu sais quand tu arriveras, et tu préviens en un geste. Ta position reste sur ton téléphone."
+    },
     {
       "title": "Des remarques sur tes séances",
       "body": "Dans le calendrier, The Bitter te signale ce qui ressemble à une erreur : le même film prévu deux fois, deux séances qui se chevauchent, une séance pour un film déjà vu, ou un film absent de ta collection. Un geste pour corriger, ou « C’est voulu » pour ne plus en entendre parler. À l’import d’un billet, un film déjà prévu un autre jour n’est plus coché d’office."
@@ -101,16 +105,16 @@
   ],
   "highlights": [
     {
+      "icon": "cinema",
+      "title": "Quand partir pour ta séance"
+    },
+    {
+      "icon": "calendar",
+      "title": "Des remarques sur tes séances"
+    },
+    {
       "icon": "photo",
       "title": "Trois styles pour ton relevé"
-    },
-    {
-      "icon": "photo",
-      "title": "Ta photo dans ta story"
-    },
-    {
-      "icon": "music",
-      "title": "Tes oreilles de cinéma"
     }
   ]
 }
