@@ -570,8 +570,9 @@ function shadowFor(c: CanvasRenderingContext2D, transparent: boolean, look?: Sti
     c.shadowColor = 'transparent';
     return;
   }
-  c.shadowColor = transparent ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.35)';
-  c.shadowBlur = transparent ? 8 : 30;
+  // Le halo est léger : c'est l'ombre des lettres qui tient la lisibilité.
+  c.shadowColor = transparent ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.55)';
+  c.shadowBlur = transparent ? 8 : 26;
   c.shadowOffsetY = 3;
 }
 
@@ -695,10 +696,11 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
     ctx.save();
     ctx.translate(o.placement.cx, o.placement.cy);
     ctx.scale(1, h / w);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.9);
+    // Large et très progressif : il assombrit sans dessiner de forme.
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 1.15);
     g.addColorStop(0, `rgba(0,0,0,${a.toFixed(3)})`);
-    g.addColorStop(0.45, `rgba(0,0,0,${(a * 0.92).toFixed(3)})`);
-    g.addColorStop(0.75, `rgba(0,0,0,${(a * 0.45).toFixed(3)})`);
+    g.addColorStop(0.35, `rgba(0,0,0,${(a * 0.8).toFixed(3)})`);
+    g.addColorStop(0.65, `rgba(0,0,0,${(a * 0.35).toFixed(3)})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(-STORY_W * 2, -STORY_H * 2, STORY_W * 4, STORY_H * 4);

@@ -66,8 +66,8 @@ test('le bloc s’aimante sur l’axe du milieu, pas au-delà', () => {
 
 test('le voile se renforce sur une photo claire', () => {
   assert.ok(veilAlpha('releve', 0.65) > veilAlpha('releve', 0.05));
-  assert.equal(veilAlpha('releve', 0), 0.3);
-  assert.equal(veilAlpha('releve', 1), 0.85);
+  assert.equal(veilAlpha('releve', 0), 0.18);
+  assert.ok(veilAlpha('releve', 1) <= 0.42, 'jamais une tache noire sur une photo claire');
   assert.ok(veilAlpha('seance', 0) >= 0.55);
 });
 
