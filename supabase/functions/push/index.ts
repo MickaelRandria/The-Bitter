@@ -131,7 +131,10 @@ const notificationFor = (delivery: ClaimedDelivery) => {
   // détail utile est regroupé dans le sous-texte, sans caractères ambigus.
   const title = delivery.title;
   const timing = isSoon ? `Dans ${delivery.reminder_offset_minutes} min` : startsAt;
-  const body = [timing, place].filter(Boolean).join(' · ');
+  // Juste avant la séance, toucher le rappel ouvre « Quand partir ? » dans l'app.
+  const body = [[timing, place].filter(Boolean).join(' · '), isSoon ? 'Touche pour savoir quand partir.' : '']
+    .filter(Boolean)
+    .join('. ');
   return {
     title,
     body,

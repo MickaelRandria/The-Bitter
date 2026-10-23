@@ -35,6 +35,7 @@ import { CheckedScreening, DISMISSED_CHECKS_KEY, parseDismissed, screeningChecks
 
 const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
 const TicketImportModal = lazy(() => import('./TicketImportModal'));
+const ScreeningRouteSheet = lazy(() => import('./ScreeningRouteSheet'));
 interface CalendarViewProps {
   movies: Movie[];
   profileId?: string;
@@ -67,6 +68,9 @@ interface CalendarViewProps {
    */
   onRequestHandled?: () => void;
   onNavShortcut?: (kind: NavShortcut) => void;
+  /** Rappel de séance touché (`?screening=`) : ouvre « Quand partir ? » pour cette séance. */
+  routeScreeningId?: string;
+  onRouteHandled?: () => void;
 }
 
 export default function CalendarView(props: CalendarViewProps) {
@@ -110,6 +114,19 @@ export default function CalendarView(props: CalendarViewProps) {
   const [declined, setDeclined] = useState<string[]>([]);
   const unavailableKey = `bitter_calendar_unavailable_v1_${profileId ?? 'local'}`;
   const agenda = useCalendarAgenda(movies, profileId, language, today);
+  const [routeId, setRouteId] = useState<string | null>(null);
+  const routeScreening = routeId ? agenda.screenings.find((s) => s.id === routeId) : undefined;
+  useEffect(() => {
+    const wanted = props.routeScreeningId;
+    if (!wanted) return;
+    // Les séances arrivent après le premier rendu : on attend celle du rappel.
+    const screening = agenda.screenings.find((s) => s.id === wanted);
+    if (!screening) return;
+    // Le rappel d'avant-séance seulement : celui d'après sert à noter le film.
+    if (screening.startsAt > Date.now() - 30 * 60_000) setRouteId(wanted);
+    props.onRouteHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.routeScreeningId, agenda.screenings]);
   /** Remarques écartées d'un « c'est voulu » : sur l'appareil, elles ne reviennent pas. */
   const [dismissedChecks, setDismissedChecks] = useState<Set<string>>(() => {
     try {
@@ -297,6 +314,7 @@ export default function CalendarView(props: CalendarViewProps) {
     onOpenDay: setDay,
     onPlan: plan,
     onRemind: remind,
+    onRoute: (event) => event.screeningId && setRouteId(event.screeningId),
     onRemove: (event) => {
       if (event.kind === 'screening') {
         const screening = agenda.screenings.find((s) => s.id === event.screeningId);
@@ -693,6 +711,11 @@ export default function CalendarView(props: CalendarViewProps) {
             onRateWatched={props.onRateWatched}
             onToast={onToast}
           />
+        </Suspense>
+      )}
+      {routeScreening && (
+        <Suspense fallback={null}>
+          <ScreeningRouteSheet screening={routeScreening} onClose={() => setRouteId(null)} onToast={onToast} />
         </Suspense>
       )}
       {composer &&

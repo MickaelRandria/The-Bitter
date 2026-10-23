@@ -724,6 +724,8 @@ const App: React.FC = () => {
   /** Film à ouvrir en arrivant dans un espace depuis une notification. */
   const [spaceFocusMovieId, setSpaceFocusMovieId] = useState<string | null>(null);
   const [pendingNotifOpen, setPendingNotifOpen] = useState(false);
+  /** Rappel de séance touché : la séance dont on ouvre « Quand partir ? ». */
+  const [routeScreeningId, setRouteScreeningId] = useState<string | undefined>();
   /** Lien d'invitation reçu : qui attend, pour quel film. */
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const claimingRef = useRef(false);
@@ -1821,7 +1823,11 @@ const App: React.FC = () => {
       getInvitePreview(invite).then((preview) => preview && setInvitePreview(preview));
     }
     if (url.searchParams.get('notif')) setPendingNotifOpen(true);
-    if (url.searchParams.get('screening')) setViewMode('Calendar');
+    const screeningLink = url.searchParams.get('screening');
+    if (screeningLink) {
+      setViewMode('Calendar');
+      if (/^[0-9a-f-]{36}$/i.test(screeningLink)) setRouteScreeningId(screeningLink);
+    }
     // Lien d'une relance de vote : la carte du film s'ouvre en tête de l'accueil.
     const vote = url.searchParams.get('vote');
     if (vote && /^[0-9a-f-]{36}$/i.test(vote)) {
@@ -4035,6 +4041,8 @@ const App: React.FC = () => {
                 setCalendarImportRequest(0);
               }}
               onNavShortcut={handleNavAddMenu}
+              routeScreeningId={routeScreeningId}
+              onRouteHandled={() => setRouteScreeningId(undefined)}
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}

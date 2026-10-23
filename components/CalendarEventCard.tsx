@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film } from 'lucide-react';
+import { Film, Navigation } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -29,6 +29,8 @@ export interface CalendarActions {
   onRemind: () => void;
   /** Retirer une séance à venir : la sienne, ou annuler une séance d'espace. */
   onRemove: (event: AgendaEvent) => void;
+  /** « Quand partir ? » d'une séance à venir. */
+  onRoute: (event: AgendaEvent) => void;
   reminderActive: boolean;
 }
 
@@ -114,6 +116,15 @@ export default function CalendarEventCard({
               {t('agenda.viewSession')}
             </button>
           )}
+          {event.kind === 'screening' &&
+            event.screeningId &&
+            event.startsAt &&
+            event.startsAt > Date.now() - 30 * 60_000 && (
+              <button className={agendaAction} onClick={() => actions.onRoute(event)}>
+                <Navigation size={12} />
+                {t('route.action')}
+              </button>
+            )}
           {isRemovableSession(event, actions.today) && (
             <button
               className={agendaGhost}
