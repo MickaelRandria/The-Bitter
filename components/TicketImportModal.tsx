@@ -20,6 +20,7 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import TicketCaptureDemo from './TicketCaptureDemo';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import { otherScreeningOfFilm } from '../utils/screeningChecks';
 
 interface TicketImportModalProps {
   profileId: string;
@@ -68,10 +69,16 @@ const describe = (draft: TicketDraft, existingScreenings: CinemaScreening[]) => 
   const existing = findExistingScreening(existingScreenings, startsAt, title, draft.film?.tmdbId);
   const isPast = !Number.isFinite(startsAt) || startsAt <= Date.now();
   const alreadyPlanned = existing?.status === 'scheduled';
+  // Le même film déjà prévu à une autre date : un billet en double, ou une
+  // séance déplacée sans supprimer l'ancienne.
+  const sameFilmElsewhere = alreadyPlanned
+    ? undefined
+    : otherScreeningOfFilm(existingScreenings, { tmdbId: draft.film?.tmdbId, title, startsAt }, Date.now());
   return {
     startsAt,
     title,
     existing,
+    sameFilmElsewhere,
     isPast,
     alreadyPlanned,
     selectable: !isPast && !alreadyPlanned,
@@ -180,7 +187,9 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
         // Un horaire à choisir ou un billet absent du programme attend la
         // personne : coché d'office, il serait ajouté à l'heure mal lue.
         const needsChoice = match?.status === 'time-mismatch' || match?.status === 'not-found';
-        return { ...draft, selected: describe(draft, existingScreenings).selectable && !needsChoice };
+        const view = describe(draft, existingScreenings);
+        // Déjà prévu un autre jour : on laisse la personne décider de l'ajouter.
+        return { ...draft, selected: view.selectable && !needsChoice && !view.sameFilmElsewhere };
       });
       setDrafts(next);
       setPhase('review');
@@ -398,6 +407,11 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
                       ? { tone: 'muted', text: 'Déjà dans ton calendrier' }
                       : view.existing?.status === 'pending'
                         ? { tone: 'ok', text: 'En attente dans ton calendrier : sera confirmée' }
+                        : view.sameFilmElsewhere
+                          ? {
+                              tone: 'warn',
+                              text: `Déjà prévu ${dayFormatter.format(view.sameFilmElsewhere.startsAt)} à ${timeFormatter.format(view.sameFilmElsewhere.startsAt)}. Deux séances, c’est voulu ?`,
+                            }
                         : draft.showing
                           ? { tone: 'ok', text: 'Retrouvée dans le programme UGC' }
                           : draft.match?.status === 'time-mismatch'

@@ -189,7 +189,9 @@ export const rowToMovie = (row: UserMovieRow): Movie => {
     comment: row.comment ?? undefined,
     shareToFeed: row.shared_to_feed === false ? false : undefined,
     dateAdded: toTimestamp(row.created_at) ?? Date.now(),
-    dateWatched: toTimestamp(row.date_watched),
+    // Une date sur un film encore à voir est celle de son ajout : on l'oublie.
+    // Une série reste « à voir » même notée : sa date est celle du verdict.
+    dateWatched: row.status === 'watchlist' && row.media_type !== 'tv' ? undefined : toTimestamp(row.date_watched),
     theme: (row.theme as Movie['theme']) ?? 'black',
     posterUrl: row.poster_url ?? undefined,
     status: (row.status === 'watched' ? 'watched' : 'watchlist') as MovieStatus,
@@ -381,6 +383,9 @@ export interface BackfillReport {
   fatalError?: string;
 }
 
+/** Un film de la liste, pas encore vu : il ne porte pas de date de visionnage. */
+const unseenFilm = (movie: Movie) => movie.status === 'watchlist' && movie.mediaType !== 'tv';
+
 /**
  * Ligne envoyée à `user_movies`. **L'unique constructeur** — services/migration.ts
  * l'importe au lieu d'en tenir un second.
@@ -408,7 +413,8 @@ export const movieToRow = (movie: Movie, userId: string) => ({
   poster_url: movie.posterUrl ?? null,
   tmdb_rating: movie.tmdbRating ?? null,
   status: movie.status,
-  date_watched: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
+  // Pas de date de visionnage pour un film encore à voir (une série, si : voir rowToMovie).
+  date_watched: movie.dateWatched && !unseenFilm(movie) ? new Date(movie.dateWatched).toISOString() : null,
   theme: movie.theme ?? null,
   tags: movie.tags ?? null,
   media_type: movie.mediaType ?? 'movie',
@@ -439,7 +445,7 @@ export const movieToRow = (movie: Movie, userId: string) => ({
   // services/migration.ts. `new Date()` en repli réécrirait la date de création à
   // chaque resynchronisation, et une clé conditionnelle casserait l'upsert groupé.
   created_at: new Date(movie.dateAdded || movie.dateWatched || 0).toISOString(),
-  rated_at: movie.dateWatched ? new Date(movie.dateWatched).toISOString() : null,
+  rated_at: movie.dateWatched && !unseenFilm(movie) ? new Date(movie.dateWatched).toISOString() : null,
   // `season_number` participe à la clé d'unicité : il doit être explicitement
   // nul pour un film, jamais absent, sinon l'upsert viserait une autre ligne.
   season_number: movie.seasonNumber ?? null,

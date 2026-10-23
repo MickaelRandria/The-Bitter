@@ -407,8 +407,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           setEmotionalImprints([]);
         }
         if (initialWatchedDay) setSelectedDate(initialWatchedDay);
-        else if (initialData.dateWatched)
+        // Un film de la liste n'a pas encore été vu : la date qu'il porte parfois
+        // est celle de son ajout. On note donc pour aujourd'hui.
+        else if (initialData.dateWatched && (initialData.status !== 'watchlist' || initialData.mediaType === 'tv'))
           setSelectedDate(new Date(initialData.dateWatched).toISOString().split('T')[0]);
+        else setSelectedDate(new Date().toISOString().split('T')[0]);
       } else if (tmdbIdToLoad) {
         restoredProfileRef.current = null;
         const type: 'movie' | 'tv' = initialMediaType === 'tv' ? 'tv' : 'movie';
