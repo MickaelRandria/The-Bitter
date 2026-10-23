@@ -97,3 +97,18 @@ test('une simple envie de la watchlist ne prétend pas attendre une note', () =>
   assert.equal(result.length, 1); assert.equal(result[0].screeningId, current.id);
   assert.deepEqual(notifications.computeNotifications([film], { ...prefs, unrated: false }, [current]), []);
 });
+
+test('l’avis et le réglage du fil survivent à un aller-retour par le serveur', () => {
+  const movie = {
+    id: 'x', tmdbId: 42, title: 'Karma', director: 'A', actors: '', year: 2026, genre: 'Drame',
+    ratings: { story: 7, visuals: 7, acting: 4, sound: 6 }, review: 'Synopsis TMDB', comment: 'Très mal joué.',
+    dateAdded: Date.parse('2026-10-18T10:00:00Z'), theme: 'black', status: 'watched', shareToFeed: false,
+  };
+  const back = sync.rowToMovie({ id: 'x', ...sync.movieToRow(movie, 'u') });
+  assert.equal(back.comment, 'Très mal joué.');
+  assert.equal(back.review, 'Synopsis TMDB');
+  assert.equal(back.shareToFeed, false);
+  const shared = sync.rowToMovie({ id: 'y', ...sync.movieToRow({ ...movie, shareToFeed: undefined, comment: '' }, 'u') });
+  assert.equal(shared.comment, undefined);
+  assert.notEqual(shared.shareToFeed, false);
+});

@@ -57,8 +57,8 @@ const MOVIE_COLUMNS = `
   id, tmdb_id, title, director, director_id, actors, actor_ids, year, release_date,
   runtime, genre, poster_url, tmdb_rating, status, date_watched, theme, tags,
   media_type, story, visuals, acting, sound, vibe_story, vibe_emotion, vibe_fun,
-  vibe_visual, vibe_tension, smartphone_factor, hype, review, adaptive_rating,
-  rating_history, watches, created_at, rated_at,
+  vibe_visual, vibe_tension, smartphone_factor, hype, review, comment, shared_to_feed,
+  adaptive_rating, rating_history, watches, created_at, rated_at,
   season_number, series_tmdb_id, series_title, number_of_seasons, tv_progress
 `;
 
@@ -104,6 +104,8 @@ interface UserMovieRow {
   smartphone_factor: number | null;
   hype: number | null;
   review: string | null;
+  comment: string | null;
+  shared_to_feed: boolean | null;
   adaptive_rating: unknown;
   rating_history: unknown;
   watches: unknown;
@@ -181,6 +183,11 @@ export const rowToMovie = (row: UserMovieRow): Movie => {
     genre: row.genre,
     ratings,
     review: row.review ?? '',
+    // L'avis de la personne. Longtemps oublié ici : écrit et bien envoyé, il
+    // disparaissait de l'accueil à la réouverture, quand la collection du
+    // serveur remplace la copie locale.
+    comment: row.comment ?? undefined,
+    shareToFeed: row.shared_to_feed === false ? false : undefined,
     dateAdded: toTimestamp(row.created_at) ?? Date.now(),
     dateWatched: toTimestamp(row.date_watched),
     theme: (row.theme as Movie['theme']) ?? 'black',

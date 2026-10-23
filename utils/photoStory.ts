@@ -51,7 +51,7 @@ export type StickerColor = 'blanc' | 'noir' | 'accent';
 export const STICKER_COLORS: StickerColor[] = ['blanc', 'noir', 'accent'];
 
 /** Au-delà de cette luminosité sous le bloc, le texte noir se lit mieux que le blanc voilé. */
-export const LIGHT_PHOTO = 0.62;
+export const LIGHT_PHOTO = 0.5;
 export const autoColor = (luminance: number): StickerColor => (luminance > LIGHT_PHOTO ? 'noir' : 'blanc');
 
 /** Style ou couleur suivant (ou précédent), en boucle. */
@@ -126,7 +126,9 @@ export function snapToCenter(cx: number): { cx: number; snapped: boolean } {
  */
 export function veilAlpha(layout: PhotoStoryLayout, luminance: number): number {
   const l = clamp(luminance, 0, 1);
-  return layout === 'releve' ? clamp(0.3 + l * 0.9, 0.3, 0.85) : clamp(0.55 + l * 0.8, 0.55, 0.9);
+  // Le relevé reste discret : un halo plus sombre se voyait comme une tache sur
+  // un ciel clair. Au-delà, c'est le texte noir qui prend le relais.
+  return layout === 'releve' ? clamp(0.18 + l * 0.4, 0.18, 0.42) : clamp(0.55 + l * 0.8, 0.55, 0.9);
 }
 
 /** Cadrage de la photo : zoom (1 = elle couvre juste la story) et décalage. */

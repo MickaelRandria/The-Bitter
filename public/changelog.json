@@ -3,6 +3,10 @@
   "label": "Version du 23 octobre",
   "items": [
     {
+      "title": "Tes avis restent à l’écran",
+      "body": "Un avis écrit ou dicté disparaissait de ta collection à la réouverture de l’app, alors qu’il était bien enregistré. Il reste maintenant affiché partout."
+    },
+    {
       "title": "Trois styles pour ton relevé",
       "body": "Dans l’aperçu du Relevé, choisis Ligne, Compact (le titre et une grosse note) ou Badge (un carré flouté à coller dans un coin). Balaie le bloc pour passer de l’un à l’autre."
     },
