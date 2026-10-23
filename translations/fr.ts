@@ -3279,7 +3279,7 @@ export const fr: Record<string, string> = {
   "route.transitBody": "Les horaires sont dans l'appli de cartes.",
   "route.leaveNow": "Pars maintenant",
   "route.arrival": "Arrivée {time}",
-  "route.lateBy": "{n} min après l'heure de la séance. Les bandes-annonces passent d'abord : tu devrais voir le film depuis le début.",
+  "route.lateBy": "{n} après l'heure de la séance. Les bandes-annonces passent d'abord : tu devrais voir le film depuis le début.",
   "route.justInTime": "Pile pour l'heure de la séance, sans marge.",
   "route.leaveBefore": "Pars avant",
   "route.now": "Maintenant",
@@ -3303,4 +3303,9 @@ export const fr: Record<string, string> = {
   "route.fixPlaceholder": "Adresse du cinéma",
   "route.fixSave": "OK",
   "route.fixNotFound": "Adresse introuvable",
+  "route.notifyBitter": "Sur The Bitter",
+  "route.sendTo": "Envoyer ({n})",
+  "route.notified": "Prévenu : {n} personne(s) ont reçu la notif.",
+  "route.noPeople": "Personne à prévenir sur The Bitter pour l'instant : passe par un message.",
+  "route.byMessage": "Ou par message",
 };

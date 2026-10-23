@@ -30,7 +30,8 @@ export type SocialKind =
   | 'rating_reminder'
   | 'verdict_complete'
   | 'review_reaction'
-  | 'verdict_debate';
+  | 'verdict_debate'
+  | 'running_late';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -62,6 +63,10 @@ export interface PlanPayload {
   count?: number;
   emoji?: string;
   text?: string;
+  /** Retard annoncé : heure d'arrivée prévue, heure et salle de la séance. */
+  arrive_at?: string;
+  starts_at?: string;
+  cinema_name?: string | null;
 }
 
 export interface SocialMessageInput {
@@ -296,6 +301,14 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
     case 'verdict_debate': {
       const text = (input.payload?.text ?? '').trim();
       return { title: `${actor} défend sa note sur ${title}`, body: text ? `« ${text} »` : 'Va lui répondre.' };
+    }
+    case 'running_late': {
+      const arrive = input.payload?.arrive_at ? formatWhen(input.payload.arrive_at).split(', ').pop() : '';
+      const where = (input.payload?.cinema_name ?? '').trim();
+      return {
+        title: `${actor} sera un peu en retard`,
+        body: `${arrive ? `Arrivée vers ${arrive}` : 'Arrivée un peu après l’heure'} pour ${title}${where ? ` · ${where}` : ''}. Garde-lui une place !`,
+      };
     }
     default:
       return { title: 'The Bitter', body: title };

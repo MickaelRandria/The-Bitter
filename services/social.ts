@@ -118,6 +118,8 @@ const MESSAGES: Record<string, string> = {
   'link-expired': 'Ce lien a expiré.',
   blocked: 'Ce lien ne peut pas être ouvert.',
   'rating-required': 'Note d’abord le film.',
+  'screening-not-soon': 'On ne prévient d’un retard que le jour de la séance.',
+  'invalid-arrival': 'Heure d’arrivée invalide.',
 };
 
 const readError = (error: unknown): string => {
@@ -164,6 +166,22 @@ export async function proposeToPeople(
   });
   if (error) return { data: null, error: readError(error) };
   return { data };
+}
+
+/** « Je serai en retard » : une notification The Bitter aux proches choisis. */
+export async function notifyRunningLate(
+  screeningId: string,
+  recipients: string[],
+  arriveAt: number
+): Promise<SocialResult<number>> {
+  if (!supabase) return { data: null, error: 'Sauvegarde en ligne indisponible' };
+  const { data, error } = await supabase.rpc('notify_running_late', {
+    p_screening: screeningId,
+    p_recipients: recipients,
+    p_arrive_at: new Date(arriveAt).toISOString(),
+  });
+  if (error) return { data: null, error: readError(error) };
+  return { data: Number(data) || 0 };
 }
 
 /**

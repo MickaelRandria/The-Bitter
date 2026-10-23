@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bike, Car, Footprints, Loader2, Lock, Navigation, TrainFront, X } from 'lucide-react';
+import { Bell, Bike, Car, Footprints, Loader2, Lock, Navigation, TrainFront, X } from 'lucide-react';
 import { CinemaScreening } from '../types';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
+import { Companion, getCompanions, notifyRunningLate } from '../services/social';
 import {
   CinemaPlace,
   LatLng,
@@ -11,6 +12,7 @@ import {
   TRAVEL_MODES,
   TravelMode,
   correctCinemaPlace,
+  formatMinutes,
   currentPosition,
   departureFor,
   hasGeoConsent,
@@ -128,6 +130,27 @@ export default function ScreeningRouteSheet({
   const leaveIn = plan && !plan.late ? Math.round((plan.leaveAt - now) / 60_000) : 0;
   const started = screening.startsAt <= now;
 
+  const [people, setPeople] = useState<Companion[] | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sending, setSending] = useState(false);
+  const [notified, setNotified] = useState(0);
+  const loadPeople = async () => {
+    const result = await getCompanions();
+    if (result.error) {
+      onToast?.(result.error);
+      return;
+    }
+    setPeople(result.data ?? []);
+  };
+  const sendLate = async () => {
+    if (!plan || !picked.length) return;
+    setSending(true);
+    const result = await notifyRunningLate(screening.id, picked, plan.arriveAt);
+    setSending(false);
+    if (result.error) onToast?.(result.error);
+    else setNotified(result.data ?? picked.length);
+  };
+
   const shareLate = async () => {
     if (!plan) return;
     const text = t('route.lateMessage', { time: clock(plan.arriveAt), title: screening.title });
@@ -162,7 +185,7 @@ export default function ScreeningRouteSheet({
   return createPortal(
     <div
       {...dialog.props}
-      className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -254,7 +277,7 @@ export default function ScreeningRouteSheet({
                   </p>
                   <p className="mt-2 text-[13px] font-medium leading-snug text-stone-300">
                     {plan.arriveAt > screening.startsAt
-                      ? t('route.lateBy', { n: Math.round((plan.arriveAt - screening.startsAt) / 60_000) })
+                      ? t('route.lateBy', { n: formatMinutes(Math.round((plan.arriveAt - screening.startsAt) / 60_000)) })
                       : t('route.justInTime')}
                   </p>
                 </>
@@ -290,7 +313,7 @@ export default function ScreeningRouteSheet({
                   >
                     <Icon size={20} />
                     <span className="text-[13px] font-black tabular-nums">
-                      {key === 'transit' ? t('route.seeMaps') : value != null ? `${value + MODE_EXTRA_MINUTES[key]} min` : '—'}
+                      {key === 'transit' ? t('route.seeMaps') : value != null ? formatMinutes(value + MODE_EXTRA_MINUTES[key]) : '—'}
                     </span>
                   </button>
                 );
@@ -308,9 +331,61 @@ export default function ScreeningRouteSheet({
             </p>
 
             {plan?.late && !started && active !== 'transit' && (
-              <button type="button" onClick={shareLate} className={`${pill} bg-charcoal text-cream dark:bg-white dark:text-charcoal`}>
-                {t('route.tellSomeone')}
-              </button>
+              <div className="flex flex-col gap-2 rounded-[22px] bg-sand p-4 dark:bg-white/5">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-stone-500 dark:text-stone-400">
+                  {t('route.tellSomeone')}
+                </p>
+                {notified ? (
+                  <p className="text-sm font-bold">{t('route.notified', { n: notified })}</p>
+                ) : people === null ? (
+                  <button type="button" onClick={loadPeople} className={`${pill} bg-charcoal text-cream dark:bg-white dark:text-charcoal`}>
+                    <Bell size={15} />
+                    {t('route.notifyBitter')}
+                  </button>
+                ) : people.length === 0 ? (
+                  <p className="text-xs text-stone-500 dark:text-stone-400">{t('route.noPeople')}</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      {people.map((person) => {
+                        const on = picked.includes(person.profile_id);
+                        return (
+                          <button
+                            key={person.profile_id}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() =>
+                              setPicked((current) =>
+                                on ? current.filter((id) => id !== person.profile_id) : [...current, person.profile_id]
+                              )
+                            }
+                            className={`inline-flex min-h-10 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-xs font-bold transition active:scale-95 ${
+                              on ? 'bg-charcoal text-cream dark:bg-white dark:text-charcoal' : 'bg-white text-charcoal dark:bg-white/10 dark:text-white'
+                            }`}
+                          >
+                            <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#7FB8FF] text-[11px] font-black text-[#111]">
+                              {person.avatar_url ? <img src={person.avatar_url} alt="" className="h-full w-full object-cover" /> : person.first_name.slice(0, 1)}
+                            </span>
+                            {person.first_name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!picked.length || sending}
+                      onClick={sendLate}
+                      className={`${pill} bg-charcoal text-cream disabled:opacity-40 dark:bg-white dark:text-charcoal`}
+                    >
+                      {sending ? <Loader2 size={15} className="animate-spin" /> : <Bell size={15} />}
+                      {t('route.sendTo', { n: picked.length })}
+                    </button>
+                  </>
+                )}
+                <button type="button" onClick={shareLate} className="py-2 text-center text-[13px] font-bold text-stone-600 dark:text-stone-300">
+                  {t('route.byMessage')}
+                </button>
+              </div>
             )}
           </section>
         )}
