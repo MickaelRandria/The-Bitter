@@ -75,6 +75,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   const [currentFile, setCurrentFile] = useState(file);
   const [layout, setLayout] = useState<PhotoStoryLayout>(initialLayout);
   const [filmLook, setFilmLook] = useState(initialLayout === 'seance');
+  const [light, setLight] = useState(false);
   const [raw, setRaw] = useState<StoryPhoto | null>(null);
   const [graded, setGraded] = useState<StoryPhoto | null>(null);
   const [poster, setPoster] = useState<HTMLImageElement | null>(null);
@@ -145,7 +146,16 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
     const canvas = canvasRef.current;
     if (!canvas || !raw) return;
     const id = window.requestAnimationFrame(() => {
-      const b = renderPhotoStory(canvas, { layout, data, photo, framing, placement, poster, filmLook: filmLook && !!graded });
+      const b = renderPhotoStory(canvas, {
+        layout,
+        data,
+        photo,
+        framing,
+        placement,
+        poster,
+        filmLook: filmLook && !!graded,
+        light: layout === 'seance' && light,
+      });
       setBox((prev) =>
         prev && prev.left === b.left && prev.top === b.top && prev.width === b.width && prev.height === b.height
           ? prev
@@ -153,7 +163,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
       );
     });
     return () => window.cancelAnimationFrame(id);
-  }, [layout, data, photo, framing, placement.cx, placement.cy, placement.scale, poster, filmLook, graded, raw]);
+  }, [layout, data, photo, framing, placement.cx, placement.cy, placement.scale, poster, filmLook, graded, raw, light]);
 
   const toStory = (e: React.PointerEvent) => {
     const rect = surfaceRef.current?.getBoundingClientRect();
@@ -371,7 +381,17 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
         </div>
       </div>
 
-      <div className="flex justify-center px-5">
+      <div className="flex flex-wrap justify-center gap-2 px-5">
+        {layout === 'seance' && (
+          <div role="radiogroup" aria-label={t('story.composer.style')} className="flex p-[3px] rounded-full bg-white/[0.06] border border-white/10">
+            <button type="button" role="radio" aria-checked={!light} onClick={() => setLight(false)} className={toggle(!light)}>
+              {t('story.composer.full')}
+            </button>
+            <button type="button" role="radio" aria-checked={light} onClick={() => setLight(true)} className={toggle(light)}>
+              {t('story.composer.light')}
+            </button>
+          </div>
+        )}
         <div role="radiogroup" aria-label={t('story.composer.colors')} className="flex p-[3px] rounded-full bg-white/[0.06] border border-white/10">
           <button type="button" role="radio" aria-checked={filmLook} onClick={() => setFilmLook(true)} className={toggle(filmLook)}>
             {t('story.composer.film')}
