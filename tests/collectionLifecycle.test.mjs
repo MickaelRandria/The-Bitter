@@ -112,3 +112,15 @@ test('l’avis et le réglage du fil survivent à un aller-retour par le serveur
   assert.equal(shared.comment, undefined);
   assert.notEqual(shared.shareToFeed, false);
 });
+
+test('un film encore à voir ne garde pas de date de visionnage, une série notée si', () => {
+  const base = { id: 'x', tmdbId: 7, title: 'Hunger Games', director: 'A', actors: '', year: 2014, genre: 'SF', ratings: { story: 0, visuals: 0, acting: 0, sound: 0 }, review: '', theme: 'black', dateAdded: Date.parse('2026-10-14T11:18:00Z'), dateWatched: Date.parse('2026-10-14T11:18:00Z') };
+  const film = sync.movieToRow({ ...base, status: 'watchlist' }, 'u');
+  assert.equal(film.date_watched, null);
+  assert.equal(film.rated_at, null);
+  assert.equal(sync.rowToMovie({ id: 'x', ...film, date_watched: '2026-10-14T11:18:00Z' }).dateWatched, undefined);
+  const serie = sync.movieToRow({ ...base, mediaType: 'tv', status: 'watchlist' }, 'u');
+  assert.ok(serie.date_watched);
+  const vu = sync.movieToRow({ ...base, status: 'watched' }, 'u');
+  assert.ok(vu.date_watched);
+});

@@ -30,6 +30,8 @@ import CinemaScreeningComposer from './CinemaScreeningComposer';
 import NavAddShortcuts, { NavShortcut } from './NavAddShortcuts';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import UpcomingReleasesFrise from './UpcomingReleasesFrise';
+import ScreeningChecksCard from './ScreeningChecksCard';
+import { CheckedScreening, DISMISSED_CHECKS_KEY, parseDismissed, screeningChecks } from '../utils/screeningChecks';
 
 const WeeklyRecapStory = lazy(() => import('./WeeklyRecapStory'));
 const TicketImportModal = lazy(() => import('./TicketImportModal'));
@@ -108,6 +110,30 @@ export default function CalendarView(props: CalendarViewProps) {
   const [declined, setDeclined] = useState<string[]>([]);
   const unavailableKey = `bitter_calendar_unavailable_v1_${profileId ?? 'local'}`;
   const agenda = useCalendarAgenda(movies, profileId, language, today);
+  /** Remarques écartées d'un « c'est voulu » : sur l'appareil, elles ne reviennent pas. */
+  const [dismissedChecks, setDismissedChecks] = useState<Set<string>>(() => {
+    try {
+      return parseDismissed(localStorage.getItem(DISMISSED_CHECKS_KEY));
+    } catch {
+      return new Set();
+    }
+  });
+  const checks = useMemo(
+    () => screeningChecks(agenda.screenings, movies, Date.now(), dismissedChecks),
+    // `today` avance chaque minute : une séance passée sort d'elle-même des remarques.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agenda.screenings, movies, dismissedChecks, today],
+  );
+  const dismissCheck = (key: string) =>
+    setDismissedChecks((prev) => {
+      const next = new Set(prev).add(key);
+      try {
+        localStorage.setItem(DISMISSED_CHECKS_KEY, JSON.stringify([...next].slice(-200)));
+      } catch {
+        // Navigation privée : la remarque reviendra, tant pis.
+      }
+      return next;
+    });
   const year = Number(currentMonth.slice(0, 4));
   const month = Number(currentMonth.slice(5)) - 1;
   useEffect(() => {
@@ -367,6 +393,16 @@ export default function CalendarView(props: CalendarViewProps) {
       onToast?.(t('agenda.sessionRemoved'));
     });
   };
+  const removeChecked = (checked: CheckedScreening) => {
+    const screening = agenda.screenings.find((item) => item.id === checked.id);
+    if (screening) remove(screening);
+  };
+  const addCheckedToWatchlist = (tmdbId: number) => {
+    if (!props.onAddToWatchlist) return;
+    void props.onAddToWatchlist(tmdbId).then((ok) => {
+      if (ok) onToast?.(t('agenda.check.added'));
+    });
+  };
   const confirm = (screening: CinemaScreening) =>
     void run(`screening:${screening.id}`, async () => {
       const result = await confirmScreening(screening.id);
@@ -492,6 +528,15 @@ export default function CalendarView(props: CalendarViewProps) {
               </Suspense>
             </div>
           </>
+        )}
+        {tab !== 'year' && (
+          <ScreeningChecksCard
+            checks={checks}
+            busyId={busyId}
+            onDismiss={dismissCheck}
+            onDelete={removeChecked}
+            onAddToWatchlist={props.onAddToWatchlist ? addCheckedToWatchlist : undefined}
+          />
         )}
         {tab === 'upcoming' && !agenda.loading && !agenda.screenings.some(s => s.startsAt > Date.now()) && (
           <button

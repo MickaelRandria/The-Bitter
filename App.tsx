@@ -2599,7 +2599,7 @@ const App: React.FC = () => {
             theme: 'black',
             posterUrl: series.posterUrl || '',
             status: 'watchlist',
-            dateWatched: Date.now(),
+            dateWatched: undefined,
             tmdbRating: series.tmdbRating,
             rewatch: false,
             tags: [],

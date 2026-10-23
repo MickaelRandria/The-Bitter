@@ -3,6 +3,14 @@
   "label": "Version du 23 octobre",
   "items": [
     {
+      "title": "Des remarques sur tes séances",
+      "body": "Dans le calendrier, The Bitter te signale ce qui ressemble à une erreur : le même film prévu deux fois, deux séances qui se chevauchent, une séance pour un film déjà vu, ou un film absent de ta collection. Un geste pour corriger, ou « C’est voulu » pour ne plus en entendre parler. À l’import d’un billet, un film déjà prévu un autre jour n’est plus coché d’office."
+    },
+    {
+      "title": "La bonne date quand tu notes un film de ta liste",
+      "body": "Noter un film de ta liste proposait parfois le jour où tu l’avais ajouté : c’est maintenant le jour même."
+    },
+    {
       "title": "Tes avis restent à l’écran",
       "body": "Un avis écrit ou dicté disparaissait de ta collection à la réouverture de l’app, alors qu’il était bien enregistré. Il reste maintenant affiché partout."
     },
