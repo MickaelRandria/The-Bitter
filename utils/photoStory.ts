@@ -39,8 +39,57 @@ export interface Size {
 export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-/** Placement de départ : au milieu pour le relevé, en bas pour la séance. */
-export function defaultPlacement(layout: PhotoStoryLayout, box: Size): StickerPlacement {
+/** Les styles du sticker du relevé, dans l'ordre où on les fait défiler. */
+export type ReleveStyle = 'ligne' | 'compact' | 'badge';
+export const RELEVE_STYLES: ReleveStyle[] = ['ligne', 'compact', 'badge'];
+
+/**
+ * Couleur des textes : blanc, noir (choisi seul sur une photo claire) ou
+ * « accent », où seule la note passe au vert du logo.
+ */
+export type StickerColor = 'blanc' | 'noir' | 'accent';
+export const STICKER_COLORS: StickerColor[] = ['blanc', 'noir', 'accent'];
+
+/** Au-delà de cette luminosité sous le bloc, le texte noir se lit mieux que le blanc voilé. */
+export const LIGHT_PHOTO = 0.62;
+export const autoColor = (luminance: number): StickerColor => (luminance > LIGHT_PHOTO ? 'noir' : 'blanc');
+
+/** Style ou couleur suivant (ou précédent), en boucle. */
+export function cycle<T>(list: readonly T[], current: T, step: 1 | -1 = 1): T {
+  const i = list.indexOf(current);
+  return list[(((i < 0 ? 0 : i) + step) % list.length + list.length) % list.length];
+}
+
+/** Le verdict en un mot, selon la note sur 10. */
+export function verdictWord(score: number): string {
+  if (score >= 9) return 'CHEF-D’ŒUVRE';
+  if (score >= 8) return 'COUP DE CŒUR';
+  if (score >= 7) return 'VALIDÉ';
+  if (score >= 6) return 'SYMPA, SANS PLUS';
+  if (score >= 5) return 'MITIGÉ';
+  if (score >= 4) return 'DÉÇU';
+  return 'NAVET';
+}
+
+/**
+ * Un balayage plutôt qu'un déplacement : rapide, franchement horizontal.
+ * Distances en pixels de la story, durée en millisecondes.
+ */
+export const isFlick = (dx: number, dy: number, ms: number) =>
+  ms < 320 && Math.abs(dx) > 110 && Math.abs(dy) < Math.abs(dx) * 0.5;
+
+/** Un simple toucher : presque immobile et bref. */
+export const isTap = (dx: number, dy: number, ms: number) => ms < 280 && Math.hypot(dx, dy) < 18;
+
+/**
+ * Placement de départ : relevé au milieu (compact en bas, badge dans le coin
+ * bas gauche), séance en bas.
+ */
+export function defaultPlacement(layout: PhotoStoryLayout, box: Size, style: ReleveStyle = 'ligne'): StickerPlacement {
+  if (layout === 'releve' && style === 'badge')
+    return { cx: 70 + box.width / 2, cy: STORY_H - SAFE_BOTTOM - 60 - box.height / 2, scale: 1 };
+  if (layout === 'releve' && style === 'compact')
+    return { cx: STORY_W / 2, cy: STORY_H - SAFE_BOTTOM - 90 - box.height / 2, scale: 1 };
   if (layout === 'releve') return { cx: STORY_W / 2, cy: 915, scale: 1 };
   // La séance pose son bloc au-dessus de la signature, calé à gauche.
   return { cx: STORY_W / 2, cy: STORY_H - SAFE_BOTTOM - 150 - box.height / 2, scale: 1 };

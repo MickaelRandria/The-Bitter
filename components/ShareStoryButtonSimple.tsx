@@ -15,9 +15,11 @@ import {
   defaultPlacement,
   parseStoryChoice,
   shortDate,
+  verdictWord,
 } from '../utils/photoStory';
 import { PhotoStoryData, ensureStoryFonts, loadImage, measureBlock, renderPhotoStory } from '../utils/photoStoryRender';
 import PhotoStoryComposer from './PhotoStoryComposer';
+import { asShareable, canShare, createShareLink } from '../services/social';
 
 type StoryFormat = 'classic' | 'editorial';
 
@@ -252,6 +254,7 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
       criteria: getDisplayRatingCriteria(movie).map((c) => ({ label: c.label, value: c.value })),
       review: movie.comment?.trim() || movie.review || '',
       dateLabel: movie.dateWatched ? shortDate(movie.dateWatched) : null,
+      verdict: verdictWord(Number(globalRating)),
     };
   }, [movie, globalRating]);
 
@@ -1241,6 +1244,23 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
     finish();
   };
 
+  /**
+   * Lien public du verdict (thebitter.watch/i/…), créé au premier partage puis
+   * réutilisé : il part dans le presse-papiers pour le sticker Lien d'Instagram.
+   * Sans compte ou hors ligne, on s'en passe sans rien dire.
+   */
+  const verdictLink = useRef<Promise<string | null> | null>(null);
+  const copyVerdictLink = () => {
+    if (!canShare(movie)) return Promise.resolve(null);
+    verdictLink.current ??= createShareLink('verdict', asShareable(movie))
+      .then((result) => result.data?.url ?? null)
+      .catch(() => null);
+    return verdictLink.current.then((url) => {
+      if (!url) verdictLink.current = null;
+      return url;
+    });
+  };
+
   const gradientStyles = 'bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045]';
 
   // Le bouton garde toujours sa place dans la grille : le choix du visuel passe
@@ -1317,6 +1337,7 @@ const ShareStoryButtonSimple: React.FC<ShareStoryButtonSimpleProps> = ({
             fileStem={fileStem}
             onShare={sharePhotoStory}
             onClose={closeComposer}
+            copyLink={copyVerdictLink}
           />,
           document.body,
         )}

@@ -1,7 +1,23 @@
 {
-  "version": "2026-10-23-stories-photo",
+  "version": "2026-10-23-releve-styles",
   "label": "Version du 23 octobre",
   "items": [
+    {
+      "title": "Trois styles pour ton relevé",
+      "body": "Dans l’aperçu du Relevé, choisis Ligne, Compact (le titre et une grosse note) ou Badge (un carré flouté à coller dans un coin). Balaie le bloc pour passer de l’un à l’autre."
+    },
+    {
+      "title": "La couleur d’un toucher",
+      "body": "Touche le bloc pour passer du texte blanc au noir, puis à la note en vert fluo. Sur une photo claire, le texte noir est choisi tout seul : plus besoin d’assombrir ta photo."
+    },
+    {
+      "title": "Ton verdict en un mot",
+      "body": "Au-dessus de tes notes, une pastille résume ton avis selon ta note : Coup de cœur, Validé, Mitigé, Navet… Tu peux la retirer d’un toucher."
+    },
+    {
+      "title": "Le lien de ton verdict, prêt à coller",
+      "body": "Quand tu partages une story avec photo, le lien de ta note est copié : dans Instagram, ajoute le sticker Lien et colle-le pour que tes abonnés tombent sur ta note."
+    },
     {
       "title": "Ta photo dans ta story",
       "body": "En partageant une note, deux nouveaux visuels utilisent ta propre photo : La séance, ta photo en plein cadre avec ton avis et ta note, et Le relevé, toutes tes notes posées dessus sur une ligne. Ta photo reste sur ton téléphone, rien n’est envoyé."
@@ -74,15 +90,15 @@
   "highlights": [
     {
       "icon": "photo",
+      "title": "Trois styles pour ton relevé"
+    },
+    {
+      "icon": "photo",
       "title": "Ta photo dans ta story"
     },
     {
       "icon": "music",
       "title": "Tes oreilles de cinéma"
-    },
-    {
-      "icon": "music",
-      "title": "La BO de chaque film en extraits"
     }
   ]
 }

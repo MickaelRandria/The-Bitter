@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, MoreHorizontal, RotateCcw, Share, Sticker, X } from 'lucide-react';
+import { Check, ImagePlus, Link2, Loader2, MoreHorizontal, RotateCcw, Share, Sticker, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import {
@@ -7,20 +7,29 @@ import {
   FRAMING_MAX_ZOOM,
   PhotoFraming,
   PhotoStoryLayout,
+  RELEVE_STYLES,
+  ReleveStyle,
   SAFE_BOTTOM,
   SAFE_TOP,
   Size,
+  STICKER_COLORS,
+  StickerColor,
   StickerPlacement,
   STORY_H,
   STORY_W,
+  autoColor,
   clamp,
   clampPlacement,
   coverRect,
+  cycle,
   defaultPlacement,
+  isFlick,
+  isTap,
   snapToCenter,
 } from '../utils/photoStory';
 import {
   PhotoStoryData,
+  StickerLook,
   StoryPhoto,
   canvasToBlob,
   ensureStoryFonts,
@@ -42,12 +51,23 @@ interface PhotoStoryComposerProps {
   fileStem: string;
   onShare: (blob: Blob, fileName: string) => Promise<void>;
   onClose: () => void;
+  /** Lien public du verdict, copié au partage pour le sticker Lien d'Instagram. */
+  copyLink?: () => Promise<string | null>;
 }
 
 type Box = { left: number; top: number; width: number; height: number };
+type Point = { x: number; y: number };
+type GestureBase = { points: Map<number, Point>; origin: Map<number, Point>; t0: number; multi: boolean };
 type Gesture =
-  | { target: 'sticker'; start: StickerPlacement; points: Map<number, { x: number; y: number }>; origin: Map<number, { x: number; y: number }> }
-  | { target: 'photo'; start: PhotoFraming; points: Map<number, { x: number; y: number }>; origin: Map<number, { x: number; y: number }> };
+  | (GestureBase & { target: 'sticker'; start: StickerPlacement })
+  | (GestureBase & { target: 'photo'; start: PhotoFraming });
+
+const STYLE_LABELS: Record<ReleveStyle, string> = { ligne: 'story.style.ligne', compact: 'story.style.compact', badge: 'story.style.badge' };
+const COLOR_SWATCH: Record<StickerColor, string> = {
+  blanc: '#FFFFFF',
+  noir: '#0c0c0c',
+  accent: 'radial-gradient(circle, #D9FF00 0 34%, #FFFFFF 36%)',
+};
 
 const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 const midpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
@@ -65,6 +85,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   fileStem,
   onShare,
   onClose,
+  copyLink,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('story.composer.title'));
@@ -80,7 +101,12 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   const [graded, setGraded] = useState<StoryPhoto | null>(null);
   const [poster, setPoster] = useState<HTMLImageElement | null>(null);
   const [framing, setFraming] = useState<PhotoFraming>(DEFAULT_FRAMING);
-  const [placements, setPlacements] = useState<Partial<Record<PhotoStoryLayout, StickerPlacement>>>({});
+  const [placements, setPlacements] = useState<Record<string, StickerPlacement | undefined>>({});
+  const [look, setLook] = useState<StickerLook>({ style: 'ligne', color: 'blanc', verdict: true });
+  const [linkCopied, setLinkCopied] = useState<string | null>(null);
+  /** Une fois la couleur choisie à la main, l'app ne la change plus d'elle-même. */
+  const colorTouched = useRef(false);
+  const autoColorDone = useRef(false);
   const [box, setBox] = useState<Box | null>(null);
   const [dragging, setDragging] = useState<null | { snapped: boolean }>(null);
   const [touched, setTouched] = useState(false);
@@ -88,16 +114,18 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gesture = useRef<Gesture | null>(null);
-  const lastTap = useRef(0);
 
   const blockSize = useMemo<Record<PhotoStoryLayout, Size>>(
-    () => ({ seance: measureBlock('seance', data), releve: measureBlock('releve', data) }),
+    () => ({ seance: measureBlock('seance', data), releve: measureBlock('releve', data, look) }),
     // Les polices changent la mesure : on la refait une fois la photo prête,
     // c'est-à-dire après leur chargement.
-    [data, raw],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, raw, look.style, look.verdict],
   );
+  // Chaque style du relevé garde son propre placement.
+  const placementKey = layout === 'releve' ? `releve:${look.style}` : 'seance';
   const placement = clampPlacement(
-    placements[layout] ?? defaultPlacement(layout, blockSize[layout]),
+    placements[placementKey] ?? defaultPlacement(layout, blockSize[layout], look.style),
     blockSize[layout],
   );
 
@@ -108,6 +136,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
     setGraded(null);
     setError(null);
     setFraming(DEFAULT_FRAMING);
+    autoColorDone.current = false;
     Promise.all([loadPhotoFile(currentFile), ensureStoryFonts(data.title.toUpperCase())])
       .then(([photo]) => {
         if (!cancelled) setRaw(photo);
@@ -155,7 +184,14 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
         poster,
         filmLook: filmLook && !!graded,
         light: layout === 'seance' && light,
+        look: layout === 'releve' ? look : undefined,
       });
+      // Première vue du relevé : texte noir d'office si la photo est claire sous le bloc.
+      if (layout === 'releve' && !colorTouched.current && !autoColorDone.current) {
+        autoColorDone.current = true;
+        const color = autoColor(b.luminance);
+        if (color !== look.color) setLook((l) => ({ ...l, color }));
+      }
       setBox((prev) =>
         prev && prev.left === b.left && prev.top === b.top && prev.width === b.width && prev.height === b.height
           ? prev
@@ -163,7 +199,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
       );
     });
     return () => window.cancelAnimationFrame(id);
-  }, [layout, data, photo, framing, placement.cx, placement.cy, placement.scale, poster, filmLook, graded, raw, light]);
+  }, [layout, data, photo, framing, placement.cx, placement.cy, placement.scale, poster, filmLook, graded, raw, light, look]);
 
   const toStory = (e: React.PointerEvent) => {
     const rect = surfaceRef.current?.getBoundingClientRect();
@@ -172,9 +208,14 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   };
 
   const setPlacement = (p: StickerPlacement) =>
-    setPlacements((prev) => ({ ...prev, [layout]: clampPlacement(p, blockSize[layout]) }));
+    setPlacements((prev) => ({ ...prev, [placementKey]: clampPlacement(p, blockSize[layout]) }));
 
-  const recenter = () => setPlacements((prev) => ({ ...prev, [layout]: undefined }));
+  const recenter = () => setPlacements((prev) => ({ ...prev, [placementKey]: undefined }));
+
+  const chooseColor = (color: StickerColor) => {
+    colorTouched.current = true;
+    setLook((l) => ({ ...l, color }));
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!raw) return;
@@ -187,6 +228,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
       // Deuxième doigt : le pincement part de l'état courant.
       g.points.set(e.pointerId, p);
       g.origin = new Map(g.points);
+      g.multi = true;
       if (g.target === 'sticker') g.start = placement;
       else g.start = framing;
       return;
@@ -194,18 +236,12 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
     const onSticker =
       !!box && p.x >= box.left && p.x <= box.left + box.width && p.y >= box.top && p.y <= box.top + box.height;
     const points = new Map([[e.pointerId, p]]);
+    const t0 = performance.now();
     if (onSticker) {
-      const now = Date.now();
-      if (now - lastTap.current < 300) {
-        recenter();
-        lastTap.current = 0;
-        return;
-      }
-      lastTap.current = now;
-      gesture.current = { target: 'sticker', start: placement, points, origin: new Map(points) };
+      gesture.current = { target: 'sticker', start: placement, points, origin: new Map(points), t0, multi: false };
       setDragging({ snapped: false });
     } else {
-      gesture.current = { target: 'photo', start: framing, points, origin: new Map(points) };
+      gesture.current = { target: 'photo', start: framing, points, origin: new Map(points), t0, multi: false };
     }
   };
 
@@ -246,10 +282,25 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
   const onPointerUp = (e: React.PointerEvent) => {
     const g = gesture.current;
     if (!g) return;
+    const last = g.points.get(e.pointerId);
+    const first = g.origin.get(e.pointerId);
     g.points.delete(e.pointerId);
     if (g.points.size === 0) {
       gesture.current = null;
       setDragging(null);
+      // Sur le relevé : un balayage change de style, un toucher change de couleur.
+      if (g.target === 'sticker' && !g.multi && layout === 'releve' && last && first) {
+        const dx = last.x - first.x;
+        const dy = last.y - first.y;
+        const ms = performance.now() - g.t0;
+        if (isFlick(dx, dy, ms)) {
+          setPlacements((prev) => ({ ...prev, [placementKey]: g.start }));
+          setLook((l) => ({ ...l, style: cycle(RELEVE_STYLES, l.style, dx < 0 ? 1 : -1) }));
+        } else if (isTap(dx, dy, ms)) {
+          colorTouched.current = true;
+          setLook((l) => ({ ...l, color: cycle(STICKER_COLORS, l.color) }));
+        }
+      }
     } else {
       g.origin = new Map(g.points);
       if (g.target === 'sticker') g.start = placement;
@@ -257,13 +308,38 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
     }
   };
 
+  /**
+   * Copie le lien du verdict dans le geste même du toucher : Safari refuse
+   * d'écrire dans le presse-papiers une fois la feuille de partage refermée.
+   * Le lien se crée pendant ce temps, la copie l'attend.
+   */
+  const startLinkCopy = (): Promise<string | null> => {
+    if (!copyLink || !navigator.clipboard) return Promise.resolve(null);
+    const link = copyLink().catch(() => null);
+    const asBlob = link.then((url) => {
+      if (!url) throw new Error('pas de lien');
+      return new Blob([url], { type: 'text/plain' });
+    });
+    let written: Promise<unknown>;
+    if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+      written = navigator.clipboard.write([new ClipboardItem({ 'text/plain': asBlob })]);
+    } else {
+      written = link.then((url) => (url ? navigator.clipboard.writeText(url) : Promise.reject()));
+    }
+    return written.then(() => link, () => null);
+  };
+
   const share = async () => {
     const canvas = canvasRef.current;
     if (!canvas || busy) return;
     setBusy(true);
+    setLinkCopied(null);
+    const copied = startLinkCopy();
     try {
       const blob = await canvasToBlob(canvas, 'image/jpeg', 0.92);
       await onShare(blob, `${fileStem}.jpg`);
+      const url = await copied;
+      if (url) setLinkCopied(url);
     } finally {
       setBusy(false);
     }
@@ -273,7 +349,7 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
     setMenuOpen(false);
     setBusy(true);
     try {
-      const blob = await canvasToBlob(renderStickerOnly(layout, data), 'image/png');
+      const blob = await canvasToBlob(renderStickerOnly(layout, data, look), 'image/png');
       await onShare(blob, `${fileStem}-sticker.png`);
     } finally {
       setBusy(false);
@@ -361,8 +437,8 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
           )}
 
           {!touched && raw && (
-            <span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap px-3 py-1.5 rounded-full bg-black/60 text-[10px] font-semibold pointer-events-none">
-              {t('story.composer.hint')}
+            <span className="absolute left-1/2 top-3 -translate-x-1/2 w-max max-w-[90%] text-center leading-snug px-3 py-1.5 rounded-full bg-black/60 text-[10px] font-semibold pointer-events-none">
+              {t(layout === 'releve' ? 'story.composer.hintReleve' : 'story.composer.hint')}
             </span>
           )}
 
@@ -380,6 +456,58 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
           )}
         </div>
       </div>
+
+      {layout === 'releve' && (
+        <div className="flex flex-col items-center gap-2.5 px-5 mb-2.5">
+          <div role="radiogroup" aria-label={t('story.composer.stickerStyle')} className="flex gap-1.5">
+            {RELEVE_STYLES.map((style) => (
+              <button
+                key={style}
+                type="button"
+                role="radio"
+                aria-checked={look.style === style}
+                onClick={() => setLook((l) => ({ ...l, style }))}
+                className={`px-3.5 py-2 rounded-full border text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
+                  look.style === style ? 'bg-white text-[#0c0c0c] border-white' : 'bg-white/[0.06] text-stone-300 border-white/10'
+                }`}
+              >
+                {t(STYLE_LABELS[style])}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div role="radiogroup" aria-label={t('story.composer.textColor')} className="flex items-center gap-2.5">
+              {STICKER_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  role="radio"
+                  aria-checked={look.color === color}
+                  aria-label={t(`story.color.${color}`)}
+                  onClick={() => chooseColor(color)}
+                  className="w-7 h-7 rounded-full border border-white/25"
+                  style={{
+                    background: COLOR_SWATCH[color],
+                    boxShadow: look.color === color ? '0 0 0 2px #0c0c0c, 0 0 0 4px #FFFFFF' : 'none',
+                  }}
+                />
+              ))}
+            </div>
+            <span className="w-px h-5 bg-white/15" aria-hidden="true" />
+            <button
+              type="button"
+              aria-pressed={look.verdict}
+              onClick={() => setLook((l) => ({ ...l, verdict: !l.verdict }))}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
+                look.verdict ? 'bg-white text-[#0c0c0c] border-white' : 'bg-white/[0.06] text-stone-300 border-white/10'
+              }`}
+            >
+              {look.verdict && <Check size={12} strokeWidth={3} />}
+              {t('story.composer.verdict')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap justify-center gap-2 px-5">
         {layout === 'seance' && (
@@ -403,6 +531,25 @@ const PhotoStoryComposer: React.FC<PhotoStoryComposerProps> = ({
       </div>
 
       <div className="relative flex gap-2.5 px-5 mt-4">
+        {linkCopied && !menuOpen && (
+          <div role="status" className="absolute left-5 right-5 bottom-[66px] flex items-start gap-3 p-3.5 rounded-[18px] bg-[#1f1f1f] border border-white/10 shadow-2xl z-10">
+            <span className="w-7 h-7 rounded-full bg-[#D9FF00] text-black flex items-center justify-center shrink-0">
+              <Link2 size={14} strokeWidth={2.6} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[12px] font-extrabold">{t('story.composer.linkCopied')}</span>
+              <span className="block mt-0.5 text-[10.5px] font-medium text-stone-400 leading-snug">
+                {t('story.composer.linkCopiedDesc', { title: data.title })}
+              </span>
+              <span className="inline-block mt-2 px-2 py-1 rounded-lg bg-white/[0.08] text-[10px] font-bold text-stone-200 max-w-full truncate">
+                {linkCopied.replace(/^https?:\/\//, '')}
+              </span>
+            </span>
+            <button type="button" onClick={() => setLinkCopied(null)} aria-label={t('common.close')} className="text-stone-500 shrink-0">
+              <X size={14} />
+            </button>
+          </div>
+        )}
         {menuOpen && (
           <div role="menu" aria-label={t('story.composer.more')} className="absolute left-5 bottom-[66px] w-[270px] p-1.5 rounded-[20px] bg-[#1f1f1f] border border-white/10 shadow-2xl z-10">
             <button type="button" role="menuitem" onClick={shareSticker} className="w-full flex items-start gap-3 p-3 rounded-[14px] text-left hover:bg-white/5">

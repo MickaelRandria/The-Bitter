@@ -30,6 +30,12 @@ const {
   shortDate,
   wrapLines,
   parseStoryChoice,
+  verdictWord,
+  autoColor,
+  cycle,
+  isFlick,
+  isTap,
+  RELEVE_STYLES,
 } = load('../utils/photoStory.ts');
 
 const box = { width: 900, height: 640 };
@@ -101,4 +107,43 @@ test('un avis trop long est coupé à trois lignes, avec points de suspension', 
   assert.ok(lines[2].endsWith('…'));
   assert.ok(lines.every((l) => l.length <= 12));
   assert.deepEqual(wrapLines('court', 12, 3, measure), ['court']);
+});
+
+test('le verdict en un mot suit la note', () => {
+  assert.equal(verdictWord(9.4), 'CHEF-D’ŒUVRE');
+  assert.equal(verdictWord(8), 'COUP DE CŒUR');
+  assert.equal(verdictWord(7.0), 'VALIDÉ');
+  assert.equal(verdictWord(6.9), 'SYMPA, SANS PLUS');
+  assert.equal(verdictWord(5.2), 'MITIGÉ');
+  assert.equal(verdictWord(4), 'DÉÇU');
+  assert.equal(verdictWord(1.5), 'NAVET');
+});
+
+test('texte noir seulement sur une photo claire', () => {
+  assert.equal(autoColor(0.8), 'noir');
+  assert.equal(autoColor(0.3), 'blanc');
+});
+
+test('les styles défilent en boucle dans les deux sens', () => {
+  assert.equal(cycle(RELEVE_STYLES, 'badge'), 'ligne');
+  assert.equal(cycle(RELEVE_STYLES, 'ligne', -1), 'badge');
+  assert.equal(cycle(RELEVE_STYLES, 'ligne'), 'compact');
+});
+
+test('balayage, toucher et déplacement ne se confondent pas', () => {
+  assert.ok(isFlick(160, 20, 180));
+  assert.ok(!isFlick(160, 20, 600), 'trop lent : c’est un déplacement');
+  assert.ok(!isFlick(60, 5, 120), 'trop court');
+  assert.ok(!isFlick(140, 120, 150), 'trop vertical');
+  assert.ok(isTap(4, 3, 120));
+  assert.ok(!isTap(40, 0, 120));
+});
+
+test('le badge part dans le coin bas gauche, le compact en bas', () => {
+  const small = { width: 363, height: 363 };
+  const badge = defaultPlacement('releve', small, 'badge');
+  assert.ok(badge.cx < STORY_W / 2);
+  assert.ok(badge.cy + small.height / 2 <= STORY_H - SAFE_BOTTOM);
+  const compact = defaultPlacement('releve', box, 'compact');
+  assert.ok(compact.cy > defaultPlacement('releve', box, 'ligne').cy);
 });
