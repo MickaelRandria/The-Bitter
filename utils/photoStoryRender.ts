@@ -689,22 +689,9 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
       ctx.drawImage(o.photo, r.x, r.y, r.width, r.height);
       ctx.restore();
     }
-  } else if (o.layout === 'releve' && look.color === 'noir') {
-    // Texte noir : la photo est claire, on la laisse telle quelle.
   } else if (o.layout === 'releve') {
-    // Un halo sombre suit le bloc, où qu'on le pose.
-    ctx.save();
-    ctx.translate(o.placement.cx, o.placement.cy);
-    ctx.scale(1, h / w);
-    // Large et très progressif : il assombrit sans dessiner de forme.
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 1.15);
-    g.addColorStop(0, `rgba(0,0,0,${a.toFixed(3)})`);
-    g.addColorStop(0.35, `rgba(0,0,0,${(a * 0.8).toFixed(3)})`);
-    g.addColorStop(0.65, `rgba(0,0,0,${(a * 0.35).toFixed(3)})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(-STORY_W * 2, -STORY_H * 2, STORY_W * 4, STORY_H * 4);
-    ctx.restore();
+    // Aucun voile sur le relevé : la photo reste telle quelle. La lisibilité
+    // tient à l'ombre des lettres, et au texte noir choisi sur une photo claire.
   } else {
     // Bandeau vert sapin derrière le bloc ; posé en bas, il descend jusqu'au bord.
     const t = (x: number) => `rgba(0,14,11,${Math.min(1, x).toFixed(3)})`;
