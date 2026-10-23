@@ -427,6 +427,8 @@ export interface RenderOptions {
   poster: HTMLImageElement | null;
   /** Vignettage et grain, avec la photo déjà étalonnée. */
   filmLook: boolean;
+  /** Séance allégée : le bloc seul, sans logo, affiche ni signature. */
+  light?: boolean;
 }
 
 let grainTile: HTMLCanvasElement | null = null;
@@ -535,12 +537,14 @@ export function renderPhotoStory(canvas: HTMLCanvasElement, o: RenderOptions) {
     g.addColorStop(1, lowHalf ? t(a + 0.06) : t(0));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, STORY_W, STORY_H);
-    const top0 = ctx.createLinearGradient(0, 0, 0, 560);
-    top0.addColorStop(0, 'rgba(0,0,0,0.38)');
-    top0.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = top0;
-    ctx.fillRect(0, 0, STORY_W, 560);
-    drawSeanceFrame(ctx, o);
+    if (!o.light) {
+      const top0 = ctx.createLinearGradient(0, 0, 0, 560);
+      top0.addColorStop(0, 'rgba(0,0,0,0.38)');
+      top0.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = top0;
+      ctx.fillRect(0, 0, STORY_W, 560);
+      drawSeanceFrame(ctx, o);
+    }
   }
 
   ctx.save();

@@ -13,9 +13,10 @@ export const STORY_H = 1920;
 /**
  * Bandes recouvertes par Instagram : la barre de progression et le profil en
  * haut, le champ « Envoyer un message » en bas. Rien d'important n'y va.
+ * Gardées étroites à la demande : au-delà, la story perdait trop de place.
  */
-export const SAFE_TOP = 250;
-export const SAFE_BOTTOM = 220;
+export const SAFE_TOP = 170;
+export const SAFE_BOTTOM = 160;
 
 /** Le bloc de textes se déplace et se redimensionne comme un sticker. */
 export interface StickerPlacement {
