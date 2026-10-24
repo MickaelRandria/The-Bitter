@@ -106,6 +106,12 @@ export default defineConfig({
       // Ainsi, le navigateur récupère cette nouvelle version au lieu de rester
       // bloqué sur le worker précédent et son cache.
       filename: 'sw.js',
+      injectManifest: {
+        // La carte des trajets (MapLibre, ~1,5 Mo) ne sert qu'à l'écran « Ton
+        // trajet » : la précharger ferait télécharger son poids à chaque
+        // installation. Elle se charge à la première ouverture de l'écran.
+        globIgnores: ['**/RouteMap-*', '**/maplibre-gl-worker-*'],
+      },
       devOptions: {
         enabled: false,
       },

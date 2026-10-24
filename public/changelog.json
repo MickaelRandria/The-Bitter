@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-23-trajet-transports",
-  "label": "Version du 23 octobre",
+  "version": "2026-10-24-trajet-carte",
+  "label": "Version du 24 octobre",
   "items": [
+    {
+      "title": "Ton trajet sur une carte",
+      "body": "« Ton trajet » montre maintenant le chemin sur une vraie carte, aux couleurs de l’app : la marche en pointillés, chaque bus ou tram dans la couleur de sa ligne, ton point de départ et le cinéma. Touche la carte pour l’ouvrir en grand, ou « Détails » pour la frise de chaque étape, heure par heure."
+    },
+    {
+      "title": "Ton bus en direct",
+      "body": "Dans la demi-heure qui précède ta montée, le bus ou le tram à prendre apparaît sur la carte et avance en temps réel : « à 2 arrêts de toi ». S’il a du retard, l’heure de départ se décale toute seule. Les perturbations qui touchent tes arrêts s’affichent aussi."
+    },
+    {
+      "title": "Et pour rentrer ?",
+      "body": "L’onglet Retour estime l’heure de sortie de la salle, puis te donne les prochains bus ou trams, les vélos en libre-service près du cinéma et le temps à pied. Dans le programme, les séances tardives disent tout de suite si tu pourras rentrer en transports."
+    },
     {
       "title": "Quand partir pour ta séance",
       "body": "Touche le rappel d’une séance, ou « Itinéraire » sur sa carte dans le calendrier : The Bitter compare transports en commun (vrais horaires, en temps réel quand le réseau les donne), voiture, vélo et marche depuis là où tu es, et te dit à quelle heure partir. En retard ? Tu sais quand tu arriveras, et tu préviens tes proches d’une notif The Bitter, ou par message. Ta position reste sur ton téléphone."
@@ -106,15 +118,15 @@
   "highlights": [
     {
       "icon": "cinema",
-      "title": "Quand partir pour ta séance"
+      "title": "Ton trajet sur une carte"
+    },
+    {
+      "icon": "notifications",
+      "title": "Ton bus en direct"
     },
     {
       "icon": "calendar",
-      "title": "Des remarques sur tes séances"
-    },
-    {
-      "icon": "photo",
-      "title": "Trois styles pour ton relevé"
+      "title": "Et pour rentrer ?"
     }
   ]
 }
