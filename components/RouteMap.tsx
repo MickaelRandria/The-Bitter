@@ -35,34 +35,49 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 const PALETTES = {
   light: {
-    ground: '#F2EFE9',
-    water: '#D6E3E7',
-    park: '#E3E8D8',
-    building: '#E9E5DD',
-    road: '#FFFFFF',
-    casing: '#E4DFD6',
-    rail: '#D9D4CB',
-    label: '#78716c',
+    ground: '#F3F0EA',
+    water: '#CFDFE4',
+    waterLabel: '#7FA0AA',
+    park: '#E6EADC',
+    building: '#ECE8E1',
+    minor: '#FFFFFF',
+    major: '#FFFFFF',
+    motorway: '#FBF7EF',
+    rail: '#E6E1D8',
+    label: '#8A837B',
     ink: '#1A1A1A',
     routeCasing: '#FFFFFF',
+    glow: 0.18,
   },
   dark: {
-    ground: '#141413',
-    water: '#16252B',
-    park: '#1A2119',
-    building: '#1C1C1B',
-    road: '#262624',
-    casing: '#1E1E1D',
-    rail: '#2A2A28',
-    label: '#a8a29e',
+    ground: '#121211',
+    water: '#0F1E24',
+    waterLabel: '#3E5C66',
+    park: '#151A14',
+    building: '#1A1A19',
+    minor: '#1F1F1E',
+    major: '#2B2B29',
+    motorway: '#323230',
+    rail: '#1B1B1A',
+    label: '#6B6661',
     ink: '#FFFFFF',
-    routeCasing: '#0c0c0c',
+    routeCasing: '#121211',
+    glow: 0.4,
   },
 };
 
+/** Ce qui fait « carte routière » sans rien apprendre sur un trajet en ville. */
+const DROPPED = /^(boundary|aeroway|airport|road_area_pier|road_pier|highway_path|label_state|label_country|label_city)|shield|casing|subtle|tunnel/;
+
+const lineWidth = (stops: Array<[number, number]>) => ['interpolate', ['exponential', 1.5], ['zoom'], ...stops.flat()];
+
 const styles: Partial<Record<'light' | 'dark', Promise<StyleSpecification>>> = {};
 
-/** Le style d'OpenFreeMap, repeint une fois par thème puis gardé en mémoire. */
+/**
+ * Le style d'OpenFreeMap, épuré puis repeint une fois par thème : à plat, sans
+ * contours ni sentiers, des routes hiérarchisées par l'épaisseur, et des noms
+ * de lieux discrets en petites capitales, pour que le trajet reste le sujet.
+ */
 const loadStyle = (theme: 'light' | 'dark') => {
   styles[theme] ??= fetch(STYLE_URL)
     .then((response) => {
@@ -73,27 +88,73 @@ const loadStyle = (theme: 'light' | 'dark') => {
       const c = PALETTES[theme];
       const layers = style.layers.flatMap((layer) => {
         const id = layer.id;
-        if (layer.type === 'raster' || id.startsWith('boundary') || id.includes('shield') || id.startsWith('label_country')) {
-          return [];
-        }
-        const paint = { ...(layer as { paint?: Record<string, unknown> }).paint };
+        if (layer.type === 'raster' || DROPPED.test(id)) return [];
+        const paint: Record<string, unknown> = { ...(layer as { paint?: Record<string, unknown> }).paint };
+        const layout: Record<string, unknown> = { ...(layer as { layout?: Record<string, unknown> }).layout };
         if (layer.type === 'background') paint['background-color'] = c.ground;
         else if (layer.type === 'fill') {
+          delete paint['fill-outline-color'];
           if (id.startsWith('water')) paint['fill-color'] = c.water;
           else if (id === 'park' || id.startsWith('landcover')) paint['fill-color'] = c.park;
-          else if (id === 'building') paint['fill-color'] = c.building;
-          else paint['fill-color'] = c.ground;
-          delete paint['fill-outline-color'];
+          else if (id === 'building') {
+            paint['fill-color'] = c.building;
+            paint['fill-opacity'] = ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 1];
+          } else paint['fill-color'] = c.ground;
         } else if (layer.type === 'line') {
+          delete paint['line-dasharray'];
+          paint['line-opacity'] = 1;
           if (id.startsWith('waterway')) paint['line-color'] = c.water;
-          else if (id.startsWith('railway')) paint['line-color'] = c.rail;
-          else paint['line-color'] = id.includes('casing') ? c.casing : c.road;
+          else if (id.startsWith('railway')) {
+            if (id.includes('dashline')) return [];
+            paint['line-color'] = c.rail;
+            paint['line-width'] = lineWidth([[12, 0.5], [18, 3]]);
+          } else if (id.includes('motorway')) {
+            paint['line-color'] = c.motorway;
+            paint['line-width'] = lineWidth([[8, 1], [12, 3], [18, 18]]);
+          } else if (id.includes('major')) {
+            paint['line-color'] = c.major;
+            paint['line-width'] = lineWidth([[11, 1], [14, 3.5], [18, 16]]);
+          } else {
+            paint['line-color'] = c.minor;
+            paint['line-width'] = lineWidth([[12, 0.6], [15, 2], [18, 9]]);
+          }
         } else if (layer.type === 'symbol') {
-          paint['text-color'] = c.label;
-          paint['text-halo-color'] = c.ground;
-          paint['text-halo-width'] = 1.2;
+          // Les noms en français d'abord : le style prend l'anglais (« Garonne River »).
+          layout['text-field'] = ['coalesce', ['get', 'name:fr'], ['get', 'name'], ['get', 'name_en']];
+          // Noms de rues : seulement de près, petits.
+          if (id.startsWith('highway-name')) {
+            if (id !== 'highway-name-major') return [];
+            layout['text-size'] = 10;
+            paint['text-color'] = c.label;
+            paint['text-halo-color'] = c.ground;
+            paint['text-halo-width'] = 1.5;
+            return [{ ...layer, minzoom: 14.5, layout, paint } as typeof layer];
+          }
+          if (id.startsWith('water') || id.startsWith('waterway')) {
+            paint['text-color'] = c.waterLabel;
+            paint['text-halo-color'] = c.water;
+            paint['text-halo-width'] = 1;
+            layout['text-size'] = 11;
+            layout['text-letter-spacing'] = 0.15;
+          } else {
+            // Villes, communes et quartiers : petites capitales espacées, sans le point noir.
+            delete layout['icon-image'];
+            delete layout['icon-size'];
+            delete layout['icon-allow-overlap'];
+            delete layout['icon-optional'];
+            layout['text-font'] = ['Noto Sans Bold'];
+            layout['text-transform'] = 'uppercase';
+            layout['text-letter-spacing'] = 0.14;
+            layout['text-size'] = id === 'label_city' || id === 'label_city_capital' ? 11 : id === 'label_other' ? 9 : 10;
+            layout['text-anchor'] = 'center';
+            layout['text-max-width'] = 8;
+            paint['text-color'] = c.label;
+            paint['text-halo-color'] = c.ground;
+            paint['text-halo-width'] = 1.5;
+            paint['text-halo-blur'] = 0;
+          }
         }
-        return [{ ...layer, paint } as typeof layer];
+        return [{ ...layer, paint, layout } as typeof layer];
       });
       return { ...style, layers };
     });
@@ -135,11 +196,23 @@ const stopsData = (stops: Array<LatLng & { color: string }>): FeatureCollection 
   })),
 });
 
-const originMarker = () => {
+const PULSE_STYLE_ID = 'bitter-route-pulse';
+const originMarker = (dark: boolean) => {
+  if (!document.getElementById(PULSE_STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = PULSE_STYLE_ID;
+    style.textContent =
+      '@keyframes bitter-route-pulse{0%{transform:scale(.6);opacity:.7}100%{transform:scale(2.4);opacity:0}}' +
+      '@media (prefers-reduced-motion:reduce){.bitter-route-pulse{animation:none!important;opacity:.35!important}}';
+    document.head.appendChild(style);
+  }
   const el = document.createElement('div');
   el.setAttribute('aria-hidden', 'true');
-  el.style.cssText =
-    'width:14px;height:14px;border-radius:999px;background:#1A1A1A;border:2.5px solid #fff;box-shadow:0 0 0 9px rgba(217,255,0,.45)';
+  el.style.cssText = 'position:relative;width:18px;height:18px';
+  const ring = dark ? '#121211' : '#FFFFFF';
+  el.innerHTML =
+    '<span class="bitter-route-pulse" style="position:absolute;inset:0;border-radius:999px;background:#D9FF00;animation:bitter-route-pulse 2s ease-out infinite"></span>' +
+    `<span style="position:absolute;inset:0;border-radius:999px;background:#D9FF00;border:4px solid ${ring};box-shadow:0 2px 8px rgba(0,0,0,.25)"></span>`;
   return el;
 };
 
@@ -192,7 +265,7 @@ export default function RouteMap({
     const { segments: s, origin: o, destination: d, padding: p, vehicle: v } = latest.current;
     // Le véhicule suivi entre dans le cadre : on veut le voir arriver.
     const bounds = boundsOf([...pointsOf(s, [o, d]), ...(v ? [v.point] : [])]);
-    if (bounds && map.current) map.current.fitBounds(bounds, { padding: p, maxZoom: 16, duration: animate ? 500 : 0 });
+    if (bounds && map.current) map.current.fitBounds(bounds, { padding: p, maxZoom: 15.5, duration: animate ? 500 : 0 });
   };
 
   // Création de la carte, une fois par thème.
@@ -222,12 +295,20 @@ export default function RouteMap({
           instance.addSource('route', { type: 'geojson', data: segmentsData(s) });
           instance.addSource('stops', { type: 'geojson', data: stopsData(st) });
           instance.addLayer({
+            id: 'route-glow',
+            type: 'line',
+            source: 'route',
+            filter: ['!', ['get', 'walk']],
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: { 'line-color': ['get', 'color'], 'line-width': 16, 'line-blur': 8, 'line-opacity': c.glow },
+          });
+          instance.addLayer({
             id: 'route-casing',
             type: 'line',
             source: 'route',
             filter: ['!', ['get', 'walk']],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': c.routeCasing, 'line-width': 10 },
+            paint: { 'line-color': c.routeCasing, 'line-width': 9 },
           });
           instance.addLayer({
             id: 'route-line',
@@ -235,7 +316,7 @@ export default function RouteMap({
             source: 'route',
             filter: ['!', ['get', 'walk']],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': ['get', 'color'], 'line-width': 5.5 },
+            paint: { 'line-color': ['get', 'color'], 'line-width': 5 },
           });
           instance.addLayer({
             id: 'route-walk',
@@ -243,20 +324,20 @@ export default function RouteMap({
             source: 'route',
             filter: ['get', 'walk'],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': c.ink, 'line-width': 3.5, 'line-dasharray': [0.1, 2.2] },
+            paint: { 'line-color': c.ink, 'line-width': 4.5, 'line-dasharray': [0, 1.8] },
           });
           instance.addLayer({
             id: 'stops',
             type: 'circle',
             source: 'stops',
             paint: {
-              'circle-radius': 5,
-              'circle-color': '#FFFFFF',
+              'circle-radius': 4.5,
+              'circle-color': c.routeCasing,
               'circle-stroke-color': ['get', 'color'],
               'circle-stroke-width': 3,
             },
           });
-          markers.push(new Marker({ element: originMarker() }).setLngLat([origin.lng, origin.lat]).addTo(instance));
+          markers.push(new Marker({ element: originMarker(dark) }).setLngLat([origin.lng, origin.lat]).addTo(instance));
           markers.push(
             new Marker({ element: cinemaMarker(dark), anchor: 'bottom' })
               .setLngLat([destination.lng, destination.lat])

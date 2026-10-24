@@ -5,6 +5,7 @@ import {
   Bell,
   Bike,
   Car,
+  ChevronDown,
   ChevronRight,
   Footprints,
   Loader2,
@@ -249,37 +250,33 @@ export default function ScreeningRouteSheet({
 
   // ─── Le tracé à dessiner ─────────────────────────────────────────────────
   const routeColor = dark ? '#D9FF00' : '#1A1A1A';
+  const legSegments = (legs: TransitLeg[]): RouteSegment[] =>
+    legs.map((leg) => ({
+      walk: leg.mode === 'WALK',
+      color: leg.color ?? routeColor,
+      path:
+        leg.path.length > 1
+          ? leg.path
+          : leg.fromPoint && leg.toPoint
+            ? [
+                [leg.fromPoint.lng, leg.fromPoint.lat],
+                [leg.toPoint.lng, leg.toPoint.lat],
+              ]
+            : [],
+    }));
+  const legStops = (legs: TransitLeg[]) =>
+    legs
+      .filter((leg) => leg.mode !== 'WALK')
+      .flatMap((leg) =>
+        [leg.fromPoint, leg.toPoint].filter((p): p is LatLng => !!p).map((p) => ({ ...p, color: leg.color ?? routeColor }))
+      );
   const segments: RouteSegment[] = useMemo(() => {
-    if (active === 'transit') {
-      return (transit?.trip.legs ?? []).map((leg) => ({
-        walk: leg.mode === 'WALK',
-        color: leg.color ?? routeColor,
-        path:
-          leg.path.length > 1
-            ? leg.path
-            : leg.fromPoint && leg.toPoint
-              ? [
-                  [leg.fromPoint.lng, leg.fromPoint.lat],
-                  [leg.toPoint.lng, leg.toPoint.lat],
-                ]
-              : [],
-      }));
-    }
+    if (active === 'transit') return legSegments(transit?.trip.legs ?? []);
     return road ? [{ walk: active === 'walk', color: routeColor, path: road.path }] : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, transit, road, routeColor]);
-  const stops = useMemo(
-    () =>
-      active === 'transit'
-        ? (transit?.trip.legs ?? [])
-            .filter((leg) => leg.mode !== 'WALK')
-            .flatMap((leg) =>
-              [leg.fromPoint, leg.toPoint]
-                .filter((p): p is LatLng => !!p)
-                .map((p) => ({ ...p, color: leg.color ?? routeColor }))
-            )
-        : [],
-    [active, transit, routeColor]
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stops = useMemo(() => (active === 'transit' ? legStops(transit?.trip.legs ?? []) : []), [active, transit, routeColor]);
 
   // ─── Le retour, calculé à la première ouverture de l'onglet ──────────────
   const exitAt = screeningExit(screening.startsAt, filmMinutes);
@@ -306,6 +303,16 @@ export default function ScreeningRouteSheet({
     });
     return () => controller.abort();
   }, [tab, back, origin, place, exitAt]);
+
+  const backSegments: RouteSegment[] = useMemo(() => {
+    if (back?.trips[0]) return legSegments(back.trips[0].legs);
+    return routes.walk ? [{ walk: true, color: routeColor, path: [...routes.walk.path].reverse() }] : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [back, routes.walk, routeColor]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const backStops = useMemo(() => (back?.trips[0] ? legStops(back.trips[0].legs) : []), [back, routeColor]);
+  const mapSegments = tab === 'go' ? segments : backSegments;
+  const mapStops = tab === 'go' ? stops : backStops;
 
   // ─── Prévenir d'un retard ────────────────────────────────────────────────
   const [people, setPeople] = useState<Companion[] | null>(null);
@@ -372,7 +379,7 @@ export default function ScreeningRouteSheet({
 
   /** Les étapes en une ligne de pastilles : 🚶 4 min › G 19 h 59 › 🚶 4 min. */
   const strip = (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-extrabold">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap pr-4 text-xs font-extrabold [mask-image:linear-gradient(to_right,black_88%,transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {active === 'transit' && transit
         ? transit.trip.legs.map((leg, index) => (
             <React.Fragment key={index}>
@@ -437,9 +444,9 @@ export default function ScreeningRouteSheet({
         <RouteMap
           origin={origin}
           destination={place}
-          segments={segments}
-          stops={stops}
-          vehicle={mapVehicle}
+          segments={mapSegments}
+          stops={mapStops}
+          vehicle={tab === 'go' ? mapVehicle : null}
           dark={dark}
           interactive={interactive}
           padding={padding}
@@ -485,11 +492,81 @@ export default function ScreeningRouteSheet({
             )}
           </p>
           <p className="mt-2 text-[13px] font-semibold text-stone-300">
-            {leaveIn <= 0 ? t('route.now') : t('route.inMinutes', { n: leaveIn })} ·{' '}
+            {leaveIn <= 0 ? t('route.now') : t('route.inTime', { time: formatMinutes(leaveIn) })} ·{' '}
             {t('route.arriveMargin', { time: clock(plan.arriveAt) })}
           </p>
           {delay > 0 && <p className="mt-1 text-xs font-semibold text-stone-300">{t('route.delayed', { n: delay })}</p>}
         </>
+      )}
+    </div>
+  );
+
+  const backHero = (
+    <div className="rounded-[26px] bg-charcoal p-5 text-cream dark:border dark:border-white/10 dark:bg-black">
+      {exitAt ? (
+        <>
+          <p className="text-[10px] font-black uppercase tracking-[.16em] text-stone-400">{t('route.exitLabel')}</p>
+          <p className="mt-1 text-[56px] font-black leading-[0.95] tracking-[-0.06em] text-bitter-lime tabular-nums">{clock(exitAt)}</p>
+          {filmMinutes && (
+            <p className="mt-2 text-xs font-medium leading-relaxed text-stone-300">
+              {t('route.exitFormula', { start: clock(screening.startsAt), trailers: TRAILERS_MINUTES, runtime: formatMinutes(filmMinutes) })}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-sm font-semibold text-stone-300">
+          {screening.tmdbId && !filmMinutes ? t('route.backLoading') : t('route.exitUnknown')}
+        </p>
+      )}
+    </div>
+  );
+
+  /** La carte en tête de feuille, à fond perdu, qui se fond dans le fond de la feuille. */
+  const mapHeader = (
+    <div className="relative -mx-5 -mt-5 h-[400px] overflow-hidden rounded-t-[2.5rem] bg-sand dark:bg-[#121211]">
+      {!mapFailed && map(false, { top: 130, bottom: 124, left: 44, right: 64 })}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-cream/90 to-transparent dark:from-[#161616]/90" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-cream via-cream/70 to-transparent dark:from-[#161616] dark:via-[#161616]/70" />
+      <div className="absolute inset-x-4 top-4 flex items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-cream/85 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-md dark:bg-[#1A1A19]/85">
+          <div className="h-10 w-7 shrink-0 overflow-hidden rounded-md bg-forest">
+            {screening.posterUrl && <img src={screening.posterUrl} alt="" className="h-full w-full object-cover" />}
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-[13px] font-black tracking-tight">{screening.title}</h2>
+            <p className="truncate text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+              {[clock(screening.startsAt), screening.cinemaName].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cream/85 shadow-sm backdrop-blur-md dark:bg-[#1A1A19]/85"
+        >
+          <X size={18} />
+        </button>
+      </div>
+      {tab === 'go' && stopsAway != null && stopsAway >= 0 && boarding && (
+        <div className="absolute left-4 top-[72px] flex items-center gap-2 rounded-full bg-charcoal py-1.5 pl-1.5 pr-3 text-[11px] font-extrabold text-cream shadow-lg">
+          {lineBadge(boarding, 'rounded-full')}
+          {stopsAway === 0 ? t('route.liveHere') : t(stopsAway === 1 ? 'route.liveAwayOne' : 'route.liveAway', { n: stopsAway })}
+          <span className="inline-flex items-center gap-1 text-bitter-lime">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-bitter-lime" />
+            {t('route.live')}
+          </span>
+        </div>
+      )}
+      {!mapFailed && (
+        <button
+          type="button"
+          onClick={() => setFullscreen(true)}
+          aria-label={t('route.expandMap')}
+          className="absolute right-4 top-[68px] flex h-11 w-11 items-center justify-center rounded-2xl bg-cream/85 text-charcoal shadow-sm backdrop-blur-md dark:bg-[#1A1A19]/85 dark:text-white"
+        >
+          <Maximize2 size={18} />
+        </button>
       )}
     </div>
   );
@@ -504,6 +581,13 @@ export default function ScreeningRouteSheet({
         onClick={(event) => event.stopPropagation()}
         className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[2.5rem] bg-cream p-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] text-charcoal dark:bg-[#161616] dark:text-white"
       >
+        {phase === 'ready' && (
+          <>
+            {mapHeader}
+            <div className="relative -mt-24 mx-1">{tab === 'go' ? hero : backHero}</div>
+          </>
+        )}
+        {phase !== 'ready' && (
         <header className="flex items-center gap-3">
           <div className="h-[45px] w-[30px] shrink-0 overflow-hidden rounded-md bg-forest">
             {screening.posterUrl && <img src={screening.posterUrl} alt="" className="h-full w-full object-cover" />}
@@ -523,6 +607,7 @@ export default function ScreeningRouteSheet({
             <X size={18} />
           </button>
         </header>
+        )}
 
         {phase === 'intro' && (
           <section className="mt-6 flex flex-col gap-4">
@@ -572,7 +657,7 @@ export default function ScreeningRouteSheet({
         )}
 
         {phase === 'ready' && (
-          <div className="mt-4 grid grid-cols-2 rounded-full bg-sand p-1 dark:bg-white/10" role="tablist">
+          <div className="mt-3 grid grid-cols-2 rounded-full bg-sand p-1 dark:bg-white/10" role="tablist">
             {(['go', 'back'] as const).map((key) => (
               <button
                 key={key}
@@ -584,7 +669,9 @@ export default function ScreeningRouteSheet({
                   tab === key ? 'bg-charcoal text-cream dark:bg-white dark:text-charcoal' : 'text-stone-500 dark:text-stone-400'
                 }`}
               >
-                {key === 'go' ? (plan && !plan.late ? t('route.tabGoAt', { time: clock(plan.leaveAt) }) : t('route.tabGo')) : t('route.tabBack')}
+                {key === 'go' ? t('route.tabGo') : t('route.tabBack')}
+                {key === 'go' && plan && !plan.late && <span className="normal-case tracking-normal"> · {clock(plan.leaveAt)}</span>}
+                {key === 'back' && exitAt && <span className="normal-case tracking-normal"> · {clock(exitAt)}</span>}
               </button>
             ))}
           </div>
@@ -592,33 +679,6 @@ export default function ScreeningRouteSheet({
 
         {phase === 'ready' && tab === 'go' && (
           <section className="mt-4 flex flex-col gap-4">
-            {!mapFailed && (
-              <div>
-                <div className="relative h-[230px] overflow-hidden rounded-[24px] bg-sand dark:bg-white/5">
-                  {map(false, { top: 40, bottom: 56, left: 32, right: 32 })}
-                {stopsAway != null && stopsAway >= 0 && boarding && (
-                  <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-charcoal py-1.5 pl-1.5 pr-3 text-[11px] font-extrabold text-cream shadow-lg">
-                    {lineBadge(boarding, 'rounded-full')}
-                    {stopsAway === 0 ? t('route.liveHere') : t(stopsAway === 1 ? 'route.liveAwayOne' : 'route.liveAway', { n: stopsAway })}
-                    <span className="inline-flex items-center gap-1 text-bitter-lime">
-                      <span className="h-1.5 w-1.5 rounded-full bg-bitter-lime" />
-                      {t('route.live')}
-                    </span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setFullscreen(true)}
-                  aria-label={t('route.expandMap')}
-                  className="absolute bottom-12 right-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cream text-charcoal shadow-lg dark:bg-[#1A1A19] dark:text-white"
-                >
-                  <Maximize2 size={18} />
-                </button>
-                </div>
-                <div className="relative -mt-10 mx-2">{hero}</div>
-              </div>
-            )}
-            {mapFailed && hero}
 
             <div className="grid grid-cols-4 gap-2">
               {TRAVEL_MODES.map((key) => {
@@ -662,8 +722,9 @@ export default function ScreeningRouteSheet({
               >
                 {strip}
                 {active === 'transit' && (
-                  <span className="ml-auto shrink-0 text-[11px] font-extrabold text-forest dark:text-bitter-lime">
+                  <span className="ml-auto flex shrink-0 items-center gap-1 pl-2 text-[11px] font-extrabold text-forest dark:text-bitter-lime">
                     {details ? t('route.hideDetails') : t('route.details')}
+                    <ChevronDown size={14} strokeWidth={3} className={`transition ${details ? 'rotate-180' : ''}`} />
                   </span>
                 )}
               </button>
@@ -823,23 +884,6 @@ export default function ScreeningRouteSheet({
 
         {phase === 'ready' && tab === 'back' && (
           <section className="mt-4 flex flex-col gap-4">
-            <div className="rounded-[26px] bg-charcoal p-5 text-cream dark:border dark:border-white/10 dark:bg-black">
-              {exitAt ? (
-                <>
-                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-stone-400">{t('route.exitLabel')}</p>
-                  <p className="mt-1 text-[56px] font-black leading-[0.95] tracking-[-0.06em] text-bitter-lime tabular-nums">{clock(exitAt)}</p>
-                  {filmMinutes && (
-                    <p className="mt-2 text-xs font-medium leading-relaxed text-stone-300">
-                      {t('route.exitFormula', { start: clock(screening.startsAt), trailers: TRAILERS_MINUTES, runtime: formatMinutes(filmMinutes) })}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm font-semibold text-stone-300">
-                  {screening.tmdbId && !filmMinutes ? t('route.backLoading') : t('route.exitUnknown')}
-                </p>
-              )}
-            </div>
 
             {exitAt && (
               <>
@@ -999,7 +1043,7 @@ export default function ScreeningRouteSheet({
                 </p>
                 {!plan.late && (
                   <p className="whitespace-nowrap text-xs font-bold text-stone-500 dark:text-stone-400">
-                    {leaveIn <= 0 ? t('route.now') : t('route.inMinutes', { n: leaveIn })}
+                    {leaveIn <= 0 ? t('route.now') : t('route.inTime', { time: formatMinutes(leaveIn) })}
                   </p>
                 )}
               </div>
