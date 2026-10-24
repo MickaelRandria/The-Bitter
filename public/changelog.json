@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-24-trajet-lignes",
+  "version": "2026-10-24-calendrier-icones",
   "label": "Version du 24 octobre",
   "items": [
+    {
+      "title": "Des cartes de séance plus nettes",
+      "body": "Dans le calendrier, les actions de chaque séance tiennent sur une seule ligne, en boutons ronds : la flèche pour l’itinéraire, l’œil pour voir la séance, la corbeille, à l’écart, pour la retirer. Les heures s’écrivent « 19 h 00 », comme partout dans l’app."
+    },
     {
       "title": "Une vraie carte, et tes lignes en entier",
       "body": "La carte de « Ton trajet » passe à un fond détaillé, avec les rues, les quartiers et les immeubles en relief quand tu zoomes. Chaque bus ou tram s’affiche sur toute sa ligne : en plus clair avant que tu montes et après que tu descends, avec son terminus. L’affiche du film marque le cinéma."
