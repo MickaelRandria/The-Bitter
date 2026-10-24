@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-24-trajet-carte",
+  "version": "2026-10-24-trajet-lignes",
   "label": "Version du 24 octobre",
   "items": [
+    {
+      "title": "Une vraie carte, et tes lignes en entier",
+      "body": "La carte de « Ton trajet » passe à un fond détaillé, avec les rues, les quartiers et les immeubles en relief quand tu zoomes. Chaque bus ou tram s’affiche sur toute sa ligne : en plus clair avant que tu montes et après que tu descends, avec son terminus. L’affiche du film marque le cinéma."
+    },
     {
       "title": "Ton trajet sur une carte",
       "body": "« Ton trajet » montre maintenant le chemin sur une vraie carte, aux couleurs de l’app : la marche en pointillés, chaque bus ou tram dans la couleur de sa ligne, ton point de départ et le cinéma. Touche la carte pour l’ouvrir en grand, ou « Détails » pour la frise de chaque étape, heure par heure."

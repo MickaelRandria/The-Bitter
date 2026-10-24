@@ -53,7 +53,7 @@ import {
   travelRoutes,
   vehicleAt,
 } from '../services/travel';
-import type { RouteSegment, RouteVehicle } from './RouteMap';
+import type { RouteLabel, RouteSegment, RouteVehicle } from './RouteMap';
 
 const RouteMap = lazy(() => import('./RouteMap'));
 
@@ -311,7 +311,74 @@ export default function ScreeningRouteSheet({
   }, [back, routes.walk, routeColor]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const backStops = useMemo(() => (back?.trips[0] ? legStops(back.trips[0].legs) : []), [back, routeColor]);
-  const mapSegments = tab === 'go' ? segments : backSegments;
+  const shownLegs: TransitLeg[] = useMemo(
+    () => (tab === 'go' ? (active === 'transit' ? transit?.trip.legs ?? [] : []) : back?.trips[0]?.legs ?? []),
+    [tab, active, transit, back]
+  );
+  const [shapes, setShapes] = useState<Record<string, LiveTrip | null>>({});
+  useEffect(() => {
+    const missing = shownLegs.map((leg) => leg.tripId).filter((id): id is string => !!id && !(id in shapes));
+    if (!missing.length) return;
+    const controller = new AbortController();
+    setShapes((current) => ({ ...current, ...Object.fromEntries(missing.map((id) => [id, null])) }));
+    missing.forEach((id) =>
+      liveTrip(id, controller.signal)
+        .then((shape) => shape && setShapes((current) => ({ ...current, [id]: shape })))
+        .catch(() => undefined)
+    );
+    // Les courses déjà demandées ne le sont pas deux fois ; pas d'annulation au démontage d'un onglet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownLegs]);
+
+  /** L'arrêt d'une course à l'heure donnée : une ligne en boucle repasse au même arrêt. */
+  const stopAt = (shape: LiveTrip, name: string, time: number, key: 'departAt' | 'arriveAt') => {
+    let best = -1;
+    let gap = Infinity;
+    shape.stops.forEach((stop, index) => {
+      if (stop.name !== name) return;
+      const distance = Math.abs(stop[key] - time);
+      if (distance < gap) {
+        gap = distance;
+        best = index;
+      }
+    });
+    return best;
+  };
+
+  /** Avant la montée, après la descente : le reste de chaque ligne, en retrait, et son terminus. */
+  const { lineSegments, lineLabels } = useMemo(() => {
+    const faded: RouteSegment[] = [];
+    const labels: RouteLabel[] = [];
+    const rides = shownLegs.filter((leg) => leg.line);
+    rides.forEach((leg, index) => {
+      const color = leg.color ?? routeColor;
+      if (leg.fromPoint) labels.push({ point: [leg.fromPoint.lng, leg.fromPoint.lat], text: leg.from });
+      if (index === rides.length - 1 && leg.toPoint) labels.push({ point: [leg.toPoint.lng, leg.toPoint.lat], text: leg.to });
+      const shape = leg.tripId ? shapes[leg.tripId] : null;
+      if (!shape) return;
+      const board = stopAt(shape, leg.from, leg.departAt, 'departAt');
+      const alight = stopAt(shape, leg.to, leg.arriveAt, 'arriveAt');
+      if (board > 0) faded.push({ walk: false, faded: true, color, path: shape.path.slice(0, shape.stops[board].index + 1) });
+      if (alight >= 0 && alight < shape.stops.length - 1) {
+        faded.push({ walk: false, faded: true, color, path: shape.path.slice(shape.stops[alight].index) });
+      }
+      const terminus = shape.stops[shape.stops.length - 1];
+      if (alight >= 0 && alight < shape.stops.length - 1 && terminus) {
+        labels.push({
+          point: shape.path[shape.path.length - 1],
+          text: terminus.name,
+          line: { label: leg.line ?? '', color, textColor: leg.textColor ?? '#FFFFFF' },
+        });
+      }
+    });
+    return { lineSegments: faded, lineLabels: labels };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownLegs, shapes, routeColor]);
+
+  const mapSegments = useMemo(
+    () => [...lineSegments, ...(tab === 'go' ? segments : backSegments)],
+    [lineSegments, tab, segments, backSegments]
+  );
   const mapStops = tab === 'go' ? stops : backStops;
 
   // ─── Prévenir d'un retard ────────────────────────────────────────────────
@@ -446,6 +513,8 @@ export default function ScreeningRouteSheet({
           destination={place}
           segments={mapSegments}
           stops={mapStops}
+          labels={lineLabels}
+          posterUrl={screening.posterUrl}
           vehicle={tab === 'go' ? mapVehicle : null}
           dark={dark}
           interactive={interactive}

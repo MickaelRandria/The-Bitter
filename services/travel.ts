@@ -271,6 +271,7 @@ export interface TransitLeg {
   from: string;
   to: string;
   departAt: number;
+  arriveAt: number;
   minutes: number;
   /** Retard annoncé par le réseau au départ de l'étape, en minutes (0 : à l'heure). */
   delayMin: number;
@@ -405,6 +406,7 @@ const toTrip = (it: MotisItinerary): TransitTrip => ({
     from: leg.from?.name === 'START' ? '' : leg.from?.name ?? '',
     to: leg.to?.name === 'END' ? '' : leg.to?.name ?? '',
     departAt: Date.parse(leg.startTime),
+    arriveAt: Date.parse(leg.endTime),
     minutes: Math.max(1, Math.round(leg.duration / 60)),
     delayMin: leg.scheduledStartTime
       ? Math.max(0, Math.round((Date.parse(leg.startTime) - Date.parse(leg.scheduledStartTime)) / 60_000))
