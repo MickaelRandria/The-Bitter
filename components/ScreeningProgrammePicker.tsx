@@ -27,6 +27,7 @@ import { createScreening } from '../services/screenings';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
+import ShowtimeReturn, { AskReturnButton, isLateShowtime, useReturnContext } from './ShowtimeReturn';
 
 interface ScreeningProgrammePickerProps {
   profileId: string;
@@ -93,6 +94,7 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
   const dialog = useDialog(onClose, 'Choisir une séance');
 
   const [cinema, setCinema] = useState<FavoriteCinema | undefined>(favoriteCinema);
+  const returns = useReturnContext(cinema?.name, cinema?.city);
   const [isChangingCinema, setIsChangingCinema] = useState(!favoriteCinema);
   const [programme, setProgramme] = useState<CinemaProgramme | null>(null);
   const [requestedDate, setRequestedDate] = useState<string | undefined>(initialDate ? `${initialDate.slice(8)}/${initialDate.slice(5, 7)}/${initialDate.slice(0, 4)}` : undefined);
@@ -473,6 +475,9 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
 
                     <section>
                       <label className={labelClass}>Horaires · {film.showtimes.length} séance{film.showtimes.length > 1 ? 's' : ''}</label>
+                      {!returns.consent && film.showtimes.some((s) => isLateShowtime(s.startsAt, s.endTime)) && (
+                        <AskReturnButton onAllow={returns.allow} asking={returns.asking} />
+                      )}
                       <div className="space-y-2">
                         {film.showtimes.map((showtime) => {
                           const isSaving = savingId.startsWith(showtime.id);
@@ -493,6 +498,15 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
                                 )}
                                 {showtime.room && <span className="text-[11px] font-bold text-stone-400">{showtime.room}</span>}
                               </div>
+                              {returns.origin && returns.place && isLateShowtime(showtime.startsAt, showtime.endTime) && (
+                                <ShowtimeReturn
+                                  id={showtime.id}
+                                  startsAt={showtime.startsAt}
+                                  endTime={showtime.endTime}
+                                  origin={returns.origin}
+                                  place={returns.place}
+                                />
+                              )}
                               <div className="flex flex-wrap gap-2">
                                 <button
                                   onClick={() => book(showtime)}

@@ -29,6 +29,8 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 const OSRM = 'https://routing.openstreetmap.de';
 const TRANSITOUS = 'https://api.transitous.org/api/v5/plan';
 export const TRANSITOUS_SOURCES = 'https://transitous.org/sources/';
+const TRANSITOUS_RENTALS = 'https://api.transitous.org/api/v1/rentals';
+const TRANSITOUS_TRIP = 'https://api.transitous.org/api/v5/trip';
 const OSRM_PROFILE: Record<Exclude<TravelMode, 'transit'>, string> = {
   car: 'routed-car',
   bike: 'routed-bike',
@@ -192,21 +194,64 @@ export async function correctCinemaPlace(
   return place;
 }
 
-/** Durées en minutes, mode par mode. Un mode injoignable reste absent. */
-export async function travelMinutes(
+/** Un point de tracé au format des cartes : [longitude, latitude]. */
+export type MapPoint = [number, number];
+
+/** Polyligne encodée (Google), à la précision donnée : 6 pour OSRM et Transitous. */
+export const decodePolyline = (encoded: string, precision = 6): MapPoint[] => {
+  const factor = 10 ** precision;
+  const points: MapPoint[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    for (const axis of [0, 1]) {
+      let result = 0;
+      let shift = 0;
+      let byte: number;
+      do {
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 31) << shift;
+        shift += 5;
+      } while (byte >= 32 && index < encoded.length);
+      const delta = result & 1 ? ~(result >> 1) : result >> 1;
+      if (axis === 0) lat += delta;
+      else lng += delta;
+    }
+    points.push([lng / factor, lat / factor]);
+  }
+  return points;
+};
+
+export interface RoadRoute {
+  minutes: number;
+  km: number;
+  path: MapPoint[];
+}
+
+/** Voiture, vélo, marche : durée, distance et tracé. Un mode injoignable reste absent. */
+export async function travelRoutes(
   from: LatLng,
   to: LatLng,
   signal?: AbortSignal
-): Promise<Partial<Record<TravelMode, number>>> {
+): Promise<Partial<Record<Exclude<TravelMode, 'transit'>, RoadRoute>>> {
   const entries = await Promise.all(
     (Object.keys(OSRM_PROFILE) as Array<keyof typeof OSRM_PROFILE>).map(async (mode) => {
       try {
-        const url = `${OSRM}/${OSRM_PROFILE[mode]}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+        const url = `${OSRM}/${OSRM_PROFILE[mode]}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline6`;
         const response = await fetch(url, { signal });
         if (!response.ok) return null;
         const data = await response.json();
-        const seconds = data?.routes?.[0]?.duration;
-        return typeof seconds === 'number' ? ([mode, Math.max(1, Math.round(seconds / 60))] as const) : null;
+        const route = data?.routes?.[0];
+        if (typeof route?.duration !== 'number') return null;
+        return [
+          mode,
+          {
+            minutes: Math.max(1, Math.round(route.duration / 60)),
+            km: Math.round((route.distance ?? 0) / 100) / 10,
+            path: typeof route.geometry === 'string' ? decodePolyline(route.geometry) : [],
+          },
+        ] as const;
       } catch {
         return null;
       }
@@ -227,6 +272,22 @@ export interface TransitLeg {
   to: string;
   departAt: number;
   minutes: number;
+  /** Retard annoncé par le réseau au départ de l'étape, en minutes (0 : à l'heure). */
+  delayMin: number;
+  /** Arrêts traversés sans descendre. */
+  stops: number;
+  /** Course du véhicule, pour le suivre en direct. */
+  tripId?: string;
+  path: MapPoint[];
+  fromPoint?: LatLng;
+  toPoint?: LatLng;
+}
+
+export interface LineAlert {
+  line?: string;
+  color?: string;
+  header: string;
+  description?: string;
 }
 
 export interface TransitTrip {
@@ -236,6 +297,8 @@ export interface TransitTrip {
   /** Horaires corrigés par le temps réel du réseau. */
   realTime: boolean;
   legs: TransitLeg[];
+  /** Perturbations des lignes empruntées, en cours pendant le trajet. */
+  alerts: LineAlert[];
 }
 
 interface MotisLeg {
@@ -249,8 +312,17 @@ interface MotisLeg {
   routeShortName?: string;
   routeColor?: string;
   routeTextColor?: string;
-  from?: { name?: string };
-  to?: { name?: string };
+  tripId?: string;
+  scheduledStartTime?: string;
+  legGeometry?: { points: string; precision?: number };
+  intermediateStops?: unknown[];
+  from?: { name?: string; lat?: number; lon?: number };
+  to?: { name?: string; lat?: number; lon?: number };
+  alerts?: Array<{
+    headerText?: string;
+    descriptionText?: string;
+    impactPeriod?: Array<{ start?: string; end?: string }>;
+  }>;
 }
 
 interface MotisItinerary {
@@ -280,6 +352,45 @@ const softenCaps = (value?: string) =>
     ? value.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep: string, letter: string) => sep + letter.toUpperCase())
     : value;
 
+const toPoint = (place?: { lat?: number; lon?: number }): LatLng | undefined =>
+  typeof place?.lat === 'number' && typeof place?.lon === 'number' ? { lat: place.lat, lng: place.lon } : undefined;
+
+/**
+ * Une alerte n'a sa place que si elle concerne CE trajet : en cours pendant le
+ * trajet, et citant un des arrêts traversés. Les réseaux publient des alertes
+ * de ligne sur des années (« travaux à l'autre bout de la ligne ») : sans ce
+ * filtre, chaque trajet en afficherait trois sans rapport.
+ */
+const alertsOf = (legs: MotisLeg[], from: number, to: number): LineAlert[] => {
+  const seen = new Set<string>();
+  const alerts: LineAlert[] = [];
+  for (const leg of legs) {
+    if (leg.mode === 'WALK') continue;
+    const stopNames = [leg.from?.name, leg.to?.name, ...(leg.intermediateStops ?? []).map((stop) => (stop as { name?: string }).name)]
+      .map((name) => normalise(name ?? '').trim())
+      .filter((name) => name.length >= 4);
+    for (const alert of leg.alerts ?? []) {
+      const header = (alert.headerText ?? '').trim();
+      if (!header || seen.has(header)) continue;
+      const text = normalise(`${header} ${alert.descriptionText ?? ''}`);
+      if (!stopNames.some((name) => text.includes(name))) continue;
+      const periods = alert.impactPeriod ?? [];
+      const active =
+        !periods.length ||
+        periods.some((p) => (!p.start || Date.parse(p.start) <= to) && (!p.end || Date.parse(p.end) >= from));
+      if (!active) continue;
+      seen.add(header);
+      alerts.push({
+        line: leg.displayName || leg.routeShortName,
+        color: leg.routeColor ? `#${leg.routeColor}` : undefined,
+        header,
+        description: alert.descriptionText?.trim() || undefined,
+      });
+    }
+  }
+  return alerts.slice(0, 3);
+};
+
 const toTrip = (it: MotisItinerary): TransitTrip => ({
   departAt: Date.parse(it.startTime),
   arriveAt: Date.parse(it.endTime),
@@ -295,7 +406,16 @@ const toTrip = (it: MotisItinerary): TransitTrip => ({
     to: leg.to?.name === 'END' ? '' : leg.to?.name ?? '',
     departAt: Date.parse(leg.startTime),
     minutes: Math.max(1, Math.round(leg.duration / 60)),
+    delayMin: leg.scheduledStartTime
+      ? Math.max(0, Math.round((Date.parse(leg.startTime) - Date.parse(leg.scheduledStartTime)) / 60_000))
+      : 0,
+    stops: leg.intermediateStops?.length ?? 0,
+    tripId: leg.mode === 'WALK' ? undefined : leg.tripId,
+    path: leg.legGeometry?.points ? decodePolyline(leg.legGeometry.points, leg.legGeometry.precision ?? 6) : [],
+    fromPoint: toPoint(leg.from),
+    toPoint: toPoint(leg.to),
   })),
+  alerts: alertsOf(it.legs, Date.parse(it.startTime), Date.parse(it.endTime)),
 });
 
 /**
@@ -321,6 +441,162 @@ export async function transitTrip(
   }
   const next = (await plan(from, to, now, false, signal)).map(toTrip).sort((a, b) => a.arriveAt - b.arriveAt);
   return next[0] ? { trip: next[0], late: true } : null;
+}
+
+/** Les bandes-annonces et publicités avant le film, en moyenne. */
+export const TRAILERS_MINUTES = 15;
+
+/**
+ * Heure de sortie de la salle. L'heure de fin donnée par UGC (« 22:55 ») passe
+ * avant tout ; sinon début + bandes-annonces + durée du film. Null sans durée.
+ */
+export function screeningExit(startsAt: number, runtimeMinutes?: number, endTime?: string): number | null {
+  const match = endTime?.match(/^(\d{1,2})[:h](\d{2})/);
+  if (match) {
+    const start = new Date(startsAt);
+    const end = new Date(startsAt);
+    end.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    if (end.getTime() < start.getTime()) end.setDate(end.getDate() + 1);
+    return end.getTime();
+  }
+  if (!runtimeMinutes) return null;
+  return startsAt + (TRAILERS_MINUTES + runtimeMinutes) * 60_000;
+}
+
+export interface ReturnOptions {
+  /** Les prochains départs en transports après la sortie (trois au plus). */
+  trips: TransitTrip[];
+  /** Plus rien dans l'heure qui suit la sortie : le réseau dort. */
+  noTransit: boolean;
+}
+
+/** Au-delà, on ne parle plus du même soir : les premiers bus du matin ne comptent pas. */
+const RETURN_WINDOW_MINUTES = 75;
+
+export async function returnOptions(
+  cinema: LatLng,
+  home: LatLng,
+  exitAt: number,
+  signal?: AbortSignal
+): Promise<ReturnOptions> {
+  const trips = (await plan(cinema, home, exitAt, false, signal))
+    .map(toTrip)
+    .filter((trip) => trip.departAt >= exitAt - 2 * 60_000)
+    .sort((a, b) => a.departAt - b.departAt);
+  const tonight = trips.filter((trip) => trip.departAt <= exitAt + RETURN_WINDOW_MINUTES * 60_000);
+  return { trips: tonight.slice(0, 3), noTransit: tonight.length === 0 };
+}
+
+export interface BikeStation {
+  name: string;
+  available: number;
+  meters: number;
+}
+
+/** La station de vélos en libre-service la plus proche (300 m au plus), avec des vélos. */
+export async function bikeStationNear(point: LatLng, signal?: AbortSignal): Promise<BikeStation | null> {
+  const d = 0.004;
+  const query = new URLSearchParams({
+    min: `${point.lat - d},${point.lng - d}`,
+    max: `${point.lat + d},${point.lng + d}`,
+  });
+  const response = await fetch(`${TRANSITOUS_RENTALS}?${query}`, { signal });
+  if (!response.ok) return null;
+  const data = (await response.json()) as {
+    stations?: Array<{ name?: string; lat: number; lon: number; numVehiclesAvailable?: number; formFactors?: string[] }>;
+  };
+  const stations = (data.stations ?? [])
+    .filter((s) => s.formFactors?.includes('BICYCLE') && (s.numVehiclesAvailable ?? 0) > 0)
+    .map((s) => ({
+      name: s.name ?? '',
+      available: s.numVehiclesAvailable ?? 0,
+      meters: Math.round(distanceKm(point, { lat: s.lat, lng: s.lon }) * 1000),
+    }))
+    .filter((s) => s.meters <= 300)
+    .sort((a, b) => a.meters - b.meters);
+  return stations[0] ?? null;
+}
+
+export interface LiveTrip {
+  path: MapPoint[];
+  /** Chaque arrêt de la course, avec sa position sur le tracé et ses horaires temps réel. */
+  stops: Array<{ name: string; index: number; arriveAt: number; departAt: number }>;
+}
+
+interface MotisStop {
+  name?: string;
+  lat?: number;
+  lon?: number;
+  arrival?: string;
+  departure?: string;
+}
+
+const nearestIndex = (path: MapPoint[], point: LatLng, from = 0) => {
+  let best = from;
+  let bestDistance = Infinity;
+  for (let i = from; i < path.length; i++) {
+    const dx = path[i][0] - point.lng;
+    const dy = path[i][1] - point.lat;
+    const distance = dx * dx + dy * dy;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = i;
+    }
+  }
+  return best;
+};
+
+/** Toute la course d'un bus ou d'un tram, pour le placer sur la carte. Une requête légère. */
+export async function liveTrip(tripId: string, signal?: AbortSignal): Promise<LiveTrip | null> {
+  const response = await fetch(`${TRANSITOUS_TRIP}?${new URLSearchParams({ tripId })}`, { signal });
+  if (!response.ok) return null;
+  const data = (await response.json()) as {
+    legs?: Array<{ from?: MotisStop; to?: MotisStop; intermediateStops?: MotisStop[]; legGeometry?: { points: string; precision?: number } }>;
+  };
+  const leg = data.legs?.[0];
+  if (!leg?.legGeometry?.points) return null;
+  const path = decodePolyline(leg.legGeometry.points, leg.legGeometry.precision ?? 6);
+  const raw = [leg.from, ...(leg.intermediateStops ?? []), leg.to].filter((s): s is MotisStop => !!s);
+  const stops: LiveTrip['stops'] = [];
+  let cursor = 0;
+  for (const stop of raw) {
+    if (typeof stop.lat !== 'number' || typeof stop.lon !== 'number') continue;
+    cursor = nearestIndex(path, { lat: stop.lat, lng: stop.lon }, cursor);
+    const arriveAt = Date.parse(stop.arrival ?? stop.departure ?? '');
+    const departAt = Date.parse(stop.departure ?? stop.arrival ?? '');
+    if (!Number.isFinite(arriveAt) || !Number.isFinite(departAt)) continue;
+    stops.push({ name: stop.name ?? '', index: cursor, arriveAt, departAt });
+  }
+  return stops.length >= 2 ? { path, stops } : null;
+}
+
+/**
+ * Où est le véhicule à l'instant `now` : entre deux arrêts, on avance le long du
+ * tracé au prorata du temps. Null avant le départ du terminus ou après l'arrivée.
+ */
+export function vehicleAt(trip: LiveTrip, now = Date.now()): { point: MapPoint; nextStop: number } | null {
+  const { stops, path } = trip;
+  if (now < stops[0].departAt || now > stops[stops.length - 1].arriveAt) return null;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (now <= a.departAt) return { point: path[a.index], nextStop: i + 1 };
+    if (now < b.arriveAt) {
+      const ratio = (now - a.departAt) / Math.max(1, b.arriveAt - a.departAt);
+      const span = b.index - a.index;
+      const exact = a.index + ratio * span;
+      const lower = Math.floor(exact);
+      const upper = Math.min(path.length - 1, lower + 1);
+      const t = exact - lower;
+      const point: MapPoint = [
+        path[lower][0] + (path[upper][0] - path[lower][0]) * t,
+        path[lower][1] + (path[upper][1] - path[lower][1]) * t,
+      ];
+      return { point, nextStop: i + 1 };
+    }
+  }
+  const last = stops[stops.length - 1];
+  return { point: path[last.index], nextStop: stops.length - 1 };
 }
 
 /** « 45 min », « 1 h », « 1 h 05 ». */

@@ -715,7 +715,7 @@ export default function CalendarView(props: CalendarViewProps) {
       )}
       {routeScreening && (
         <Suspense fallback={null}>
-          <ScreeningRouteSheet screening={routeScreening} onClose={() => setRouteId(null)} onToast={onToast} />
+          <ScreeningRouteSheet screening={routeScreening} runtime={movies.find((m) => m.tmdbId != null && m.tmdbId === routeScreening.tmdbId)?.runtime} onClose={() => setRouteId(null)} onToast={onToast} />
         </Suspense>
       )}
       {composer &&
