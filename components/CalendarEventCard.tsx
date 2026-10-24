@@ -3,22 +3,18 @@ import { Bell, BellRing, CalendarPlus, Check, Eye, Film, ListPlus, Navigation, R
 import { useLanguage } from '../contexts/LanguageContext';
 import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { btnIcon, btnIconPrimary, sectionLabel } from '../utils/ui';
 
 export const agendaPill =
   'inline-flex min-h-9 items-center justify-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wide transition active:scale-95 disabled:opacity-50';
 export const agendaAction = `${agendaPill} bg-[#D9FF00] text-[#111]`;
 export const agendaGhost = `${agendaPill} border border-stone-300 text-charcoal dark:border-white/15 dark:text-white`;
-export const agendaLabel =
-  'mb-2 mt-6 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[.15em] text-stone-500 dark:text-stone-400';
+export const agendaLabel = `mb-3 mt-7 flex items-center justify-between gap-2 ${sectionLabel}`;
 /**
  * Les actions d'une carte, en boutons ronds à icône : elles tiennent toujours
  * sur une ligne, quelle que soit la langue ou la largeur de l'écran. Le libellé
  * reste lu par les lecteurs d'écran (aria-label) et affiché au survol (title).
  */
-const iconButton =
-  'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-50';
-const iconPrimary = `${iconButton} bg-[#D9FF00] text-[#111]`;
-const iconGhost = `${iconButton} border border-stone-300 text-charcoal dark:border-white/15 dark:text-white`;
 
 function IconAction({
   label,
@@ -42,7 +38,7 @@ function IconAction({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className={`${primary ? iconPrimary : iconGhost} ${className}`}
+      className={`${primary ? btnIconPrimary : btnIcon} ${className}`}
     >
       {children}
     </button>
@@ -101,7 +97,7 @@ export default function CalendarEventCard({
           : t('agenda.proposed', { space: event.spaceName ?? t('agenda.space') });
   return (
     <article
-      className={`flex min-w-0 items-start gap-3 rounded-[18px] bg-white p-3 dark:bg-[#1A1A19] ${event.declined ? 'opacity-60' : ''}`}
+      className={`flex min-w-0 items-start gap-3 rounded-[20px] bg-white p-3 dark:bg-[#1A1A19] ${event.declined ? 'opacity-60' : ''}`}
     >
       <div className="h-[69px] w-[46px] shrink-0 overflow-hidden rounded-lg bg-stone-200 dark:bg-white/5">
         {event.posterUrl ? (

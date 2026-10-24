@@ -5,6 +5,7 @@ import { TMDB_IMAGE_URL } from '../constants';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { sectionLabel } from '../utils/ui';
 
 interface Props {
   /** Identifiants TMDB déjà présents dans la collection, tous statuts confondus. */
@@ -198,7 +199,7 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
             </span>
           </div>
           <div className="min-w-0 space-y-6 border-l-2 border-[#D9FF00] pb-8 pl-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-400">{t('releases.thisWeekTitle')}</p>
+            <p className={sectionLabel}>{t('releases.thisWeekTitle')}</p>
             {thisWeek.map(renderFilm)}
           </div>
         </section>

@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-24-calendrier-icones",
+  "version": "2026-10-24-harmonie",
   "label": "Version du 24 octobre",
   "items": [
+    {
+      "title": "Des boutons qui se ressemblent",
+      "body": "Le calendrier, la fiche d’un film et « Planifier une séance » suivent maintenant les mêmes règles : un bouton principal lime en pilule, les autres en contour, des petits titres identiques et des fenêtres aux mêmes arrondis. Les autres écrans suivront."
+    },
     {
       "title": "Des cartes de séance plus nettes",
       "body": "Dans le calendrier, les actions de chaque séance tiennent sur une seule ligne, en boutons ronds : la flèche pour l’itinéraire, l’œil pour voir la séance, la corbeille, à l’écart, pour la retirer. Les heures s’écrivent « 19 h 00 », comme partout dans l’app."

@@ -39,6 +39,7 @@ import { FilItem } from '../utils/cinemaFil';
 import { platformOfProvider } from '../utils/platforms';
 import SoundtrackBlock from './soundtrack/SoundtrackBlock';
 import { readSoundtrack, toggleFavorite } from '../utils/soundtrackTags';
+import { btnPrimary, btnSecondary, sectionLabel } from '../utils/ui';
 
 /** Rien sous le nom pour le cas courant : l'abonnement, ou la location comme l'achat. */
 const STREAMING_ACCESS_LABEL: Record<StreamingAccess, string | null> = {
@@ -454,14 +455,14 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               )}
               <button
                 onClick={onClose}
-                className="absolute top-6 right-6 w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center active:scale-90 transition-transform z-20 border border-white/20"
+                className="absolute top-5 right-5 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition-transform active:scale-90"
               >
                 <X size={20} strokeWidth={2.5} />
               </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto -mt-12 relative z-10 px-8 pb-32 no-scrollbar">
+            <div className="flex-1 overflow-y-auto -mt-12 relative z-10 px-5 pb-32 no-scrollbar">
               {/* Poster & Title Block */}
               <div className="flex gap-5 mb-8">
                 <div className="w-24 aspect-[2/3] rounded-2xl overflow-hidden shadow-xl border-2 border-white dark:border-white/10 shrink-0 -mt-8 bg-stone-200 dark:bg-[#252525]">
@@ -476,7 +477,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   <h2 className="text-2xl font-black text-charcoal dark:text-white leading-tight mb-1 line-clamp-2">
                     {title}
                   </h2>
-                  <p className="text-xs font-bold text-stone-400 dark:text-stone-400 uppercase tracking-wider mb-2 line-clamp-1">
+                  <p className={`${sectionLabel} mb-2 line-clamp-1`}>
                     {year} •{' '}
                     <span
                       className={`transition-colors duration-200 ${onViewDirector ? 'hover:text-forest dark:hover:text-lime-500 cursor-pointer underline decoration-current/20 dark:decoration-current/30 underline-offset-4' : ''}`}
@@ -607,7 +608,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   )}
                   {otherStreaming.length > 0 && (
                     <>
-                      <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
+                      <h3 className={`${sectionLabel} mb-3`}>
                         {mineCards.length > 0 ? t('fiche.alsoOn') : 'Disponible sur'}
                       </h3>
                       <OfferRow
@@ -620,7 +621,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   {offers.transactional.length > 0 && (
                     <>
                       <h3
-                        className={`text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3 ${otherStreaming.length > 0 ? 'mt-4' : ''}`}
+                        className={`${sectionLabel} mb-3 ${otherStreaming.length > 0 ? 'mt-4' : ''}`}
                       >
                         En location ou à l'achat
                       </h3>
@@ -650,7 +651,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
               {/* Synopsis */}
               <div className="mb-8">
-                <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
+                <h3 className={`${sectionLabel} mb-3`}>
                   Synopsis
                 </h3>
                 <p className="text-sm font-medium text-stone-600 dark:text-stone-300 leading-relaxed">
@@ -661,7 +662,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
               {/* Reviews */}
               {hasReviews && (
                 <div className="mb-8">
-                  <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500 tracking-widest mb-3">
+                  <h3 className={`${sectionLabel} mb-3`}>
                     Avis
                   </h3>
                   {/* Filter CTAs */}
@@ -762,7 +763,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
               {/* Cast */}
               <div className="mb-8">
-                <h3 className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-400 tracking-widest mb-3">
+                <h3 className={`${sectionLabel} mb-3`}>
                   Distribution
                 </h3>
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
@@ -849,7 +850,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
             {/* Sticky Actions. Une série se commence d'abord : c'est le geste
                 qui la fait entrer dans « À suivre ». */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-cream dark:bg-[#0c0c0c] border-t border-sand dark:border-white/10 flex gap-3 z-30">
+            <div className="absolute bottom-0 left-0 right-0 z-30 flex gap-2 border-t border-sand bg-cream px-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-4 dark:border-white/10 dark:bg-[#0c0c0c]">
               {mediaType === 'tv' ? (
                 <>
                   <button
@@ -857,7 +858,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       haptics.medium();
                       onAction(movie.id, 'watching');
                     }}
-                    className="flex-1 min-w-0 bg-bitter-lime text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    className={`${btnPrimary} min-w-0 flex-1`}
                   >
                     <Play size={16} fill="currentColor" />
                     <span className="truncate">{t('addMovie.startShort')}</span>
@@ -868,7 +869,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       onAction(movie.id, 'watched');
                     }}
                     aria-label={t('addMovie.watched')}
-                    className="shrink-0 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                    className={`${btnSecondary} shrink-0 !px-4`}
                   >
                     <Eye size={16} /> {t('addMovie.watched')}
                   </button>
@@ -878,7 +879,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       onAction(movie.id, 'watchlist');
                     }}
                     aria-label={t('addMovie.toWatch')}
-                    className="shrink-0 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                    className={`${btnSecondary} shrink-0 !px-4`}
                   >
                     <Plus size={16} /> {t('addMovie.toWatch')}
                   </button>
@@ -890,7 +891,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   haptics.soft();
                   onAction(movie.id, 'watched');
                 }}
-                className="flex-1 bg-charcoal dark:bg-bitter-lime text-white dark:text-charcoal py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className={`${btnPrimary} flex-1`}
               >
                 <Eye size={18} /> J'ai vu
               </button>
@@ -899,7 +900,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   haptics.soft();
                   onAction(movie.id, 'watchlist');
                 }}
-                className="flex-1 bg-white dark:bg-white/5 text-charcoal dark:text-white border border-stone-200 dark:border-white/10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className={`${btnSecondary} flex-1`}
               >
                 <Plus size={18} /> À voir
               </button>
