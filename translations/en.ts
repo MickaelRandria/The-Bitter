@@ -3343,4 +3343,5 @@ export const en: Record<string, string> = {
   "route.programmeBack": "Out around {exit} · home:",
   "route.programmeNoTransit": "Out around {time}: no more buses or trams to get home",
   "route.bikeStationOne": "1 bike right now at {name}, {m} m away",
+  "route.inTime": "In {time}",
 };

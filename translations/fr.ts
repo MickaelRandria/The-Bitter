@@ -3349,4 +3349,5 @@ export const fr: Record<string, string> = {
   "route.programmeBack": "Sortie vers {exit} · retour :",
   "route.programmeNoTransit": "Sortie vers {time} : plus de bus ni de tram pour rentrer",
   "route.bikeStationOne": "1 vélo en ce moment à la station {name}, à {m} m",
+  "route.inTime": "Dans {time}",
 };
