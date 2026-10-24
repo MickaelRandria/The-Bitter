@@ -34,7 +34,7 @@ export default function CalendarUpcoming({
   const thisWeek = sessions.filter((event) => event.day <= shiftCalendarDay(actions.today, 6));
   const later = sessions.filter((event) => event.day > shiftCalendarDay(actions.today, 6));
   const rows = (events: AgendaEvent[]) => (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {events.map((event) => (
         <div key={event.id} className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-2.5">
           <div className="text-center">

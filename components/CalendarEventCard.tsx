@@ -1,15 +1,50 @@
 import React from 'react';
-import { Film, Navigation } from 'lucide-react';
+import { Bell, BellRing, CalendarPlus, Check, Eye, Film, ListPlus, Navigation, RotateCcw, Trash2, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
+import { btnIcon, btnIconPrimary, sectionLabel } from '../utils/ui';
 
 export const agendaPill =
   'inline-flex min-h-9 items-center justify-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wide transition active:scale-95 disabled:opacity-50';
 export const agendaAction = `${agendaPill} bg-[#D9FF00] text-[#111]`;
 export const agendaGhost = `${agendaPill} border border-stone-300 text-charcoal dark:border-white/15 dark:text-white`;
-export const agendaLabel =
-  'mb-2 mt-6 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[.15em] text-stone-500 dark:text-stone-400';
+export const agendaLabel = `mb-3 mt-7 flex items-center justify-between gap-2 ${sectionLabel}`;
+/**
+ * Les actions d'une carte, en boutons ronds à icône : elles tiennent toujours
+ * sur une ligne, quelle que soit la langue ou la largeur de l'écran. Le libellé
+ * reste lu par les lecteurs d'écran (aria-label) et affiché au survol (title).
+ */
+
+function IconAction({
+  label,
+  primary,
+  onClick,
+  disabled,
+  className = '',
+  children,
+}: {
+  label: string;
+  primary?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${primary ? btnIconPrimary : btnIcon} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export const eventColors = {
   watched: '#D9FF00',
   screening: '#FFFFFF',
@@ -48,7 +83,9 @@ export default function CalendarEventCard({
         timeZone: 'Europe/Paris',
         hour: '2-digit',
         minute: '2-digit',
-      }).format(event.startsAt)
+      })
+        .format(event.startsAt)
+        .replace(':', language === 'fr' ? ' h ' : ':')
     : '';
   const label =
     event.kind === 'watchlist-release'
@@ -60,7 +97,7 @@ export default function CalendarEventCard({
           : t('agenda.proposed', { space: event.spaceName ?? t('agenda.space') });
   return (
     <article
-      className={`flex min-w-0 items-start gap-3 rounded-[18px] bg-white p-3 dark:bg-[#1A1A19] ${event.declined ? 'opacity-60' : ''}`}
+      className={`flex min-w-0 items-start gap-3 rounded-[20px] bg-white p-3 dark:bg-[#1A1A19] ${event.declined ? 'opacity-60' : ''}`}
     >
       <div className="h-[69px] w-[46px] shrink-0 overflow-hidden rounded-lg bg-stone-200 dark:bg-white/5">
         {event.posterUrl ? (
@@ -91,19 +128,23 @@ export default function CalendarEventCard({
             .filter(Boolean)
             .join(' · ')}
         </p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-2.5 flex items-center gap-2">
           {event.kind === 'plan' && !event.ownPlan && !event.joined && (
             <>
-              <button
-                className={agendaAction}
+              <IconAction
+                primary
+                label={t('agenda.accept')}
                 disabled={actions.busyId === event.id || event.declined}
                 onClick={() => actions.onAccept(event)}
               >
-                {t('agenda.accept')}
-              </button>
-              <button className={agendaGhost} onClick={() => actions.onDecline(event)}>
-                {t(event.declined ? 'agenda.reconsider' : 'agenda.unavailable')}
-              </button>
+                <Check size={18} strokeWidth={2.6} />
+              </IconAction>
+              <IconAction
+                label={t(event.declined ? 'agenda.reconsider' : 'agenda.unavailable')}
+                onClick={() => actions.onDecline(event)}
+              >
+                {event.declined ? <RotateCcw size={17} /> : <X size={18} />}
+              </IconAction>
             </>
           )}
           {event.kind === 'plan' && (event.ownPlan || event.joined) && (
@@ -111,47 +152,53 @@ export default function CalendarEventCard({
               {t(event.ownPlan ? 'agenda.waiting' : 'agenda.joined')}
             </span>
           )}
-          {event.kind === 'screening' && (
-            <button className={agendaGhost} onClick={() => actions.onOpenDay(event.day)}>
-              {t('agenda.viewSession')}
-            </button>
-          )}
           {event.kind === 'screening' &&
             event.screeningId &&
             event.startsAt &&
             event.startsAt > Date.now() - 30 * 60_000 && (
-              <button className={agendaAction} onClick={() => actions.onRoute(event)}>
-                <Navigation size={12} />
-                {t('route.action')}
-              </button>
+              <IconAction primary label={t('route.action')} onClick={() => actions.onRoute(event)}>
+                <Navigation size={18} strokeWidth={2.4} />
+              </IconAction>
             )}
-          {isRemovableSession(event, actions.today) && (
-            <button
-              className={agendaGhost}
-              disabled={actions.busyId === event.id}
-              onClick={() => actions.onRemove(event)}
-            >
-              {t(event.kind === 'plan' ? 'agenda.cancelSession' : 'agenda.removeSession')}
-            </button>
+          {event.kind === 'screening' && (
+            <IconAction label={t('agenda.viewSession')} onClick={() => actions.onOpenDay(event.day)}>
+              <Eye size={18} />
+            </IconAction>
           )}
           {event.kind === 'watchlist-release' && (
             <>
-              <button className={agendaAction} onClick={actions.onRemind}>
-                {t(actions.reminderActive ? 'agenda.reminderActive' : 'agenda.remind')}
-              </button>
-              <button className={agendaGhost} onClick={() => actions.onPlan(event.day)}>
-                {t('agenda.plan')}
-              </button>
+              <IconAction
+                primary
+                label={t(actions.reminderActive ? 'agenda.reminderActive' : 'agenda.remind')}
+                onClick={actions.onRemind}
+              >
+                {actions.reminderActive ? <BellRing size={18} /> : <Bell size={18} />}
+              </IconAction>
+              <IconAction label={t('agenda.plan')} onClick={() => actions.onPlan(event.day)}>
+                <CalendarPlus size={18} />
+              </IconAction>
             </>
           )}
           {event.kind === 'release' && event.tmdbId != null && (
-            <button
-              className={agendaAction}
+            <IconAction
+              primary
+              label={t('agenda.addWatchlist')}
               disabled={actions.busyId === `add:${event.tmdbId}`}
               onClick={() => actions.onAdd(event.tmdbId!)}
             >
-              {t('agenda.addWatchlist')}
-            </button>
+              <ListPlus size={18} />
+            </IconAction>
+          )}
+          {/* Retirer reste au bout de la ligne, à l'écart : on ne le touche pas par mégarde. */}
+          {isRemovableSession(event, actions.today) && (
+            <IconAction
+              label={t(event.kind === 'plan' ? 'agenda.cancelSession' : 'agenda.removeSession')}
+              disabled={actions.busyId === event.id}
+              onClick={() => actions.onRemove(event)}
+              className="ml-auto"
+            >
+              <Trash2 size={17} />
+            </IconAction>
           )}
         </div>
       </div>

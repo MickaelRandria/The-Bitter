@@ -18,6 +18,7 @@ import { CinemaCity, CinemaOption, searchCinemaCities, searchCinemasNearCity } f
 import { createScreening } from '../services/screenings';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useDialog } from '../utils/useDialog';
+import { btnClose, btnIconPrimary, btnPrimary, chip, field, sectionLabel, sheetFrame, sheetPad } from '../utils/ui';
 
 interface CinemaScreeningComposerProps {
   profileId: string;
@@ -29,10 +30,9 @@ interface CinemaScreeningComposerProps {
   navShortcuts?: React.ReactNode;
 }
 
-const fieldClass =
-  'h-12 w-full appearance-none rounded-2xl border border-stone-200 bg-white px-4 text-sm font-semibold text-charcoal outline-none transition focus:border-bitter-lime focus:ring-4 focus:ring-bitter-lime/10 dark:border-white/10 dark:bg-[#191919] dark:text-white';
+const fieldClass = `${field} appearance-none`;
 
-const labelClass = 'mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-stone-400';
+const labelClass = `mb-2 block ${sectionLabel}`;
 
 const toDateValue = (date: Date) => {
   const offset = date.getTimezoneOffset() * 60_000;
@@ -218,22 +218,22 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
   return (
     <div {...dialog.props} className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <button className="absolute inset-0 bg-charcoal/70 backdrop-blur-md" onClick={onClose} aria-label="Fermer" />
-      <section className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111] sm:rounded-[2rem]">
-        <header className="flex items-start justify-between border-b border-stone-200/80 px-6 pb-5 pt-6 dark:border-white/10">
+      <section className={`relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden ${sheetFrame} border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111]`}>
+        <header className={`flex items-start justify-between gap-3 border-b border-stone-200/80 ${sheetPad} pb-5 pt-6 dark:border-white/10`}>
           <div>
             <div className="mb-2 flex items-center gap-2 text-bitter-lime">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-bitter-lime/15"><Sparkles size={14} /></span>
-              <span className="text-[10px] font-black uppercase tracking-[0.18em]">The Bitter · cinéma</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.16em]">The Bitter · cinéma</span>
             </div>
             <h2 className="text-2xl font-black tracking-tight text-charcoal dark:text-white">Planifier une séance</h2>
             <p className="mt-1 text-xs font-medium text-stone-500">Quelques choix, et The Bitter pense aux rappels.</p>
           </div>
-          <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-500 shadow-sm transition hover:text-charcoal dark:bg-white/10 dark:hover:text-white" aria-label="Fermer">
+          <button onClick={onClose} className={btnClose} aria-label="Fermer">
             <X size={18} />
           </button>
         </header>
 
-        <div className="space-y-6 overflow-y-auto px-6 py-6">
+        <div className={`space-y-6 overflow-y-auto ${sheetPad} py-6`}>
           <section>
             <label className={labelClass}>Film</label>
             <div className="flex gap-2">
@@ -251,7 +251,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
                   className={`${fieldClass} pl-11`}
                 />
               </div>
-              <button onClick={() => void searchMovie()} disabled={isMovieSearching || title.trim().length < 2} className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-charcoal text-white transition hover:scale-[1.03] disabled:opacity-40 dark:bg-bitter-lime dark:text-charcoal" aria-label="Rechercher le film">
+              <button onClick={() => void searchMovie()} disabled={isMovieSearching || title.trim().length < 2} className={`${btnIconPrimary} !h-12 !w-12`} aria-label="Rechercher le film">
                 {isMovieSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
               </button>
             </div>
@@ -277,13 +277,13 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
 
           <section>
             <label className={labelClass}>Quand</label>
-            <div className="mb-3 grid grid-cols-3 gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
               {datesFromToday.map((choice) => {
                 const choiceDate = new Date();
                 choiceDate.setHours(12, 0, 0, 0);
                 choiceDate.setDate(choiceDate.getDate() + choice.offset);
                 const active = dateValue === toDateValue(choiceDate);
-                return <button key={choice.label} type="button" onClick={() => chooseDay(choice.offset)} className={`h-10 rounded-xl text-[11px] font-black transition ${active ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal' : 'bg-white text-stone-500 shadow-sm dark:bg-[#191919] dark:text-stone-300'}`}>{choice.label}</button>;
+                return <button key={choice.label} type="button" onClick={() => chooseDay(choice.offset)} className={chip(active)}>{choice.label}</button>;
               })}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -296,8 +296,8 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
                 <input type="time" value={timeValue} onChange={(event) => setTimeValue(event.target.value)} className={`${fieldClass} pl-10 text-[13px]`} aria-label="Heure de la séance" />
               </label>
             </div>
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5">
-              {timeOptions.map((time) => <button key={time} type="button" onClick={() => setTimeValue(time)} className={`h-8 shrink-0 rounded-lg px-3 text-[11px] font-black transition ${timeValue === time ? 'bg-charcoal text-white dark:bg-bitter-lime dark:text-charcoal' : 'bg-white text-stone-500 shadow-sm dark:bg-[#191919] dark:text-stone-300'}`}>{time}</button>)}
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {timeOptions.map((time) => <button key={time} type="button" onClick={() => setTimeValue(time)} className={`${chip(timeValue === time)} shrink-0`}>{time.replace(':', ' h ')}</button>)}
             </div>
           </section>
 
@@ -335,7 +335,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
           <section className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-white/10 dark:bg-[#191919]">
             <div className="mb-3 flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-bitter-lime/15 text-bitter-lime"><Clock3 size={14} /></span><div><p className="text-xs font-black text-charcoal dark:text-white">Rappels The Bitter</p><p className="text-[11px] font-medium text-stone-500">Choisis ce qui te convient.</p></div></div>
             <div className="grid grid-cols-3 gap-2">
-              {[[2880, 'J-2'], [120, '2 h'], [30, '30 min']].map(([offset, label]) => { const active = reminders.includes(offset as number); return <button key={String(offset)} type="button" onClick={() => toggleReminder(offset as number)} className={`h-10 rounded-xl text-[11px] font-black transition ${active ? 'bg-bitter-lime text-charcoal' : 'bg-stone-100 text-stone-400 dark:bg-white/5 dark:text-stone-400'}`}>{active && <Check size={13} className="mr-1 inline" />}{label}</button>; })}
+              {[[2880, 'J-2'], [120, '2 h'], [30, '30 min']].map(([offset, label]) => { const active = reminders.includes(offset as number); return <button key={String(offset)} type="button" onClick={() => toggleReminder(offset as number)} className={chip(active)}>{active && <Check size={13} />}{label}</button>; })}
             </div>
           </section>
 
@@ -345,7 +345,7 @@ const CinemaScreeningComposer: React.FC<CinemaScreeningComposerProps> = ({
 
           {saveError && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700 dark:bg-red-500/10 dark:text-red-300">{saveError}</p>}
 
-          <button onClick={() => void save()} disabled={isSaving} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-charcoal text-[11px] font-black uppercase tracking-[0.15em] text-white transition hover:scale-[1.01] disabled:opacity-50 dark:bg-bitter-lime dark:text-charcoal">
+          <button onClick={() => void save()} disabled={isSaving} className={`${btnPrimary} w-full`}>
             {isSaving ? <Loader2 size={17} className="animate-spin" /> : <CalendarPlus size={17} />}{isSaving ? 'Planification…' : 'Planifier la séance'}
           </button>
           {navShortcuts}
