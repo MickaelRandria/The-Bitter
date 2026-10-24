@@ -3,11 +3,13 @@
  * et quand partir.
  *
  * Tout se passe sur le téléphone. La position de l'utilisateur n'est jamais
- * envoyée à notre base : elle ne sert qu'à interroger le calcul d'itinéraire
- * public d'OpenStreetMap (FOSSGIS), le temps d'afficher l'écran.
+ * envoyée à notre base : elle ne sert qu'à interroger les calculs d'itinéraire
+ * publics, le temps d'afficher l'écran — OpenStreetMap (FOSSGIS) pour la
+ * voiture, le vélo et la marche, Transitous pour les transports en commun.
  *
- * Les transports en commun n'ont pas de service public gratuit : pour eux,
- * l'écran renvoie vers l'appli de cartes, qui connaît les horaires.
+ * Transitous est un service bénévole réservé aux projets libres et non
+ * commerciaux (https://transitous.org/api/) : il exige un lien vers ses sources
+ * à l'écran, et un contact avant toute hausse sensible du nombre de requêtes.
  */
 
 export type TravelMode = 'transit' | 'car' | 'bike' | 'walk';
@@ -25,6 +27,8 @@ export interface CinemaPlace extends LatLng {
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 const OSRM = 'https://routing.openstreetmap.de';
+const TRANSITOUS = 'https://api.transitous.org/api/v5/plan';
+export const TRANSITOUS_SOURCES = 'https://transitous.org/sources/';
 const OSRM_PROFILE: Record<Exclude<TravelMode, 'transit'>, string> = {
   car: 'routed-car',
   bike: 'routed-bike',
@@ -209,6 +213,114 @@ export async function travelMinutes(
     })
   );
   return Object.fromEntries(entries.filter((e): e is NonNullable<typeof e> => !!e));
+}
+
+export interface TransitLeg {
+  /** WALK, BUS, TRAM, SUBWAY, RAIL… */
+  mode: string;
+  /** Numéro de ligne affiché (« G », « F »), absent pour la marche. */
+  line?: string;
+  color?: string;
+  textColor?: string;
+  headsign?: string;
+  from: string;
+  to: string;
+  departAt: number;
+  minutes: number;
+}
+
+export interface TransitTrip {
+  departAt: number;
+  arriveAt: number;
+  minutes: number;
+  /** Horaires corrigés par le temps réel du réseau. */
+  realTime: boolean;
+  legs: TransitLeg[];
+}
+
+interface MotisLeg {
+  mode: string;
+  duration: number;
+  startTime: string;
+  endTime: string;
+  realTime?: boolean;
+  headsign?: string;
+  displayName?: string;
+  routeShortName?: string;
+  routeColor?: string;
+  routeTextColor?: string;
+  from?: { name?: string };
+  to?: { name?: string };
+}
+
+interface MotisItinerary {
+  duration: number;
+  startTime: string;
+  endTime: string;
+  legs: MotisLeg[];
+}
+
+const plan = async (from: LatLng, to: LatLng, time: number, arriveBy: boolean, signal?: AbortSignal) => {
+  const query = new URLSearchParams({
+    fromPlace: `${from.lat},${from.lng}`,
+    toPlace: `${to.lat},${to.lng}`,
+    time: new Date(time).toISOString(),
+    arriveBy: String(arriveBy),
+    numItineraries: '4',
+  });
+  const response = await fetch(`${TRANSITOUS}?${query}`, { signal });
+  if (!response.ok) throw new Error('transit-unavailable');
+  const data = (await response.json()) as { itineraries?: MotisItinerary[] };
+  return (data.itineraries ?? []).filter((it) => it.legs?.some((leg) => leg.mode !== 'WALK'));
+};
+
+/** Certains réseaux écrivent les directions en capitales : « ST AUBIN VILLEPREUX » → « St Aubin Villepreux ». */
+const softenCaps = (value?: string) =>
+  value && value === value.toUpperCase() && /[A-Z]/.test(value)
+    ? value.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep: string, letter: string) => sep + letter.toUpperCase())
+    : value;
+
+const toTrip = (it: MotisItinerary): TransitTrip => ({
+  departAt: Date.parse(it.startTime),
+  arriveAt: Date.parse(it.endTime),
+  minutes: Math.max(1, Math.round(it.duration / 60)),
+  realTime: it.legs.some((leg) => leg.realTime),
+  legs: it.legs.map((leg) => ({
+    mode: leg.mode,
+    line: leg.mode === 'WALK' ? undefined : leg.displayName || leg.routeShortName,
+    color: leg.routeColor ? `#${leg.routeColor}` : undefined,
+    textColor: leg.routeTextColor ? `#${leg.routeTextColor}` : undefined,
+    headsign: softenCaps(leg.headsign),
+    from: leg.from?.name === 'START' ? '' : leg.from?.name ?? '',
+    to: leg.to?.name === 'END' ? '' : leg.to?.name ?? '',
+    departAt: Date.parse(leg.startTime),
+    minutes: Math.max(1, Math.round(leg.duration / 60)),
+  })),
+});
+
+/**
+ * Le trajet en transports qui part le plus tard tout en arrivant avant la
+ * séance (marge comprise). Plus aucun ne le permet : le premier qui part
+ * maintenant, et `late` le signale. Null : pas de transports utiles (trop près,
+ * réseau non couvert).
+ */
+export async function transitTrip(
+  from: LatLng,
+  to: LatLng,
+  startsAt: number,
+  now = Date.now(),
+  signal?: AbortSignal
+): Promise<{ trip: TransitTrip; late: boolean } | null> {
+  const target = startsAt - ARRIVAL_MARGIN_MINUTES * 60_000;
+  if (target > now) {
+    const onTime = (await plan(from, to, target, true, signal))
+      .map(toTrip)
+      .filter((trip) => trip.departAt >= now - 60_000 && trip.arriveAt <= target + 60_000)
+      .sort((a, b) => b.departAt - a.departAt);
+    if (onTime[0]) return { trip: onTime[0], late: false };
+  }
+  const next = (await plan(from, to, now, false, signal)).map(toTrip).sort((a, b) => a.arriveAt - b.arriveAt);
+  return next[0] ? { trip: next[0], late: true } : null;
 }
 
 /** « 45 min », « 1 h », « 1 h 05 ». */
