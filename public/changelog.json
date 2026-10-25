@@ -1,7 +1,11 @@
 {
-  "version": "2026-10-24-harmonie",
-  "label": "Version du 24 octobre",
+  "version": "2026-10-25-a-chaud",
+  "label": "Version du 25 octobre",
   "items": [
+    {
+      "title": "Ta séance, à chaud",
+      "body": "Le lendemain d’une séance, l’accueil te demande « Hope, à chaud ? » sur une carte aux couleurs de l’affiche. Touche ta note de 1 à 10, garde-la : le film passe dans tes vus, et tu peux affiner critère par critère juste après."
+    },
     {
       "title": "Des boutons qui se ressemblent",
       "body": "Le calendrier, la fiche d’un film et « Planifier une séance » suivent maintenant les mêmes règles : un bouton principal lime en pilule, les autres en contour, des petits titres identiques et des fenêtres aux mêmes arrondis. Les autres écrans suivront."
@@ -130,15 +134,15 @@
   "highlights": [
     {
       "icon": "cinema",
+      "title": "Ta séance, à chaud"
+    },
+    {
+      "icon": "cinema",
       "title": "Ton trajet sur une carte"
     },
     {
       "icon": "notifications",
       "title": "Ton bus en direct"
-    },
-    {
-      "icon": "calendar",
-      "title": "Et pour rentrer ?"
     }
   ]
 }

@@ -3350,4 +3350,13 @@ export const fr: Record<string, string> = {
   "route.programmeNoTransit": "Sortie vers {time} : plus de bus ni de tram pour rentrer",
   "route.bikeStationOne": "1 vélo en ce moment à la station {name}, à {m} m",
   "route.inTime": "Dans {time}",
+  "lifecycle.hotTitle": "{title}, à chaud ?",
+  "lifecycle.hotLabel": "Ta note à chaud",
+  "lifecycle.hotHint": "Tu affines critère par critère juste après, si tu veux.",
+  "lifecycle.hotKeep": "Garder {n}/10",
+  "lifecycle.hotSaved": "{title} : {n}/10, c’est noté.",
+  "lifecycle.tonight": "Ce soir",
+  "lifecycle.today": "Aujourd’hui",
+  "lifecycle.yesterdayEvening": "Hier soir",
+  "lifecycle.yesterday": "Hier",
 };

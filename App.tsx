@@ -76,6 +76,7 @@ import { findCollectionWork, isWatchedWork, removeCollectionWork, uniqueCollecti
 import { useScreeningFollowup } from './services/useScreeningFollowup';
 import { screeningMovie } from './utils/screeningFollowup';
 import ScreeningRatingLink from './components/ScreeningRatingLink';
+import ScreeningPromptCard from './components/ScreeningPromptCard';
 import { calendarDay } from './utils/calendarAgenda';
 import type { CinemaScreening } from './types';
 import {
@@ -2812,6 +2813,61 @@ const App: React.FC = () => {
     if (movie && isWatchedWork(movie) && hasRating(movie)) setLinkScreening(screening);
     else openScreeningRating(screening);
   };
+  /**
+   * « Garder 7/10 » : la note à chaud de la carte d'accueil est
+   * enregistrée tout de suite (le film passe dans les vus, la séance est
+   * confirmée), puis la notation par critères s'ouvre avec cette note posée.
+   * La refermer garde le 7/10.
+   */
+  const [quickRating, setQuickRating] = useState(false);
+  const quickRateScreening = async (screening: CinemaScreening, note: number) => {
+    if (quickRating) return;
+    setQuickRating(true);
+    try {
+      const movie = screeningMovie(screening, allMovies);
+      const base: MovieFormData | null = movie ?? (screening.tmdbId ? await getMovieDetailsForAdd(screening.tmdbId) : null);
+      if (!base) {
+        openScreeningRating(screening);
+        return;
+      }
+      const cinema = screening.cinemaName ?? '';
+      ratingScreeningRef.current = screening;
+      setRatingScreening(screening);
+      handleSaveMovie(
+        {
+          ...base,
+          status: 'watched',
+          ratings: { story: note, visuals: note, acting: note, sound: note },
+          adaptiveRating: undefined,
+          dateWatched: screening.startsAt,
+        },
+        {
+          locationType: 'cinema',
+          cinemaName: screening.cinemaName,
+          cinemaProvider: /ugc/i.test(cinema) ? 'ugc' : /path[eé]/i.test(cinema) ? 'pathe' : 'other',
+        },
+        { target: movie ?? null, quiet: true }
+      );
+      setToastMessage(t('lifecycle.hotSaved', { title: screening.title, n: note }));
+      // Affiner : la fiche qu'on vient d'enregistrer, rouverte dans la notation.
+      const tmdbId = movie?.tmdbId ?? screening.tmdbId;
+      const saved = profilesRef.current
+        .find((p) => p.id === activeProfileId)
+        ?.movies.find((m) => m.tmdbId === tmdbId && (m.mediaType ?? 'movie') === 'movie' && m.seasonNumber == null);
+      if (saved) {
+        ratingScreeningRef.current = screening;
+        setRatingScreening(screening);
+        setEditingMovie(saved);
+        setTmdbIdToLoad(null);
+        setMediaTypeToLoad('movie');
+        setInitialStatusForAdd('watched');
+        setCalendarWatchedDay(calendarDay(screening.startsAt));
+        setIsModalOpen(true);
+      }
+    } finally {
+      setQuickRating(false);
+    }
+  };
 
   /* Au retour d'un épisode lancé depuis l'app, lui demander comment c'était.
      Seulement pour une série du profil ouvert, et sans chasser un mode épisode
@@ -4074,14 +4130,23 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-5 animate-[fadeIn_0.3s_ease-out]">
-              {mediaMode === 'movie' && screeningFollowup.prompt && <section className="rounded-3xl border border-sand bg-white p-5 dark:border-white/10 dark:bg-[#161616]" aria-label={t('lifecycle.screeningTitle')}>
-                <h2 className="text-sm font-black">{t('lifecycle.screeningTitle')}</h2>
-                <p className="mt-2 text-sm font-bold">{screeningFollowup.prompt.title}</p>
-                <p className="mt-1 text-xs text-stone-500">{t(promptMovie && hasRating(promptMovie) ? 'lifecycle.linkBody' : 'lifecycle.screeningBody')}</p>
-                {screeningFollowup.cancelError && <p role="alert" className="mt-2 text-xs text-orange-600">{t('lifecycle.cancelError')}</p>}
-                <div className="mt-4 flex gap-3"><button type="button" className="rounded-full bg-bitter-lime px-4 py-2 text-xs font-black text-charcoal" onClick={() => rateScreening(screeningFollowup.prompt!)}>{t(promptMovie && hasRating(promptMovie) ? 'lifecycle.linkAction' : screeningFollowup.prompt.tmdbId || promptMovie ? 'lifecycle.rate' : 'lifecycle.openCalendar')}</button><button type="button" className="px-3 py-2 text-xs font-bold text-stone-500" onClick={() => screeningFollowup.snooze(screeningFollowup.prompt!.id)}>{t('lifecycle.later')}</button></div>
-                {screeningFollowup.prompt.status === 'scheduled' && <button type="button" disabled={screeningFollowup.cancelling} className="mt-3 text-xs font-bold text-stone-400 disabled:opacity-50" onClick={() => void screeningFollowup.cancel(screeningFollowup.prompt!.id)}>{t('lifecycle.notAttended')}</button>}
-              </section>}
+              {mediaMode === 'movie' && screeningFollowup.prompt && (
+                <ScreeningPromptCard
+                  screening={screeningFollowup.prompt}
+                  mode={promptMovie && hasRating(promptMovie) ? 'link' : screeningFollowup.prompt.tmdbId || promptMovie ? 'rate' : 'calendar'}
+                  busy={quickRating}
+                  cancelling={screeningFollowup.cancelling}
+                  cancelError={screeningFollowup.cancelError}
+                  onQuickRate={(note) => void quickRateScreening(screeningFollowup.prompt!, note)}
+                  onPrimary={() => rateScreening(screeningFollowup.prompt!)}
+                  onSnooze={() => screeningFollowup.snooze(screeningFollowup.prompt!.id)}
+                  onCancel={
+                    screeningFollowup.prompt.status === 'scheduled'
+                      ? () => void screeningFollowup.cancel(screeningFollowup.prompt!.id)
+                      : undefined
+                  }
+                />
+              )}
               {session?.user?.email && voteRequests.length > 0 && (
                 <HomeVoteCard requests={voteRequests} onVote={voteFromHome} onLater={voteLaterFromHome} />
               )}
