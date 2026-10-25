@@ -3344,4 +3344,13 @@ export const en: Record<string, string> = {
   "route.programmeNoTransit": "Out around {time}: no more buses or trams to get home",
   "route.bikeStationOne": "1 bike right now at {name}, {m} m away",
   "route.inTime": "In {time}",
+  "lifecycle.hotTitle": "{title}, first thoughts?",
+  "lifecycle.hotLabel": "Your gut rating",
+  "lifecycle.hotHint": "You can fine-tune it criterion by criterion right after.",
+  "lifecycle.hotKeep": "Keep {n}/10",
+  "lifecycle.hotSaved": "{title}: {n}/10, saved.",
+  "lifecycle.tonight": "Tonight",
+  "lifecycle.today": "Today",
+  "lifecycle.yesterdayEvening": "Last night",
+  "lifecycle.yesterday": "Yesterday",
 };
