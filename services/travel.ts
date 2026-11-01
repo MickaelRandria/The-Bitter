@@ -174,6 +174,19 @@ export async function locateCinema(
     }
   }
 
+  // UGC range certaines salles sous leur région (« UGC Ciné Cité Rosny »,
+  // adresse « Région parisienne ») : aucune ville où chercher, et OpenStreetMap
+  // ne connaît pas la région. La ville est alors dans le nom de la salle :
+  // l'enseigne + ses mots propres (« UGC Rosny ») la retrouvent.
+  const distinctive = words(cleanName).filter((w) => !GENERIC_WORDS.has(w));
+  if (cleanName && distinctive.length) {
+    const brand = cleanName.split(/\s+/)[0];
+    const hits = (await search({ q: `${brand} ${distinctive.join(' ')}`, limit: '5' }, signal)).filter(
+      (hit) => hit.category === 'amenity' && hit.type === 'cinema'
+    );
+    if (hits[0]) return remember(toPlace(hits[0]));
+  }
+
   if (cleanName) {
     const hits = await search({ q: [cleanName, cleanAddress].filter(Boolean).join(', '), limit: '1' }, signal);
     if (hits[0]) return remember(toPlace(hits[0]));
