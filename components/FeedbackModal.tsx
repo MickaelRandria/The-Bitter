@@ -5,11 +5,13 @@ import { useDialog } from '../utils/useDialog';
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Ouvert depuis la pop-in « Un souci ? » : le message d'erreur et l'écran, envoyés avec le retour. */
+  context?: { message: string; where?: string };
 }
 
 const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mpqoqjnn';
 
-const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
+const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, context }) => {
   const dialog = useDialog(onClose);
   const [type, setType] = useState<'bug' | 'suggestion' | 'other'>('bug');
   const [name, setName] = useState('');
@@ -32,6 +34,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
           type,
           name: name || 'Anonyme',
           message,
+          ...(context ? { error: context.message, screen: context.where ?? '' } : {}),
           userAgent: navigator.userAgent,
           url: window.location.href,
           timestamp: new Date().toISOString(),
@@ -60,7 +63,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div {...dialog.props} className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div {...dialog.props} data-no-report className="fixed inset-0 z-[310] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-charcoal/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]"
         onClick={onClose}
@@ -80,6 +83,15 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
+            {context && (
+              <div className="rounded-2xl bg-stone-100 px-4 py-3">
+                <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+                  Le message affiché{context.where ? ` · ${context.where}` : ''}
+                </p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-charcoal">{context.message}</p>
+                <p className="mt-1.5 text-[11px] text-stone-500">Il sera joint à ton message. Dis-nous ce que tu essayais de faire.</p>
+              </div>
+            )}
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-stone-400 mb-3 block">
                 Type de feedback

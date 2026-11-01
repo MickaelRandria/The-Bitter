@@ -1717,7 +1717,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         {/* Un espace refusé et un espace vide se ressemblaient trait pour trait.
             Ces deux bandeaux sont la seule chose qui les sépare. */}
         {loadError && (
-          <div className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
+          <div role="alert" className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
             <AlertTriangle size={15} className="text-orange-400 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase tracking-widest text-orange-400">
@@ -1737,7 +1737,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         )}
 
         {actionError && (
-          <div className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
+          <div role="alert" className="flex items-start gap-3 bg-orange-400/5 border border-orange-400/30 rounded-2xl p-4">
             <AlertTriangle size={15} className="text-orange-400 shrink-0 mt-0.5" />
             <p className="flex-1 min-w-0 text-[11px] font-medium text-stone-500 dark:text-stone-400 leading-relaxed">
               {actionError}

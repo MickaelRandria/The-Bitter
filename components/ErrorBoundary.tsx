@@ -1,6 +1,7 @@
 import React from 'react';
 import UpdateScreen from './UpdateScreen';
 import { isChunkLoadError } from '../utils/appUpdate';
+import { signalProblem } from '../utils/problemReport';
 
 interface Props {
   children: React.ReactNode;
@@ -60,6 +61,10 @@ class ErrorBoundary extends Base {
 
   componentDidCatch(error: Error, info: { componentStack?: string }) {
     console.error(`[Erreur] ${this.props.where ?? 'Application'} :`, error, info?.componentStack);
+    // Une mise à jour en attente n'est pas une panne : rien à signaler.
+    if (!isChunkLoadError(error)) {
+      signalProblem(`Cet écran n'a pas pu s'afficher : ${error.message || String(error)}`, this.props.where);
+    }
   }
 
   private retry = () => this.setState({ error: null });

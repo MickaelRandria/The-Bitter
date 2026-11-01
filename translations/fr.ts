@@ -3411,4 +3411,7 @@ export const fr: Record<string, string> = {
   "playlist.notAllowed": "Spotify refuse ce compte : il doit être ajouté aux testeurs de l’appli.",
   "playlist.nothingFound": "Aucun de ces morceaux n’a été trouvé sur Spotify.",
   "playlist.failed": "La playlist n’a pas pu être créée. Réessaie dans un instant.",
+  "problem.title": "Un souci ? Signale-le",
+  "problem.report": "Signaler",
+  "problem.dismiss": "Ignorer",
 };

@@ -175,6 +175,7 @@ import { SpaceOverview, loadSpaceOverview } from './services/spaceTodo';
 import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
+import ProblemReportPrompt from './components/ProblemReportPrompt';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
@@ -668,6 +669,7 @@ const App: React.FC = () => {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [reportContext, setReportContext] = useState<{ message: string; where?: string } | null>(null);
   // Abonnement cinéma : configuration, rattrapage historique, détail des économies.
   const [showCinemaSetup, setShowCinemaSetup] = useState(false);
   const [showCinemaImport, setShowCinemaImport] = useState(false);
@@ -5341,8 +5343,23 @@ const App: React.FC = () => {
       )}
 
       {showFeedbackModal && (
-        <FeedbackModal isOpen onClose={() => setShowFeedbackModal(false)} />
+        <FeedbackModal
+          isOpen
+          context={reportContext ?? undefined}
+          onClose={() => {
+            setShowFeedbackModal(false);
+            setReportContext(null);
+          }}
+        />
       )}
+
+      {/* « Un souci ? » : chaque message d'erreur affiché propose d'être signalé. */}
+      <ProblemReportPrompt
+        onReport={(problem) => {
+          setReportContext({ message: problem.message, where: problem.where ?? viewMode });
+          setShowFeedbackModal(true);
+        }}
+      />
 
       <Suspense fallback={null}>
         {showAccountSync && (
