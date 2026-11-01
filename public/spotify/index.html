@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>The Bitter · Spotify</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0c0c0c; color: #fff; font-family: Inter, system-ui, sans-serif; }
+    p { font-size: 14px; font-weight: 700; color: #d6d3d1; }
+  </style>
+</head>
+<body>
+  <p id="msg">Connexion à Spotify…</p>
+  <script>
+    /*
+     * Retour de Spotify (services/spotify.ts) : on échange le code contre un
+     * jeton, gardé sur l'appareil, puis on rend la main à l'appli. Page à part,
+     * pour que le `?code=` de Spotify ne croise jamais celui de la connexion
+     * Supabase sur l'accueil.
+     */
+    (async function () {
+      var done = function (result) { location.replace('/?spotify=' + result); };
+      try {
+        var params = new URLSearchParams(location.search);
+        var pkce = JSON.parse(localStorage.getItem('bitter:spotify:pkce') || 'null');
+        localStorage.removeItem('bitter:spotify:pkce');
+        if (!pkce || !params.get('code') || params.get('state') !== pkce.state) return done('error');
+        var response = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: params.get('code'),
+            redirect_uri: pkce.redirectUri,
+            client_id: pkce.clientId,
+            code_verifier: pkce.verifier
+          })
+        });
+        if (!response.ok) return done('error');
+        var body = await response.json();
+        localStorage.setItem('bitter:spotify:token', JSON.stringify({
+          access: body.access_token,
+          refresh: body.refresh_token,
+          expiresAt: Date.now() + (Number(body.expires_in) || 3600) * 1000
+        }));
+        done('playlist');
+      } catch (error) {
+        done('error');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,7 +1,19 @@
 {
-  "version": "2026-10-25-a-chaud",
-  "label": "Version du 25 octobre",
+  "version": "2026-11-01-musique",
+  "label": "Version du 1er novembre",
   "items": [
+    {
+      "title": "Blind test BO dans tes espaces",
+      "body": "Dans un espace, une nouvelle carte « Blind test BO » : un extrait de bande originale tiré de vos films, quatre affiches, vingt secondes pour trouver le bon. Le meilleur score de chacun entre au classement de l’espace."
+    },
+    {
+      "title": "Dans l’ambiance, sur le trajet",
+      "body": "L’écran « Ton trajet » joue la BO du film pendant que tu vas à la séance : les extraits s’enchaînent, et l’album entier s’ouvre en un geste dans Deezer, Spotify ou Apple Music."
+    },
+    {
+      "title": "Ton mois ciné en musique",
+      "body": "Dans tes Stats, une playlist d’un morceau par film vu dans le mois (tes coups de cœur de la fiche d’abord). Écoute les extraits, partage la liste, ou crée-la directement dans Spotify."
+    },
     {
       "title": "Ta séance, à chaud",
       "body": "Le lendemain d’une séance, l’accueil te demande « Hope, à chaud ? » sur une carte aux couleurs de l’affiche. Touche ta note de 1 à 10, garde-la : le film passe dans tes vus, et tu peux affiner critère par critère juste après."
@@ -117,18 +129,6 @@
     {
       "title": "Les actions suivent ta page",
       "body": "Touche le bouton central pour noter, planifier, découvrir, partager ou organiser selon la page. Tout ajouter reste accessible ; un appui long y mène directement."
-    },
-    {
-      "title": "Plus de place pour les films",
-      "body": "Recherche, onglets et filtres actifs restent visibles. Les actions secondaires sont regroupées. Le Fil reste dans le header et les espaces gardent leurs tickets de cinéma."
-    },
-    {
-      "title": "Le calendrier garde ta date",
-      "body": "La planification reprend le jour consulté. Noter un film vu ce jour-là apparaît seulement pour aujourd’hui ou une date passée."
-    },
-    {
-      "title": "La barre revient quand tu reviens",
-      "body": "Après une sélection ou la fermeture d’une fenêtre, les onglets de navigation sont à nouveau visibles."
     }
   ],
   "highlights": [

@@ -46,6 +46,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import ProfileTab from './analytics/ProfileTab';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
+import MonthPlaylistCard from './MonthPlaylist';
 import AdnRadialChart from './AdnRadialChart';
 import { aggregateSourceLabel, getPublicRating, ratingSourceLabel } from '../utils/publicRating';
 import { criterionFamily, familyValue } from '../config/ratingProfiles';
@@ -1639,7 +1640,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           delta={tmdbAvg > 0 ? delta : null}
           months={last12Months}
           tabs={tabsNode}
-          constats={<StatsConstats movies={movies} />}
+          constats={
+            <>
+              <StatsConstats movies={movies} />
+              <div className="mt-6">
+                <MonthPlaylistCard movies={movies} />
+              </div>
+            </>
+          }
           isSharing={isSharing}
           onShare={handleShareArchetype}
           onViewMovie={onViewMovie}

@@ -25,6 +25,7 @@ const IDLE: PreviewState = { trackId: null, playing: false, position: 0, length:
 let state: PreviewState = IDLE;
 let audio: HTMLAudioElement | null = null;
 const listeners = new Set<() => void>();
+const endedListeners = new Set<(trackId: number) => void>();
 
 const set = (next: Partial<PreviewState>) => {
   state = { ...state, ...next };
@@ -42,7 +43,11 @@ function element(): HTMLAudioElement {
   audio.addEventListener('loadedmetadata', () => {
     if (Number.isFinite(audio!.duration)) set({ length: audio!.duration });
   });
-  audio.addEventListener('ended', () => set({ playing: false, position: 0 }));
+  audio.addEventListener('ended', () => {
+    const ended = state.trackId;
+    set({ playing: false, position: 0 });
+    if (ended != null) endedListeners.forEach((listener) => listener(ended));
+  });
   audio.addEventListener('pause', () => set({ playing: false }));
   audio.addEventListener('playing', () => set({ playing: true, failed: false }));
   return audio;
@@ -93,5 +98,16 @@ const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+
+/**
+ * Prévenu quand un extrait va jusqu'au bout : la BO du trajet enchaîne ainsi le
+ * morceau suivant. Rend la fonction qui se désabonne.
+ */
+export function onPreviewEnded(listener: (trackId: number) => void) {
+  endedListeners.add(listener);
+  return () => {
+    endedListeners.delete(listener);
+  };
+}
 
 export const usePreviewPlayer = () => useSyncExternalStore(subscribe, () => state, () => IDLE);

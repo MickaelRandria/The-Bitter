@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { CinemaScreening } from '../types';
 import { useDialog } from '../utils/useDialog';
+import RouteAmbiance from './soundtrack/RouteAmbiance';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Companion, getCompanions, notifyRunningLate } from '../services/social';
 import { getMovieDetailsForAdd } from '../services/tmdb';
@@ -890,6 +891,10 @@ export default function ScreeningRouteSheet({
                       ? t(transit.trip.realTime ? 'route.transitRealtime' : 'route.transitScheduled')
                       : t('route.transitNote')}
             </p>
+
+            {screening.tmdbId != null && (
+              <RouteAmbiance tmdbId={screening.tmdbId} title={screening.title} posterUrl={screening.posterUrl} />
+            )}
 
             {plan?.late && !started && (
               <div className="flex flex-col gap-2 rounded-[22px] bg-sand p-4 dark:bg-white/5">

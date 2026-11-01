@@ -73,6 +73,7 @@ import { ImdbLookup, useImdbRatings } from '../services/imdb';
 import { pickFromLookup, pickPublicRating } from '../utils/publicRating';
 import VerdictSheet from './verdict/VerdictSheet';
 import MonthlyRecap from './verdict/MonthlyRecap';
+import BlindTestCard from './BlindTest';
 import SpaceStatsView from './verdict/SpaceStatsView';
 import { Avatar, Poster, ProgressRing, VerdictPerson } from './verdict/VerdictBits';
 import { VerdictExtras, emptyExtras, loadVerdictExtras, subscribeToVerdicts } from '../services/verdicts';
@@ -1691,6 +1692,10 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             onPropose={proposeFromSuggestion}
             onOpenWatchlist={() => document.getElementById('space-watchlist')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           />
+        )}
+
+        {!loadError && (
+          <BlindTestCard spaceId={space.id} spaceName={space.name} currentUserId={currentUserId} movies={movies} people={people} />
         )}
 
         {!noticeSeen && (

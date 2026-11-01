@@ -1845,11 +1845,14 @@ const App: React.FC = () => {
       }
       setPendingJoinTick((n) => n + 1);
     }
+    // Retour de la connexion Spotify (public/spotify/) : la carte playlist des
+    // Stats reprend d'elle-même (voir MonthPlaylist).
+    if (url.searchParams.get('spotify')) setViewMode('Analytics');
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening', 'join', 'vote'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       handleIncomingUrl(window.location.href);
