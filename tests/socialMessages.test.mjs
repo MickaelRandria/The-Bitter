@@ -125,6 +125,17 @@ test('séries suivies : épisode du jour, saison qui commence, saison annoncée'
   );
 });
 
+test('ping d’un espace : défi à « Qui a mis cette note ? » avec le score', () => {
+  const who = socialMessage({
+    kind: 'space_ping',
+    actor: 'Léa',
+    title: 'Léa te défie à « Qui a mis cette note ? » dans « Ciné du jeudi » (6/8)',
+    payload: { what: 'who', space: 'Ciné du jeudi', score: 6, total: 8 },
+  });
+  assert.equal(who.title, 'Léa te défie à « Qui a mis cette note ? »');
+  assert.equal(who.body, '6/8 de « Ciné du jeudi ». Tu connais le groupe aussi bien ?');
+});
+
 test('ping d’un espace : défi au blind test avec le score, récap du mois dispo', () => {
   const blind = socialMessage({
     kind: 'space_ping',

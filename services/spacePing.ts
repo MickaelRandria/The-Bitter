@@ -2,11 +2,11 @@ import { supabase } from './supabase';
 
 /**
  * Prévenir des membres de son espace : le récap du mois est dispo, ou un défi
- * au blind test. Côté serveur, `ping_space_members` vérifie l'appartenance à
+ * au blind test ou à « Qui a mis cette note ? ». Côté serveur, `ping_space_members` vérifie l'appartenance à
  * l'espace, les blocages et un plafond horaire (migration 20261101_ping_espace).
  */
 
-export type PingKind = 'recap' | 'blind';
+export type PingKind = 'recap' | 'blind' | 'who';
 
 const ERRORS: Record<string, string> = {
   'rate-limited': 'Beaucoup de messages envoyés cette heure-ci. Réessaie un peu plus tard.',
@@ -60,4 +60,36 @@ export async function shareOutside(text: string, spaceId?: string, what?: PingKi
   } catch {
     return null;
   }
+}
+
+export interface SpaceChallenge {
+  actorId: string;
+  what: 'blind' | 'who';
+  score?: number;
+  total?: number;
+  createdAt: string;
+}
+
+/** Le dernier défi reçu dans cet espace (blind test ou « Qui a mis cette note ? »), s'il y en a un. */
+export async function getLastSpaceChallenge(spaceId: string, userId: string): Promise<SpaceChallenge | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('actor_id, payload, created_at')
+    .eq('recipient_id', userId)
+    .eq('space_id', spaceId)
+    .eq('kind', 'space_ping')
+    .in('payload->>what', ['blind', 'who'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.actor_id) return null;
+  const payload = (data.payload ?? {}) as { what?: string; score?: number; total?: number };
+  return {
+    actorId: data.actor_id,
+    what: payload.what === 'who' ? 'who' : 'blind',
+    score: payload.score,
+    total: payload.total,
+    createdAt: data.created_at,
+  };
 }

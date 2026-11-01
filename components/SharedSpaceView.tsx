@@ -73,8 +73,7 @@ import { ImdbLookup, useImdbRatings } from '../services/imdb';
 import { pickFromLookup, pickPublicRating } from '../utils/publicRating';
 import VerdictSheet from './verdict/VerdictSheet';
 import MonthlyRecap from './verdict/MonthlyRecap';
-import BlindTestCard from './BlindTest';
-import WhoRatedCard from './WhoRated';
+import SpaceGames from './SpaceGames';
 import SpaceStatsView from './verdict/SpaceStatsView';
 import { Avatar, Poster, ProgressRing, VerdictPerson } from './verdict/VerdictBits';
 import { VerdictExtras, emptyExtras, loadVerdictExtras, subscribeToVerdicts } from '../services/verdicts';
@@ -1696,11 +1695,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         )}
 
         {!loadError && (
-          <BlindTestCard spaceId={space.id} spaceName={space.name} currentUserId={currentUserId} movies={movies} people={people} />
-        )}
-
-        {!loadError && members.length > 1 && (
-          <WhoRatedCard
+          <SpaceGames
+            spaceId={space.id}
             spaceName={space.name}
             currentUserId={currentUserId}
             movies={movies}

@@ -68,8 +68,8 @@ export interface PlanPayload {
   arrive_at?: string;
   starts_at?: string;
   cinema_name?: string | null;
-  /** Ping d'un espace : récap du mois dispo, ou défi au blind test avec son score. */
-  what?: 'recap' | 'blind';
+  /** Ping d'un espace : récap du mois dispo, ou défi (blind test, « Qui a mis cette note ? ») avec son score. */
+  what?: 'recap' | 'blind' | 'who';
   score?: number;
   total?: number;
   month?: string;
@@ -324,6 +324,13 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         return {
           title: `${actor} te défie au blind test BO`,
           body: `${score != null && total ? `${score}/${total}` : 'Un score à battre'}${where}. À toi de faire mieux.`,
+        };
+      }
+      if (input.payload?.what === 'who') {
+        const { score, total } = input.payload;
+        return {
+          title: `${actor} te défie à « Qui a mis cette note ? »`,
+          body: `${score != null && total ? `${score}/${total}` : 'Un score à battre'}${where}. Tu connais le groupe aussi bien ?`,
         };
       }
       return { title: `Le récap du mois${where} est dispo`, body: `${actor} l’a regardé. À ton tour de voir la story.` };

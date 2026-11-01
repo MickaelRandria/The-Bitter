@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Loader2, Music2, Pause, Play, Trophy, X } from 'lucide-react';
+import { Check, Loader2, Music2, Pause, Play, Timer, Trophy, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
@@ -13,12 +13,10 @@ import {
   BlindScore,
   HINT_SECONDS,
   MAX_POINTS,
-  MIN_FILMS,
   QUESTION_COUNT,
   QUESTION_SECONDS,
   buildQuestions,
   getBlindLeaderboard,
-  playableFilms,
   pointsFor,
   saveBlindScore,
 } from '../services/blindTest';
@@ -26,8 +24,8 @@ import { Avatar, VerdictPerson } from './verdict/VerdictBits';
 import PingMembers from './PingMembers';
 
 /**
- * Blind test BO, dans un espace : une carte d'entrée avec le classement, puis
- * la partie en plein écran, sombre comme une salle.
+ * Blind test BO, en plein écran, sombre comme une salle. On y entre depuis la
+ * carte « Jeux de l'espace » (SpaceGames).
  *
  * Chaque extrait part d'un geste (« C'est parti », « Suivant ») : iOS refuse
  * de lancer un son sans toucher, et la préparation est asynchrone.
@@ -39,6 +37,12 @@ import PingMembers from './PingMembers';
 type Phase = 'loading' | 'ready' | 'question' | 'answered' | 'done' | 'empty';
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+const clock = (s: number) => `0:${String(Math.max(0, s)).padStart(2, '0')}`;
+
+/** La pastille « Vaut n pts » : lime, jaune, puis orange à mesure que les points fondent. */
+const WORTH_TONE: Record<number, string> = { 3: 'bg-bitter-lime', 2: 'bg-[#FFE27A]', 1: 'bg-[#F08A24]' };
+/** Les trois zones de la frise, à la largeur de leur durée. */
+const zoneColumns = `${HINT_SECONDS[0]}fr ${HINT_SECONDS[1] - HINT_SECONDS[0]}fr ${QUESTION_SECONDS - HINT_SECONDS[1]}fr`;
 
 /** Le classement : avatar, prénom, score. */
 const Board: React.FC<{ scores: BlindScore[]; people: VerdictPerson[]; limit?: number }> = ({ scores, people, limit = 5 }) => {
@@ -67,7 +71,7 @@ const Board: React.FC<{ scores: BlindScore[]; people: VerdictPerson[]; limit?: n
   );
 };
 
-const BlindTestGame: React.FC<{
+export const BlindTestGame: React.FC<{
   spaceId: string;
   spaceName: string;
   currentUserId: string;
@@ -115,6 +119,7 @@ const BlindTestGame: React.FC<{
   // Indices déjà donnés ; la réponse affichée, ils le sont tous.
   const hints = phase === 'answered' ? HINT_SECONDS.length : HINT_SECONDS.filter((s) => elapsed >= s * 1000).length;
   const worth = MAX_POINTS - hints;
+  const untilNext = hints < HINT_SECONDS.length ? Math.max(1, Math.ceil((HINT_SECONDS[hints] * 1000 - elapsed) / 1000)) : 0;
 
   const answer = (choice: number | null) => {
     if (phase !== 'question' || !question) return;
@@ -245,63 +250,103 @@ const BlindTestGame: React.FC<{
 
         {(phase === 'question' || phase === 'answered') && question && (
           <>
-            <div className="flex flex-col items-center gap-3 pt-2">
-              <p className="text-xs font-bold text-stone-400">{t('blind.progress', { n: index + 1, total: questions.length })}</p>
+            <div className="flex items-center gap-4 pt-1">
               <button
                 type="button"
                 onClick={() => togglePreview(question.track)}
                 aria-label={t(playing ? 'blind.pause' : 'blind.replay')}
-                className="relative flex h-40 w-40 items-center justify-center rounded-full transition active:scale-95"
-                style={{
-                  background: `conic-gradient(#D9FF00 ${phase === 'question' ? (elapsed / (QUESTION_SECONDS * 10)) : 100}%, rgba(255,255,255,0.08) 0)`,
-                }}
+                className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-bitter-lime text-[#111] transition active:scale-95"
               >
-                <span className="flex h-[136px] w-[136px] items-center justify-center rounded-full bg-[#111]">
-                  <span className="flex h-24 w-24 items-center justify-center rounded-full bg-bitter-lime text-[#111]">
-                    {playing ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" />}
-                  </span>
-                </span>
+                {playing ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" />}
               </button>
-              {phase === 'question' ? (
-                <p className="text-[40px] font-black leading-none tracking-[-0.06em] tabular-nums" aria-live="off">
-                  0:{String(remaining).padStart(2, '0')}
-                </p>
-              ) : (
-                <div className="text-center" role="status">
-                  <p className={`text-lg font-black tracking-tight ${answers[index] ? 'text-bitter-lime' : 'text-[#F08A24]'}`}>
-                    {answers[index] ? t('blind.right') : picked == null ? t('blind.timeout') : t('blind.wrong')}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-stone-300">
-                    {t('blind.reveal', { title: question.answer.title, track: question.track.title })}
-                  </p>
-                  {answers[index] && (
-                    <p className="mt-1 text-xs font-black text-bitter-lime">{t('blind.earned', { n: points[index] ?? 0 })}</p>
-                  )}
-                </div>
-              )}
-              {phase === 'question' && (
-                <p className="text-sm font-bold text-stone-300">
-                  {t('blind.question')} <span className="text-bitter-lime">{t('blind.worth', { n: worth })}</span>
-                </p>
-              )}
-              {phase === 'question' && hints > 0 && (question.answer.director || question.answer.year) && (
-                <p className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white" role="status">
-                  {t('blind.hint')}{' '}
-                  {[question.answer.director, question.answer.year].filter(Boolean).join(' · ')}
-                </p>
-              )}
-              {player.failed && player.trackId === question.track.id && (
-                <p className="text-xs font-bold text-[#F08A24]">{t('soundtrack.failed')}</p>
-              )}
+              <div className="min-w-0 flex-1">
+                {phase === 'question' ? (
+                  <>
+                    <p className="text-[46px] font-black leading-none tracking-[-0.06em] tabular-nums" aria-live="off">
+                      {clock(remaining)}
+                    </p>
+                    <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[13px]">
+                      <span className={`rounded-full px-2.5 py-1 font-black text-[#111] ${WORTH_TONE[worth] ?? WORTH_TONE[1]}`}>
+                        {t(worth > 1 ? 'blind.worthMany' : 'blind.worthOne', { n: worth })}
+                      </span>
+                      <span className="font-semibold text-stone-400">{t('blind.ifNow')}</span>
+                    </p>
+                  </>
+                ) : (
+                  <div role="status">
+                    <p className={`text-xl font-black tracking-tight ${answers[index] ? 'text-bitter-lime' : 'text-[#F08A24]'}`}>
+                      {answers[index] ? t('blind.right') : picked == null ? t('blind.timeout') : t('blind.wrong')}
+                      {answers[index] ? ` · ${t('blind.earned', { n: points[index] ?? 0 })}` : ''}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold leading-snug text-stone-300">
+                      {t('blind.reveal', { title: question.answer.title, track: question.track.title })}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {phase === 'question' && (
+              <div aria-hidden="true">
+                <div className="relative">
+                  <div className="grid gap-[3px]" style={{ gridTemplateColumns: zoneColumns }}>
+                    {[3, 2, 1].map((n) => (
+                      <div
+                        key={n}
+                        className={`flex h-[26px] items-center justify-center rounded-lg text-[11px] font-black ${
+                          n === worth ? 'bg-bitter-lime text-[#111]' : n > worth ? 'bg-white/5 text-stone-500 line-through' : 'bg-white/[0.12] text-stone-200'
+                        }`}
+                      >
+                        {t(n > 1 ? 'blind.ptsMany' : 'blind.ptsOne', { n })}
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="absolute -top-1 h-[34px] w-1 rounded bg-white shadow-[0_0_0_3px_#111] transition-[left] duration-200 ease-linear"
+                    style={{ left: `calc(${Math.min(100, elapsed / (QUESTION_SECONDS * 10))}% - 2px)` }}
+                  />
+                </div>
+                <div className="mt-2 grid gap-[3px] text-[10px] font-bold text-stone-400" style={{ gridTemplateColumns: zoneColumns }}>
+                  <span>{t('blind.zoneMusic')}</span>
+                  <span className={hints >= 1 ? 'text-white' : ''}>{t('blind.zoneHint', { time: clock(QUESTION_SECONDS - HINT_SECONDS[0]) })}</span>
+                  <span className={hints >= 2 ? 'text-white' : ''}>{t('blind.zoneDrop', { time: clock(QUESTION_SECONDS - HINT_SECONDS[1]) })}</span>
+                </div>
+              </div>
+            )}
+
+            {phase === 'question' && (
+              <p
+                className={`flex items-center gap-2 rounded-[14px] px-3 py-2.5 text-xs font-extrabold ${
+                  hints >= HINT_SECONDS.length ? 'bg-[#F08A24]/15 text-[#F7B271]' : 'bg-bitter-lime/10 text-[#E6FF66]'
+                }`}
+              >
+                <Timer size={16} aria-hidden="true" className="shrink-0" />
+                {hints === 0
+                  ? t('blind.nextHint', { s: untilNext })
+                  : hints === 1
+                    ? t('blind.nextDrop', { s: untilNext })
+                    : t('blind.lastPoint')}
+              </p>
+            )}
+
+            {phase === 'question' && hints > 0 && (question.answer.director || question.answer.year) && (
+              <p className="flex items-center gap-2.5 rounded-[18px] bg-white/[0.08] px-3 py-2.5 text-[13px] font-extrabold" role="status">
+                <span className="rounded-full bg-bitter-lime px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[#111]">{t('blind.hint')}</span>
+                {[question.answer.director, question.answer.year].filter(Boolean).join(' · ')}
+              </p>
+            )}
+
+            {player.failed && player.trackId === question.track.id && (
+              <p className="text-xs font-bold text-[#F08A24]">{t('soundtrack.failed')}</p>
+            )}
+
+            <div className="mt-auto grid grid-cols-2 gap-2">
               {question.options.map((option, i) => {
                 const right = option.tmdb_id === question.answer.tmdb_id;
                 const dropped = phase === 'question' && hints >= 2 && question.dropped.includes(i);
                 const state =
                   dropped
-                    ? 'border-white/5 bg-white/[0.02] opacity-25'
+                    ? 'border-dashed border-white/15 bg-transparent opacity-35'
                     : phase === 'answered'
                     ? right
                       ? 'border-bitter-lime bg-bitter-lime/15'
@@ -326,6 +371,7 @@ const BlindTestGame: React.FC<{
                       />
                     )}
                     <span className="line-clamp-2 pr-10 text-[15px] font-black leading-[1.05] tracking-[-0.03em]">{option.title}</span>
+                    {dropped && <span className="mt-0.5 text-[10px] font-bold text-stone-400">{t('blind.dropped')}</span>}
                     {phase === 'answered' && right && (
                       <span className="absolute bottom-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-bitter-lime text-[#111]">
                         <Check size={14} strokeWidth={3} />
@@ -409,68 +455,3 @@ const BlindTestGame: React.FC<{
     document.body
   );
 };
-
-/** La carte d'entrée dans l'espace. Rien tant que l'espace n'a pas quatre films. */
-const BlindTestCard: React.FC<{
-  spaceId: string;
-  spaceName: string;
-  currentUserId: string;
-  movies: SharedMovie[];
-  people: VerdictPerson[];
-}> = ({ spaceId, spaceName, currentUserId, movies, people }) => {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const [scores, setScores] = useState<BlindScore[]>([]);
-  const enough = useMemo(() => playableFilms(movies).length >= MIN_FILMS, [movies]);
-
-  useEffect(() => {
-    if (!enough) return;
-    let alive = true;
-    getBlindLeaderboard(spaceId).then((list) => alive && setScores(list));
-    return () => {
-      alive = false;
-    };
-  }, [spaceId, enough]);
-
-  if (!enough) return null;
-
-  return (
-    <section aria-label={t('blind.title')} className="relative isolate overflow-hidden rounded-[28px] bg-[#111] p-5 text-white">
-      <Music2 aria-hidden="true" size={120} className="pointer-events-none absolute -right-6 -top-6 -z-10 rotate-12 text-white/[0.06]" />
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bitter-lime">{t('blind.title')}</p>
-      <h2 className="mt-1.5 text-[26px] font-black leading-[0.95] tracking-[-0.055em]">{t('blind.cardTitle')}</h2>
-      <p className="mt-2 text-xs font-semibold leading-snug text-stone-300">{t('blind.cardBody')}</p>
-      {scores.length > 0 && (
-        <div className="mt-4 rounded-[20px] bg-white/[0.06] p-3.5">
-          <Board scores={scores} people={people} limit={3} />
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => {
-          haptics.medium();
-          setOpen(true);
-        }}
-        className={`${btnPrimary} mt-4 w-full`}
-      >
-        <Play size={15} fill="currentColor" />
-        {t('blind.play')}
-      </button>
-      {open && (
-        <BlindTestGame
-          spaceId={spaceId}
-          spaceName={spaceName}
-          currentUserId={currentUserId}
-          movies={movies}
-          people={people}
-          onClose={(saved) => {
-            setOpen(false);
-            if (saved) getBlindLeaderboard(spaceId).then(setScores);
-          }}
-        />
-      )}
-    </section>
-  );
-};
-
-export default BlindTestCard;
