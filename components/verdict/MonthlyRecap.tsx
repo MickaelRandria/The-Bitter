@@ -10,13 +10,16 @@ import { previousMonth, shiftMonth, watchedAt } from '../../utils/spaceStats';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { haptics } from '../../utils/haptics';
 import { Avatar, Poster, VerdictPerson } from './VerdictBits';
+import PingMembers from '../PingMembers';
+import { resizeTmdbImage } from '../../utils/tmdbImage';
 
 /**
  * Le récap du mois, en stories.
  *
  * Une carte « Nouveau » apparaît le 1er du mois en tête de l'espace ; elle ouvre
  * sept diapos plein écran sur le mois écoulé (trois quand le mois a été calme).
- * Pas de bouton de partage : c'est un souvenir du groupe, affiché dans l'espace.
+ * Chaque diapo a en fond l'affiche du film dont elle parle. La dernière propose
+ * de prévenir les autres membres (dans l'app) ou de partager hors de l'app.
  */
 interface MonthlyRecapProps {
   spaceId: string;
@@ -41,8 +44,12 @@ interface MonthlyRecapProps {
 
 interface Slide {
   bg: string;
+  /** L'affiche du film dont parle la diapo, en fond, assombrie. */
+  poster?: string | null;
   body: React.ReactNode;
   cta?: { label: string; run: () => void };
+  /** Diapo avec des boutons : elle passe au-dessus des zones de défilement. */
+  interactive?: boolean;
 }
 
 const seenKey = (spaceId: string, month: string) => `bitter_recap_seen_${spaceId}_${month}`;
@@ -114,7 +121,14 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
       .map((p) => ({ p, slot: chosenSlotOf(p) }))
       .filter((x) => x.slot && new Date(x.slot.starts_at).getTime() > Date.now())
       .sort((a, b) => a.slot!.starts_at.localeCompare(b.slot!.starts_at));
-    return { inMonth, hasHistory: before.length > 0, prevCount, done, tight, split, splitSpread, minutes, inCinema, perMember, board, debateLine, lastDone, upcoming, valuesOf };
+    // Les affiches de fond : le film le mieux noté du mois, et le plus pronostiqué.
+    const topRated = [...inMonth]
+      .map((m) => ({ m, avg: mean(valuesOf(m.id).map((x) => x.v)) ?? -1 }))
+      .sort((a, b) => b.avg - a.avg)[0]?.m ?? null;
+    const guessCount = new Map<string, number>();
+    props.guesses.filter((g) => inMonthIds.has(g.movie_id)).forEach((g) => guessCount.set(g.movie_id, (guessCount.get(g.movie_id) ?? 0) + 1));
+    const mostGuessed = inMonth.find((m) => m.id === [...guessCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]) ?? null;
+    return { inMonth, hasHistory: before.length > 0, prevCount, done, tight, split, splitSpread, minutes, inCinema, perMember, board, debateLine, lastDone, upcoming, valuesOf, topRated, mostGuessed };
   }, [props.movies, props.ratings, props.plans, props.guesses, props.messages, props.doneIds, props.people, month, props.currentUserId]);
 
   const quiet = data.inMonth.length === 0;
@@ -153,6 +167,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
 
   const head: Slide = {
     bg: 'linear-gradient(160deg,#1A1A1A,#0c0c0c)',
+    poster: data.inMonth[0]?.poster_url ?? data.lastDone?.m.poster_url,
     body: (
       <>
         <span className={k}>{`${monthName(month)} ${month.slice(0, 4)}`}</span>
@@ -166,7 +181,27 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
     ),
   };
 
-  const slides: Slide[] = (() => {
+  const shareSlide: Slide = {
+    bg: 'linear-gradient(160deg,#1A1A1A,#0c0c0c)',
+    poster: data.topRated?.poster_url ?? data.inMonth[0]?.poster_url ?? data.lastDone?.m.poster_url,
+    interactive: true,
+    body: (
+      <>
+        <span className={k}>{t('recap.groupShareKicker', { month: monthName(month) })}</span>
+        <span className={h}>{t('recap.groupShareTitle')}</span>
+        <span className={para}>{t('recap.groupShareBody')}</span>
+        <PingMembers
+          spaceId={props.spaceId}
+          what="recap"
+          people={props.people}
+          month={month}
+          shareText={t('recap.groupShareText', { month: monthName(month), space: props.spaceName })}
+        />
+      </>
+    ),
+  };
+
+  const slides: Slide[] = [...(() => {
     if (quiet) {
       const last = data.lastDone;
       const lastAvg = last ? mean(data.valuesOf(last.m.id).map((x) => x.v)) : null;
@@ -174,6 +209,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
         head,
         {
           bg: 'linear-gradient(160deg,#2a2a2a,#111)',
+          poster: last?.m.poster_url,
           body: (
             <>
               <span className={k}>{t('recap.quietKicker')}</span>
@@ -189,6 +225,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
         },
         {
           bg: 'linear-gradient(160deg,#B8763A,#2a1608)',
+          poster: suggestion ? posterOf(suggestion.posterPath, 'w780') : null,
           body: (
             <>
               <span className={k}>{t('recap.ideaFor', { month: monthName(shiftMonth(month, 1)) })}</span>
@@ -222,6 +259,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
     const delta = data.inMonth.length - data.prevCount;
     list.push({
       bg: 'linear-gradient(160deg,#2F4A3A,#0d1a12)',
+      poster: data.inMonth[0]?.poster_url,
       body: (
         <>
           <span className={k}>{t('recap.seenKicker')}</span>
@@ -250,6 +288,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
       const vals = data.valuesOf(data.tight.id);
       list.push({
         bg: 'linear-gradient(160deg,#3E5238,#121a10)',
+        poster: data.tight.poster_url,
         body: (
           <>
             <span className={k}>{t('recap.tightKicker')}</span>
@@ -265,6 +304,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
       const vals = data.valuesOf(data.split.id);
       list.push({
         bg: 'linear-gradient(160deg,#8a4a12,#1f0f04)',
+        poster: data.split.poster_url,
         body: (
           <>
             <span className={k}>{t('recap.splitKicker')}</span>
@@ -290,6 +330,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
       const sev = data.perMember[data.perMember.length - 1];
       list.push({
         bg: 'linear-gradient(160deg,#3B2F5B,#100c1d)',
+        poster: data.topRated?.poster_url,
         body: (
           <>
             <span className={k}>{t('recap.ratesKicker')}</span>
@@ -304,6 +345,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
     if (data.board.length) {
       list.push({
         bg: 'linear-gradient(160deg,#1F3A5F,#08111e)',
+        poster: data.mostGuessed?.poster_url,
         body: (
           <>
             <span className={k}>{t('recap.guessKicker')}</span>
@@ -331,6 +373,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
     if (next.length) {
       list.push({
         bg: 'linear-gradient(160deg,#B8763A,#2a1608)',
+        poster: next[0]?.poster,
         body: (
           <>
             <span className={k}>{t('recap.nextKicker', { month: monthName(shiftMonth(month, 1)) })}</span>
@@ -350,7 +393,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
       });
     }
     return list;
-  })();
+  })(), shareSlide];
 
   const last = slides.length - 1;
   const current = Math.min(index, last);
@@ -438,6 +481,20 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
           onPointerCancel={() => setPaused(false)}
         >
           <span className="absolute inset-0 transition-[background] duration-500" style={{ background: slide.bg }} />
+          {slide.poster && (
+            <img
+              key={`bg-${current}`}
+              src={resizeTmdbImage(slide.poster, 'w780')}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-[1px] animate-[fadeIn_0.5s_ease-out]"
+            />
+          )}
+          <span
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.85) 100%)' }}
+          />
           <div className="relative flex gap-1 px-3 pt-[calc(env(safe-area-inset-top,0px)+10px)]">
             {slides.map((_, i) => (
               <span key={i} className={`vd-story-bar flex-1 h-[3px] rounded bg-white/30 overflow-hidden ${i < current ? 'vd-done' : i === current ? 'vd-on' : ''}`}>
@@ -472,7 +529,7 @@ const MonthlyRecap: React.FC<MonthlyRecapProps> = (props) => {
             aria-label={t('recap.nextSlide')}
             onClick={() => (current >= last ? setOpen(false) : setIndex((i) => i + 1))}
           />
-          <div key={current} className="vd-slide relative flex-1 flex flex-col justify-center gap-4 px-6 max-w-md w-full mx-auto">
+          <div key={current} className={`vd-slide relative flex-1 flex flex-col justify-center gap-4 px-6 max-w-md w-full mx-auto ${slide.interactive ? 'z-20' : ''}`}>
             {slide.body}
           </div>
           {slide.cta ? (

@@ -31,7 +31,8 @@ export type SocialKind =
   | 'verdict_complete'
   | 'review_reaction'
   | 'verdict_debate'
-  | 'running_late';
+  | 'running_late'
+  | 'space_ping';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -67,6 +68,11 @@ export interface PlanPayload {
   arrive_at?: string;
   starts_at?: string;
   cinema_name?: string | null;
+  /** Ping d'un espace : récap du mois dispo, ou défi au blind test avec son score. */
+  what?: 'recap' | 'blind';
+  score?: number;
+  total?: number;
+  month?: string;
 }
 
 export interface SocialMessageInput {
@@ -309,6 +315,18 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         title: `${actor} sera un peu en retard`,
         body: `${arrive ? `Arrivée vers ${arrive}` : 'Arrivée un peu après l’heure'} pour ${title}${where ? ` · ${where}` : ''}. Garde-lui une place !`,
       };
+    }
+    case 'space_ping': {
+      const space = (input.payload?.space ?? '').trim();
+      const where = space ? ` de « ${space} »` : '';
+      if (input.payload?.what === 'blind') {
+        const { score, total } = input.payload;
+        return {
+          title: `${actor} te défie au blind test BO`,
+          body: `${score != null && total ? `${score}/${total}` : 'Un score à battre'}${where}. À toi de faire mieux.`,
+        };
+      }
+      return { title: `Le récap du mois${where} est dispo`, body: `${actor} l’a regardé. À ton tour de voir la story.` };
     }
     default:
       return { title: 'The Bitter', body: title };

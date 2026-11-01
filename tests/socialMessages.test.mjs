@@ -124,3 +124,23 @@ test('séries suivies : épisode du jour, saison qui commence, saison annoncée'
     'X revient bientôt'
   );
 });
+
+test('ping d’un espace : défi au blind test avec le score, récap du mois dispo', () => {
+  const blind = socialMessage({
+    kind: 'space_ping',
+    actor: 'Léa',
+    title: 'Léa te défie au blind test BO de « Ciné du jeudi » (7/10)',
+    payload: { what: 'blind', space: 'Ciné du jeudi', score: 7, total: 10 },
+  });
+  assert.equal(blind.title, 'Léa te défie au blind test BO');
+  assert.equal(blind.body, '7/10 de « Ciné du jeudi ». À toi de faire mieux.');
+
+  const recap = socialMessage({
+    kind: 'space_ping',
+    actor: 'Léa',
+    title: 'Léa : le récap du mois de « Ciné du jeudi » est dispo',
+    payload: { what: 'recap', space: 'Ciné du jeudi', month: '2026-10' },
+  });
+  assert.equal(recap.title, 'Le récap du mois de « Ciné du jeudi » est dispo');
+  assert.equal(recap.body, 'Léa l’a regardé. À ton tour de voir la story.');
+});

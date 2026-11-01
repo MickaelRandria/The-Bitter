@@ -20,6 +20,7 @@ import {
   saveBlindScore,
 } from '../services/blindTest';
 import { Avatar, VerdictPerson } from './verdict/VerdictBits';
+import PingMembers from './PingMembers';
 
 /**
  * Blind test BO, dans un espace : une carte d'entrée avec le classement, puis
@@ -330,6 +331,17 @@ const BlindTestGame: React.FC<{
               <div className="mt-3">
                 {scores === null ? <Loader2 size={16} className="animate-spin text-stone-400" /> : <Board scores={scores} people={people} limit={8} />}
               </div>
+            </div>
+            <div className="rounded-[24px] bg-white/[0.06] p-4">
+              <p className={`${sectionLabel} mb-3 !text-stone-400`}>{t('blind.challenge')}</p>
+              <PingMembers
+                spaceId={spaceId}
+                what="blind"
+                people={people}
+                score={score}
+                total={questions.length}
+                shareText={t('blind.shareText', { score, total: questions.length, space: spaceName })}
+              />
             </div>
             <div className="mt-auto flex flex-col gap-2">
               <button
