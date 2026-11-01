@@ -11,12 +11,15 @@ import type { SharedMovie } from '../services/supabase';
 import {
   BlindQuestion,
   BlindScore,
+  HINT_SECONDS,
+  MAX_POINTS,
   MIN_FILMS,
   QUESTION_COUNT,
   QUESTION_SECONDS,
   buildQuestions,
   getBlindLeaderboard,
   playableFilms,
+  pointsFor,
   saveBlindScore,
 } from '../services/blindTest';
 import { Avatar, VerdictPerson } from './verdict/VerdictBits';
@@ -28,6 +31,9 @@ import PingMembers from './PingMembers';
  *
  * Chaque extrait part d'un geste (« C'est parti », « Suivant ») : iOS refuse
  * de lancer un son sans toucher, et la préparation est asynchrone.
+ *
+ * Pendant l'écoute, les indices arrivent : réalisateur et année, puis deux
+ * mauvaises réponses écartées. Chaque indice retire un point à la question.
  */
 
 type Phase = 'loading' | 'ready' | 'question' | 'answered' | 'done' | 'empty';
@@ -76,6 +82,7 @@ const BlindTestGame: React.FC<{
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [answers, setAnswers] = useState<boolean[]>([]);
+  const [points, setPoints] = useState<number[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [totalMs, setTotalMs] = useState(0);
   const [scores, setScores] = useState<BlindScore[] | null>(null);
@@ -102,8 +109,12 @@ const BlindTestGame: React.FC<{
   useEffect(() => () => stopPreview(), []);
 
   const question = questions[index];
-  const score = answers.filter(Boolean).length;
+  const score = points.reduce((sum, n) => sum + n, 0);
+  const total = questions.length * MAX_POINTS;
   const remaining = Math.max(0, QUESTION_SECONDS - Math.floor(elapsed / 1000));
+  // Indices déjà donnés ; la réponse affichée, ils le sont tous.
+  const hints = phase === 'answered' ? HINT_SECONDS.length : HINT_SECONDS.filter((s) => elapsed >= s * 1000).length;
+  const worth = MAX_POINTS - hints;
 
   const answer = (choice: number | null) => {
     if (phase !== 'question' || !question) return;
@@ -112,6 +123,7 @@ const BlindTestGame: React.FC<{
     right ? haptics.success() : haptics.error();
     setPicked(choice);
     setAnswers((list) => [...list, right]);
+    setPoints((list) => [...list, right ? pointsFor(spent) : 0]);
     setTotalMs((ms) => ms + spent);
     setPhase('answered');
   };
@@ -143,7 +155,7 @@ const BlindTestGame: React.FC<{
   const finish = async () => {
     stopPreview();
     setPhase('done');
-    const ok = await saveBlindScore(spaceId, currentUserId, score, questions.length, totalMs);
+    const ok = await saveBlindScore(spaceId, currentUserId, score, total, totalMs);
     setSaved(ok);
     setScores(await getBlindLeaderboard(spaceId));
   };
@@ -221,6 +233,9 @@ const BlindTestGame: React.FC<{
               <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-stone-300">
                 {t('blind.readyBody', { n: questions.length, s: QUESTION_SECONDS })}
               </p>
+              <p className="mx-auto mt-2 max-w-[280px] text-xs leading-relaxed text-stone-400">
+                {t('blind.readyHints', { a: HINT_SECONDS[0], b: HINT_SECONDS[1], max: MAX_POINTS })}
+              </p>
             </div>
             <button type="button" onClick={() => start(0)} className={`${btnPrimary} w-full`}>
               {t('blind.go')}
@@ -259,9 +274,22 @@ const BlindTestGame: React.FC<{
                   <p className="mt-1 text-xs font-semibold text-stone-300">
                     {t('blind.reveal', { title: question.answer.title, track: question.track.title })}
                   </p>
+                  {answers[index] && (
+                    <p className="mt-1 text-xs font-black text-bitter-lime">{t('blind.earned', { n: points[index] ?? 0 })}</p>
+                  )}
                 </div>
               )}
-              {phase === 'question' && <p className="text-sm font-bold text-stone-300">{t('blind.question')}</p>}
+              {phase === 'question' && (
+                <p className="text-sm font-bold text-stone-300">
+                  {t('blind.question')} <span className="text-bitter-lime">{t('blind.worth', { n: worth })}</span>
+                </p>
+              )}
+              {phase === 'question' && hints > 0 && (question.answer.director || question.answer.year) && (
+                <p className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white" role="status">
+                  {t('blind.hint')}{' '}
+                  {[question.answer.director, question.answer.year].filter(Boolean).join(' · ')}
+                </p>
+              )}
               {player.failed && player.trackId === question.track.id && (
                 <p className="text-xs font-bold text-[#F08A24]">{t('soundtrack.failed')}</p>
               )}
@@ -270,8 +298,11 @@ const BlindTestGame: React.FC<{
             <div className="grid grid-cols-2 gap-2">
               {question.options.map((option, i) => {
                 const right = option.tmdb_id === question.answer.tmdb_id;
+                const dropped = phase === 'question' && hints >= 2 && question.dropped.includes(i);
                 const state =
-                  phase === 'answered'
+                  dropped
+                    ? 'border-white/5 bg-white/[0.02] opacity-25'
+                    : phase === 'answered'
                     ? right
                       ? 'border-bitter-lime bg-bitter-lime/15'
                       : i === picked
@@ -282,7 +313,7 @@ const BlindTestGame: React.FC<{
                   <button
                     key={option.id}
                     type="button"
-                    disabled={phase !== 'question'}
+                    disabled={phase !== 'question' || dropped}
                     onClick={() => answer(i)}
                     className={`relative isolate flex h-24 flex-col justify-end overflow-hidden rounded-[20px] border p-3 text-left transition active:scale-[0.98] ${state}`}
                   >
@@ -295,7 +326,6 @@ const BlindTestGame: React.FC<{
                       />
                     )}
                     <span className="line-clamp-2 pr-10 text-[15px] font-black leading-[1.05] tracking-[-0.03em]">{option.title}</span>
-                    {option.year ? <span className="mt-0.5 text-[11px] font-semibold text-stone-300">{option.year}</span> : null}
                     {phase === 'answered' && right && (
                       <span className="absolute bottom-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-bitter-lime text-[#111]">
                         <Check size={14} strokeWidth={3} />
@@ -320,7 +350,10 @@ const BlindTestGame: React.FC<{
               <Trophy size={30} className="mx-auto text-bitter-lime" />
               <p className="mt-3 text-[64px] font-black leading-none tracking-[-0.06em] tabular-nums">
                 {score}
-                <span className="text-2xl text-stone-400">/{questions.length}</span>
+                <span className="text-2xl text-stone-400">/{total}</span>
+              </p>
+              <p className="mt-1 text-xs font-bold text-stone-400">
+                {t('blind.rightCount', { n: answers.filter(Boolean).length, total: questions.length })}
               </p>
               <p className="mt-2 text-sm font-semibold text-stone-300">
                 {saved === false ? t('blind.saveFailed') : t('blind.doneBody', { time: seconds(totalMs) })}
@@ -339,8 +372,8 @@ const BlindTestGame: React.FC<{
                 what="blind"
                 people={people}
                 score={score}
-                total={questions.length}
-                shareText={t('blind.shareText', { score, total: questions.length, space: spaceName })}
+                total={total}
+                shareText={t('blind.shareText', { score, total, space: spaceName })}
               />
             </div>
             <div className="mt-auto flex flex-col gap-2">
@@ -348,6 +381,7 @@ const BlindTestGame: React.FC<{
                 type="button"
                 onClick={() => {
                   setAnswers([]);
+                  setPoints([]);
                   setTotalMs(0);
                   setSaved(null);
                   setScores(null);

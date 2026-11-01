@@ -1,7 +1,15 @@
 {
-  "version": "2026-11-01-musique",
+  "version": "2026-11-01-jeux",
   "label": "Version du 1er novembre",
   "items": [
+    {
+      "title": "Un blind test BO plus jouable",
+      "body": "Plus besoin de connaître les BO par cœur : on entend maintenant le thème le plus connu du film, et des indices arrivent pendant l’écoute (réalisateur et année, puis deux mauvaises réponses qui s’effacent). Répondre avant les indices rapporte jusqu’à 3 points."
+    },
+    {
+      "title": "Qui a mis cette note ?",
+      "body": "Un nouveau jeu dans tes espaces : un film, une note, parfois un commentaire, et quatre membres. Devine qui l’a donnée."
+    },
     {
       "title": "Blind test BO dans tes espaces",
       "body": "Dans un espace, une nouvelle carte « Blind test BO » : un extrait de bande originale tiré de vos films, quatre affiches, vingt secondes pour trouver le bon. Le meilleur score de chacun entre au classement de l’espace."
