@@ -136,6 +136,7 @@ import EntryFlow, { EntryAccount, NewProfileData } from './components/EntryFlow'
 import ConsentModal from './components/ConsentModal';
 import DeleteAccountModal from './components/DeleteAccountModal';
 import { SharedSpace, supabase, getUserSpaces, joinSpaceByCode } from './services/supabase';
+import { clearPendingOpen, takePendingOpen } from './utils/pendingOpen';
 import NotificationCenter from './components/NotificationCenter';
 import WatchWithSheet from './components/WatchWithSheet';
 import SocialNudge from './components/SocialNudge';
@@ -157,6 +158,7 @@ import {
   getCommonWishes,
   wishKey,
   answerWatchInvite,
+  markNotificationsRead,
 } from './services/social';
 import { formatRating } from './supabase/functions/notify/messages.ts';
 import {
@@ -726,7 +728,8 @@ const App: React.FC = () => {
   const [notifOpenSignal, setNotifOpenSignal] = useState(0);
   /** Film à ouvrir en arrivant dans un espace depuis une notification. */
   const [spaceFocusMovieId, setSpaceFocusMovieId] = useState<string | null>(null);
-  const [pendingNotifOpen, setPendingNotifOpen] = useState(false);
+  /** Notification touchée : son identifiant quand on le connaît, sinon `true` (ouvrir la cloche). */
+  const [pendingNotifOpen, setPendingNotifOpen] = useState<string | boolean>(false);
   /** Rappel de séance touché : la séance dont on ouvre « Quand partir ? ». */
   const [routeScreeningId, setRouteScreeningId] = useState<string | undefined>();
   /** Lien d'invitation reçu : qui attend, pour quel film. */
@@ -1825,7 +1828,8 @@ const App: React.FC = () => {
       savePendingInvite(invite);
       getInvitePreview(invite).then((preview) => preview && setInvitePreview(preview));
     }
-    if (url.searchParams.get('notif')) setPendingNotifOpen(true);
+    const notif = url.searchParams.get('notif');
+    if (notif) setPendingNotifOpen(/^[0-9a-f-]{36}$/i.test(notif) ? notif : true);
     const screeningLink = url.searchParams.get('screening');
     if (screeningLink) {
       setViewMode('Calendar');
@@ -1857,6 +1861,8 @@ const App: React.FC = () => {
     const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
+      // L'adresse est arrivée : la destination gardée par le service worker ne sert plus.
+      void clearPendingOpen();
       handleIncomingUrl(window.location.href);
       // Retirés de l'adresse : un rechargement ne doit pas rejouer l'action.
       incoming.forEach((key) => params.delete(key));
@@ -1868,20 +1874,52 @@ const App: React.FC = () => {
       if (pending) getInvitePreview(pending.token).then((preview) => preview && setInvitePreview(preview));
     }
     if (!('serviceWorker' in navigator)) return;
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'open' && typeof event.data.url === 'string') handleIncomingUrl(event.data.url);
+    // iPhone : l'app installée s'ouvre souvent sans l'adresse de la notification
+    // touchée. Le service worker l'a gardée (utils/pendingOpen.ts) : on la relit
+    // au démarrage et à chaque retour au premier plan.
+    const resumePending = () => {
+      void takePendingOpen().then((pendingUrl) => pendingUrl && handleIncomingUrl(pendingUrl));
     };
+    if (!incoming.length) resumePending();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') resumePending();
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'open' && typeof event.data.url === 'string') {
+        void clearPendingOpen();
+        handleIncomingUrl(event.data.url);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
     navigator.serviceWorker.addEventListener('message', onMessage);
-    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      navigator.serviceWorker.removeEventListener('message', onMessage);
+    };
   }, [handleIncomingUrl]);
 
-  // Notification touchée : on ouvre la cloche, une fois l'app prête à l'afficher.
+  // Notification touchée, une fois l'app prête : un ping d'espace (récap du mois,
+  // défi au blind test) ouvre directement l'espace, rien n'y attend de réponse ;
+  // les autres ouvrent la cloche, où se trouvent leurs boutons.
   useEffect(() => {
     if (!pendingNotifOpen || !session?.user?.id || !activeProfileId || bootstrapping) return;
+    const notificationId = typeof pendingNotifOpen === 'string' ? pendingNotifOpen : null;
     setPendingNotifOpen(false);
-    setActiveSharedSpace(null);
-    setViewMode('Feed');
-    setNotifOpenSignal((n) => n + 1);
+    void (async () => {
+      if (notificationId && supabase) {
+        const { data } = await supabase.from('notifications').select('kind, space_id').eq('id', notificationId).maybeSingle();
+        if (data?.kind === 'space_ping' && data.space_id) {
+          void markNotificationsRead([notificationId]);
+          await openSpaceFromNotification(data.space_id, null, false);
+          return;
+        }
+      }
+      setActiveSharedSpace(null);
+      setViewMode('Feed');
+      setNotifOpenSignal((n) => n + 1);
+    })();
+    // `openSpaceFromNotification` est recréée à chaque rendu ; seule l'arrivée d'une notification compte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingNotifOpen, session?.user?.id, activeProfileId, bootstrapping]);
 
   /**
