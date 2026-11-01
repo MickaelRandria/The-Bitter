@@ -30,19 +30,25 @@ const ratings = [
   { movie_id: 'c', profile_id: 'jane', v: 8 },
 ];
 
-test('qui a noté : on ne devine jamais ses propres notes', () => {
-  const candidates = whoCandidates(movies, ratings, people, 'me');
-  assert.equal(candidates.length, 4);
-  assert.ok(candidates.every((r) => r.profile_id !== 'me'));
-  for (const q of buildWhoQuestions(movies, ratings, people, 'me')) {
-    assert.notEqual(q.answer.id, 'me');
-    assert.ok(q.options.some((p) => p.id === q.answer.id));
-    assert.equal(new Set(q.options.map((p) => p.id)).size, q.options.length);
+test('qui a noté : ses propres notes comptent aussi, et les auteurs alternent', () => {
+  assert.equal(whoCandidates(movies, ratings, people).length, 5);
+  const duo = [{ id: 'me' }, { id: 'jane' }];
+  const duoRatings = [
+    ...['a', 'b', 'c', 'd', 'e', 'f'].map((m) => ({ movie_id: m, profile_id: 'me', v: 6 })),
+    ...['a', 'b', 'c', 'd', 'e', 'f'].map((m) => ({ movie_id: m, profile_id: 'jane', v: 8 })),
+  ];
+  const duoMovies = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, title: id }));
+  for (let run = 0; run < 20; run++) {
+    const qs = buildWhoQuestions(duoMovies, duoRatings, duo);
+    const mine = qs.filter((q) => q.answer.id === 'me').length;
+    assert.equal(qs.length, 8);
+    assert.equal(mine, 4);
+    for (const q of qs) assert.ok(q.options.some((p) => p.id === q.answer.id));
   }
 });
 
 test('qui a noté : deux membres à la même note ont raison tous les deux', () => {
-  const q = buildWhoQuestions(movies, ratings, people, 'me').find((x) => x.movie.id === 'a');
+  const q = buildWhoQuestions(movies, ratings, people).find((x) => x.movie.id === 'a' && x.value === 9.5);
   assert.ok(isWhoRight(q, 'jane'));
   assert.ok(isWhoRight(q, 'lala'));
   assert.ok(!isWhoRight(q, 'me'));

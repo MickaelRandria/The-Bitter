@@ -5,7 +5,8 @@ import { ratingValue } from '../utils/verdict';
  * « Qui a mis cette note ? », dans un espace : un film, la note d'un membre
  * (et son commentaire), quatre membres au choix.
  *
- * On ne devine jamais ses propres notes, mais on peut se choisir comme leurre.
+ * Les notes de chacun entrent dans le jeu, les siennes comprises : à deux, ce
+ * serait sinon toujours l'autre. Les auteurs alternent (`buildWhoQuestions`).
  * Deux membres qui ont mis la même note au film ont raison tous les deux. Pour
  * raisonner plutôt que deviner, chaque membre proposé montre sa moyenne dans
  * l'espace et sa façon de noter (`memberTastes`).
@@ -57,16 +58,11 @@ const shuffle = <T,>(list: T[]): T[] => {
 /** Une note affichée : arrondie au dixième, comme partout dans l'app. */
 export const sameNote = (a: number, b: number) => Math.round(a * 10) === Math.round(b * 10);
 
-/** Les notes des autres qu'on peut faire deviner : un film connu, un membre connu. */
-export function whoCandidates(
-  movies: SharedMovie[],
-  ratings: MovieRating[],
-  people: { id: string }[],
-  currentUserId: string
-): MovieRating[] {
+/** Les notes qu'on peut faire deviner, les siennes comprises : un film connu, un membre connu. */
+export function whoCandidates(movies: SharedMovie[], ratings: MovieRating[], people: { id: string }[]): MovieRating[] {
   const movieIds = new Set(movies.map((m) => m.id));
   const peopleIds = new Set(people.map((p) => p.id));
-  return ratings.filter((r) => r.profile_id !== currentUserId && movieIds.has(r.movie_id) && peopleIds.has(r.profile_id));
+  return ratings.filter((r) => movieIds.has(r.movie_id) && peopleIds.has(r.profile_id));
 }
 
 /** La moyenne de chaque membre dans l'espace, comparée à celle du groupe. */
@@ -90,21 +86,37 @@ export function memberTastes(ratings: MovieRating[]): Map<string, Taste> {
   return tastes;
 }
 
-/** Une note par film d'abord, pour varier ; puis d'autres notes si les films manquent. */
-export function buildWhoQuestions<P extends { id: string }>(
-  movies: SharedMovie[],
-  ratings: MovieRating[],
-  people: P[],
-  currentUserId: string
-): WhoQuestion<P>[] {
-  const pool = shuffle(whoCandidates(movies, ratings, people, currentUserId));
+/**
+ * Les auteurs tirés à tour de rôle, pour que chacun revienne autant que les
+ * autres (soi compris) ; des films différents d'abord, puis ce qui reste. L'ordre
+ * final est mélangé : l'alternance ne se devine pas.
+ */
+export function buildWhoQuestions<P extends { id: string }>(movies: SharedMovie[], ratings: MovieRating[], people: P[]): WhoQuestion<P>[] {
+  const byAuthor = new Map<string, MovieRating[]>();
+  for (const r of shuffle(whoCandidates(movies, ratings, people))) {
+    const list = byAuthor.get(r.profile_id) ?? [];
+    list.push(r);
+    byAuthor.set(r.profile_id, list);
+  }
+  const queues = shuffle([...byAuthor.values()]);
+  const chosen: MovieRating[] = [];
   const seenMovies = new Set<string>();
-  const first = pool.filter((r) => {
-    if (seenMovies.has(r.movie_id)) return false;
-    seenMovies.add(r.movie_id);
-    return true;
-  });
-  const picked = [...first, ...pool.filter((r) => !first.includes(r))].slice(0, WHO_QUESTION_COUNT);
+  for (const repeat of [false, true]) {
+    let progress = true;
+    while (progress && chosen.length < WHO_QUESTION_COUNT) {
+      progress = false;
+      for (const queue of queues) {
+        if (chosen.length >= WHO_QUESTION_COUNT) break;
+        const i = queue.findIndex((r) => repeat || !seenMovies.has(r.movie_id));
+        if (i < 0) continue;
+        const [r] = queue.splice(i, 1);
+        chosen.push(r);
+        seenMovies.add(r.movie_id);
+        progress = true;
+      }
+    }
+  }
+  const picked = shuffle(chosen);
 
   return picked.map((rating) => {
     const movie = movies.find((m) => m.id === rating.movie_id)!;

@@ -37,8 +37,8 @@ const SpaceGames: React.FC<{
 
   const blindOk = useMemo(() => playableFilms(movies).length >= MIN_FILMS, [movies]);
   const whoOk = useMemo(
-    () => people.length >= 2 && whoCandidates(movies, ratings, people, currentUserId).length >= WHO_MIN_QUESTIONS,
-    [movies, ratings, people, currentUserId]
+    () => people.length >= 2 && whoCandidates(movies, ratings, people).length >= WHO_MIN_QUESTIONS,
+    [movies, ratings, people]
   );
   const [whoBoard, setWhoBoard] = useWhoBoard(spaceId, whoOk);
 

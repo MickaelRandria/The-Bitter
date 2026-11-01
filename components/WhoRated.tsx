@@ -25,9 +25,8 @@ import PingMembers from './PingMembers';
 /**
  * « Qui a mis cette note ? », en plein écran, sombre comme le blind test.
  *
- * Question : le film et la note en tampon, le commentaire s'il y en a un, ta
- * propre note en repère, et pour chaque membre proposé sa moyenne et sa façon
- * de noter. Réponse : les notes de l'espace sur une règle de 0 à 10, et ce que
+ * Question : le film et la note en tampon, le commentaire s'il y en a un, et
+ * pour chaque membre proposé (soi compris) sa moyenne et sa façon de noter. Réponse : les notes de l'espace sur une règle de 0 à 10, et ce que
  * ça dit de l'auteur. Fin : qui tu connais le mieux, et défier les autres.
  *
  * Logique et scores : services/whoRated.ts.
@@ -135,7 +134,7 @@ export const WhoRatedGame: React.FC<{
   const [saved, setSaved] = useState<boolean | null>(null);
   const close = () => onClose(saved === true);
   const dialog = useDialog(close, t('whoRated.title'));
-  const [questions, setQuestions] = useState(() => buildWhoQuestions(movies, ratings, people, currentUserId));
+  const [questions, setQuestions] = useState(() => buildWhoQuestions(movies, ratings, people));
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [answers, setAnswers] = useState<boolean[]>([]);
@@ -159,7 +158,10 @@ export const WhoRatedGame: React.FC<{
   ).best;
 
   const personName = (person: VerdictPerson) => (person.isMe ? t('blind.me') : person.name);
-  const myNote = question?.all.find((row) => row.person.id === currentUserId)?.value;
+  // Les phrases qui parlent de soi ont leur tournure : « C'était toi », pas « C'était Toi ».
+  const about = (key: string, person: VerdictPerson, params: Record<string, string | number> = {}) =>
+    t(person.isMe ? `${key}Me` : key, { name: person.name, ...params });
+  const pickedPerson = question ? people.find((p) => p.id === picked) ?? question.answer : undefined;
 
   const answer = (personId: string) => {
     if (picked || !question) return;
@@ -183,7 +185,7 @@ export const WhoRatedGame: React.FC<{
   };
 
   const restart = () => {
-    setQuestions(buildWhoQuestions(movies, ratings, people, currentUserId));
+    setQuestions(buildWhoQuestions(movies, ratings, people));
     setIndex(0);
     setPicked(null);
     setAnswers([]);
@@ -195,9 +197,10 @@ export const WhoRatedGame: React.FC<{
   const insight = (q: Q) => {
     const author = tastes.get(q.answer.id);
     if (!author) return null;
+    if (q.answer.isMe) return t('whoRated.insightMe', { avg: fmt1(author.avg), lean: t(leanKey[author.lean]) });
     const mine = tastes.get(currentUserId);
     const name = personName(q.answer);
-    if (!mine || q.answer.id === currentUserId) return t(leanKey[author.lean] + 'Insight', { name, avg: fmt1(author.avg) });
+    if (!mine) return t(leanKey[author.lean] + 'Insight', { name, avg: fmt1(author.avg) });
     const diff = author.avg - mine.avg;
     if (Math.abs(diff) < 0.3) return t('whoRated.insightSame', { name });
     return t(diff > 0 ? 'whoRated.insightMore' : 'whoRated.insightLess', { name, d: fmt1(Math.abs(diff)) });
@@ -286,17 +289,6 @@ export const WhoRatedGame: React.FC<{
                   </blockquote>
                 )}
 
-                <p className="flex flex-wrap items-center gap-2 text-xs font-bold text-stone-300">
-                  {myNote != null ? (
-                    <>
-                      <span className="rounded-full bg-white/10 px-2 py-1 font-black text-white">{t('whoRated.yours', { n: fmt1(myNote) })}</span>
-                      {t('whoRated.notYours')}
-                    </>
-                  ) : (
-                    t('whoRated.youDidNot')
-                  )}
-                </p>
-
                 <div className="mt-auto flex flex-col gap-1.5">
                   {question.options.map((person) => {
                     const taste = tastes.get(person.id);
@@ -333,18 +325,20 @@ export const WhoRatedGame: React.FC<{
                     <Avatar person={question.answer} size={84} />
                   </span>
                   <p className="text-[30px] font-black leading-none tracking-[-0.055em]">
-                    {t('whoRated.itWas', { name: personName(question.answer) })}
+                    {about('whoRated.itWas', question.answer)}
                   </p>
                   <p className={`text-[13px] font-bold ${answers[index] ? 'text-bitter-lime' : 'text-[#F7B271]'}`}>
                     {answers[index]
-                      ? picked !== question.answer.id
-                        ? t('whoRated.rightToo', { name: personName(people.find((p) => p.id === picked) ?? question.answer), n: fmt1(question.value) })
+                      ? picked !== question.answer.id && pickedPerson
+                        ? about('whoRated.rightToo', pickedPerson, { n: fmt1(question.value) })
                         : streak >= 2
                           ? t('whoRated.rightStreak', { n: streak })
                           : t('blind.right')
-                      : streakAt(answers.slice(0, -1)) >= 2
-                        ? t('whoRated.wrongStreak', { name: personName(people.find((p) => p.id === picked) ?? question.answer), n: streakAt(answers.slice(0, -1)) })
-                        : t('whoRated.wrong', { name: personName(people.find((p) => p.id === picked) ?? question.answer) })}
+                      : pickedPerson && streakAt(answers.slice(0, -1)) >= 2
+                        ? about('whoRated.wrongStreak', pickedPerson, { n: streakAt(answers.slice(0, -1)) })
+                        : pickedPerson
+                          ? about('whoRated.wrong', pickedPerson)
+                          : t('blind.wrong')}
                   </p>
                 </div>
 
@@ -407,10 +401,10 @@ export const WhoRatedGame: React.FC<{
                         </span>
                         <span className="text-[11px] font-semibold text-stone-400">
                           {ok === of
-                            ? t('whoRated.friendPerfect')
+                            ? about('whoRated.friendPerfect', person)
                             : ok * 2 >= of
-                              ? t('whoRated.friendGood')
-                              : t('whoRated.friendSurprise', { name: personName(person) })}
+                              ? about('whoRated.friendGood', person)
+                              : about('whoRated.friendSurprise', person)}
                         </span>
                       </span>
                     </li>
@@ -430,7 +424,7 @@ export const WhoRatedGame: React.FC<{
                   />
                 )}
                 <p className="text-xs font-bold leading-relaxed">
-                  {t('whoRated.bestFind', { n: fmt1(bestFind.value), name: personName(bestFind.answer), title: bestFind.movie.title })}
+                  {about('whoRated.bestFind', bestFind.answer, { n: fmt1(bestFind.value), title: bestFind.movie.title })}
                 </p>
               </div>
             )}
