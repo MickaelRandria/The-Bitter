@@ -96,7 +96,7 @@ const PingMembers: React.FC<{
       <button
         type="button"
         onClick={async () => {
-          const result = await shareOutside(shareText);
+          const result = await shareOutside(shareText, spaceId, what);
           if (result === 'copied') setCopied(true);
         }}
         className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/20 px-6 text-[11px] font-black uppercase tracking-[0.12em] text-white transition active:scale-95"

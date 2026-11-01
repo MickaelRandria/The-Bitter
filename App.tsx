@@ -180,6 +180,8 @@ import FeedbackModal from './components/FeedbackModal';
 import ProblemReportPrompt from './components/ProblemReportPrompt';
 import HomePushBanner from './components/HomePushBanner';
 import PushCheckSheet, { pushCheckSeen } from './components/PushCheckSheet';
+import OpenInAppSheet from './components/OpenInAppSheet';
+import { detectPlatform, isStandalone } from './utils/pwaInstall';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
@@ -743,6 +745,9 @@ const App: React.FC = () => {
   const [bellUnread, setBellUnread] = useState(0);
   /** « Tes notifications » : la vérification unique, à montrer quand l'accueil est libre. */
   const [pushCheckDue, setPushCheckDue] = useState(() => !pushCheckSeen());
+  // Lien partagé d'un espace (`?space=`, récap du mois ou blind test).
+  const [pendingSpaceLink, setPendingSpaceLink] = useState<string | null>(null);
+  const [openInAppStory, setOpenInAppStory] = useState<string | null>(null);
   const pushAskedRef = useRef(false);
   /** Compte tout juste créé : la visite guidée attend que la question des notifications soit réglée. */
   const tourAfterPushRef = useRef(false);
@@ -1860,11 +1865,18 @@ const App: React.FC = () => {
     // Retour de la connexion Spotify (public/spotify/) : la carte playlist des
     // Stats reprend d'elle-même (voir MonthPlaylist).
     if (url.searchParams.get('spotify')) setViewMode('Analytics');
+    // Récap ou blind test partagé hors de l'app : l'espace s'ouvre une fois connecté.
+    // Sur iPhone dans Safari, on dit aussi que l'app installée ne s'ouvre pas d'un lien.
+    const spaceLink = url.searchParams.get('space');
+    if (spaceLink && /^[0-9a-f-]{36}$/i.test(spaceLink)) {
+      setPendingSpaceLink(spaceLink);
+      if (detectPlatform() === 'ios' && !isStandalone()) setOpenInAppStory(url.searchParams.get('story') || '');
+    }
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify', 'space', 'story'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       // L'adresse est arrivée : la destination gardée par le service worker ne sert plus.
@@ -1927,6 +1939,21 @@ const App: React.FC = () => {
     // `openSpaceFromNotification` est recréée à chaque rendu ; seule l'arrivée d'une notification compte.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingNotifOpen, session?.user?.id, activeProfileId, bootstrapping]);
+
+  // Lien d'espace partagé, une fois l'app prête. Sans accès à l'espace (lien
+  // reçu par quelqu'un qui n'en est pas membre), on reste simplement sur l'accueil.
+  useEffect(() => {
+    if (!pendingSpaceLink || !session?.user?.id || !activeProfileId || bootstrapping) return;
+    const spaceId = pendingSpaceLink;
+    setPendingSpaceLink(null);
+    void loadSpaceAndMovie(spaceId, null).then((loaded) => {
+      if (!loaded) return;
+      setActiveSharedSpace(loaded.space);
+      setViewMode('SharedSpace');
+      setSpaceFocusMovieId(null);
+      setSharedSpaceRefreshTrigger((n) => n + 1);
+    });
+  }, [pendingSpaceLink, session?.user?.id, activeProfileId, bootstrapping]);
 
   /**
    * Lien d'invitation en attente et compte connecté : on le rattache.
@@ -4862,6 +4889,8 @@ const App: React.FC = () => {
       )}
 
       {/* Jamais par-dessus une autre fenêtre : la question attend qu'elles soient refermées. */}
+      {openInAppStory !== null && <OpenInAppSheet story={openInAppStory} onClose={() => setOpenInAppStory(null)} />}
+
       {/* « Tes notifications » : une fois par appareil, quand rien d'autre n'occupe l'écran. */}
       {pushCheckDue && session?.user?.id && !bootstrapping && !pushPrompt && !activeTour && !shareSheet && !showNewFeatures && !showAccountSync && !showConsent && !isModalOpen && !showProfile && (
         <PushCheckSheet onClose={() => setPushCheckDue(false)} onToast={setToastMessage} />

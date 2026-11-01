@@ -40,9 +40,16 @@ export async function pingSpaceMembers(
  * Partage hors de l'app (Instagram, Messages, WhatsApp…) par la feuille de
  * partage du téléphone ; à défaut, le texte est copié. Rend 'shared',
  * 'copied' ou null (annulé, ou rien de possible).
+ *
+ * Le lien mène à l'espace (`?space=`). Sur Android, l'app installée l'ouvre
+ * elle-même ; sur iPhone, un lien s'ouvre toujours dans Safari : la page y
+ * invite à ouvrir l'app (OpenInAppSheet).
  */
-export async function shareOutside(text: string): Promise<'shared' | 'copied' | null> {
-  const url = 'https://thebitter.watch';
+export async function shareOutside(text: string, spaceId?: string, what?: PingKind): Promise<'shared' | 'copied' | null> {
+  const link = new URL('https://thebitter.watch/');
+  if (spaceId) link.searchParams.set('space', spaceId);
+  if (spaceId && what) link.searchParams.set('story', what);
+  const url = link.href;
   try {
     if (navigator.share) {
       await navigator.share({ text, url });

@@ -3434,4 +3434,11 @@ export const fr: Record<string, string> = {
   "pushCheck.test": "M’envoyer une notif de test",
   "pushCheck.testSent": "Envoyée. Elle doit arriver dans quelques secondes.",
   "pushCheck.done": "C’est tout bon",
+  "openInApp.label": "Ouvrir l’app",
+  "openInApp.title": "Ouvre The Bitter depuis ton écran d’accueil",
+  "openInApp.bodyRecap": "Le récap du mois t’attend dans ton espace. Sur iPhone, un lien s’ouvre toujours dans Safari, jamais dans l’app : touche l’icône The Bitter, l’espace s’y trouve.",
+  "openInApp.bodyBlind": "Un défi au blind test t’attend dans ton espace. Sur iPhone, un lien s’ouvre toujours dans Safari, jamais dans l’app : touche l’icône The Bitter, l’espace s’y trouve.",
+  "openInApp.body": "Sur iPhone, un lien s’ouvre toujours dans Safari, jamais dans l’app : touche l’icône The Bitter, l’espace s’y trouve.",
+  "openInApp.stay": "Continuer dans Safari",
+  "openInApp.noApp": "Pas encore l’app ? Continue ici, tu pourras l’ajouter à ton écran d’accueil.",
 };
