@@ -11,9 +11,18 @@ import soundtrack from './api/soundtrack';
  */
 const BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now())).slice(0, 12);
 
+/**
+ * Identifiant client Spotify, posé dans Vercel sous `SPOTIFY_CLIENT_ID` (sans le
+ * préfixe VITE_). Il finit dans le JavaScript livré, et c'est voulu : la
+ * connexion PKCE n'utilise aucun secret. Le Client Secret, lui, ne doit
+ * jamais être posé nulle part.
+ */
+const SPOTIFY_CLIENT_ID = (process.env.SPOTIFY_CLIENT_ID || process.env.VITE_SPOTIFY_CLIENT_ID || '').trim();
+
 export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
+    __SPOTIFY_CLIENT_ID__: JSON.stringify(SPOTIFY_CLIENT_ID),
   },
   server: {
     headers: {

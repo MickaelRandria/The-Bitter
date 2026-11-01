@@ -9,10 +9,12 @@
  * Limites du mode développement de Spotify (février 2026) : le propriétaire de
  * l'appli doit être Premium, et seuls les comptes ajoutés à la main dans le
  * tableau de bord Spotify (cinq au plus) peuvent se connecter. Sans
- * VITE_SPOTIFY_CLIENT_ID, le bouton n'apparaît pas.
+ * SPOTIFY_CLIENT_ID dans Vercel (injecté au build, voir vite.config.ts), le
+ * bouton n'apparaît pas.
  */
 
-const CLIENT_ID = (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined)?.trim() || '';
+declare const __SPOTIFY_CLIENT_ID__: string;
+const CLIENT_ID = __SPOTIFY_CLIENT_ID__;
 const SCOPES = 'playlist-modify-private playlist-modify-public';
 const PKCE_KEY = 'bitter:spotify:pkce';
 const TOKEN_KEY = 'bitter:spotify:token';
