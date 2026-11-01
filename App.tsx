@@ -178,6 +178,8 @@ import { ContextualTooltip } from './components/ContextualTooltip';
 import DirectorMoviesModal from './components/DirectorMoviesModal';
 import FeedbackModal from './components/FeedbackModal';
 import ProblemReportPrompt from './components/ProblemReportPrompt';
+import HomePushBanner from './components/HomePushBanner';
+import PushCheckSheet, { pushCheckSeen } from './components/PushCheckSheet';
 import ProfileLinkingModal from './components/ProfileLinkingModal';
 import GuidedTour from './components/GuidedTour';
 import TourPrompt from './components/TourPrompt';
@@ -737,6 +739,10 @@ const App: React.FC = () => {
   const claimingRef = useRef(false);
   /** Pourquoi proposer les notifications maintenant, et d'où vient la question. */
   const [pushPrompt, setPushPrompt] = useState<{ reason: string; source: string; benefits?: string[] } | null>(null);
+  /** Notifications non lues de la cloche, pour le bandeau d'accueil. */
+  const [bellUnread, setBellUnread] = useState(0);
+  /** « Tes notifications » : la vérification unique, à montrer quand l'accueil est libre. */
+  const [pushCheckDue, setPushCheckDue] = useState(() => !pushCheckSeen());
   const pushAskedRef = useRef(false);
   /** Compte tout juste créé : la visite guidée attend que la question des notifications soit réglée. */
   const tourAfterPushRef = useRef(false);
@@ -3938,6 +3944,7 @@ const App: React.FC = () => {
                 }}
                 onEngaged={(source) => askPush(t('push.reasonAnswer'), source)}
                 onPending={(count) => askPush(t('push.reasonPending', { count: String(count) }), 'pending')}
+                onUnreadChange={setBellUnread}
               />
               {/* Le feedback vit dans les paramètres du profil : le header n'a de
                   place que pour les actions vraiment fréquentes. */}
@@ -4173,6 +4180,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="max-w-md mx-auto w-full space-y-5 animate-[fadeIn_0.3s_ease-out]">
+              {session?.user?.id && <HomePushBanner unread={bellUnread} onToast={setToastMessage} />}
               {mediaMode === 'movie' && screeningFollowup.prompt && (
                 <ScreeningPromptCard
                   screening={screeningFollowup.prompt}
@@ -4854,7 +4862,12 @@ const App: React.FC = () => {
       )}
 
       {/* Jamais par-dessus une autre fenêtre : la question attend qu'elles soient refermées. */}
-      {pushPrompt && !shareSheet && !showNewFeatures && !showAccountSync && !showConsent && !isModalOpen && !showProfile && (
+      {/* « Tes notifications » : une fois par appareil, quand rien d'autre n'occupe l'écran. */}
+      {pushCheckDue && session?.user?.id && !bootstrapping && !pushPrompt && !activeTour && !shareSheet && !showNewFeatures && !showAccountSync && !showConsent && !isModalOpen && !showProfile && (
+        <PushCheckSheet onClose={() => setPushCheckDue(false)} onToast={setToastMessage} />
+      )}
+
+      {pushPrompt && !(pushCheckDue && session?.user?.id) && !shareSheet && !showNewFeatures && !showAccountSync && !showConsent && !isModalOpen && !showProfile && (
         <PushPrompt
           reason={pushPrompt.reason}
           source={pushPrompt.source}

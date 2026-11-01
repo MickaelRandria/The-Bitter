@@ -3425,4 +3425,13 @@ export const fr: Record<string, string> = {
   "ping.copied": "Texte copié",
   "blind.challenge": "Défie les autres",
   "blind.shareText": "J’ai fait {score}/{total} au blind test BO de « {space} » sur The Bitter. À toi !",
+  "homePush.label": "Activer les notifications",
+  "homePush.titleOne": "1 notification t’attend dans la cloche",
+  "homePush.titleMany": "{n} notifications t’attendent dans la cloche",
+  "homePush.later": "Plus tard",
+  "pushCheck.title": "Tes notifications",
+  "pushCheck.body": "Petite vérification sur cet appareil : veux-tu être prévenu quand tes amis te proposent une séance, te défient au blind test ou publient le récap du mois ?",
+  "pushCheck.test": "M’envoyer une notif de test",
+  "pushCheck.testSent": "Envoyée. Elle doit arriver dans quelques secondes.",
+  "pushCheck.done": "C’est tout bon",
 };

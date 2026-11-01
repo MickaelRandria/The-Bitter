@@ -45,6 +45,8 @@ interface NotificationCenterProps {
   onEngaged?: (source: string) => void;
   /** Des invitations attendent une réponse. */
   onPending?: (count: number) => void;
+  /** Le nombre de notifications non lues, pour le bandeau d'accueil « Active les notifications ». */
+  onUnreadChange?: (count: number) => void;
 }
 
 const typeIcon: Record<AppNotification['type'], string> = {
@@ -78,6 +80,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   onOpenSeries,
   onEngaged,
   onPending,
+  onUnreadChange,
 }) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
@@ -161,6 +164,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const socialUnread = social.filter((n) => !n.read_at).length;
   const unreadCount = notifications.filter((n) => !n.read).length + socialUnread;
+  useEffect(() => {
+    onUnreadChange?.(unreadCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadCount]);
 
   const handleMarkOne = (id: string) => {
     markAsRead(id);
