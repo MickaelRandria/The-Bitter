@@ -3,6 +3,10 @@
   "label": "Version du 1er novembre",
   "items": [
     {
+      "title": "Tes espaces en billets, sur l’accueil",
+      "body": "Les billets de tes espaces sont maintenant directement sur l’accueil, à faire défiler : les affiches de l’espace en éventail, ses membres, et sur le talon ce qui t’attend (voter, relancer, ou tout est à jour). Un geste pour entrer."
+    },
+    {
       "title": "Un blind test BO plus jouable",
       "body": "Plus besoin de connaître les BO par cœur : on entend le thème le plus connu du film, et des indices arrivent pendant l’écoute. Une frise sous le chrono montre quand ils tombent et combien vaut ta réponse : 3 points avant les indices, puis 2, puis 1."
     },
