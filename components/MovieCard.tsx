@@ -31,6 +31,8 @@ interface MovieCardProps {
    */
   onShare?: (movie: Movie, kind: 'watch' | 'verdict') => void;
   /** Proches qui ont aussi ce film dans leur liste « à voir ». */
+  /** Ouverte d'emblée : la carte qu'on ouvre depuis le mur des films vus. */
+  defaultExpanded?: boolean;
   alsoWants?: { profile_id: string; first_name: string }[];
 }
 
@@ -119,9 +121,10 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onToggleDisplayMode,
     onShare,
     alsoWants,
+    defaultExpanded = false,
   }) => {
     const { t } = useLanguage();
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
     const [swipeX, setSwipeX] = useState(0);
     const [isSwiping, setIsSwiping] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

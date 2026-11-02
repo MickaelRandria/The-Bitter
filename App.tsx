@@ -467,6 +467,8 @@ const App: React.FC = () => {
       return 'cards';
     }
   });
+  /** Le film ouvert depuis le mur : sa carte dépliée, par-dessus. */
+  const [wallMovieId, setWallMovieId] = useState<string | null>(null);
   const changeHistoryView = (view: 'cards' | 'wall') => {
     setHistoryView(view);
     try {
@@ -3282,6 +3284,53 @@ const App: React.FC = () => {
     }, 120);
   };
 
+  /** Une carte de la collection ; `opened` : dépliée d'emblée, ouverte depuis le mur. */
+  const renderFeedCard = (movie: Movie, index: number, opened = false) => (
+    <MovieCard
+      key={movie.id}
+      movie={movie}
+      index={index}
+      defaultExpanded={opened}
+      onDelete={(id) => {
+        if (opened) setWallMovieId(null);
+        handleDeleteMovie(id);
+      }}
+      onEdit={(m) => {
+        if (opened) setWallMovieId(null);
+        // Sur une série, « ouvrir » veut dire gérer sa
+        // progression et ses saisons — pas corriger son
+        // titre. C'est la fiche série qui répond à ça.
+        if (isSeries(m)) {
+          setOpenSeries(m);
+          return;
+        }
+        setEditingMovie(m);
+        setIsModalOpen(true);
+      }}
+      onMarkAsWatched={(movie) => isSeries(movie) ? setOpenSeries(movie) : handleMarkAsWatched(movie)}
+      onViewDetails={(id, type) => {
+        setPreviewTmdbId(id);
+        setPreviewMediaType(type);
+      }}
+      onViewDirector={(name, id) => setPreviewDirector({ name, id })}
+      onRewatch={(m) => setRewatchMovie(m)}
+      onToggleDisplayMode={handleToggleMovieDisplayMode}
+      onShare={
+        session?.user?.id
+          ? (m, kind) => {
+              const also = commonWishes.get(wishKey(m.mediaType, m.tmdbId));
+              setShareSheet({
+                kind,
+                movie: m,
+                preselect: kind === 'watch' ? also?.map((w) => w.profile_id) : undefined,
+                openDates: kind === 'watch' && !!also?.length,
+              });
+            }
+          : undefined
+      }
+      alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
+    />
+  );
   const renderHomeSpaces = () => (
     session?.user?.email && mySpaces.length > 0 && (
                 <SpaceTickets
@@ -4752,54 +4801,11 @@ const App: React.FC = () => {
                     <FilmWall
                       movies={filteredAndSortedMovies}
                       profileId={activeProfile.id}
-                      onOpen={(m) => {
-                        setEditingMovie(m);
-                        setIsModalOpen(true);
-                      }}
+                      onOpen={(m) => setWallMovieId(m.id)}
                     />
                   ) : (
                     <div className="grid grid-cols-1 gap-8">
-                      {visibleMovies.map((movie, index) => (
-                        <MovieCard
-                          key={movie.id}
-                          movie={movie}
-                          index={index}
-                          onDelete={handleDeleteMovie}
-                          onEdit={(m) => {
-                            // Sur une série, « ouvrir » veut dire gérer sa
-                            // progression et ses saisons — pas corriger son
-                            // titre. C'est la fiche série qui répond à ça.
-                            if (isSeries(m)) {
-                              setOpenSeries(m);
-                              return;
-                            }
-                            setEditingMovie(m);
-                            setIsModalOpen(true);
-                          }}
-                          onMarkAsWatched={(movie) => isSeries(movie) ? setOpenSeries(movie) : handleMarkAsWatched(movie)}
-                          onViewDetails={(id, type) => {
-                            setPreviewTmdbId(id);
-                            setPreviewMediaType(type);
-                          }}
-                          onViewDirector={(name, id) => setPreviewDirector({ name, id })}
-                          onRewatch={(m) => setRewatchMovie(m)}
-                          onToggleDisplayMode={handleToggleMovieDisplayMode}
-                          onShare={
-                            session?.user?.id
-                              ? (m, kind) => {
-                                  const also = commonWishes.get(wishKey(m.mediaType, m.tmdbId));
-                                  setShareSheet({
-                                    kind,
-                                    movie: m,
-                                    preselect: kind === 'watch' ? also?.map((w) => w.profile_id) : undefined,
-                                    openDates: kind === 'watch' && !!also?.length,
-                                  });
-                                }
-                              : undefined
-                          }
-                          alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
-                        />
-                      ))}
+                      {visibleMovies.map((movie, index) => renderFeedCard(movie, index))}
                       {visibleMovies.length < filteredAndSortedMovies.length && (
                         <button
                           onClick={() => setFeedPage((p) => p + 1)}
@@ -4817,6 +4823,31 @@ const App: React.FC = () => {
         </Suspense>
         </ErrorBoundary>
       </main>
+      {wallMovieId && (() => {
+        const opened = uniqueMovies.find((m) => m.id === wallMovieId);
+        if (!opened) return null;
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={opened.title}
+            onClick={() => setWallMovieId(null)}
+            className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 px-5 pb-10 pt-[calc(env(safe-area-inset-top,0px)+64px)] backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
+          >
+            <button
+              type="button"
+              onClick={() => setWallMovieId(null)}
+              aria-label={t('common.close')}
+              className="fixed right-5 top-[calc(env(safe-area-inset-top,0px)+14px)] flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md"
+            >
+              <X size={18} />
+            </button>
+            <div onClick={(event) => event.stopPropagation()} className="mx-auto max-w-md">
+              {renderFeedCard(opened, 0, true)}
+            </div>
+          </div>
+        );
+      })()}
       </WorkSelectionProvider>
 
       <ContextualNav
