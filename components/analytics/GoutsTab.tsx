@@ -7,6 +7,8 @@ import { getDisplayWeightedRating } from '../../utils/rating';
 import { getPublicRating } from '../../utils/publicRating';
 import { fmt1 } from '../../utils/verdict';
 import SoundtrackSection from './SoundtrackSection';
+import { bestOf, parseActors, rankingCsv, topActors, topCountries, topLanguages, type CastFilm } from '../../utils/castOrigins';
+import { cachedOrigins, loadOrigins, type Origin } from '../../services/movieOrigins';
 import {
   GoutFilm,
   contrarian,
@@ -44,6 +46,7 @@ interface Props {
 }
 
 const GAP = 1.6;
+const ACTOR_TINTS = ['#3E5238', '#457B9D', '#8E7DBE', '#E76F51', '#2A9D8F', '#B45309'];
 const RANK_STEP = 20;
 
 const toFilm = (m: Movie): GoutFilm => ({
@@ -92,7 +95,7 @@ const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => 
 
 const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewDirector, focusRanking = false, part = 'likes', podium, playlist }) => {
   const likes = part === 'likes';
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const watched = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const byId = useMemo(() => new Map(watched.map((m) => [m.id, m])), [watched]);
   const films = useMemo(() => watched.map(toFilm), [watched]);
@@ -112,6 +115,66 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
   const eras = useMemo(() => decades(films), [films]);
   const hype = useMemo(() => hypeGaps(films), [films]);
   const ranked = useMemo(() => ranking(films), [films]);
+
+  // Les origines des films (pays, langue), lues une fois chez TMDB puis gardées.
+  const [origins, setOrigins] = useState<Record<string, Origin>>(() => cachedOrigins());
+  useEffect(() => {
+    if (!likes) return;
+    const ids = watched.filter((m) => m.tmdbId != null && (m.mediaType ?? 'movie') === 'movie').map((m) => m.tmdbId as number);
+    let alive = true;
+    loadOrigins(ids, (cache) => alive && setOrigins(cache));
+    return () => {
+      alive = false;
+    };
+  }, [watched, likes]);
+  const cast: CastFilm[] = useMemo(
+    () =>
+      watched.map((m) => {
+        const origin = m.tmdbId != null ? origins[m.tmdbId] : undefined;
+        return { id: m.id, score: getDisplayWeightedRating(m), actors: parseActors(m.actors), countries: origin?.countries, language: origin?.language };
+      }),
+    [watched, origins]
+  );
+  const actors = useMemo(() => topActors(cast).slice(0, 10), [cast]);
+  const countries = useMemo(() => topCountries(cast), [cast]);
+  const languages = useMemo(() => topLanguages(cast), [cast]);
+  const regionName = useMemo(() => {
+    try {
+      const names = new Intl.DisplayNames([language === 'fr' ? 'fr' : 'en'], { type: 'region' });
+      return (code: string) => names.of(code) ?? code;
+    } catch {
+      return (code: string) => code;
+    }
+  }, [language]);
+  const languageName = useMemo(() => {
+    try {
+      const names = new Intl.DisplayNames([language === 'fr' ? 'fr' : 'en'], { type: 'language' });
+      return (code: string) => {
+        const name = names.of(code) ?? code;
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      };
+    } catch {
+      return (code: string) => code;
+    }
+  }, [language]);
+  const bestCountry = bestOf(countries);
+  const exportRanking = () => {
+    haptics.soft();
+    const csv = rankingCsv(
+      ranked.map((f) => {
+        const m = byId.get(f.id);
+        return { tmdbId: m?.tmdbId, title: f.title, year: f.year, score: f.score, watchedAt: m?.dateWatched || m?.dateAdded };
+      })
+    );
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'the-bitter-classement.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
 
   const [genre, setGenre] = useState<string | null>(null);
   const [shown, setShown] = useState(5);
@@ -270,6 +333,26 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
         </section>
       )}
 
+      {/* Tes acteurs : les premiers rôles, à partir de 3 films. */}
+      {likes && actors.length > 0 && (
+        <section className={sec}>
+          <Head title={t('gouts.actors')} aside={t('gouts.actorsAside')} />
+          <div className="-mx-6 flex gap-2.5 overflow-x-auto px-6 pb-1 no-scrollbar">
+            {actors.map((a, i) => (
+              <div key={a.key} className="flex w-[108px] shrink-0 flex-col gap-2 rounded-[20px] border border-sand bg-white p-3 dark:border-white/[0.08] dark:bg-[#1C1B19]">
+                <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full text-[18px] font-black text-white" style={{ background: ACTOR_TINTS[i % ACTOR_TINTS.length] }}>
+                  {a.key[0]}
+                </span>
+                <b className="line-clamp-2 text-[13px] font-black leading-tight text-charcoal dark:text-white">{a.key}</b>
+                <small className="text-[11px] font-bold text-stone-500 dark:text-white/50">
+                  {t('gouts.films', { n: String(a.count) })} · <b className="text-charcoal dark:text-white">{fmt1(a.average)}</b>
+                </small>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 3 · Tes réalisateurs. */}
       {likes && directors.length > 0 && (
         <section className={sec}>
@@ -303,6 +386,40 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                 <em className={`not-italic text-[22px] font-black tracking-[-0.05em] tabular-nums ${i === 0 ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>{fmt1(d.average)}</em>
               </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Tes pays et tes langues : l'origine des films, lue chez TMDB. */}
+      {likes && countries.length > 1 && (
+        <section className={sec}>
+          <Head title={t('gouts.origins')} aside={t('gouts.originsAside', { n: String(countries.length) })} />
+          <div className="rounded-[22px] border border-sand bg-white px-[15px] py-4 dark:border-white/[0.08] dark:bg-[#1C1B19]">
+            <ul className="flex flex-col gap-2">
+              {countries.slice(0, 5).map((c) => (
+                <li key={c.key} className="grid grid-cols-[minmax(0,7.5rem)_1fr_2.2rem] items-center gap-2.5">
+                  <span className="truncate text-[12px] font-extrabold text-charcoal dark:text-white">{regionName(c.key)}</span>
+                  <span aria-hidden="true" className="h-2.5 overflow-hidden rounded-full bg-sand dark:bg-white/[0.08]">
+                    <span className={`block h-full rounded-full ${bestCountry?.key === c.key ? 'bg-forest dark:bg-bitter-lime' : 'bg-charcoal dark:bg-[#F4F1EA]'}`} style={{ width: `${(c.count / countries[0].count) * 100}%` }} />
+                  </span>
+                  <b className="text-right text-[12px] font-black tabular-nums text-charcoal dark:text-white">{c.count}</b>
+                </li>
+              ))}
+            </ul>
+            {languages.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5 border-t border-sand pt-3 dark:border-white/[0.08]">
+                {languages.slice(0, 6).map((l) => (
+                  <span key={l.key} className="rounded-full bg-sand px-2.5 py-1 text-[11px] font-black text-charcoal dark:bg-white/[0.08] dark:text-white">
+                    {languageName(l.key)} <span className="text-stone-500 dark:text-white/50">{l.count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {bestCountry && (
+              <p className="mt-3 text-[12px] font-bold text-stone-500 dark:text-white/60">
+                {rich(t('gouts.bestCountry'), { country: regionName(bestCountry.key), avg: fmt1(bestCountry.average) })}
+              </p>
+            )}
           </div>
         </section>
       )}
@@ -426,6 +543,15 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
             className="h-11 rounded-[14px] border border-sand dark:border-white/[0.08] text-[12px] font-black text-stone-500 dark:text-white/60 active:scale-[0.98] transition-transform"
           >
             {shown <= 5 ? t('gouts.seeAll', { n: String(ranked.length) }) : t('gouts.seeMore')}
+          </button>
+        )}
+        {ranked.length > 0 && (
+          <button
+            type="button"
+            onClick={exportRanking}
+            className="h-11 rounded-[14px] bg-charcoal text-[12px] font-black text-white active:scale-[0.98] transition-transform dark:bg-white dark:text-charcoal"
+          >
+            {t('gouts.export')}
           </button>
         )}
       </section>
