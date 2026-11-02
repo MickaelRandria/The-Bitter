@@ -159,7 +159,7 @@ export const CinemasSection: React.FC<{
         : [],
     [movies, allScreened, screenings, catchupOpen]
   );
-  const knownCinemas = useMemo(() => {
+  const cinemaChoices = useMemo(() => {
     const names = [userProfile?.favoriteCinema?.name, ...(report?.cinemas.map((c) => c.name) ?? []), ...knownCinemas()].filter((n): n is string => !!n);
     return [...new Set(names)];
   }, [report, userProfile]);
@@ -194,7 +194,7 @@ export const CinemasSection: React.FC<{
       {catchupOpen && (
         <SeanceCatchup
           films={missing}
-          cinemas={knownCinemas}
+          cinemas={cinemaChoices}
           currentUserId={currentUserId}
           onDone={() => setReload((n) => n + 1)}
           onClose={() => {
