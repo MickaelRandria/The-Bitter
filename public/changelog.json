@@ -1,7 +1,23 @@
 {
-  "version": "2026-11-02-mur",
+  "version": "2026-11-02-stats",
   "label": "Version du 2 novembre",
   "items": [
+    {
+      "title": "Tes stats, rangées et par année",
+      "body": "Choisis 2026, 2025 ou depuis toujours : tous les onglets suivent. Chaque onglet répond à une question : Profil (qui tu es, ton année), Goûts (ce que tu aimes, avec maintenant tes acteurs, tes pays et tes langues, et l’export de ton classement), ADN (comment tu notes et ce que tu ressens)."
+    },
+    {
+      "title": "Un onglet Amis",
+      "body": "Ton jumeau ciné, ton pourcentage d’accord avec chacun, le film qui vous divise et ceux sur lesquels vous êtes d’accord, d’après les notes de tes espaces."
+    },
+    {
+      "title": "Ton objectif, tes salles, ton année",
+      "body": "Dans Profil : ton objectif de l’année (avance, retard, projection), tes cinémas et tes versions préférées, et « Ton année en cinéma », le bilan en stories."
+    },
+    {
+      "title": "Des stats dès le premier film",
+      "body": "En débutant, tu as un profil provisoire dès le premier film, et la liste de ce que tes stats vont révéler, étape par étape."
+    },
     {
       "title": "Partage ton mois de ciné",
       "body": "Dans le calendrier, « Partager mon mois » fait une image de tes prochaines séances, en calendrier avec les affiches ou en programme, prête à envoyer à tes proches ou à mettre en story."

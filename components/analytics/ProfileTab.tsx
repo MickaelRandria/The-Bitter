@@ -40,7 +40,8 @@ interface Props {
   archetypeNote?: string;
   /** Les constats, rendus par AnalyticsView. */
   constats: React.ReactNode;
-  /** L'objectif de l'année, en tête ; tes salles, après le pass. */
+  /** Le bilan de l'année, tout en haut ; l'objectif ; tes salles, après le pass. */
+  yearReview?: React.ReactNode;
   goal?: React.ReactNode;
   cinemas?: React.ReactNode;
   isSharing: boolean;
@@ -339,6 +340,7 @@ const ProfileTab: React.FC<Props> = ({
   tabs,
   archetypeNote,
   constats,
+  yearReview,
   goal,
   cinemas,
   isSharing,
@@ -453,6 +455,8 @@ const ProfileTab: React.FC<Props> = ({
             <TastePortrait key={portrait} movies={watched} autoDraw={portrait === 'asked'} onOpenFilm={(movie) => onViewMovie?.(movie)} />
           </div>
         )}
+
+        {yearReview}
 
         {goal}
 

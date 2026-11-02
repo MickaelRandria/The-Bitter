@@ -48,6 +48,7 @@ import ProfileTab, { PodiumSection, SignatureSection } from './analytics/Profile
 import StatsOnboarding from './analytics/StatsOnboarding';
 import FriendsTab from './analytics/FriendsTab';
 import { CinemasSection, YearGoalSection } from './analytics/ActivitySections';
+import { YearInReviewBanner } from './analytics/YearInReview';
 import { periodMovies, periodYears, readPeriod, savePeriod, type StatsPeriod } from '../utils/statsPeriod';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
@@ -1020,6 +1021,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     setPeriod(next);
     savePeriod(next);
   };
+  /**
+   * Le bilan « Ton année en cinéma » : celui de l'année choisie ; depuis
+   * toujours, celui de l'année qui s'achève, en décembre et en janvier.
+   */
+  const reviewYear = useMemo(() => {
+    if (activePeriod !== 'all') return activePeriod;
+    const now = new Date();
+    const candidate = now.getMonth() === 11 ? now.getFullYear() : now.getMonth() === 0 ? now.getFullYear() - 1 : null;
+    return candidate != null && years.includes(candidate) ? candidate : null;
+  }, [activePeriod, years]);
   /** L'archétype de l'année d'avant, pour dire comment on a changé. */
   const previousArchetype = useMemo(() => {
     if (activePeriod === 'all' || !years.includes(activePeriod - 1)) return null;
@@ -1688,6 +1699,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           tabs={<>{tabsNode}{periodNode}</>}
           archetypeNote={previousArchetype ? t('statsPeriod.previous', { year: String(activePeriod === 'all' ? '' : activePeriod - 1), title: previousArchetype }) : undefined}
           constats={<StatsConstats movies={movies} />}
+          yearReview={reviewYear != null ? <YearInReviewBanner year={reviewYear} movies={allMovies} userProfile={userProfile} currentUserId={currentUserId} /> : undefined}
           goal={activePeriod === 'all' || activePeriod === new Date().getFullYear() ? <YearGoalSection movies={allMovies} /> : undefined}
           cinemas={<CinemasSection movies={movies} currentUserId={currentUserId} fromYear={activePeriod === 'all' ? null : activePeriod} />}
           isSharing={isSharing}
