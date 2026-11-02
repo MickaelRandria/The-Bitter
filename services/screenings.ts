@@ -145,6 +145,22 @@ export const listRecentScreenings = async (profileId: string): Promise<CinemaScr
   } catch { return []; }
 };
 
+/**
+ * Les séances passées (vues ou prévues), pour « Tes salles » dans les stats :
+ * depuis `fromIso`, ou toutes. Bornées à 1000 : bien au-delà d'une vie de ciné.
+ */
+export const listPastScreenings = async (profileId: string, fromIso?: string): Promise<CinemaScreening[]> => {
+  if (!supabase || !profileId) return [];
+  try {
+    let query = supabase.from('cinema_screenings').select('*')
+      .eq('profile_id', profileId).in('status', ['scheduled', 'completed'])
+      .lte('starts_at', new Date().toISOString());
+    if (fromIso) query = query.gte('starts_at', fromIso);
+    const { data, error } = await query.order('starts_at', { ascending: false }).limit(1000).abortSignal(AbortSignal.timeout(8000));
+    return error ? [] : (data as ScreeningRow[] || []).map(fromRow);
+  } catch { return []; }
+};
+
 export const confirmScreeningRating = async (profileId: string, screeningId: string): Promise<boolean> => {
   if (!supabase || !profileId) return false;
   try {

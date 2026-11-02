@@ -47,6 +47,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import ProfileTab, { PodiumSection, SignatureSection } from './analytics/ProfileTab';
 import StatsOnboarding from './analytics/StatsOnboarding';
 import FriendsTab from './analytics/FriendsTab';
+import { CinemasSection, YearGoalSection } from './analytics/ActivitySections';
 import { periodMovies, periodYears, readPeriod, savePeriod, type StatsPeriod } from '../utils/statsPeriod';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
@@ -1687,6 +1688,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           tabs={<>{tabsNode}{periodNode}</>}
           archetypeNote={previousArchetype ? t('statsPeriod.previous', { year: String(activePeriod === 'all' ? '' : activePeriod - 1), title: previousArchetype }) : undefined}
           constats={<StatsConstats movies={movies} />}
+          goal={activePeriod === 'all' || activePeriod === new Date().getFullYear() ? <YearGoalSection movies={allMovies} /> : undefined}
+          cinemas={<CinemasSection movies={movies} currentUserId={currentUserId} fromYear={activePeriod === 'all' ? null : activePeriod} />}
           isSharing={isSharing}
           onShare={handleShareArchetype}
           onViewMovie={onViewMovie}

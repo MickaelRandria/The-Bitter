@@ -40,6 +40,9 @@ interface Props {
   archetypeNote?: string;
   /** Les constats, rendus par AnalyticsView. */
   constats: React.ReactNode;
+  /** L'objectif de l'année, en tête ; tes salles, après le pass. */
+  goal?: React.ReactNode;
+  cinemas?: React.ReactNode;
   isSharing: boolean;
   onShare: () => void;
   onViewMovie?: (movie: Movie, onReturn?: () => void) => void;
@@ -336,6 +339,8 @@ const ProfileTab: React.FC<Props> = ({
   tabs,
   archetypeNote,
   constats,
+  goal,
+  cinemas,
   isSharing,
   onShare,
   onViewMovie,
@@ -449,6 +454,8 @@ const ProfileTab: React.FC<Props> = ({
           </div>
         )}
 
+        {goal}
+
         {/* 2 · Le pass ciné. */}
         {(onConfigureCinemaSubscription || onOpenCinemaDetails) && (
           <section className="flex flex-col gap-[11px]">
@@ -459,6 +466,8 @@ const ProfileTab: React.FC<Props> = ({
             <CinemaPass movies={watched} userProfile={userProfile} onConfigure={onConfigureCinemaSubscription} onOpenDetails={onOpenCinemaDetails} />
           </section>
         )}
+
+        {cinemas}
 
         {/* 5 · Les constats. */}
         {constats}
