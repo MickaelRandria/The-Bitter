@@ -4179,6 +4179,8 @@ const App: React.FC = () => {
               onViewMovie={(movie, onReturn) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie, onReturn)}
               onConfigureCinemaSubscription={() => setShowCinemaSetup(true)}
               onOpenCinemaDetails={() => setShowCinemaDetails(true)}
+              onRateFilm={() => openAddModal('watched', 'movie', { fromNav: true })}
+              onOpenSpaces={() => setShowSharedSpaces(true)}
             />
           ) : viewMode === 'Discover' ? (
             <DiscoverView

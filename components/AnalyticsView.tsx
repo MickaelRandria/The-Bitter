@@ -45,6 +45,7 @@ import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ProfileTab, { PodiumSection, SignatureSection } from './analytics/ProfileTab';
+import StatsOnboarding from './analytics/StatsOnboarding';
 import { periodMovies, periodYears, readPeriod, savePeriod, type StatsPeriod } from '../utils/statsPeriod';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
@@ -65,6 +66,9 @@ interface AnalyticsViewProps {
   onViewMovie?: (movie: Movie, onReturn?: () => void) => void;
   onConfigureCinemaSubscription?: () => void;
   onOpenCinemaDetails?: () => void;
+  /** Le parcours des débutants : noter un film, ouvrir ses espaces. */
+  onRateFilm?: () => void;
+  onOpenSpaces?: () => void;
 }
 
 type TabMode = 'overview' | 'notes' | 'psycho';
@@ -970,6 +974,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onViewMovie,
   onConfigureCinemaSubscription,
   onOpenCinemaDetails,
+  onRateFilm,
+  onOpenSpaces,
 }) => {
   const { t, language } = useLanguage();
   const isDark = useTheme().theme === 'dark';
@@ -1492,30 +1498,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   }, []);
 
   if (isLocked) {
+    // Pas encore assez de films : le parcours, plutôt qu'un écran fermé.
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center animate-[fadeIn_0.5s_ease-out]">
-        <div className="w-24 h-24 bg-stone-100 dark:bg-[#161616] rounded-full flex items-center justify-center mb-6 text-stone-300 dark:text-stone-600 transition-colors">
-          <Lock size={40} />
-        </div>
-        {/* Le tuto éclaire le titre et la jauge, pas tout l'écran : avec ses
-            marges, celui-ci ne laissait plus de place à la carte du tuto. */}
-        <div data-tour="analytics-locked" className="flex w-full flex-col items-center">
-        <h2 className="text-2xl font-black text-charcoal dark:text-white mb-2">
-          {t('analytics.locked')}
-        </h2>
-        <p className="text-sm font-medium text-stone-500 dark:text-stone-600 max-w-xs mx-auto leading-relaxed mb-8">
-          {t('analytics.lockedDesc', { n: String(MIN_MOVIES_FOR_ANALYTICS - watchedCount), s: MIN_MOVIES_FOR_ANALYTICS - watchedCount > 1 ? 's' : '' })}
-        </p>
-        <div className="w-full max-w-xs bg-stone-100 dark:bg-[#202020] h-2 rounded-full overflow-hidden transition-colors">
-          <div
-            className="h-full bg-forest transition-all duration-1000"
-            style={{ width: `${(watchedCount / MIN_MOVIES_FOR_ANALYTICS) * 100}%` }}
-          />
-        </div>
-        <p className="mt-2 text-[10px] font-black uppercase text-stone-400 dark:text-stone-600 tracking-widest">
-          {watchedCount} / {MIN_MOVIES_FOR_ANALYTICS} Films
-        </p>
-        </div>
+      <div data-tour="analytics-locked">
+        <StatsOnboarding
+          movies={allMovies}
+          userProfile={userProfile}
+          unlockAt={MIN_MOVIES_FOR_ANALYTICS}
+          onRateFilm={onRateFilm}
+          onOpenSpaces={onOpenSpaces}
+        />
       </div>
     );
   }
