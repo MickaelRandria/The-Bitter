@@ -6,7 +6,8 @@ import { resizeTmdbImage } from '../../utils/tmdbImage';
 import { avatarSrc } from '../../utils/avatar';
 import { fmt1 } from '../../utils/verdict';
 import { computeAffinities, MIN_COMMON, type RatingEntry } from '../../utils/affinities';
-import { loadAffinityEntries } from '../../services/affinities';
+import { loadAffinityEntries, type SpaceStory } from '../../services/affinities';
+import SpaceStories from './SpaceStories';
 
 /**
  * L'onglet Amis des statistiques : ton jumeau ciné, ton accord avec chacun, le
@@ -46,23 +47,39 @@ const card = 'rounded-[24px] border border-sand bg-white dark:border-white/[0.08
 
 export default function FriendsTab({ currentUserId, onOpenSpaces, onOpenSpace }: Props) {
   const { t } = useLanguage();
-  const [state, setState] = useState<{ loading: boolean; spaces: number; entries: RatingEntry[] }>({ loading: true, spaces: 0, entries: [] });
+  const [state, setState] = useState<{ loading: boolean; spaces: number; entries: RatingEntry[]; stories: SpaceStory[] }>({
+    loading: true,
+    spaces: 0,
+    entries: [],
+    stories: [],
+  });
 
   useEffect(() => {
     if (!currentUserId) {
-      setState({ loading: false, spaces: 0, entries: [] });
+      setState({ loading: false, spaces: 0, entries: [], stories: [] });
       return;
     }
     let alive = true;
     loadAffinityEntries(currentUserId)
       .then((res) => alive && setState({ loading: false, ...res }))
-      .catch(() => alive && setState({ loading: false, spaces: 0, entries: [] }));
+      .catch(() => alive && setState({ loading: false, spaces: 0, entries: [], stories: [] }));
     return () => {
       alive = false;
     };
   }, [currentUserId]);
 
   const report = useMemo(() => (currentUserId ? computeAffinities(currentUserId, state.entries) : null), [currentUserId, state.entries]);
+  /** Ton meilleur accord dans chaque espace, pour sa story. */
+  const twinBySpace = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeAffinities>['friends'][number]>();
+    if (!currentUserId) return map;
+    for (const story of state.stories) {
+      const best = computeAffinities(currentUserId, state.entries.filter((e) => e.spaceId === story.id)).friends[0];
+      if (best) map.set(story.id, best);
+    }
+    return map;
+  }, [currentUserId, state.entries, state.stories]);
+  const stories = <SpaceStories stories={state.stories} twinBySpace={twinBySpace} onOpenSpace={onOpenSpace} />;
   const indexOf = (id: string) => Math.max(0, report?.friends.findIndex((f) => f.personId === id) ?? 0);
 
   if (state.loading) {
@@ -75,6 +92,8 @@ export default function FriendsTab({ currentUserId, onOpenSpaces, onOpenSpace }:
 
   if (!report || !report.friends.length) {
     return (
+      <div className="flex flex-col gap-7">
+      {stories}
       <section className={`${card} p-6 text-center`}>
         <h3 className="text-[20px] font-black tracking-[-0.04em] text-charcoal dark:text-white">
           {state.spaces ? t('friends.notYetTitle') : t('friends.emptyTitle')}
@@ -95,6 +114,7 @@ export default function FriendsTab({ currentUserId, onOpenSpaces, onOpenSpace }:
           </button>
         )}
       </section>
+      </div>
     );
   }
 
@@ -106,6 +126,7 @@ export default function FriendsTab({ currentUserId, onOpenSpaces, onOpenSpace }:
   };
   return (
     <div className="flex flex-col gap-7 animate-[fadeIn_0.3s_ease-out]">
+      {stories}
       <section className="flex flex-col gap-3">
         <Head title={t('friends.twin')} aside={t(state.spaces > 1 ? 'friends.spacesMany' : 'friends.spacesOne', { n: String(state.spaces) })} />
         <div className="rounded-[28px] bg-charcoal p-5 text-white">
