@@ -43,6 +43,7 @@ import { computeHypeReality, computePacingInsight, getAvgRating } from '../utils
 import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import ProfileTab from './analytics/ProfileTab';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
@@ -970,6 +971,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onOpenCinemaDetails,
 }) => {
   const { t, language } = useLanguage();
+  const isDark = useTheme().theme === 'dark';
   const [activeTab, setActiveTab] = useState<TabMode>('overview');
   /** « Tout le palmarès » depuis Profil : Goûts s'ouvre sur le classement. */
   const [goutsFocus, setGoutsFocus] = useState(false);
@@ -1614,7 +1616,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             // sur l'onglet Notes.
             setOpenSheet(null);
           }}
-          className={`relative py-1.5 text-[14px] font-black tracking-[-0.02em] transition-colors [text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${activeTab === tab ? 'text-white' : 'text-white/55'}`}
+          className={`relative py-1.5 text-[14px] font-black tracking-[-0.02em] transition-colors dark:[text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${activeTab === tab ? 'text-charcoal dark:text-white' : 'text-stone-500 dark:text-white/55'}`}
         >
           {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : t('analytics.tabDNA')}
           {activeTab === tab && <i className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-bitter-lime" />}
@@ -1624,11 +1626,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   );
 
   return (
-    /* Toute la page en salle obscure, d'un bord à l'autre de l'écran : la classe
-       `dark` y fait basculer les onglets Goûts et ADN sans les réécrire. */
-    <div className="dark -mx-6 -mt-6 -mb-32 px-6 pt-6 pb-32 min-h-[100dvh] bg-[#0c0c0c] text-white animate-[fadeIn_0.3s_ease-out]">
-      {/* Les onglets : posés sur l'image dans Profil, en tête de page ailleurs. */}
-      {activeTab !== 'overview' && <div className="mb-7">{tabsNode}</div>}
+    /* En mode sombre, toute la page en salle obscure d'un bord à l'autre de
+       l'écran ; en mode clair, la page suit l'app (le haut de Profil reste une
+       image sombre). */
+    <div className="-mx-6 -mt-6 -mb-32 px-6 pt-6 pb-32 min-h-[100dvh] bg-cream dark:bg-[#0c0c0c] text-charcoal dark:text-white animate-[fadeIn_0.3s_ease-out]">
+      {/* Les onglets : posés sur l'image dans Profil en mode sombre, en tête de page ailleurs. */}
+      {(activeTab !== 'overview' || !isDark) && <div className={activeTab === 'overview' ? 'mb-4' : 'mb-7'}>{tabsNode}</div>}
 
       {/* ─── TAB : PROFIL ─── */}
       {activeTab === 'overview' && (
@@ -1678,10 +1681,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         <div className="space-y-6 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
           {hasImprintDna ? (
             <>
-              <details className="group overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#111111] text-white">
+              <details className="group overflow-hidden rounded-[2.5rem] border border-sand dark:border-white/10 bg-white dark:bg-[#111111] text-charcoal dark:text-white">
                 <summary className="cursor-pointer list-none p-7 marker:content-none">
                   <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bitter-lime">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-forest dark:text-bitter-lime">
                     {t('analytics.dnaTitle')}
                   </p>
                   <p className="mt-2 text-[11px] font-medium text-stone-400">
@@ -1701,7 +1704,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         s: imprintCount > 1 ? 's' : '',
                       })}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5 text-bitter-lime">
+                    <span className="flex shrink-0 items-center gap-1.5 text-forest dark:text-bitter-lime">
                       {t('analytics.dnaExplore')}
                       <ChevronRight size={15} className="transition-transform group-open:rotate-90" />
                     </span>
@@ -1709,7 +1712,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   </div>
                 </summary>
 
-                <div className="border-t border-white/10 px-7 pb-7 pt-6">
+                <div className="border-t border-sand dark:border-white/10 px-7 pb-7 pt-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
                   {t('analytics.imprintFilmsTitle')}
                 </p>
@@ -1722,7 +1725,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       key={imprint.key}
                       type="button"
                       onClick={() => setSelectedImprint(imprint)}
-                      className="flex w-full min-w-0 items-center gap-3 rounded-[1.5rem] bg-white/5 p-3 text-left transition-colors hover:bg-white/10"
+                      className="flex w-full min-w-0 items-center gap-3 rounded-[1.5rem] bg-sand dark:bg-white/5 p-3 text-left transition-colors hover:bg-stone-200 dark:hover:bg-white/10"
                     >
                       <div className="flex -space-x-3 overflow-hidden py-1 pl-1">
                         {imprint.movies.slice(0, 3).map((movie) => (
@@ -1743,7 +1746,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         ))}
                       </div>
                       <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-white">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-charcoal dark:text-white">
                           {t(IMPRINT_META[imprint.key].labelKey)}
                         </p>
                           <p className="mt-1 truncate text-[11px] font-medium text-stone-400">
@@ -1788,27 +1791,27 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           )}
 
-          <section className="overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#111111] p-6 text-white">
+          <section className="overflow-hidden rounded-[2.5rem] border border-sand dark:border-white/10 bg-white dark:bg-[#111111] p-6 text-charcoal dark:text-white">
             {hasVerdictInsights && primaryJudgmentAxis ? (
               judgmentProfile.isBalanced ? (
                 <>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
                     {t('analytics.verdictTitle')}
                   </p>
-                  <div className="mt-4 border border-bitter-lime/30 bg-bitter-lime/10 p-4 text-[12px] font-medium leading-relaxed text-white">
+                  <div className="mt-4 border border-bitter-lime/30 bg-bitter-lime/10 p-4 text-[12px] font-medium leading-relaxed text-charcoal dark:text-white">
                     {t('analytics.verdictBalanced')}
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-bitter-lime">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-forest dark:text-bitter-lime">
                       {t('analytics.verdictPrimary')}
                     </p>
-                    <p className="mt-2 text-[26px] font-black uppercase leading-none tracking-[-0.04em] text-white sm:text-3xl">
+                    <p className="mt-2 text-[26px] font-black uppercase leading-none tracking-[-0.04em] text-charcoal dark:text-white sm:text-3xl">
                       {t(primaryJudgmentAxis.labelKey)}
                     </p>
-                    <div className="mt-7 space-y-3.5 border-t border-white/10 pt-5">
+                    <div className="mt-7 space-y-3.5 border-t border-sand dark:border-white/10 pt-5">
                       {rankedJudgmentAxes.map((axis, index) => {
                         const isPrimary = index === 0;
                         const influence = isPrimary
@@ -1820,11 +1823,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           <div key={axis.key}>
                             <div
                               className={`mb-1.5 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-wider ${
-                                isPrimary ? 'text-white' : 'text-[#888888]'
+                                isPrimary ? 'text-charcoal dark:text-white' : 'text-stone-500 dark:text-[#888888]'
                               }`}
                             >
                               <span className="truncate">{t(axis.labelKey)}</span>
-                              <span className={isPrimary ? 'shrink-0 text-bitter-lime' : 'shrink-0'}>
+                              <span className={isPrimary ? 'shrink-0 text-forest dark:text-bitter-lime' : 'shrink-0'}>
                                 {metric}
                               </span>
                             </div>
@@ -1871,7 +1874,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                                 {movie.adaptiveRating?.weightedRating.toFixed(1) ?? '—'}
                               </span>
                             </div>
-                            <p className="mt-2 truncate text-[11px] font-black text-white">{movie.title}</p>
+                            <p className="mt-2 truncate text-[11px] font-black text-charcoal dark:text-white">{movie.title}</p>
                             <p className="mt-1 text-[9px] font-medium leading-snug text-stone-400">
                               {t('analytics.verdictCriterionRating', {
                                 axis: t(primaryJudgmentAxis.labelKey),
@@ -1887,10 +1890,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               )
             ) : (
               <div className="text-center">
-                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-3xl bg-white/5 text-stone-500">
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-3xl bg-sand dark:bg-white/5 text-stone-500">
                   <Scale size={24} />
                 </div>
-                <h3 className="text-lg font-black tracking-tighter text-white">
+                <h3 className="text-lg font-black tracking-tighter text-charcoal dark:text-white">
                   {t('analytics.verdictLocked')}
                 </h3>
                 <p className="mx-auto mt-2 max-w-xs text-xs font-medium leading-relaxed text-stone-400">
@@ -1921,7 +1924,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             )}
           </section>
 
-          <div className="bg-charcoal dark:bg-[#1a1a1a] text-white p-6 rounded-[2.5rem] relative overflow-hidden shadow-xl dark:shadow-black/40 transition-all">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-sand dark:border-transparent text-charcoal dark:text-white p-6 rounded-[2.5rem] relative overflow-hidden shadow-sm dark:shadow-xl dark:shadow-black/40 transition-all">
             <div className="absolute top-0 right-0 w-32 h-32 bg-forest/20 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10 flex justify-between items-center mb-4">
               <h3 className="text-sm font-black uppercase tracking-widest text-stone-400 dark:text-stone-500 flex items-center gap-2">
@@ -1929,11 +1932,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </h3>
               {/* Le grand chiffre, c'est l'attention : sans légende, on le lisait comme le temps d'écran. */}
               <span className="text-right">
-                <span className="block text-2xl font-black text-white leading-none">{100 - averages.smartphone}%</span>
-                <span className="block mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-white/45">{t('analytics.attention')}</span>
+                <span className="block text-2xl font-black text-charcoal dark:text-white leading-none">{100 - averages.smartphone}%</span>
+                <span className="block mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-stone-400 dark:text-white/45">{t('analytics.attention')}</span>
               </span>
             </div>
-            <div className="w-full bg-white/10 dark:bg-white/5 h-2 rounded-full overflow-hidden mb-4 transition-colors">
+            <div className="w-full bg-stone-200 dark:bg-white/5 h-2 rounded-full overflow-hidden mb-4 transition-colors">
               <div
                 className="h-full bg-forest dark:bg-lime-500"
                 style={{ width: `${100 - averages.smartphone}%` }}

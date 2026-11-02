@@ -3974,18 +3974,15 @@ const App: React.FC = () => {
 
   return (
     <div
-      className={`app-root min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative bg-cream dark:bg-[#0c0c0c] transition-colors ${
-        viewMode === 'Analytics' && uniqueMovies.filter((m) => m.status === 'watched').length >= 5 ? '!bg-[#0c0c0c]' : ''
-      }`}
+      className="app-root min-h-[100dvh] flex flex-col text-charcoal dark:text-white font-sans relative bg-cream dark:bg-[#0c0c0c] transition-colors"
     >
       <style>{`@keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }`}</style>
 
       {viewMode !== 'SharedSpace' && (
         <header
           className={`px-6 relative z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors ${
-            /* Les statistiques sont une salle obscure : l'en-tête s'y fond. La classe
-               `dark` ne vaut que pour ses enfants : son propre fond est forcé. */
-            viewMode === 'Analytics' && uniqueMovies.filter((m) => m.status === 'watched').length >= 5 ? 'dark !border-transparent !bg-[#0c0c0c]/95' : ''
+            /* En mode sombre, les statistiques sont une salle obscure : l'en-tête s'y fond. */
+            viewMode === 'Analytics' && uniqueMovies.filter((m) => m.status === 'watched').length >= 5 ? 'dark:!border-transparent' : ''
           }`}
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >
@@ -4870,7 +4867,7 @@ const App: React.FC = () => {
         onSelectionAction={(action) => void handleSelectionAction(action)}
         onClearSelection={clearSelection}
       />
-      {showPageActions && <PageActionsSheet title={paletteLabel} subtitle={paletteSubtitle} actions={paletteActions} onAction={handlePageAction} onClose={() => setShowPageActions(false)} onAllAdd={() => { setShowPageActions(false); setGlobalAddRequest(n => n + 1); }} dark={viewMode === 'Analytics' && watchedCount >= 5} series={mediaMode === 'tv'} />}
+      {showPageActions && <PageActionsSheet title={paletteLabel} subtitle={paletteSubtitle} actions={paletteActions} onAction={handlePageAction} onClose={() => setShowPageActions(false)} onAllAdd={() => { setShowPageActions(false); setGlobalAddRequest(n => n + 1); }} series={mediaMode === 'tv'} />}
       {showTonightControls && <ActionSheet title={t('pageActions.tonight')} onClose={() => setShowTonightControls(false)}><div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
                             {isPickAnimating && <Loader2 size={20} className="animate-spin" />}
                             <MoodPicker

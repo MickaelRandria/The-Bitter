@@ -198,24 +198,24 @@ const SoundtrackSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
       </div>
 
       <div className={`flex items-baseline justify-between gap-3 px-1 ${beat(0).className}`} style={beat(0).style}>
-        <h3 id="bo-stats-title" className="text-[20px] font-black tracking-[-0.045em] text-white">
+        <h3 id="bo-stats-title" className="text-[20px] font-black tracking-[-0.045em] text-charcoal dark:text-white">
           {t('boStats.title')}
         </h3>
-        <small className="text-[10.5px] font-extrabold text-white/35 whitespace-nowrap">{t('boStats.aside')}</small>
+        <small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35 whitespace-nowrap">{t('boStats.aside')}</small>
       </div>
 
       <div className={`flex items-end gap-3.5 px-1 ${beat(1).className}`} style={beat(1).style}>
-        <span className="text-[76px] font-black leading-[0.8] tracking-[-0.07em] text-white tabular-nums">{fmt1(counter)}</span>
-        <span className="pb-1.5 text-[13px] font-extrabold leading-snug text-white">
+        <span className="text-[76px] font-black leading-[0.8] tracking-[-0.07em] text-charcoal dark:text-white tabular-nums">{fmt1(counter)}</span>
+        <span className="pb-1.5 text-[13px] font-extrabold leading-snug text-charcoal dark:text-white">
           {t('boStats.average')}
           <br />
-          <span className="font-semibold text-white/50">{t('boStats.onFilms', { n: String(scored.length) })}</span>
+          <span className="font-semibold text-stone-500 dark:text-white/50">{t('boStats.onFilms', { n: String(scored.length) })}</span>
         </span>
       </div>
 
       <div className={`mt-4 flex items-baseline justify-between px-1 ${beat(3).className}`} style={beat(3).style}>
-        <h4 className="text-[16px] font-black tracking-[-0.04em] text-white">{t('boStats.peaks')}</h4>
-        <small className="text-[10px] font-extrabold text-white/40">{t('boStats.tapToListen')}</small>
+        <h4 className="text-[16px] font-black tracking-[-0.04em] text-charcoal dark:text-white">{t('boStats.peaks')}</h4>
+        <small className="text-[10px] font-extrabold text-stone-400 dark:text-white/40">{t('boStats.tapToListen')}</small>
       </div>
       <div className="grid grid-cols-5 gap-2">
         {(peaks ?? Array.from({ length: PEAKS }, () => null)).map((peak, i) => {
@@ -250,38 +250,38 @@ const SoundtrackSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
                   </span>
                 )}
               </span>
-              <span className={`text-[15px] font-black tracking-[-0.03em] tabular-nums ${selected ? 'text-bitter-lime' : 'text-white'}`}>
+              <span className={`text-[15px] font-black tracking-[-0.03em] tabular-nums ${selected ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>
                 {fmt1(peak.score)}
               </span>
             </button>
           ) : (
-            <span key={i} aria-hidden="true" className="block aspect-[2/3] w-full animate-pulse rounded-[10px] bg-white/[0.06]" />
+            <span key={i} aria-hidden="true" className="block aspect-[2/3] w-full animate-pulse rounded-[10px] bg-sand dark:bg-white/[0.06]" />
           );
         })}
       </div>
-      {peaks && peaks.length === 0 && <p className="px-1 text-[12px] font-semibold text-white/45">{t('boStats.noPeaks')}</p>}
+      {peaks && peaks.length === 0 && <p className="px-1 text-[12px] font-semibold text-stone-400 dark:text-white/45">{t('boStats.noPeaks')}</p>}
 
       {composers && composers.length > 0 && (
         <>
           <div className={`mt-5 px-1 ${beat(9).className}`} style={beat(9).style}>
-            <h4 className="text-[16px] font-black tracking-[-0.04em] text-white">{t('boStats.composers')}</h4>
-            <p className="mt-1 text-[12px] font-semibold text-white/50">{t('boStats.composersHow')}</p>
+            <h4 className="text-[16px] font-black tracking-[-0.04em] text-charcoal dark:text-white">{t('boStats.composers')}</h4>
+            <p className="mt-1 text-[12px] font-semibold text-stone-500 dark:text-white/50">{t('boStats.composersHow')}</p>
           </div>
           <div className="flex flex-col">
             {composers.map((row, i) => (
               <div
                 key={row.name}
-                className={`grid min-h-[52px] grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[0.07] ${beat(10 + i * 0.5).className}`}
+                className={`grid min-h-[52px] grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-3 border-b border-sand dark:border-white/[0.07] ${beat(10 + i * 0.5).className}`}
                 style={beat(10 + i * 0.5).style}
               >
-                <span className={`text-[18px] font-black tracking-[-0.05em] tabular-nums ${i === 0 ? 'text-bitter-lime' : 'text-white/25'}`}>
+                <span className={`text-[18px] font-black tracking-[-0.05em] tabular-nums ${i === 0 ? 'text-forest dark:text-bitter-lime' : 'text-stone-300 dark:text-white/25'}`}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <span className="min-w-0">
-                  <b className="block truncate text-[14.5px] font-black tracking-[-0.02em] text-white">{row.name}</b>
-                  <small className="block truncate text-[10.5px] font-semibold text-white/40">{row.films.join(' · ')}</small>
+                  <b className="block truncate text-[14.5px] font-black tracking-[-0.02em] text-charcoal dark:text-white">{row.name}</b>
+                  <small className="block truncate text-[10.5px] font-semibold text-stone-400 dark:text-white/40">{row.films.join(' · ')}</small>
                 </span>
-                <em className={`not-italic text-[15px] font-black tabular-nums ${i === 0 ? 'text-bitter-lime' : 'text-white'}`}>{fmt1(row.average)}</em>
+                <em className={`not-italic text-[15px] font-black tabular-nums ${i === 0 ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>{fmt1(row.average)}</em>
               </div>
             ))}
           </div>
@@ -291,7 +291,7 @@ const SoundtrackSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
       {current &&
         createPortal(
           <div
-            className="bo-player-in fixed inset-x-3.5 z-[60] mx-auto max-w-md overflow-hidden rounded-[22px] border border-white/10 bg-[#1c1c1c]/90 text-white shadow-[0_18px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+            className="dark bo-player-in fixed inset-x-3.5 z-[60] mx-auto max-w-md overflow-hidden rounded-[22px] border border-white/10 bg-[#1c1c1c]/90 text-white shadow-[0_18px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl"
             style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem + 84px)' }}
             role="region"
             aria-label={t('boStats.player')}
@@ -300,11 +300,11 @@ const SoundtrackSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
               {current.album.cover ? (
                 <img src={current.album.cover} alt="" className="h-[42px] w-[42px] rounded-[10px] object-cover" />
               ) : (
-                <span className="h-[42px] w-[42px] rounded-[10px] bg-white/10" />
+                <span className="h-[42px] w-[42px] rounded-[10px] bg-stone-200 dark:bg-white/10" />
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black">{current.track.title}</p>
-                <p className="truncate text-[11px] font-bold text-white/55">
+                <p className="truncate text-[11px] font-bold text-stone-500 dark:text-white/55">
                   {[current.album.artist, current.movie.title].filter(Boolean).join(' · ')}
                 </p>
               </div>
@@ -320,12 +320,12 @@ const SoundtrackSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
                 type="button"
                 onClick={() => stopPreview()}
                 aria-label={t('boStats.closePlayer')}
-                className="flex h-11 w-9 shrink-0 items-center justify-center text-white/50"
+                className="flex h-11 w-9 shrink-0 items-center justify-center text-stone-500 dark:text-white/50"
               >
                 <X size={16} strokeWidth={2.4} />
               </button>
             </div>
-            <div className="h-[2px] bg-white/10" aria-hidden="true">
+            <div className="h-[2px] bg-stone-200 dark:bg-white/10" aria-hidden="true">
               <div className="h-full bg-bitter-lime transition-[width] duration-200" style={{ width: `${progress}%` }} />
             </div>
           </div>,

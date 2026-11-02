@@ -3,6 +3,10 @@
   "label": "Version du 2 novembre",
   "items": [
     {
+      "title": "Tes stats en mode clair",
+      "body": "En mode clair, la page Stats (Profil, Goûts, ADN) suit enfin le reste de l’app : fond clair, cartes blanches. Le haut de Profil garde l’image de ton film le mieux noté. En mode sombre, rien ne change."
+    },
+    {
       "title": "Tes films vus en mur",
       "body": "À côté de « Vu / À voir », passe des cartes au mur : ton coup de cœur du mois en grand, puis tes affiches en mosaïque, mois par mois. Trie par note, genre ou année. Et avec « Changer », choisis le film à l’affiche (ta meilleure note du mois, ta dernière séance, ton meilleur depuis toujours ou celui que tu veux) avec ton mot, jusqu’à la fin du mois."
     },

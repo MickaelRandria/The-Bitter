@@ -54,7 +54,7 @@ const Poster: React.FC<{ url?: string; className?: string }> = ({ url, className
   url ? (
     <img src={resizeTmdbImage(url, 'w185')} alt="" loading="lazy" className={`object-cover aspect-[2/3] ${className}`} />
   ) : (
-    <span className={`block aspect-[2/3] bg-white/5 ${className}`} />
+    <span className={`block aspect-[2/3] bg-sand dark:bg-white/5 ${className}`} />
   );
 
 /**
@@ -66,7 +66,7 @@ const rich = (template: string, vars: Record<string, string>) =>
   template.split(/(\{\w+\})/).map((part, i) => {
     const key = part.match(/^\{(\w+)\}$/)?.[1];
     return key && key in vars ? (
-      <em key={i} className="not-italic font-extrabold text-white">
+      <em key={i} className="not-italic font-extrabold text-charcoal dark:text-white">
         {vars[key]}
       </em>
     ) : (
@@ -76,8 +76,8 @@ const rich = (template: string, vars: Record<string, string>) =>
 
 const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => (
   <div className="flex items-baseline justify-between gap-3 px-1">
-    <h3 className="text-[20px] font-black tracking-[-0.045em] text-white">{title}</h3>
-    {aside && <small className="text-[10.5px] font-extrabold text-white/35 whitespace-nowrap">{aside}</small>}
+    <h3 className="text-[20px] font-black tracking-[-0.045em] text-charcoal dark:text-white">{title}</h3>
+    {aside && <small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35 whitespace-nowrap">{aside}</small>}
   </div>
 );
 
@@ -135,8 +135,8 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
   const selected = blocks.find((b) => b.name === genre);
 
   const sec = 'flex flex-col gap-3.5';
-  const lead = 'px-1 -mt-1.5 text-[13px] font-semibold leading-snug text-white/60';
-  const line = 'border-t border-white/[0.08]';
+  const lead = 'px-1 -mt-1.5 text-[13px] font-semibold leading-snug text-stone-500 dark:text-white/60';
+  const line = 'border-t border-sand dark:border-white/[0.08]';
 
   if (!films.length) return null;
 
@@ -164,7 +164,8 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                   aria-pressed={active}
                   aria-label={t('gouts.genreAria', { genre: b.name, n: String(b.count), avg: fmt1(b.average) })}
                   className={`absolute isolate overflow-hidden rounded-2xl text-left transition-[box-shadow,transform] active:scale-[0.98] ${
-                    b.others ? 'bg-[#24221F]' : 'bg-[#1C1B19]'
+                    // Sur une affiche, le bloc reste sombre (classe dark) ; sinon il suit le thème.
+                    !b.others && b.favorite?.posterUrl ? 'dark bg-[#1C1B19]' : b.others ? 'bg-sand dark:bg-[#24221F]' : 'bg-white dark:bg-[#1C1B19]'
                   } ${active ? 'ring-2 ring-bitter-lime' : ''}`}
                   style={{
                     left: `calc(${tile.x}% + ${GAP / 2}%)`,
@@ -185,13 +186,13 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                     </>
                   )}
                   <span className={`absolute flex flex-col ${small ? 'left-[9px] right-2 bottom-2' : 'left-3 right-2.5 bottom-[11px]'}`}>
-                    <em className={`not-italic font-black tracking-[-0.06em] leading-[0.9] tabular-nums ${small ? 'text-[22px]' : 'text-[32px]'} ${up ? 'text-bitter-lime' : 'text-white'}`}>
+                    <em className={`not-italic font-black tracking-[-0.06em] leading-[0.9] tabular-nums ${small ? 'text-[22px]' : 'text-[32px]'} ${up ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>
                       {fmt1(b.average)}
                     </em>
-                    <b className={`mt-[5px] font-black tracking-[-0.02em] truncate text-white ${small ? 'text-[11px]' : 'text-[13.5px]'}`}>
+                    <b className={`mt-[5px] font-black tracking-[-0.02em] truncate text-charcoal dark:text-white ${small ? 'text-[11px]' : 'text-[13.5px]'}`}>
                       {b.others ? t('gouts.others') : b.name}
                     </b>
-                    <small className="text-[10px] font-extrabold text-white/60">{t('gouts.films', { n: String(b.count) })}</small>
+                    <small className="text-[10px] font-extrabold text-stone-500 dark:text-white/60">{t('gouts.films', { n: String(b.count) })}</small>
                   </span>
                 </button>
               );
@@ -202,13 +203,13 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
               {selected.films.slice(0, 20).map((f) => (
                 <button key={f.id} type="button" onClick={() => open(f.id)} className="shrink-0 w-[72px] text-left active:scale-95 transition-transform">
                   <Poster url={f.posterUrl} className="w-full rounded-[10px]" />
-                  <span className="mt-1 block text-[10px] font-black text-white truncate">{f.title}</span>
-                  <span className="block text-[10px] font-extrabold text-white/40 tabular-nums">{fmt1(f.score)}</span>
+                  <span className="mt-1 block text-[10px] font-black text-charcoal dark:text-white truncate">{f.title}</span>
+                  <span className="block text-[10px] font-extrabold text-stone-400 dark:text-white/40 tabular-nums">{fmt1(f.score)}</span>
                 </button>
               ))}
             </div>
           ) : (
-            genreLine && <p className="px-1 text-[13px] font-semibold leading-snug text-white/60">{genreLine}</p>
+            genreLine && <p className="px-1 text-[13px] font-semibold leading-snug text-stone-500 dark:text-white/60">{genreLine}</p>
           )}
         </section>
       )}
@@ -230,7 +231,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                     key={f.id}
                     type="button"
                     onClick={() => open(f.id)}
-                    className="relative isolate overflow-hidden rounded-[18px] aspect-[3/4.3] flex flex-col justify-end p-[11px] text-left active:scale-[0.98] transition-transform"
+                    className="dark relative isolate overflow-hidden rounded-[18px] aspect-[3/4.3] flex flex-col justify-end p-[11px] text-left active:scale-[0.98] transition-transform"
                   >
                     {f.posterUrl && (
                       <img
@@ -244,12 +245,12 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                     <span className={`absolute top-[9px] left-[9px] text-[8.5px] font-black tracking-[0.12em] uppercase px-[7px] py-1 rounded-[7px] text-charcoal ${down ? 'bg-white' : 'bg-bitter-lime'}`}>
                       {label}
                     </span>
-                    <span className={`text-[30px] font-black tracking-[-0.06em] leading-[0.9] tabular-nums ${down ? 'text-[#F08A24]' : 'text-bitter-lime'}`}>
+                    <span className={`text-[30px] font-black tracking-[-0.06em] leading-[0.9] tabular-nums ${down ? 'text-[#C2630F] dark:text-[#F08A24]' : 'text-forest dark:text-bitter-lime'}`}>
                       {f.gap > 0 ? '+' : '−'}
                       {fmt1(Math.abs(f.gap))}
                     </span>
-                    <b className="mt-1.5 text-[13px] font-black tracking-[-0.02em] text-white line-clamp-2">{f.title}</b>
-                    <small className="text-[10.5px] font-extrabold text-white/75 tabular-nums">
+                    <b className="mt-1.5 text-[13px] font-black tracking-[-0.02em] text-charcoal dark:text-white line-clamp-2">{f.title}</b>
+                    <small className="text-[10.5px] font-extrabold text-stone-600 dark:text-white/75 tabular-nums">
                       {t('gouts.youPublic', { me: fmt1(f.score), pub: fmt1(f.publicScore ?? 0) })}
                     </small>
                   </button>
@@ -286,10 +287,10 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                   ))}
                 </span>
                 <span className="min-w-0">
-                  <b className="block text-[15px] font-black tracking-[-0.025em] text-white truncate">{d.name}</b>
-                  <small className="text-[10.5px] font-bold text-white/35">{t('gouts.films', { n: String(d.count) })}</small>
+                  <b className="block text-[15px] font-black tracking-[-0.025em] text-charcoal dark:text-white truncate">{d.name}</b>
+                  <small className="text-[10.5px] font-bold text-stone-400 dark:text-white/35">{t('gouts.films', { n: String(d.count) })}</small>
                 </span>
-                <em className={`not-italic text-[22px] font-black tracking-[-0.05em] tabular-nums ${i === 0 ? 'text-bitter-lime' : 'text-white'}`}>{fmt1(d.average)}</em>
+                <em className={`not-italic text-[22px] font-black tracking-[-0.05em] tabular-nums ${i === 0 ? 'text-forest dark:text-bitter-lime' : 'text-charcoal dark:text-white'}`}>{fmt1(d.average)}</em>
               </button>
             ))}
           </div>
@@ -307,9 +308,9 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
               return (
                 <button key={e.decade} type="button" onClick={() => e.best && open(e.best.id)} className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
                   <Poster url={e.best?.posterUrl} className="w-full rounded-lg shadow-[0_10px_18px_-12px_rgba(0,0,0,0.9)]" />
-                  <span className={`w-full rounded-t-md rounded-b-sm ${top ? 'bg-bitter-lime' : 'bg-white/[0.12]'}`} style={{ height: `${Math.max(6, (e.count / maxEra) * 88)}px` }} />
-                  <b className={`text-[10px] font-black ${top ? 'text-bitter-lime' : 'text-white/60'}`}>{e.decade >= 2000 ? e.decade : String(e.decade).slice(2)}</b>
-                  <small className="text-[9.5px] font-extrabold text-white/35 tabular-nums">{fmt1(e.average)}</small>
+                  <span className={`w-full rounded-t-md rounded-b-sm ${top ? 'bg-bitter-lime' : 'bg-stone-200 dark:bg-white/[0.12]'}`} style={{ height: `${Math.max(6, (e.count / maxEra) * 88)}px` }} />
+                  <b className={`text-[10px] font-black ${top ? 'text-forest dark:text-bitter-lime' : 'text-stone-500 dark:text-white/60'}`}>{e.decade >= 2000 ? e.decade : String(e.decade).slice(2)}</b>
+                  <small className="text-[9.5px] font-extrabold text-stone-400 dark:text-white/35 tabular-nums">{fmt1(e.average)}</small>
                 </button>
               );
             })}
@@ -321,12 +322,12 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       {dist.total >= 5 && (
         <section className={sec}>
           <Head title={t('gouts.howYouRate')} aside={t('gouts.zeroToTen')} />
-          <div className="rounded-[22px] bg-[#1C1B19] border border-white/[0.08] px-[15px] pt-4 pb-3">
+          <div className="rounded-[22px] bg-white dark:bg-[#1C1B19] border border-sand dark:border-white/[0.08] px-[15px] pt-4 pb-3">
             <div className="relative flex items-end gap-1 h-24" aria-hidden="true">
               {dist.buckets.map((n, note) => (
                 <i
                   key={note}
-                  className={`flex-1 rounded-t rounded-b-sm ${dist.common.includes(note) ? 'bg-white/30' : 'bg-white/[0.14]'}`}
+                  className={`flex-1 rounded-t rounded-b-sm ${dist.common.includes(note) ? 'bg-stone-300 dark:bg-white/30' : 'bg-stone-200 dark:bg-white/[0.14]'}`}
                   style={{ height: `${n ? Math.max(4, (n / maxBucket) * 100) : 2}%` }}
                 />
               ))}
@@ -335,21 +336,21 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
             </div>
             <div className="flex gap-1 mt-1.5">
               {dist.buckets.map((_, note) => (
-                <span key={note} className="flex-1 text-center text-[9px] font-extrabold text-white/35 tabular-nums">{note}</span>
+                <span key={note} className="flex-1 text-center text-[9px] font-extrabold text-stone-400 dark:text-white/35 tabular-nums">{note}</span>
               ))}
             </div>
-            <div className="flex gap-4 mt-2.5 text-[10.5px] font-extrabold text-white/60">
+            <div className="flex gap-4 mt-2.5 text-[10.5px] font-extrabold text-stone-500 dark:text-white/60">
               <span className="inline-flex items-center gap-1.5"><i className="w-0.5 h-3 rounded-sm bg-bitter-lime" />{t('gouts.myAvg', { v: fmt1(myAvg) })}</span>
               {publicAverage > 0 && (
                 <span className="inline-flex items-center gap-1.5"><i className="h-3 border-l-2 border-dashed border-white/55" />{t('gouts.publicAvg', { v: fmt1(publicAverage) })}</span>
               )}
             </div>
             {dist.common.length > 0 && (
-              <p className="mt-3.5 pt-3 border-t border-white/[0.08] text-[13.5px] font-black tracking-[-0.02em] leading-snug text-white">
+              <p className="mt-3.5 pt-3 border-t border-sand dark:border-white/[0.08] text-[13.5px] font-black tracking-[-0.02em] leading-snug text-charcoal dark:text-white">
                 {dist.common.length === 2
                   ? t('gouts.commonTwo', { a: String(dist.common[0]), b: String(dist.common[1]) })
                   : t('gouts.commonOne', { a: String(dist.common[0]) })}
-                <small className="block mt-[3px] text-[11px] font-semibold tracking-normal text-white/60">
+                <small className="block mt-[3px] text-[11px] font-semibold tracking-normal text-stone-500 dark:text-white/60">
                   {t(dist.nines === 0 ? 'gouts.ninesNone' : 'gouts.nines', { n: String(dist.nines), total: String(dist.total) })}
                 </small>
               </p>
@@ -367,12 +368,12 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
               <button key={f.id} type="button" onClick={() => open(f.id)} className={`grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 items-center py-2.5 text-left ${i ? line : 'pt-0'} active:opacity-80`}>
                 <Poster url={f.posterUrl} className="w-10 rounded-[7px]" />
                 <span className="min-w-0">
-                  <b className="block text-[13.5px] font-black tracking-[-0.02em] text-white truncate">{f.title}</b>
-                  <small className="text-[10.5px] font-bold text-white/35 tabular-nums">
+                  <b className="block text-[13.5px] font-black tracking-[-0.02em] text-charcoal dark:text-white truncate">{f.title}</b>
+                  <small className="text-[10.5px] font-bold text-stone-400 dark:text-white/35 tabular-nums">
                     {t('gouts.hypeLine', { hype: fmt1(f.hype ?? 0), score: fmt1(f.score) })}
                   </small>
                 </span>
-                <em className={`not-italic text-[18px] font-black tracking-[-0.04em] tabular-nums ${f.gap < 0 ? 'text-[#F08A24]' : 'text-bitter-lime'}`}>
+                <em className={`not-italic text-[18px] font-black tracking-[-0.04em] tabular-nums ${f.gap < 0 ? 'text-[#C2630F] dark:text-[#F08A24]' : 'text-forest dark:text-bitter-lime'}`}>
                   {f.gap > 0 ? '+' : '−'}
                   {fmt1(Math.abs(f.gap))}
                 </em>
@@ -391,13 +392,13 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
         <div className="flex flex-col">
           {ranked.slice(0, shown).map((f, i) => (
             <button key={f.id} type="button" onClick={() => open(f.id)} className={`grid grid-cols-[22px_34px_minmax(0,1fr)_auto] gap-[11px] items-center py-2 text-left ${i ? line : ''} active:opacity-80`}>
-              <span className={`text-[13px] font-black tabular-nums ${i < 3 ? 'text-bitter-lime' : 'text-white/35'}`}>{i + 1}</span>
+              <span className={`text-[13px] font-black tabular-nums ${i < 3 ? 'text-forest dark:text-bitter-lime' : 'text-stone-400 dark:text-white/35'}`}>{i + 1}</span>
               <Poster url={f.posterUrl} className="w-[34px] rounded-md" />
               <span className="min-w-0">
-                <b className="block text-[13px] font-black tracking-[-0.015em] text-white truncate">{f.title}</b>
-                <small className="text-[10px] font-bold text-white/35 truncate block">{[f.year, f.director].filter(Boolean).join(' · ')}</small>
+                <b className="block text-[13px] font-black tracking-[-0.015em] text-charcoal dark:text-white truncate">{f.title}</b>
+                <small className="text-[10px] font-bold text-stone-400 dark:text-white/35 truncate block">{[f.year, f.director].filter(Boolean).join(' · ')}</small>
               </span>
-              <em className="not-italic text-[15px] font-black tabular-nums text-white">{fmt1(f.score)}</em>
+              <em className="not-italic text-[15px] font-black tabular-nums text-charcoal dark:text-white">{fmt1(f.score)}</em>
             </button>
           ))}
         </div>
@@ -408,7 +409,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
               haptics.soft();
               setShown((n) => (n <= 5 ? RANK_STEP : n + RANK_STEP));
             }}
-            className="h-11 rounded-[14px] border border-white/[0.08] text-[12px] font-black text-white/60 active:scale-[0.98] transition-transform"
+            className="h-11 rounded-[14px] border border-sand dark:border-white/[0.08] text-[12px] font-black text-stone-500 dark:text-white/60 active:scale-[0.98] transition-transform"
           >
             {shown <= 5 ? t('gouts.seeAll', { n: String(ranked.length) }) : t('gouts.seeMore')}
           </button>

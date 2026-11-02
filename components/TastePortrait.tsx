@@ -71,7 +71,7 @@ const writeLocal = (value: Stored) => {
 /** Un portrait déjà tiré sur cet appareil. */
 export const hasCachedPortrait = (): boolean => !!readLocal();
 
-const TONE: Record<FactTone, string> = { lime: 'text-bitter-lime', orange: 'text-[#F08A24]', blue: 'text-[#9DB6FF]' };
+const TONE: Record<FactTone, string> = { lime: 'text-forest dark:text-bitter-lime', orange: 'text-[#C2630F] dark:text-[#F08A24]', blue: 'text-[#3B5BA9] dark:text-[#9DB6FF]' };
 
 const toFilm = (m: Movie): PortraitFilm => ({
   id: m.id,
@@ -187,33 +187,33 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
     ? new Date(stored.drawnAt).toLocaleDateString(language === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' })
     : null;
   const fan = watched.filter((m) => m.posterUrl).slice(0, 3);
-  const line = 'border-t border-white/[0.08]';
+  const line = 'border-t border-sand dark:border-white/[0.08]';
 
   return (
     <section aria-label={t('portrait.title')} className="flex flex-col">
       <div className="flex items-baseline justify-between gap-3 pb-[18px] px-1">
-        <h3 className="text-[10.5px] font-black uppercase tracking-[0.12em] text-white/60 whitespace-nowrap">{t('portrait.title')}</h3>
-        <small className="text-[11px] font-bold text-white/35 whitespace-nowrap">
+        <h3 className="text-[10.5px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-white/60 whitespace-nowrap">{t('portrait.title')}</h3>
+        <small className="text-[11px] font-bold text-stone-400 dark:text-white/35 whitespace-nowrap">
           {stored ? t('portrait.meta', { n: String(stored.count), date: date ?? '' }) : t('portrait.metaNone', { n: String(watched.length) })}
         </small>
       </div>
 
       {stored && fresh >= STALE_AFTER && !loading && (
-        <button type="button" onClick={draw} className="-mt-1.5 mb-4 px-1 text-left text-[12px] font-bold text-white/60">
-          {t('portrait.stale', { n: String(fresh) })} · <span className="font-black text-bitter-lime">{t('portrait.update')}</span>
+        <button type="button" onClick={draw} className="-mt-1.5 mb-4 px-1 text-left text-[12px] font-bold text-stone-500 dark:text-white/60">
+          {t('portrait.stale', { n: String(fresh) })} · <span className="font-black text-forest dark:text-bitter-lime">{t('portrait.update')}</span>
         </button>
       )}
 
       {loading ? (
         <>
-          <p className={`${line} flex items-center gap-2.5 py-[18px] text-[13px] font-bold text-white/60`}>
+          <p className={`${line} flex items-center gap-2.5 py-[18px] text-[13px] font-bold text-stone-500 dark:text-white/60`}>
             <i className="w-2 h-2 rounded-full bg-bitter-lime animate-pulse" />
             {t('portrait.reading', { n: String(watched.length) })}
           </p>
           {[0, 1].map((i) => (
             <div key={i} className={`${line} py-[18px] space-y-2.5`}>
-              <i className="block w-2/5 h-[30px] rounded-[10px] bg-white/[0.06] animate-pulse" />
-              <i className="block w-4/5 h-3.5 rounded-full bg-white/[0.06] animate-pulse" />
+              <i className="block w-2/5 h-[30px] rounded-[10px] bg-sand dark:bg-white/[0.06] animate-pulse" />
+              <i className="block w-4/5 h-3.5 rounded-full bg-sand dark:bg-white/[0.06] animate-pulse" />
             </div>
           ))}
         </>
@@ -222,9 +222,9 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
           {stored.items.map((item, i) => (
             <div key={`${item.kind}-${i}`} className={`${line} py-[22px] grid grid-cols-[minmax(0,1fr)_92px] gap-3.5 items-center`}>
               <div className="min-w-0">
-                <b className={`block text-[40px] font-black tracking-[-0.065em] leading-[0.95] tabular-nums ${TONE[item.tone] ?? 'text-white'}`}>{item.figure}</b>
-                <p className="mt-2.5 text-[16px] font-bold tracking-[-0.02em] leading-[1.3] text-white">{item.text}</p>
-                <span className="block mt-2 text-[11px] font-semibold text-white/35 truncate">
+                <b className={`block text-[40px] font-black tracking-[-0.065em] leading-[0.95] tabular-nums ${TONE[item.tone] ?? 'text-charcoal dark:text-white'}`}>{item.figure}</b>
+                <p className="mt-2.5 text-[16px] font-bold tracking-[-0.02em] leading-[1.3] text-charcoal dark:text-white">{item.text}</p>
+                <span className="block mt-2 text-[11px] font-semibold text-stone-400 dark:text-white/35 truncate">
                   {item.evidence.map((e) => e.title).join(' · ')}
                 </span>
               </div>
@@ -241,7 +241,7 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
                         onOpenFilm?.(movie);
                       }}
                       aria-label={e.title}
-                      className={`absolute w-16 aspect-[2/3] rounded-[10px] overflow-hidden bg-white/5 shadow-[0_14px_24px_-12px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.06] active:scale-95 transition-transform ${
+                      className={`absolute w-16 aspect-[2/3] rounded-[10px] overflow-hidden bg-sand dark:bg-white/5 shadow-[0_14px_24px_-12px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.06] active:scale-95 transition-transform ${
                         j === 0 ? 'right-[26px] top-1.5 -rotate-6' : 'right-0 top-3.5 rotate-[5deg]'
                       }`}
                     >
@@ -252,8 +252,8 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
               </div>
             </div>
           ))}
-          {error && <p className="pt-2 text-[12px] font-semibold text-[#F08A24]">{error}</p>}
-          <button type="button" onClick={draw} className="mt-1 self-center py-2 text-[12px] font-extrabold text-white/40">
+          {error && <p className="pt-2 text-[12px] font-semibold text-[#C2630F] dark:text-[#F08A24]">{error}</p>}
+          <button type="button" onClick={draw} className="mt-1 self-center py-2 text-[12px] font-extrabold text-stone-400 dark:text-white/40">
             {t('portrait.redo')}
           </button>
         </>
@@ -271,9 +271,9 @@ const TastePortrait: React.FC<Props> = ({ movies, autoDraw = false, onOpenFilm }
               />
             ))}
           </div>
-          <b className="text-[26px] font-black tracking-[-0.05em] leading-[1.05] max-w-[14ch] text-white">{t('portrait.introTitle')}</b>
-          <p className="text-[14px] font-semibold leading-[1.45] text-white/60 max-w-[30ch]">{t('portrait.introBody', { n: String(watched.length) })}</p>
-          {error && <p className="text-[12px] font-semibold text-[#F08A24]">{error}</p>}
+          <b className="text-[26px] font-black tracking-[-0.05em] leading-[1.05] max-w-[14ch] text-charcoal dark:text-white">{t('portrait.introTitle')}</b>
+          <p className="text-[14px] font-semibold leading-[1.45] text-stone-500 dark:text-white/60 max-w-[30ch]">{t('portrait.introBody', { n: String(watched.length) })}</p>
+          {error && <p className="text-[12px] font-semibold text-[#C2630F] dark:text-[#F08A24]">{error}</p>}
           <button
             type="button"
             onClick={draw}

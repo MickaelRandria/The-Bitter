@@ -66,12 +66,12 @@ const runtimeLabel = (min: number) => `${Math.floor(min / 60)}h${String(min % 60
 
 /** Barre horizontale sur une échelle de 0 à 10 : un libellé, une jauge, la valeur. */
 const ScaleBar: React.FC<{ label: string; value: number; color: string; max?: number; text?: string }> = ({ label, value, color, max = 10, text }) => (
-  <div className="grid grid-cols-[66px_1fr_30px] items-center gap-2 text-[11.5px] font-extrabold text-white/70">
+  <div className="grid grid-cols-[66px_1fr_30px] items-center gap-2 text-[11.5px] font-extrabold text-stone-600 dark:text-white/70">
     <span className="truncate">{label}</span>
-    <span className="relative h-2.5 rounded-full bg-white/10 overflow-hidden">
+    <span className="relative h-2.5 rounded-full bg-stone-200 dark:bg-white/10 overflow-hidden">
       <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(3, (value / max) * 100)}%`, background: color }} />
     </span>
-    <span className="text-right font-black text-white tabular-nums">{text ?? value}</span>
+    <span className="text-right font-black text-charcoal dark:text-white tabular-nums">{text ?? value}</span>
   </div>
 );
 
@@ -138,12 +138,12 @@ const Shelf: React.FC<{ title: string; films: (FilmRef & { badge: string; color:
 
 /** Le film touché dans un graphique, avec son affiche. */
 const Callout: React.FC<{ film: FilmRef | null; line: string; hint: string }> = ({ film, line, hint }) => (
-  <div className="flex min-h-[76px] items-center gap-3 rounded-2xl bg-white/[0.06] p-2.5">
+  <div className="flex min-h-[76px] items-center gap-3 rounded-2xl bg-sand dark:bg-white/[0.06] p-2.5">
     {film ? (
       <>
         <div className="h-[57px] w-[38px] shrink-0 rounded-[7px] bg-[#222] bg-cover bg-center" style={{ backgroundImage: film.poster ? `url(${poster(film.poster)})` : undefined }} />
         <div className="min-w-0 text-xs leading-snug text-stone-400">
-          <b className="block truncate text-[13.5px] font-black text-white">{film.title}</b>
+          <b className="block truncate text-[13.5px] font-black text-charcoal dark:text-white">{film.title}</b>
           {line}
         </div>
       </>
@@ -162,7 +162,7 @@ const VersusBlocks: React.FC<{ left: [string, string, string]; right: [string, s
     ].map(({ v: [label, value, sub], color, bg }) => (
       <div key={label} className="grid gap-1 rounded-[18px] p-3" style={{ background: bg }}>
         <small className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color }}>{label}</small>
-        <strong className="text-[30px] font-black tracking-tight text-white leading-none">{value}</strong>
+        <strong className="text-[30px] font-black tracking-tight text-charcoal dark:text-white leading-none">{value}</strong>
         <em className="not-italic text-[11px] leading-snug text-stone-400">{sub}</em>
       </div>
     ))}
@@ -192,7 +192,7 @@ const PhoneGauges: React.FC<{ k: PhoneConstat; t: T; fmt: Fmt; big?: boolean }> 
     <div className="grid items-end gap-2" style={{ gridTemplateColumns: `repeat(${shown.length}, 1fr)` }}>
       {shown.map((b, i) => (
         <div key={b.key} className="grid justify-items-center gap-1 text-center text-[10px] font-extrabold leading-tight text-stone-400">
-          <span className={`${big ? 'text-base' : 'text-[13px]'} font-black text-white tabular-nums`}>{fmt(b.avg ?? 0)}</span>
+          <span className={`${big ? 'text-base' : 'text-[13px]'} font-black text-charcoal dark:text-white tabular-nums`}>{fmt(b.avg ?? 0)}</span>
           <div className="relative rounded-lg border-2 border-[#2A2A28] bg-black/55" style={{ width: w, height: h }}>
             <div className="absolute inset-x-[3px] bottom-[3px] rounded" style={{ height: ((h - 8) * (b.avg ?? 0)) / 10, background: phoneColor(i, shown.length - 1) }} />
           </div>
@@ -394,9 +394,9 @@ const DetailMaillon: React.FC<{ k: MaillonConstat; t: T; fmt: Fmt }> = ({ k, t, 
 };
 
 const EmotionRow: React.FC<{ label: string; avg: number; count: number; films: FilmRef[]; good: boolean; t: T; fmt: Fmt }> = ({ label, avg, count, films, good, t, fmt }) => (
-  <div className="grid grid-cols-[96px_1fr] items-center gap-2.5 border-b border-white/[0.06] py-2">
+  <div className="grid grid-cols-[96px_1fr] items-center gap-2.5 border-b border-sand dark:border-white/[0.06] py-2">
     <div className="grid gap-0.5 min-w-0">
-      <b className="truncate text-[13px] font-black text-white">{label}</b>
+      <b className="truncate text-[13px] font-black text-charcoal dark:text-white">{label}</b>
       <span className="text-[10.5px] font-bold text-stone-500">{t('constats.films', { n: count })}</span>
     </div>
     <div className="flex min-w-0 items-center gap-2.5">
@@ -484,9 +484,9 @@ const DetailRevirements: React.FC<{ k: RevirementsConstat; fmt: Fmt }> = ({ k, f
     {k.changes.slice(0, 12).map((c) => {
       const up = c.to > c.from;
       return (
-        <li key={c.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] p-2.5">
+        <li key={c.id} className="flex items-center gap-3 rounded-2xl bg-sand dark:bg-white/[0.05] p-2.5">
           <div className="h-[48px] w-[32px] shrink-0 rounded-md bg-[#222] bg-cover bg-center" style={{ backgroundImage: c.poster ? `url(${poster(c.poster)})` : undefined }} />
-          <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{c.title}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-charcoal dark:text-white">{c.title}</span>
           <span className="shrink-0 text-sm font-black tabular-nums">
             <span className="text-stone-500">{fmt(c.from)}</span>
             <span className="mx-1.5" style={{ color: up ? LIME : BURNT }}>→</span>
@@ -580,11 +580,11 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
   return createPortal(
     <div {...dialog.props} className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
-      <div className="relative z-10 w-full sm:max-w-lg bg-[#0E0E0E] text-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-white/10">
+      <div className="dark relative z-10 w-full sm:max-w-lg bg-[#0E0E0E] text-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh] overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)] border-t border-sand dark:border-white/10">
         <button
           onClick={onClose}
           aria-label={t('constats.close')}
-          className="absolute right-5 top-4 z-30 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white active:scale-90 transition-transform"
+          className="absolute right-5 top-4 z-30 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-charcoal dark:text-white active:scale-90 transition-transform"
         >
           <X size={17} strokeWidth={2.5} />
         </button>
@@ -611,8 +611,8 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
               />
             )}
             <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(14,14,14,0) 0%, rgba(14,14,14,.6) 55%, #0E0E0E 100%)' }} />
-            <div className="absolute left-1/2 top-3 h-1.5 w-12 -translate-x-1/2 rounded-full bg-white/30" onClick={onClose} />
-            <p className="relative text-[10px] font-black uppercase tracking-[0.2em] text-white/60">{t(`constats.${id}.eyebrow`)}</p>
+            <div className="absolute left-1/2 top-3 h-1.5 w-12 -translate-x-1/2 rounded-full bg-stone-300 dark:bg-white/30" onClick={onClose} />
+            <p className="relative text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-white/60">{t(`constats.${id}.eyebrow`)}</p>
             <h2 className="relative mt-1.5 max-w-[70%] text-[26px] font-black leading-[1.03] tracking-tight text-balance">{title}</h2>
           </div>
           <div className="space-y-5 px-6 pb-8 pt-2">
@@ -625,7 +625,7 @@ const ConstatSheet: React.FC<{ id: ConstatId; constats: Constats; onClose: () =>
               <span className="text-stone-300">{model.source}</span>
             </p>
             {chart}
-            <p className="border-t border-white/10 pt-3 text-[11.5px] leading-relaxed text-stone-500">{t(`constats.${id}.foot`)}</p>
+            <p className="border-t border-sand dark:border-white/10 pt-3 text-[11.5px] leading-relaxed text-stone-500">{t(`constats.${id}.foot`)}</p>
           </div>
         </div>
       </div>
@@ -644,7 +644,7 @@ const ConstatCard: React.FC<{ id: ConstatId; model: CardModel; t: T; onOpen: () 
     type="button"
     onClick={onOpen}
     aria-label={`${t(`constats.${id}.eyebrow`)} : ${model.line}. ${t('constats.seeDetail')}`}
-    className="relative isolate snap-start shrink-0 w-[236px] h-[320px] overflow-hidden rounded-[1.6rem] bg-[#0B0B0B] p-4 flex flex-col justify-between text-left text-[#F5F4F0] shadow-[0_18px_40px_-22px_rgba(0,0,0,.7)] active:scale-[0.98] transition-transform"
+    className="dark relative isolate snap-start shrink-0 w-[236px] h-[320px] overflow-hidden rounded-[1.6rem] bg-[#0B0B0B] p-4 flex flex-col justify-between text-left text-[#F5F4F0] shadow-[0_18px_40px_-22px_rgba(0,0,0,.7)] active:scale-[0.98] transition-transform"
   >
     <PosterBackdrop {...model.backdrop} />
     <span
@@ -653,13 +653,13 @@ const ConstatCard: React.FC<{ id: ConstatId; model: CardModel; t: T; onOpen: () 
     >
       {model.sticker}
     </span>
-    <span className="absolute right-4 top-5 z-10 max-w-[38%] text-right text-[9px] font-black uppercase leading-[1.3] tracking-[0.16em] text-white/60">
+    <span className="absolute right-4 top-5 z-10 max-w-[38%] text-right text-[9px] font-black uppercase leading-[1.3] tracking-[0.16em] text-stone-500 dark:text-white/60">
       {t(`constats.${id}.eyebrow`)}
     </span>
     <span className="relative z-10 mr-11 text-[22px] font-black leading-[1.05] tracking-tight text-balance [text-shadow:0_2px_16px_rgba(0,0,0,.7)]">
       {model.line}
     </span>
-    <span className="absolute bottom-3.5 right-3.5 z-10 grid h-[30px] w-[30px] place-items-center rounded-full bg-white/[0.12] text-sm font-black text-white backdrop-blur-md" aria-hidden="true">
+    <span className="absolute bottom-3.5 right-3.5 z-10 grid h-[30px] w-[30px] place-items-center rounded-full bg-stone-200 dark:bg-white/[0.12] text-sm font-black text-charcoal dark:text-white backdrop-blur-md" aria-hidden="true">
       →
     </span>
   </button>
