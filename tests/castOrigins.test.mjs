@@ -44,3 +44,18 @@ test('export : un CSV importable, la note sur 5 en demi-étoiles', () => {
   assert.equal(head, 'Position,tmdbID,Title,Year,Rating10,Rating,WatchedDate');
   assert.equal(row, '1,9,"Hope, le film",2026,8.6,4.5,2026-11-01');
 });
+
+test('pays : le pays d’origine, pas les coproducteurs', () => {
+  const { originCountries } = (() => {
+    const url = new URL('../services/movieOrigins.ts', import.meta.url);
+    const compiled = ts.transpileModule(readFileSync(url, 'utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    const exports = {};
+    new Function('exports', 'require', compiled)(exports, () => ({ TMDB_API_KEY: '', TMDB_BASE_URL: '' }));
+    return exports;
+  })();
+  assert.deepEqual(originCountries({ origin_country: ['US'], production_countries: [{ iso_3166_1: 'US' }, { iso_3166_1: 'DE' }] }), ['US']);
+  assert.deepEqual(originCountries({ production_countries: [{ iso_3166_1: 'FR' }, { iso_3166_1: 'BE' }] }), ['FR']);
+  assert.deepEqual(originCountries({}), []);
+});

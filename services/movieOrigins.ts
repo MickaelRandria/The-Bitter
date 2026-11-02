@@ -10,7 +10,8 @@ export interface Origin {
   language?: string;
 }
 
-const KEY = 'bitter_movie_origins_v1';
+// v2 : le pays d'origine seul (v1 gardait tous les pays de coproduction).
+const KEY = 'bitter_movie_origins_v2';
 /** Au-delà, la première visite ferait trop d'appels d'un coup : le reste viendra ensuite. */
 const MAX_PER_VISIT = 250;
 const BATCH = 6;
@@ -31,11 +32,28 @@ const writeCache = (cache: Record<string, Origin>) => {
   }
 };
 
+/**
+ * Le pays d'origine du film, pas tous ses coproducteurs : un Hunger Games
+ * coproduit avec un studio allemand reste américain. TMDB le donne à part
+ * (`origin_country`) ; à défaut, le premier pays de production.
+ */
+export function originCountries(data: { origin_country?: string[]; production_countries?: { iso_3166_1: string }[] }): string[] {
+  const origin = (data.origin_country ?? []).filter(Boolean);
+  if (origin.length) return origin;
+  const first = data.production_countries?.[0]?.iso_3166_1;
+  return first ? [first] : [];
+}
+
 export const cachedOrigins = (): Record<string, Origin> => readCache();
 
 /** Lit les origines manquantes, par petits lots ; `onProgress` reçoit le cache à jour. */
 export async function loadOrigins(tmdbIds: number[], onProgress: (cache: Record<string, Origin>) => void): Promise<void> {
   if (!TMDB_API_KEY) return;
+  try {
+    localStorage.removeItem('bitter_movie_origins_v1');
+  } catch {
+    // Rien à libérer.
+  }
   const cache = readCache();
   const missing = [...new Set(tmdbIds)].filter((id) => !cache[id]).slice(0, MAX_PER_VISIT);
   for (let i = 0; i < missing.length; i += BATCH) {
@@ -47,7 +65,7 @@ export async function loadOrigins(tmdbIds: number[], onProgress: (cache: Record<
           if (!res.ok) return;
           const data = await res.json();
           cache[id] = {
-            countries: (data.production_countries ?? []).map((c: { iso_3166_1: string }) => c.iso_3166_1).filter(Boolean),
+            countries: originCountries(data),
             language: data.original_language || undefined,
           };
         } catch {
