@@ -171,6 +171,7 @@ import {
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import SpaceTickets from './components/SpaceTickets';
 import FilmWall, { FilmViewSwitch } from './components/FilmWall';
+import AgendaSyncSheet from './components/AgendaSyncSheet';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
 import VoteWaitingSheet from './components/VoteWaitingSheet';
 import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
@@ -467,6 +468,8 @@ const App: React.FC = () => {
       return 'cards';
     }
   });
+  /** « Synchroniser mon agenda » : le lien d'abonnement iCal. */
+  const [showAgendaSync, setShowAgendaSync] = useState(false);
   /** Le film ouvert depuis le mur : sa carte dépliée, par-dessus. */
   const [wallMovieId, setWallMovieId] = useState<string | null>(null);
   const changeHistoryView = (view: 'cards' | 'wall') => {
@@ -3448,6 +3451,7 @@ const App: React.FC = () => {
     if (action === 'propose') { openAddModal('watchlist', mediaMode, { fromNav: true }); return; }
     if (action === 'plan') { setCalendarPlanRequest(n => n + 1); return; }
     if (action === 'ticket') { openTicketImport(); return; }
+    if (action === 'agenda') { setShowAgendaSync(true); return; }
     if (action === 'rateDay') {
       if (calendarContextDay > calendarDay(Date.now())) return;
       openAddModal('watched', 'movie', { fromNav: true }); setCalendarWatchedDay(calendarContextDay); return;
@@ -4867,6 +4871,7 @@ const App: React.FC = () => {
         onSelectionAction={(action) => void handleSelectionAction(action)}
         onClearSelection={clearSelection}
       />
+      {showAgendaSync && <AgendaSyncSheet onClose={() => setShowAgendaSync(false)} />}
       {showPageActions && <PageActionsSheet title={paletteLabel} subtitle={paletteSubtitle} actions={paletteActions} onAction={handlePageAction} onClose={() => setShowPageActions(false)} onAllAdd={() => { setShowPageActions(false); setGlobalAddRequest(n => n + 1); }} series={mediaMode === 'tv'} />}
       {showTonightControls && <ActionSheet title={t('pageActions.tonight')} onClose={() => setShowTonightControls(false)}><div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
                             {isPickAnimating && <Loader2 size={20} className="animate-spin" />}

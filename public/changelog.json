@@ -3,6 +3,10 @@
   "label": "Version du 2 novembre",
   "items": [
     {
+      "title": "Tes séances dans ton agenda",
+      "body": "Dans le calendrier, « Synchroniser mon agenda » ajoute tes séances prévues au Calendrier de ton téléphone (ou à Google Agenda), et elles s’y mettent à jour toutes seules. Envoie le lien à tes proches : ils verront tes prochaines séances dans leur agenda."
+    },
+    {
       "title": "Tes stats en mode clair",
       "body": "En mode clair, la page Stats (Profil, Goûts, ADN) suit enfin le reste de l’app : fond clair, cartes blanches. Le haut de Profil garde l’image de ton film le mieux noté. En mode sombre, rien ne change."
     },

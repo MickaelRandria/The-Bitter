@@ -28,8 +28,8 @@ test('les palettes suivent la page et la liste consultée', () => {
 });
 
 test('aucune note future et aucune séance cinéma côté séries', () => {
-  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: true })), ['plan', 'ticket', 'rateDay']);
-  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: false })), ['plan', 'ticket']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: true })), ['plan', 'ticket', 'rateDay', 'agenda']);
+  assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', pastDay: false })), ['plan', 'ticket', 'agenda']);
   assert.deepEqual(palettes.pageActionsFor(ctx({ page: 'Calendar', mediaMode: 'tv' })), ['series', 'watchlist']);
 });
 

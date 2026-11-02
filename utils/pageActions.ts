@@ -9,6 +9,7 @@ export type PageAction =
   | 'plan'
   | 'ticket'
   | 'rateDay'
+  | 'agenda'
   | 'mood'
   | 'filters'
   | 'platforms'
@@ -35,8 +36,8 @@ export function pageActionsFor(c: PageActionContext): PageAction[] {
     return c.mediaMode === 'tv'
       ? ['series', 'watchlist']
       : c.pastDay
-        ? ['plan', 'ticket', 'rateDay']
-        : ['plan', 'ticket'];
+        ? ['plan', 'ticket', 'rateDay', 'agenda']
+        : ['plan', 'ticket', 'agenda'];
   if (c.feedTab === 'queue') return ['watchlist', 'tonight'];
   return c.mediaMode === 'tv'
     ? ['series', 'watchlist', 'dictate']

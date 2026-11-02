@@ -4,6 +4,10 @@
     {
       "source": "/i/:token",
       "destination": "/api/share?token=:token"
+    },
+    {
+      "source": "/agenda/:token",
+      "destination": "/api/agenda?token=:token"
     }
   ],
   "headers": [
