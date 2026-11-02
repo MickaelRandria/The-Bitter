@@ -1703,7 +1703,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           constats={<StatsConstats movies={movies} />}
           yearReview={reviewYear != null ? <YearInReviewBanner year={reviewYear} movies={allMovies} userProfile={userProfile} currentUserId={currentUserId} /> : undefined}
           goal={activePeriod === 'all' || activePeriod === new Date().getFullYear() ? <YearGoalSection movies={allMovies} /> : undefined}
-          cinemas={<CinemasSection movies={movies} currentUserId={currentUserId} fromYear={activePeriod === 'all' ? null : activePeriod} />}
+          cinemas={<CinemasSection movies={movies} currentUserId={currentUserId} fromYear={activePeriod === 'all' ? null : activePeriod} userProfile={userProfile} onViewMovie={(movie) => onViewMovie?.(movie)} />}
           isSharing={isSharing}
           onShare={handleShareArchetype}
           onViewMovie={onViewMovie}

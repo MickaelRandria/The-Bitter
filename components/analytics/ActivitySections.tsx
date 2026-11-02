@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
-import type { Movie } from '../../types';
+import { ChevronRight, Minus, Plus } from 'lucide-react';
+import type { Movie, UserProfile } from '../../types';
+import CinemasSheet from './CinemasSheet';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { haptics } from '../../utils/haptics';
 import { fmt1 } from '../../utils/verdict';
@@ -104,8 +105,16 @@ export const YearGoalSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
   );
 };
 
-export const CinemasSection: React.FC<{ movies: Movie[]; currentUserId?: string; fromYear: number | null }> = ({ movies, currentUserId, fromYear }) => {
+export const CinemasSection: React.FC<{
+  movies: Movie[];
+  currentUserId?: string;
+  fromYear: number | null;
+  userProfile?: UserProfile | null;
+  onViewMovie?: (movie: Movie) => void;
+}> = ({ movies, currentUserId, fromYear, userProfile = null, onViewMovie }) => {
   const { t } = useLanguage();
+  /** La fenêtre de détail : ouverte sur la vue d'ensemble (`''`) ou sur un cinéma. */
+  const [detail, setDetail] = useState<string | null>(null);
   const [screenings, setScreenings] = useState<Awaited<ReturnType<typeof listPastScreenings>> | null>(null);
   useEffect(() => {
     if (!currentUserId) return;
@@ -132,8 +141,27 @@ export const CinemasSection: React.FC<{ movies: Movie[]; currentUserId?: string;
 
   return (
     <section className="flex flex-col gap-[11px]">
-      <Head title={t('activity.cinemas')} aside={<small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35">{fromYear ?? t('statsPeriod.all')}</small>} />
-      <div className={`${card} flex flex-col gap-3`}>
+      <Head
+        title={t('activity.cinemas')}
+        aside={
+          <button type="button" onClick={() => { haptics.soft(); setDetail(''); }} className="flex items-center gap-0.5 text-[11px] font-black text-forest dark:text-bitter-lime">
+            {t('salles.seeAll')} <ChevronRight size={13} />
+          </button>
+        }
+      />
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => { haptics.soft(); setDetail(''); }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setDetail('');
+          }
+        }}
+        aria-label={t('salles.open')}
+        className={`${card} flex cursor-pointer flex-col gap-3 transition-transform active:scale-[0.99]`}
+      >
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-sand p-3 dark:bg-white/[0.06]">
             <b className="block text-[22px] font-black tracking-[-0.05em] text-charcoal dark:text-white">{report.sessions}</b>
@@ -146,7 +174,15 @@ export const CinemasSection: React.FC<{ movies: Movie[]; currentUserId?: string;
         </div>
         <ul className="flex flex-col gap-2">
           {report.cinemas.slice(0, 5).map((c) => (
-            <li key={c.name} className="grid grid-cols-[minmax(0,7rem)_1fr_2rem] items-center gap-2.5">
+            <li
+              key={c.name}
+              onClick={(event) => {
+                event.stopPropagation();
+                haptics.soft();
+                setDetail(c.name);
+              }}
+              className="grid grid-cols-[minmax(0,7rem)_1fr_2rem] items-center gap-2.5"
+            >
               <span className="truncate text-[12px] font-extrabold text-charcoal dark:text-white">{c.name}</span>
               <span aria-hidden="true" className="h-2.5 overflow-hidden rounded-full bg-sand dark:bg-white/[0.08]">
                 <span className="block h-full rounded-full bg-charcoal dark:bg-[#F4F1EA]" style={{ width: `${(c.count / max) * 100}%` }} />
@@ -170,6 +206,20 @@ export const CinemasSection: React.FC<{ movies: Movie[]; currentUserId?: string;
           </p>
         )}
       </div>
+      {detail != null && screenings && (
+        <CinemasSheet
+          screenings={screenings}
+          movies={movies}
+          userProfile={userProfile}
+          periodLabel={fromYear ? String(fromYear) : t('statsPeriod.all')}
+          initialCinema={detail || null}
+          onViewMovie={(movie) => {
+            setDetail(null);
+            onViewMovie?.(movie);
+          }}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </section>
   );
 };
