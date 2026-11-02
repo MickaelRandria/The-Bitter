@@ -638,7 +638,13 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       )}
       {originOpen && (
         <OriginSheet
-          title={originOpen.kind === 'country' ? regionName(originOpen.code) : languageName(originOpen.code)}
+          current={originOpen.code}
+          choices={(originOpen.kind === 'country' ? countries : languages).slice(0, 8).map((c) => ({
+            key: c.key,
+            count: c.count,
+            label: originOpen.kind === 'country' ? regionName(c.key) : languageName(c.key),
+          }))}
+          onSwitch={(code) => setOriginOpen({ kind: originOpen.kind, code })}
           films={originFilms(originOpen)}
           overallAverage={myAvg}
           onViewMovie={(movie) => {

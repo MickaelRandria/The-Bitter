@@ -217,7 +217,7 @@ function YearViewer({ year, movies, userProfile, currentUserId, onClose, onToast
   };
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={t('year.title', { year: String(year) })} className="fixed inset-0 z-[120] flex items-center justify-center bg-black">
+    <div role="dialog" aria-modal="true" aria-label={t('year.title', { year: String(year) })} className="fixed inset-0 z-[120] flex items-center justify-center overflow-hidden overscroll-none bg-black [touch-action:none]">
       <div
         className={`relative flex h-full max-h-[900px] w-full max-w-[480px] flex-col overflow-hidden px-6 pb-10 pt-[calc(env(safe-area-inset-top,0px)+56px)] ${
           slide.tone === 'lime' ? 'bg-bitter-lime text-charcoal' : 'bg-charcoal text-white'

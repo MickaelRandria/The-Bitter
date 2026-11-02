@@ -26,8 +26,11 @@ interface Props {
   onClose: () => void;
 }
 
+/** En dessous, un jour ou un créneau « préféré » ne voudrait rien dire. */
+const HABITS_MIN = 4;
+
 const card = 'rounded-[22px] border border-sand bg-white p-4 dark:border-white/[0.08] dark:bg-[#1C1B19]';
-const tile = 'rounded-[14px] bg-sand p-2.5 dark:bg-white/[0.06]';
+const tile = 'min-w-0 overflow-hidden rounded-[14px] bg-sand p-2.5 dark:bg-white/[0.06]';
 
 const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => (
   <div className="flex items-baseline justify-between gap-3 px-1">
@@ -79,7 +82,7 @@ export default function CinemasSheet({ screenings, movies, userProfile, periodLa
           <button type="button" onClick={() => setCinema(null)} className="-mt-3 flex items-center gap-1 self-start text-[12px] font-extrabold text-stone-500 dark:text-stone-400">
             <ChevronLeft size={14} /> {t('salles.title')}
           </button>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-2">
             <div className={`${card} p-3`}>
               <b className="block text-[22px] font-black tracking-[-0.05em] text-charcoal dark:text-white">{fiche.count}</b>
               <small className="text-[10px] font-extrabold text-stone-500 dark:text-stone-400">{t('activity.sessions')}</small>
@@ -156,7 +159,7 @@ export default function CinemasSheet({ screenings, movies, userProfile, periodLa
       <div className="flex flex-col gap-6">
         {versus && (
           <section className={card}>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-2.5">
               <div className="rounded-2xl bg-charcoal p-3 text-white dark:bg-white dark:text-charcoal">
                 <small className="text-[10px] font-black uppercase tracking-[0.12em] text-bitter-lime dark:text-forest">{t('salles.atCinema')}</small>
                 <b className="mt-1 block text-[32px] font-black tracking-[-0.06em]">{fmt1(versus.salle)}</b>
@@ -170,6 +173,7 @@ export default function CinemasSheet({ screenings, movies, userProfile, periodLa
           </section>
         )}
 
+        {report.sessions >= HABITS_MIN && (
         <section className="flex flex-col gap-2.5">
           <Head title={t('salles.habits')} />
           <div className={`${card} flex flex-col gap-3.5`}>
@@ -184,25 +188,27 @@ export default function CinemasSheet({ screenings, movies, userProfile, periodLa
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2">
               <div className={tile}>
-                <b className="block text-[14px] font-black capitalize text-charcoal dark:text-white">{weekdayLong(habits.topWeekday)}</b>
+                <b className="block truncate text-[14px] font-black capitalize text-charcoal dark:text-white">{weekdayLong(habits.topWeekday)}</b>
                 <small className="text-[10px] font-extrabold text-stone-500 dark:text-stone-400">{t('salles.yourDay')}</small>
               </div>
               <div className={tile}>
-                <b className="block text-[14px] font-black text-charcoal dark:text-white">{t('salles.slot', { from: String(habits.topSlot), to: String((habits.topSlot + 2) % 24) })}</b>
+                <b className="block truncate text-[14px] font-black text-charcoal dark:text-white">{t('salles.slot', { from: String(habits.topSlot), to: String((habits.topSlot + 2) % 24) })}</b>
                 <small className="text-[10px] font-extrabold text-stone-500 dark:text-stone-400">{t('salles.yourSlot')}</small>
               </div>
               <div className={tile}>
-                <b className="block text-[14px] font-black text-charcoal dark:text-white">{habits.together}/{report.sessions}</b>
+                <b className="block truncate text-[14px] font-black text-charcoal dark:text-white">{habits.together}/{report.sessions}</b>
                 <small className="text-[10px] font-extrabold text-stone-500 dark:text-stone-400">{t('salles.together')}</small>
               </div>
             </div>
             {habits.everyDays != null && (
               <p className="text-[12px] font-bold text-stone-500 dark:text-stone-400">{t('salles.every', { n: String(habits.everyDays) })}</p>
             )}
+            <p className="text-[11px] font-semibold leading-snug text-stone-500 dark:text-stone-400">{t('salles.timesSource')}</p>
           </div>
         </section>
+        )}
 
         {effect.length > 0 && (
           <section className="flex flex-col gap-2.5">
@@ -229,27 +235,27 @@ export default function CinemasSheet({ screenings, movies, userProfile, periodLa
         {pass && sub && (
           <section className="flex flex-col gap-2.5">
             <Head title={t('salles.pass')} aside={sub.name} />
-            <div className={`${card} grid grid-cols-3 gap-2`}>
+            <div className={`${card} grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2`}>
               <div className={tile}>
-                <b className="block text-[15px] font-black text-charcoal dark:text-white">{formatCurrency(pass.perSession, language)}</b>
+                <b className="block truncate text-[15px] font-black text-charcoal dark:text-white">{formatCurrency(pass.perSession, language)}</b>
                 <small className="text-[10px] font-extrabold leading-tight text-stone-500 dark:text-stone-400">{t('salles.perSession')}</small>
               </div>
-              <div className="rounded-[14px] bg-bitter-lime p-2.5 text-charcoal">
-                <b className="block text-[15px] font-black">
+              <div className="min-w-0 overflow-hidden rounded-[14px] bg-bitter-lime p-2.5 text-charcoal">
+                <b className="block truncate text-[15px] font-black">
                   {pass.saved >= 0 ? '+' : '−'}
                   {formatCurrency(Math.abs(pass.saved), language)}
                 </b>
                 <small className="text-[10px] font-extrabold leading-tight">{t(pass.saved >= 0 ? 'salles.saved' : 'salles.lost')}</small>
               </div>
               <div className={tile}>
-                <b className="block text-[15px] font-black capitalize text-charcoal dark:text-white">{pass.bestMonth.toLocaleDateString(locale, { month: 'long' })}</b>
+                <b className="block truncate text-[15px] font-black capitalize text-charcoal dark:text-white">{pass.bestMonth.toLocaleDateString(locale, { month: 'long' })}</b>
                 <small className="text-[10px] font-extrabold leading-tight text-stone-500 dark:text-stone-400">{t('salles.bestMonth')}</small>
               </div>
             </div>
           </section>
         )}
 
-        {records && report.sessions > 2 && (
+        {records && report.sessions >= HABITS_MIN && (
           <section className="flex flex-col gap-2.5">
             <Head title={t('salles.records')} />
             <ul className={`${card} py-1`}>

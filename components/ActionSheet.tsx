@@ -31,7 +31,7 @@ export default function ActionSheet({
         aria-hidden="true"
       />
       <div
-        className="relative w-full max-w-md max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-[2rem] bg-cream px-6 pt-3 text-charcoal shadow-2xl dark:bg-[#11150f] dark:text-white sm:rounded-[2rem]"
+        className="relative w-full max-w-md max-h-[88dvh] overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[2rem] bg-cream px-6 pt-3 text-charcoal shadow-2xl dark:bg-[#11150f] dark:text-white sm:rounded-[2rem]"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' }}
       >
         <div

@@ -362,7 +362,7 @@ const PinSheet: React.FC<{
         role="dialog"
         aria-modal="true"
         aria-label={t('wall.pickTitle')}
-        className="relative flex max-h-[90dvh] w-full max-w-md flex-col gap-3.5 overflow-y-auto rounded-t-[32px] bg-cream px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-3 text-charcoal shadow-[0_-20px_40px_rgba(0,0,0,0.25)] dark:bg-[#121212] dark:text-white"
+        className="relative flex max-h-[90dvh] w-full max-w-md flex-col gap-3.5 overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[32px] bg-cream px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-3 text-charcoal shadow-[0_-20px_40px_rgba(0,0,0,0.25)] dark:bg-[#121212] dark:text-white"
       >
         <span aria-hidden="true" className="mx-auto h-[5px] w-10 rounded-full bg-stone-300 dark:bg-white/15" />
         <div className="flex items-start justify-between">

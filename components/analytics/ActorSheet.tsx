@@ -99,7 +99,7 @@ export default function ActorSheet({ name, personId, photoPath, films, overallAv
           ) : credits.length === 0 ? (
             <p className="py-8 text-center text-[13px] font-semibold text-stone-500">{t('actor.none')}</p>
           ) : (
-            <div className="grid grid-cols-3 gap-x-2.5 gap-y-3.5">
+            <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-2.5 gap-y-3.5">
               {credits.map((c) => {
                 const seen = byTmdb.get(c.id);
                 const pub = pickFromLookup(imdb, 'movie', c.id, c.vote_average);
@@ -112,7 +112,7 @@ export default function ActorSheet({ name, personId, photoPath, films, overallAv
                       if (seen) onViewMovie?.(seen);
                       else onPreview?.(c.id);
                     }}
-                    className="flex min-w-0 flex-col gap-1 text-left active:scale-[0.97]"
+                    className="flex w-full min-w-0 flex-col gap-1 overflow-hidden text-left active:scale-[0.97]"
                   >
                     <span className="relative block aspect-[2/3] w-full overflow-hidden rounded-xl bg-sand dark:bg-white/10">
                       {c.poster_path && <img src={tmdbImage(c.poster_path, 'w185')} alt="" loading="lazy" className="h-full w-full object-cover" />}
@@ -122,8 +122,8 @@ export default function ActorSheet({ name, personId, photoPath, films, overallAv
                         </span>
                       )}
                     </span>
-                    <b className="truncate text-[12px] font-black text-charcoal dark:text-white">{c.title}</b>
-                    <small className="-mt-1 text-[10px] font-extrabold text-stone-500 dark:text-stone-400">
+                    <b className="block w-full truncate text-[12px] font-black text-charcoal dark:text-white">{c.title}</b>
+                    <small className="-mt-1 block w-full truncate text-[10px] font-extrabold text-stone-500 dark:text-stone-400">
                       {[c.release_date?.slice(0, 4), pub ? `${pub.source === 'imdb' ? 'IMDb' : 'TMDB'} ${pub.value.toFixed(1)}` : ''].filter(Boolean).join(' · ')}
                     </small>
                   </button>
