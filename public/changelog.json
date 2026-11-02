@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-01-jeux",
-  "label": "Version du 1er novembre",
+  "version": "2026-11-02-mur",
+  "label": "Version du 2 novembre",
   "items": [
+    {
+      "title": "Tes films vus en mur",
+      "body": "À côté de « Vu / À voir », passe des cartes au mur : ton coup de cœur du mois en grand, puis tes affiches en mosaïque, mois par mois. Trie par note, genre ou année. Et avec « Changer », choisis le film à l’affiche (ta meilleure note du mois, ta dernière séance, ton meilleur depuis toujours ou celui que tu veux) avec ton mot, jusqu’à la fin du mois."
+    },
     {
       "title": "Tes espaces en billets, sur l’accueil",
       "body": "Les billets de tes espaces sont maintenant directement sur l’accueil, à faire défiler : les affiches de l’espace en éventail, ses membres, et sur le talon ce qui t’attend (voter, relancer, ou tout est à jour). Un geste pour entrer. Le bouton « Réduire » les range en une ligne de pastilles."

@@ -170,6 +170,7 @@ import {
 } from './services/spaceSync';
 import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import SpaceTickets from './components/SpaceTickets';
+import FilmWall, { FilmViewSwitch } from './components/FilmWall';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
 import VoteWaitingSheet from './components/VoteWaitingSheet';
 import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
@@ -458,6 +459,22 @@ const App: React.FC = () => {
   choosingProfileRef.current = choosingProfile;
   const [viewMode, setViewMode] = useState<ViewMode>('Feed');
   const [feedTab, setFeedTab] = useState<FeedTab>('history');
+  /** Les films vus en cartes ou en mur ; le choix reste sur ce téléphone. */
+  const [historyView, setHistoryView] = useState<'cards' | 'wall'>(() => {
+    try {
+      return localStorage.getItem('bitter_history_view') === 'wall' ? 'wall' : 'cards';
+    } catch {
+      return 'cards';
+    }
+  });
+  const changeHistoryView = (view: 'cards' | 'wall') => {
+    setHistoryView(view);
+    try {
+      localStorage.setItem('bitter_history_view', view);
+    } catch {
+      // Sans stockage, le choix vaut pour cette visite.
+    }
+  };
   // null = l'utilisateur n'a pas encore tranché : on ouvre le bloc dès que la
   // collection est assez fournie pour que les stats disent quelque chose.
   const [showFeedStats, setShowFeedStats] = useState<boolean | null>(null);
@@ -4409,7 +4426,7 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  <div className="flex justify-center w-full mb-2">
+                  <div className="flex items-center justify-center gap-2 w-full mb-2">
                     <div data-tour="series-tabs" className="relative bg-stone-100 dark:bg-[#161616] p-1 rounded-full flex w-full max-w-[280px] shadow-inner border border-stone-200/50 dark:border-white/5 transition-colors">
                       <div
                         className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-[#2a2a2a] rounded-full shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
@@ -4440,6 +4457,9 @@ const App: React.FC = () => {
                         {t('feed.toWatch')} {feedStats ? `(${feedStats.queueCount})` : ''}
                       </button>
                     </div>
+                    {mediaMode === 'movie' && feedTab === 'history' && (
+                      <FilmViewSwitch view={historyView} onChange={changeHistoryView} />
+                    )}
                   </div>
                   </div>
                   {feedTab === 'queue' &&
@@ -4728,6 +4748,15 @@ const App: React.FC = () => {
                         {t('feed.clearFilters')}
                       </button>
                     </div>
+                  ) : historyView === 'wall' && mediaMode === 'movie' && feedTab === 'history' && activeProfile ? (
+                    <FilmWall
+                      movies={filteredAndSortedMovies}
+                      profileId={activeProfile.id}
+                      onOpen={(m) => {
+                        setEditingMovie(m);
+                        setIsModalOpen(true);
+                      }}
+                    />
                   ) : (
                     <div className="grid grid-cols-1 gap-8">
                       {visibleMovies.map((movie, index) => (
