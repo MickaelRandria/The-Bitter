@@ -75,6 +75,8 @@ interface AnalyticsViewProps {
   /** Le compte connecté : ses espaces nourrissent l'onglet Amis. */
   currentUserId?: string;
   onOpenSpace?: (spaceId: string) => void;
+  /** Un film pas encore vu : sa fiche TMDB. */
+  onPreview?: (tmdbId: number) => void;
 }
 
 type TabMode = 'overview' | 'notes' | 'psycho' | 'friends';
@@ -984,6 +986,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onOpenSpaces,
   currentUserId,
   onOpenSpace,
+  onPreview,
 }) => {
   const { t, language } = useLanguage();
   const isDark = useTheme().theme === 'dark';
@@ -1723,6 +1726,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           onViewDirector={onViewDirector}
           focusRanking={goutsFocus}
           podium={<PodiumSection movies={movies} onViewMovie={(movie) => onViewMovie?.(movie)} />}
+          onPreview={onPreview}
           playlist={<MonthPlaylistCard movies={movies} />}
         />
       )}

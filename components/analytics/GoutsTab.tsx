@@ -11,6 +11,8 @@ import { bestOf, parseActors, rankingCsv, topActors, topCountries, topLanguages,
 import { cachedOrigins, loadOrigins, type Origin } from '../../services/movieOrigins';
 import { cachedActorPhotos, loadActorPhotos } from '../../services/actorPhotos';
 import { tmdbImage } from '../../utils/tmdbImage';
+import ActorSheet from './ActorSheet';
+import OriginSheet from './OriginSheet';
 import {
   GoutFilm,
   contrarian,
@@ -45,6 +47,8 @@ interface Props {
   podium?: React.ReactNode;
   /** La playlist du mois, après la bande originale. */
   playlist?: React.ReactNode;
+  /** Un film pas encore vu (depuis la fenêtre d'un acteur) : sa fiche TMDB. */
+  onPreview?: (tmdbId: number) => void;
 }
 
 const GAP = 1.6;
@@ -95,7 +99,7 @@ const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => 
   </div>
 );
 
-const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewDirector, focusRanking = false, part = 'likes', podium, playlist }) => {
+const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewDirector, focusRanking = false, part = 'likes', podium, playlist, onPreview }) => {
   const likes = part === 'likes';
   const { t, language } = useLanguage();
   const watched = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
@@ -141,12 +145,15 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
   // Leurs portraits : par l'identifiant TMDB gardé avec le film, sinon par le nom.
   const [actorPhotos, setActorPhotos] = useState(() => cachedActorPhotos());
   const actorKey = actors.map((a) => a.key).join('|');
-  useEffect(() => {
-    if (!likes || !actors.length) return;
+  const actorIds = useMemo(() => {
     const ids = new Map<string, number>();
     for (const m of watched) for (const a of m.actorIds ?? []) if (a?.name && a.id) ids.set(a.name, a.id);
+    return ids;
+  }, [watched]);
+  useEffect(() => {
+    if (!likes || !actors.length) return;
     let alive = true;
-    loadActorPhotos(actors.map((a) => a.key), ids).then((cache) => alive && setActorPhotos({ ...cache }));
+    loadActorPhotos(actors.map((a) => a.key), actorIds).then((cache) => alive && setActorPhotos({ ...cache }));
     return () => {
       alive = false;
     };
@@ -174,6 +181,14 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
     }
   }, [language]);
   const bestCountry = bestOf(countries);
+  // Les fenêtres : un acteur, un pays ou une langue.
+  const [actorOpen, setActorOpen] = useState<string | null>(null);
+  const [originOpen, setOriginOpen] = useState<{ kind: 'country' | 'language'; code: string } | null>(null);
+  const originFilms = (o: { kind: 'country' | 'language'; code: string }) =>
+    watched.filter((m) => {
+      const origin = m.tmdbId != null ? origins[m.tmdbId] : undefined;
+      return o.kind === 'country' ? origin?.countries.includes(o.code) : origin?.language === o.code;
+    });
   const exportRanking = () => {
     haptics.soft();
     const csv = rankingCsv(
@@ -355,7 +370,15 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
           <Head title={t('gouts.actors')} aside={t('gouts.actorsAside')} />
           <div className="-mx-6 flex gap-2.5 overflow-x-auto px-6 pb-1 no-scrollbar">
             {actors.map((a, i) => (
-              <div key={a.key} className="flex w-[108px] shrink-0 flex-col gap-2 rounded-[20px] border border-sand bg-white p-3 dark:border-white/[0.08] dark:bg-[#1C1B19]">
+              <button
+                key={a.key}
+                type="button"
+                onClick={() => {
+                  haptics.soft();
+                  setActorOpen(a.key);
+                }}
+                className="flex w-[108px] shrink-0 flex-col gap-2 rounded-[20px] border border-sand bg-white p-3 text-left active:scale-[0.97] dark:border-white/[0.08] dark:bg-[#1C1B19]"
+              >
                 <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full text-[18px] font-black text-white" style={{ background: ACTOR_TINTS[i % ACTOR_TINTS.length] }}>
                   {actorPhotos[a.key] ? (
                     <img src={tmdbImage(actorPhotos[a.key], 'w185') ?? ''} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -367,7 +390,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
                 <small className="text-[11px] font-bold text-stone-500 dark:text-white/50">
                   {t('gouts.films', { n: String(a.count) })} · <b className="text-charcoal dark:text-white">{fmt1(a.average)}</b>
                 </small>
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -417,7 +440,17 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
           <div className="rounded-[22px] border border-sand bg-white px-[15px] py-4 dark:border-white/[0.08] dark:bg-[#1C1B19]">
             <ul className="flex flex-col gap-2">
               {countries.slice(0, 5).map((c) => (
-                <li key={c.key} className="grid grid-cols-[minmax(0,7.5rem)_1fr_2.2rem] items-center gap-2.5">
+                <li
+                  key={c.key}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    haptics.soft();
+                    setOriginOpen({ kind: 'country', code: c.key });
+                  }}
+                  onKeyDown={(event) => event.key === 'Enter' && setOriginOpen({ kind: 'country', code: c.key })}
+                  className="grid cursor-pointer grid-cols-[minmax(0,7.5rem)_1fr_2.2rem] items-center gap-2.5 active:opacity-70"
+                >
                   <span className="truncate text-[12px] font-extrabold text-charcoal dark:text-white">{regionName(c.key)}</span>
                   <span aria-hidden="true" className="h-2.5 overflow-hidden rounded-full bg-sand dark:bg-white/[0.08]">
                     <span className={`block h-full rounded-full ${bestCountry?.key === c.key ? 'bg-forest dark:bg-bitter-lime' : 'bg-charcoal dark:bg-[#F4F1EA]'}`} style={{ width: `${(c.count / countries[0].count) * 100}%` }} />
@@ -429,9 +462,17 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
             {languages.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5 border-t border-sand pt-3 dark:border-white/[0.08]">
                 {languages.slice(0, 6).map((l) => (
-                  <span key={l.key} className="rounded-full bg-sand px-2.5 py-1 text-[11px] font-black text-charcoal dark:bg-white/[0.08] dark:text-white">
+                  <button
+                    key={l.key}
+                    type="button"
+                    onClick={() => {
+                      haptics.soft();
+                      setOriginOpen({ kind: 'language', code: l.key });
+                    }}
+                    className="rounded-full bg-sand px-2.5 py-1 text-[11px] font-black text-charcoal active:scale-95 dark:bg-white/[0.08] dark:text-white"
+                  >
                     {languageName(l.key)} <span className="text-stone-500 dark:text-white/50">{l.count}</span>
-                  </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -575,6 +616,37 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
           </button>
         )}
       </section>
+      )}
+
+      {actorOpen && (
+        <ActorSheet
+          name={actorOpen}
+          personId={actorIds.get(actorOpen)}
+          photoPath={actorPhotos[actorOpen]}
+          films={watched.filter((m) => parseActors(m.actors).includes(actorOpen))}
+          overallAverage={myAvg}
+          onViewMovie={(movie) => {
+            setActorOpen(null);
+            onViewMovie?.(movie);
+          }}
+          onPreview={(id) => {
+            setActorOpen(null);
+            onPreview?.(id);
+          }}
+          onClose={() => setActorOpen(null)}
+        />
+      )}
+      {originOpen && (
+        <OriginSheet
+          title={originOpen.kind === 'country' ? regionName(originOpen.code) : languageName(originOpen.code)}
+          films={originFilms(originOpen)}
+          overallAverage={myAvg}
+          onViewMovie={(movie) => {
+            setOriginOpen(null);
+            onViewMovie?.(movie);
+          }}
+          onClose={() => setOriginOpen(null)}
+        />
       )}
     </div>
   );

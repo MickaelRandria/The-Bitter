@@ -78,6 +78,27 @@ export const getDirectorMovies = async (directorId: number): Promise<any[]> => {
   }
 };
 
+/** Les films les mieux notés d'un acteur ou d'une actrice : ses rôles au cinéma, avec assez de votes pour compter. */
+export const getActorMovies = async (personId: number): Promise<any[]> => {
+  const key = `actor:${personId}`;
+  const cached = getCachedData<any[]>(key);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/person/${personId}/movie_credits?api_key=${TMDB_API_KEY}&language=fr-FR`);
+    const data = await res.json();
+    const seen = new Set<number>();
+    const results = (data.cast || [])
+      .filter((m: any) => m.vote_count >= 50 && !seen.has(m.id) && seen.add(m.id))
+      .sort((a: any, b: any) => b.vote_average * Math.log10(b.vote_count + 1) - a.vote_average * Math.log10(a.vote_count + 1))
+      .slice(0, 12);
+    setCachedData(key, results);
+    return results;
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('Error fetching actor movies:', error);
+    return [];
+  }
+};
+
 export const searchPerson = async (query: string): Promise<number | null> => {
   const key = `person:${query}`;
   const cached = getCachedData<number>(key);

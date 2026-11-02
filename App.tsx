@@ -4182,6 +4182,10 @@ const App: React.FC = () => {
               onRateFilm={() => openAddModal('watched', 'movie', { fromNav: true })}
               onOpenSpaces={() => setShowSharedSpaces(true)}
               currentUserId={session?.user?.id}
+              onPreview={(tmdbId) => {
+                setPreviewTmdbId(tmdbId);
+                setPreviewMediaType('movie');
+              }}
               onOpenSpace={(spaceId) => {
                 const space = mySpaces.find((s) => s.id === spaceId);
                 if (!space) {
