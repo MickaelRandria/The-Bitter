@@ -233,6 +233,21 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
     sortBy !== 'popularity',
   ].filter(Boolean).length;
 
+  // Le titre de la grille dit ce qu'elle montre : le tri, et la plateforme choisie.
+  const filteredProvider = PROVIDERS.find((p) => String(p.id) === String(streamingFilter));
+  const gridTitle = [
+    t(sortBy === 'date' ? 'discover.gridDate' : sortBy === 'alpha' ? 'discover.gridAlpha' : 'discover.gridPop'),
+    streamingFilter === 'all'
+      ? sortBy === 'popularity'
+        ? t('discover.gridNow')
+        : ''
+      : streamingFilter === 'cinema'
+        ? t('discover.gridCinema')
+        : t('discover.gridOn', { name: filteredProvider?.name ?? '' }),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   // Collection sets for badge detection
   const { watchedIds, watchlistIds } = useMemo(() => {
     const watched = new Set<number>();
@@ -583,7 +598,6 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         {timePeriod !== 'all_time' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setTimePeriod('all_time')}>{t(timePeriod === 'this_month' ? 'discover.month' : 'discover.year')}<X size={12} /></button>}
         {streamingFilter !== 'all' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setStreamingFilter('all')}>{PROVIDERS.find(p => String(p.id) === String(streamingFilter))?.name}<X size={12} /></button>}
         {sortBy !== 'popularity' && <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full bg-stone-100 px-3 dark:bg-white/5" onClick={() => setSortBy('popularity')}>{sortBy === 'date' ? t('discover.sortDate') : 'A–Z'}<X size={12} /></button>}
-        {userProfile && myPlatforms(userProfile.streamingPlatforms).length > 0 && <button type="button" className="min-h-9 text-left" onClick={onEditHabits}>{myPlatforms(userProfile.streamingPlatforms).map(p => p.name).join(' · ')}</button>}
       </div>
       {/* AI RESULT */}
       {aiResult && (
@@ -738,13 +752,18 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
       )}
       </>
 
-      {/* Mes rangées : mes plateformes, le ciné de la semaine, de quoi démarrer. */}
-      {userProfile && !isSearchActive && !aiResult && (
+      {/* Mes rangées : mes plateformes, le ciné de la semaine, de quoi démarrer.
+          Seulement quand on flâne : un filtre ou une envie veut voir ses résultats
+          tout de suite, et « Sur tes plateformes » répéterait le filtre plateforme. */}
+      {userProfile && !isSearchActive && !aiResult && !moodSummary && activeFilterCount === 0 && (
         <PersonalShelves mediaType={mediaType} profile={userProfile} onPreview={onPreview} onEditHabits={onEditHabits} onOpenCalendar={onOpenCalendar} />
       )}
 
       {/* RESULTS GRID */}
       <div className="space-y-6">
+        {!isSearchActive && !aiResult && !moodSummary && (
+          <h2 className="px-1 text-[17px] font-black tracking-[-0.04em] text-charcoal dark:text-white">{gridTitle}</h2>
+        )}
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
             {[...Array(8)].map((_, i) => (

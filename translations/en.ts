@@ -1594,6 +1594,12 @@ export const en: Record<string, string> = {
   'discover.sortPop': 'Pop',
   'discover.sortDate': 'Date',
   'discover.broaden': 'Try broadening your criteria.',
+  'discover.gridPop': "Popular",
+  'discover.gridDate': "Latest",
+  'discover.gridAlpha': "A to Z",
+  'discover.gridNow': "right now",
+  'discover.gridOn': "on {name}",
+  'discover.gridCinema': "in theatres",
   'discover.reviews': 'reviews',
 
   // ── Criteria labels ───────────────────────────────────────────────────────

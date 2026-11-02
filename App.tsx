@@ -3983,8 +3983,9 @@ const App: React.FC = () => {
       {viewMode !== 'SharedSpace' && (
         <header
           className={`px-6 relative z-40 bg-cream/95 dark:bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-sand/40 dark:border-white/10 transition-colors ${
-            /* Les statistiques sont une salle obscure : l'en-tête s'y fond. */
-            viewMode === 'Analytics' && uniqueMovies.filter((m) => m.status === 'watched').length >= 5 ? 'dark !border-transparent' : ''
+            /* Les statistiques sont une salle obscure : l'en-tête s'y fond. La classe
+               `dark` ne vaut que pour ses enfants : son propre fond est forcé. */
+            viewMode === 'Analytics' && uniqueMovies.filter((m) => m.status === 'watched').length >= 5 ? 'dark !border-transparent !bg-[#0c0c0c]/95' : ''
           }`}
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >

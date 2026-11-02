@@ -1600,6 +1600,12 @@ export const fr: Record<string, string> = {
   'discover.sortPop': 'Pop',
   'discover.sortDate': 'Date',
   'discover.broaden': "Essaye d'élargir tes critères.",
+  'discover.gridPop': "Populaire",
+  'discover.gridDate': "Les plus récents",
+  'discover.gridAlpha': "De A à Z",
+  'discover.gridNow': "en ce moment",
+  'discover.gridOn': "sur {name}",
+  'discover.gridCinema': "au cinéma",
   'discover.reviews': 'avis',
 
   // ── Criteria labels ───────────────────────────────────────────────────────
