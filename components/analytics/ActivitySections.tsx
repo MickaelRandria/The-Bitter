@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Minus, Plus } from 'lucide-react';
 import type { Movie, UserProfile } from '../../types';
 import CinemasSheet from './CinemasSheet';
+import SeanceCatchup, { readSkipped } from './SeanceCatchup';
+import { catchupCandidates } from '../../utils/seance';
+import { resizeTmdbImage } from '../../utils/tmdbImage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { haptics } from '../../utils/haptics';
 import { fmt1 } from '../../utils/verdict';
@@ -116,6 +119,14 @@ export const CinemasSection: React.FC<{
   /** La fenêtre de détail : ouverte sur la vue d'ensemble (`''`) ou sur un cinéma. */
   const [detail, setDetail] = useState<string | null>(null);
   const [screenings, setScreenings] = useState<Awaited<ReturnType<typeof listPastScreenings>> | null>(null);
+  const [reload, setReload] = useState(0);
+  const [catchupOpen, setCatchupOpen] = useState(false);
+  /** Toutes tes séances, toutes périodes : pour savoir quels films en ont une. */
+  const [allScreened, setAllScreened] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (!currentUserId) return;
+    listPastScreenings(currentUserId).then((list) => setAllScreened(new Set(list.map((s) => s.tmdbId).filter((id): id is number => id != null))));
+  }, [currentUserId, reload]);
   useEffect(() => {
     if (!currentUserId) return;
     let alive = true;
@@ -127,7 +138,7 @@ export const CinemasSection: React.FC<{
     return () => {
       alive = false;
     };
-  }, [currentUserId, fromYear]);
+  }, [currentUserId, fromYear, reload]);
 
   const ratings = useMemo(() => {
     const map = new Map<number, number>();
@@ -135,7 +146,72 @@ export const CinemasSection: React.FC<{
     return map;
   }, [movies]);
   const report = useMemo(() => (screenings ? cinemaStats(screenings, (id) => ratings.get(id)) : null), [screenings, ratings]);
-  if (!report || report.sessions < 2) return null;
+  // Les films vus au cinéma (ou pendant leur sortie) qui n'ont pas de séance.
+  const missing = useMemo(
+    () =>
+      screenings
+        ? catchupCandidates(
+            movies.map((m) => ({ ...m, location: m.watches?.[0]?.viewingContext?.locationType })),
+            allScreened,
+            readSkipped()
+          )
+        : [],
+    [movies, allScreened, screenings, catchupOpen]
+  );
+  const knownCinemas = useMemo(() => {
+    const names = [userProfile?.favoriteCinema?.name, ...(report?.cinemas.map((c) => c.name) ?? [])].filter((n): n is string => !!n);
+    return [...new Set(names)];
+  }, [report, userProfile]);
+  const catchup = currentUserId && missing.length > 0 && (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          haptics.soft();
+          setCatchupOpen(true);
+        }}
+        className="flex items-center gap-3.5 rounded-[24px] bg-bitter-lime p-4 text-left text-charcoal active:scale-[0.99]"
+      >
+        <span aria-hidden="true" className="relative h-[66px] w-[74px] shrink-0">
+          {missing.slice(0, 3).map((m, i) =>
+            m.posterUrl ? (
+              <img
+                key={m.id}
+                src={resizeTmdbImage(m.posterUrl, 'w92')}
+                alt=""
+                className="absolute h-[60px] w-10 rounded-lg object-cover shadow-[0_6px_12px_rgba(0,0,0,0.25)]"
+                style={{ left: i * 16, top: i === 1 ? 0 : 4, transform: `rotate(${(i - 1) * 7}deg)` }}
+              />
+            ) : null
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-black tracking-[-0.02em]">{t(missing.length > 1 ? 'catchup.cardMany' : 'catchup.cardOne', { n: String(missing.length) })}</b>
+          <small className="text-[12px] font-bold opacity-75">{t('catchup.cardSub')}</small>
+        </span>
+      </button>
+      {catchupOpen && (
+        <SeanceCatchup
+          films={missing}
+          cinemas={knownCinemas}
+          currentUserId={currentUserId}
+          onDone={() => setReload((n) => n + 1)}
+          onClose={() => {
+            setCatchupOpen(false);
+            setReload((n) => n + 1);
+          }}
+        />
+      )}
+    </>
+  );
+  if (!report || report.sessions < 2) {
+    return catchup ? (
+      <section className="flex flex-col gap-[11px]">
+        <Head title={t('activity.cinemas')} />
+        {catchup}
+      </section>
+    ) : null;
+  }
   const max = report.cinemas[0]?.count ?? 1;
   const totalFormats = report.formats.reduce((a, f) => a + f.count, 0);
 
@@ -206,6 +282,7 @@ export const CinemasSection: React.FC<{
           </p>
         )}
       </div>
+      {catchup}
       {detail != null && screenings && (
         <CinemasSheet
           screenings={screenings}

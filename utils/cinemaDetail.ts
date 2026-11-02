@@ -4,6 +4,7 @@
  * notes arrivent déjà chargées (voir utils/cinemaStats.ts pour la vue courte).
  */
 import { formatLabels } from './cinemaStats';
+import { APPROX_NOTE } from './seance';
 
 export interface DetailScreening {
   id: string;
@@ -16,7 +17,12 @@ export interface DetailScreening {
   tmdbId?: number;
   /** Séance calée à plusieurs. */
   planId?: string;
+  /** `APPROX_NOTE` : une heure tirée d'un moment, pas du programme. */
+  notes?: string;
 }
+
+/** Les séances à l'heure exacte : les seules qui disent un jour, un créneau, un record. */
+const exact = (screenings: DetailScreening[]) => screenings.filter((s) => s.notes !== APPROX_NOTE);
 
 export interface RatedFilm {
   tmdbId?: number;
@@ -46,7 +52,8 @@ export interface Habits {
   everyDays: number | null;
 }
 
-export function habitsOf(screenings: DetailScreening[]): Habits {
+export function habitsOf(all: DetailScreening[]): Habits {
+  const screenings = exact(all);
   const byWeekday = Array(7).fill(0);
   const slots = new Map<number, number>();
   for (const s of screenings) {
@@ -113,7 +120,8 @@ const weekIndex = (ts: number) => {
   return Math.round(monday.getTime() / (7 * DAY));
 };
 
-export function recordsOf(screenings: DetailScreening[]) {
+export function recordsOf(all: DetailScreening[]) {
+  const screenings = exact(all);
   if (!screenings.length) return null;
   const minutes = (ts: number) => {
     const d = new Date(ts);

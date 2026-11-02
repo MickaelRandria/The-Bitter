@@ -15,7 +15,7 @@ function load(relative, stubs = {}) {
 }
 
 const stats = load('../utils/cinemaStats.ts');
-const { salleVsCanape, habitsOf, formatEffect, passReality, recordsOf, cinemaCard } = load('../utils/cinemaDetail.ts', { './cinemaStats': stats });
+const { salleVsCanape, habitsOf, formatEffect, passReality, recordsOf, cinemaCard } = load('../utils/cinemaDetail.ts', { './cinemaStats': stats, './seance': { APPROX_NOTE: 'Heure approximative' } });
 
 const at = (m, d, h = 20, min = 30) => new Date(2026, m, d, h, min).getTime();
 // Jeudis 5, 12 et 19 novembre 2026 ; un samedi à 23 h ; un vendredi à 1 h du matin.

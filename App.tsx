@@ -172,6 +172,10 @@ import SpaceVerdictPrompt from './components/SpaceVerdictPrompt';
 import SpaceTickets from './components/SpaceTickets';
 import FilmWall, { FilmViewSwitch } from './components/FilmWall';
 import AgendaSyncSheet from './components/AgendaSyncSheet';
+import SeancePrompt from './components/SeancePrompt';
+import type { SeanceChoice } from './components/SeanceCard';
+import { createScreening } from './services/screenings';
+import { APPROX_NOTE } from './utils/seance';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
 import VoteWaitingSheet from './components/VoteWaitingSheet';
 import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
@@ -2875,6 +2879,28 @@ const App: React.FC = () => {
   const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
   const [linkScreening, setLinkScreening] = useState<CinemaScreening | null>(null);
   const [ratingScreening, setRatingScreening] = useState<CinemaScreening | null>(null);
+  /** La séance laissée sans réponse dans la notation : reposée une fois, après. */
+  const [seancePrompt, setSeancePrompt] = useState<{ choice: SeanceChoice; film: { title: string; tmdbId?: number; posterUrl?: string; runtime?: number } } | null>(null);
+  /** Une séance confirmée rejoint le calendrier, comme vue. */
+  const saveSeance = async (choice: SeanceChoice, film: { title: string; tmdbId?: number; posterUrl?: string }) => {
+    const userId = session?.user?.id;
+    if (!userId || !choice.cinemaName || choice.startsAt == null) return;
+    const result = await createScreening(userId, {
+      title: film.title,
+      tmdbId: film.tmdbId,
+      posterUrl: film.posterUrl,
+      startsAt: choice.startsAt,
+      cinemaName: choice.cinemaName,
+      format: choice.version,
+      notes: choice.approximate ? APPROX_NOTE : undefined,
+      status: 'completed',
+    });
+    setToastMessage(result.ok ? t('seance.saved') : t('seance.saveError'));
+  };
+  const handleSeance = (choice: SeanceChoice, film: { title: string; tmdbId?: number; posterUrl?: string; runtime?: number }) => {
+    if (choice.state === 'confirmed') void saveSeance(choice, film);
+    else if (choice.state === 'ask') setSeancePrompt({ choice, film });
+  };
   const promptMovie = screeningFollowup.prompt ? screeningMovie(screeningFollowup.prompt, allMovies) : undefined;
   const linkMovie = linkScreening ? screeningMovie(linkScreening, allMovies) : undefined;
   const ratingScreeningRef = useRef<CinemaScreening | null>(null);
@@ -4888,6 +4914,20 @@ const App: React.FC = () => {
         onClearSelection={clearSelection}
       />
       {showAgendaSync && <AgendaSyncSheet onClose={() => setShowAgendaSync(false)} />}
+      {seancePrompt && (
+        <SeancePrompt
+          film={seancePrompt.film}
+          initial={seancePrompt.choice}
+          favoriteCinema={activeProfile?.favoriteCinema}
+          subscription={activeProfile?.cinemaSubscription}
+          onConfirm={(choice) => {
+            const film = seancePrompt.film;
+            setSeancePrompt(null);
+            void saveSeance(choice, film);
+          }}
+          onClose={() => setSeancePrompt(null)}
+        />
+      )}
       {showPageActions && <PageActionsSheet title={paletteLabel} subtitle={paletteSubtitle} actions={paletteActions} onAction={handlePageAction} onClose={() => setShowPageActions(false)} onAllAdd={() => { setShowPageActions(false); setGlobalAddRequest(n => n + 1); }} series={mediaMode === 'tv'} />}
       {showTonightControls && <ActionSheet title={t('pageActions.tonight')} onClose={() => setShowTonightControls(false)}><div className="space-y-4 rounded-[1.7rem] border border-stone-200/70 bg-white p-4 animate-[fadeIn_0.25s_ease-out] dark:border-white/10 dark:bg-[#161616]">
                             {isPickAnimating && <Loader2 size={20} className="animate-spin" />}
@@ -5110,6 +5150,8 @@ const App: React.FC = () => {
             onSharedMovieAdded={() => setSharedSpaceRefreshTrigger((prev) => prev + 1)}
             onToast={setToastMessage}
             cinemaSubscription={activeProfile?.cinemaSubscription}
+            favoriteCinema={activeProfile?.favoriteCinema}
+            onSeance={ratingScreening ? undefined : handleSeance}
             tourForceBitterPlus={
               activeTour === 'rating' && !!tourStep?.id.startsWith('bitterplus')
             }

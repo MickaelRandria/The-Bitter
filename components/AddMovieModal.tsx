@@ -42,7 +42,10 @@ import {
   CinemaSubscription,
   ViewingContext,
   EmotionalImprint,
+  FavoriteCinema,
 } from '../types';
+import SeanceCard, { initialSeance, type SeanceChoice } from './SeanceCard';
+import { inTheaters } from '../utils/seance';
 import ViewingContextPicker from './ViewingContextPicker';
 import ReviewComposer from './ReviewComposer';
 import { haptics } from '../utils/haptics';
@@ -129,6 +132,13 @@ interface AddMovieModalProps {
   onShortcut?: (kind: 'series' | 'movie' | 'ticket') => void;
   /** Ouvert par « Dicter un avis » : met l'avis en avant dès que le film est choisi. */
   focusReview?: boolean;
+  /** Ton cinéma : la séance d'un film encore en salle y est devinée. */
+  favoriteCinema?: FavoriteCinema;
+  /**
+   * La séance au moment d'enregistrer : confirmée, App la range dans le
+   * calendrier ; ignorée (`ask`), App la repose une fois, juste après.
+   */
+  onSeance?: (choice: SeanceChoice, film: { title: string; tmdbId?: number; posterUrl?: string; runtime?: number }) => void;
 }
 
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
@@ -245,6 +255,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   showShortcuts = false,
   onShortcut,
   focusReview = false,
+  favoriteCinema,
+  onSeance,
 }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
@@ -282,6 +294,13 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   const [showProfilePicker, setShowProfilePicker] = useState(false);
   /** Contexte de la séance, facultatif : ne bloque jamais l'enregistrement. */
   const [viewingContext, setViewingContext] = useState<ViewingContext | undefined>();
+  /** « Ta séance » d'un film encore en salle (voir SeanceCard). */
+  const [seance, setSeance] = useState<SeanceChoice>(() => initialSeance(cinemaSubscription, favoriteCinema));
+  // Un autre film, ou la fenêtre rouverte : la devinette repart de zéro.
+  useEffect(() => {
+    setSeance(initialSeance(cinemaSubscription, favoriteCinema));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, formData.tmdbId]);
   /**
    * Publication dans le fil des espaces. Coché par défaut, comme le réglage global :
    * la retenue porte presque toujours sur un titre précis, pas sur l'habitude.
@@ -689,6 +708,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined,
         tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
         runtime: data.runtime || 0,
+        releaseDate: typeToUse === 'movie' ? data.release_date || undefined : undefined,
       }));
     } catch (e) {
       if (import.meta.env.DEV) console.error(e);
@@ -978,7 +998,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // Noter dans un espace, c'est noter : le verdict rejoint l'accueil. App
         // le pose sur la fiche personnelle si le film y est déjà, plutôt que de
         // créer un doublon.
-        onSave(personalEntry, viewingContext);
+        onSave(personalEntry, contextForSave(viewingContext));
+        reportSeance();
 
         haptics.success();
         onSharedMovieAdded?.();
@@ -1047,7 +1068,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         // terminait par un `return` sec : un film vu en groupe ne comptait ni dans les
         // statistiques, ni dans les économies d'abonnement, et n'existait nulle part
         // ailleurs que dans l'espace.
-        onSave(personalEntry, isWatchlist ? undefined : viewingContext);
+        onSave(personalEntry, isWatchlist ? undefined : contextForSave(viewingContext));
+        if (!isWatchlist) reportSeance();
 
         haptics.success();
         onSharedMovieAdded?.();
@@ -1071,11 +1093,40 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         shareToFeed,
       },
       // Le contexte n'a de sens que pour une séance réellement vue.
-      isWatchlist ? undefined : viewingContext
+      isWatchlist ? undefined : contextForSave(viewingContext)
     );
+    if (!isWatchlist) reportSeance();
     haptics.success();
     setIsSaving(false);
   };
+
+  /** La carte « Ta séance » : un film encore en salle, qu'on vient de voir et qu'on ajoute. */
+  const showSeance =
+    !!onSeance &&
+    !isEditMode &&
+    mode === 'watched' &&
+    (formData.mediaType ?? 'movie') === 'movie' &&
+    formData.tmdbId != null &&
+    inTheaters(formData.releaseDate, Date.now());
+  /** Le contexte enregistré suit la séance répondue ; sans réponse, celui du sélecteur. */
+  function contextForSave(base?: ViewingContext): ViewingContext | undefined {
+    if (!showSeance) return base;
+    if (seance.state === 'home') return { locationType: 'home' };
+    if (seance.state !== 'confirmed') return base;
+    const pass = seance.payment === 'subscription' && cinemaSubscription?.active;
+    return {
+      locationType: 'cinema',
+      cinemaName: seance.cinemaName,
+      cinemaProvider: pass ? cinemaSubscription?.provider : undefined,
+      paymentType: seance.payment,
+      subscriptionId: pass ? cinemaSubscription?.id : undefined,
+    };
+  }
+  function reportSeance() {
+    if (!showSeance || !onSeance) return;
+    if (seance.state !== 'confirmed' && seance.state !== 'ask') return;
+    onSeance(seance, { title: formData.title, tmdbId: formData.tmdbId, posterUrl: formData.posterUrl, runtime: formData.runtime });
+  }
 
   if (!isOpen) return null;
 
@@ -1640,7 +1691,19 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 />
               )}
 
+              {showSeance && (
+                <SeanceCard
+                  title={formData.title}
+                  runtime={formData.runtime}
+                  favoriteCinema={favoriteCinema}
+                  subscription={cinemaSubscription}
+                  value={seance}
+                  onChange={setSeance}
+                />
+              )}
+
               {/* Contexte de visionnage : deux rangées de puces, rien d'obligatoire. */}
+              {!showSeance && (
               <RatingDisclosure title={t('addMovie.context')}>
                 <ViewingContextPicker
                   value={viewingContext}
@@ -1648,6 +1711,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                   subscription={cinemaSubscription?.active ? cinemaSubscription : undefined}
                 />
               </RatingDisclosure>
+              )}
 
               <RatingDisclosure
                 title={t('addMovie.opinion')}

@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-02-stats",
+  "version": "2026-11-02-seance",
   "label": "Version du 2 novembre",
   "items": [
+    {
+      "title": "Ta séance, en un appui",
+      "body": "En notant un film encore en salle, l’app devine ta séance (ton cinéma, l’horaire du programme) : un « Oui » suffit, ou corrige-la sur place. Sans réponse, elle te la redemande juste après. Et dans Tes salles, complète en une minute les films vus au cinéma sans séance."
+    },
     {
       "title": "Tes stats, rangées et par année",
       "body": "Choisis 2026, 2025 ou depuis toujours : tous les onglets suivent. Chaque onglet répond à une question : Profil (qui tu es, ton année), Goûts (ce que tu aimes, avec maintenant tes acteurs, tes pays et tes langues, et l’export de ton classement), ADN (comment tu notes et ce que tu ressens)."
