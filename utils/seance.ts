@@ -8,15 +8,22 @@
  */
 
 /** Au-delà, le film n'est plus vraiment « en salle » : on ne pose pas la question. */
-export const IN_THEATERS_DAYS = 70;
+export const IN_THEATERS_DAYS = 90;
 export const APPROX_NOTE = 'Heure approximative';
 
-export type Moment = 'afternoon' | 'evening' | 'night';
-export const MOMENT_HOUR: Record<Moment, [number, number]> = { afternoon: [15, 0], evening: [20, 30], night: [22, 30] };
+export type Moment = 'morning' | 'afternoon' | 'evening' | 'night';
+export const MOMENTS: Moment[] = ['morning', 'afternoon', 'evening', 'night'];
+export const MOMENT_HOUR: Record<Moment, [number, number]> = { morning: [11, 0], afternoon: [15, 0], evening: [20, 30], night: [22, 30] };
+
+/** Le moment d'une heure : avant midi le matin, avant 18 h l'après-midi, avant 22 h le soir. */
+export const momentOf = (ts: number): Moment => {
+  const h = new Date(ts).getHours();
+  return h < 12 ? 'morning' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night';
+};
 
 const DAY = 86_400_000;
 
-/** Sorti il y a moins de dix semaines (et pas dans plus d'un jour) : encore en salle. */
+/** Sorti en salle il y a moins de 90 jours (et pas dans plus d'un jour) : encore en salle. */
 export function inTheaters(releaseDate: string | undefined, now: number): boolean {
   if (!releaseDate) return false;
   const released = Date.parse(`${releaseDate}T12:00:00`);

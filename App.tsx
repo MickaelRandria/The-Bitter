@@ -176,6 +176,7 @@ import SeancePrompt from './components/SeancePrompt';
 import type { SeanceChoice } from './components/SeanceCard';
 import { createScreening } from './services/screenings';
 import { APPROX_NOTE } from './utils/seance';
+import { rememberCinema } from './services/cinemaMemory';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
 import VoteWaitingSheet from './components/VoteWaitingSheet';
 import { isUploadedAvatar, removeAvatarPhotos, uploadAvatarPhoto } from './services/avatarUpload';
@@ -2895,6 +2896,7 @@ const App: React.FC = () => {
       notes: choice.approximate ? APPROX_NOTE : undefined,
       status: 'completed',
     });
+    if (result.ok) rememberCinema(choice.cinemaName);
     setToastMessage(result.ok ? t('seance.saved') : t('seance.saveError'));
   };
   const handleSeance = (choice: SeanceChoice, film: { title: string; tmdbId?: number; posterUrl?: string; runtime?: number }) => {

@@ -4,7 +4,10 @@ import type { CinemaShowtime, CinemaSubscription, CinemaViewingPaymentType, Favo
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
 import { fetchCinemaProgramme } from '../services/cinemaDirectory';
-import { guessMoment, momentInstant, pickShowtime, sameTitle, type Moment } from '../utils/seance';
+import { guessMoment, momentInstant, momentOf, MOMENTS, pickShowtime, sameTitle, type Moment } from '../utils/seance';
+import { knownCinemas } from '../services/cinemaMemory';
+import { normalizeName } from '../utils/cinemaNames';
+import CinemaNameInput from './CinemaNameInput';
 
 /**
  * « Ta séance », dans la notation d'un film encore en salle : devinée (ton
@@ -151,23 +154,19 @@ export default function SeanceCard({ title, runtime, favoriteCinema, subscriptio
           </button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {favoriteCinema && (
-            <button type="button" onClick={() => { setOtherCinema(false); set({ cinemaName: favoriteCinema.name }); }} className={chip(!otherCinema && value.cinemaName === favoriteCinema.name)}>
-              {favoriteCinema.name}
-            </button>
-          )}
+          {[favoriteCinema?.name, ...knownCinemas()]
+            .filter((n, i, all): n is string => !!n && all.findIndex((x) => x && normalizeName(x) === normalizeName(n)) === i)
+            .slice(0, 4)
+            .map((name) => (
+              <button key={name} type="button" onClick={() => { setOtherCinema(false); set({ cinemaName: name }); }} className={`${chip(!otherCinema && value.cinemaName === name)} max-w-full truncate`}>
+                {name}
+              </button>
+            ))}
           <button type="button" onClick={() => { setOtherCinema(true); set({ cinemaName: '' }); }} className={chip(otherCinema || !favoriteCinema)}>
             {t('seance.otherCinema')}
           </button>
         </div>
-        {(otherCinema || !favoriteCinema) && (
-          <input
-            value={value.cinemaName ?? ''}
-            onChange={(event) => set({ cinemaName: event.target.value })}
-            placeholder={t('seance.cinemaPlaceholder')}
-            className="h-11 rounded-2xl border border-sand bg-cream px-3.5 text-[13px] font-semibold text-charcoal outline-none dark:border-white/10 dark:bg-[#121212] dark:text-white"
-          />
-        )}
+        {(otherCinema || !favoriteCinema) && <CinemaNameInput value={value.cinemaName ?? ''} onChange={(name) => set({ cinemaName: name })} />}
         <div className="flex flex-wrap gap-1.5">
           {(['today', 'yesterday', 'other'] as const).map((d) => (
             <button key={d} type="button" onClick={() => setDay(d)} className={chip(day === d)}>
@@ -187,7 +186,7 @@ export default function SeanceCard({ title, runtime, favoriteCinema, subscriptio
         {!otherCinema && favoriteCinema && day !== 'other' && showtimes == null && (
           <span className="flex items-center gap-2 text-[12px] font-bold text-stone-500"><Loader2 size={14} className="animate-spin" /> {t('seance.loading')}</span>
         )}
-        {!otherCinema && list.length > 0 && (
+        {!otherCinema && value.cinemaName === favoriteCinema?.name && list.length > 0 && (
           <div className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-1.5">
             {list.map((s) => {
               const on = !value.approximate && value.startsAt === s.startsAt;
@@ -206,7 +205,7 @@ export default function SeanceCard({ title, runtime, favoriteCinema, subscriptio
           </div>
         )}
         <div className="flex flex-wrap gap-1.5">
-          {(['afternoon', 'evening', 'night'] as Moment[]).map((m) => (
+          {MOMENTS.map((m) => (
             <button key={m} type="button" onClick={() => pickMoment(m)} className={chip(!!value.approximate && !!value.startsAt && momentOf(value.startsAt) === m)}>
               {t(`seance.moment.${m}`)}
             </button>
@@ -263,8 +262,3 @@ export default function SeanceCard({ title, runtime, favoriteCinema, subscriptio
   );
 }
 
-/** Le moment d'une heure approximative : 15 h après-midi, 20 h 30 soirée, 22 h 30 nuit. */
-function momentOf(ts: number): Moment {
-  const h = new Date(ts).getHours();
-  return h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night';
-}

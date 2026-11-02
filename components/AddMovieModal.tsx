@@ -141,6 +141,13 @@ interface AddMovieModalProps {
   onSeance?: (choice: SeanceChoice, film: { title: string; tmdbId?: number; posterUrl?: string; runtime?: number }) => void;
 }
 
+/** La sortie en salle en France (TMDB, type 3), sinon la première sortie française connue. */
+function frenchRelease(data: { release_dates?: { results?: { iso_3166_1: string; release_dates: { type: number; release_date: string }[] }[] } }): string | undefined {
+  const fr = data.release_dates?.results?.find((r) => r.iso_3166_1 === 'FR')?.release_dates ?? [];
+  const pick = fr.filter((d) => d.type === 3).concat(fr.filter((d) => d.type === 2), fr)[0];
+  return pick?.release_date?.slice(0, 10) || undefined;
+}
+
 const INITIAL_VIBE: VibeCriteria = { story: 5, emotion: 5, fun: 5, visual: 5, tension: 5 };
 const INITIAL_QUALITY: QualityMetrics = { scenario: 5, acting: 5, visual: 5, sound: 5 };
 
@@ -681,7 +688,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     try {
       const endpoint = typeToUse === 'tv' ? 'tv' : 'movie';
       const res = await fetch(
-        `${TMDB_BASE_URL}/${endpoint}/${id}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`
+        `${TMDB_BASE_URL}/${endpoint}/${id}?api_key=${TMDB_API_KEY}&append_to_response=credits${typeToUse === 'movie' ? ',release_dates' : ''}&language=fr-FR`
       );
       const data = await res.json();
       let director = 'Inconnu';
@@ -708,7 +715,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         numberOfSeasons: typeToUse === 'tv' ? data.number_of_seasons : undefined,
         tmdbRating: data.vote_average ? Number(data.vote_average.toFixed(1)) : 0,
         runtime: data.runtime || 0,
-        releaseDate: typeToUse === 'movie' ? data.release_date || undefined : undefined,
+        releaseDate: typeToUse === 'movie' ? frenchRelease(data) ?? (data.release_date || undefined) : undefined,
       }));
     } catch (e) {
       if (import.meta.env.DEV) console.error(e);

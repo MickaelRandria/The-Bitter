@@ -6,7 +6,9 @@ import { haptics } from '../../utils/haptics';
 import { resizeTmdbImage } from '../../utils/tmdbImage';
 import { fmt1 } from '../../utils/verdict';
 import { getDisplayWeightedRating } from '../../utils/rating';
-import { APPROX_NOTE, momentInstant, type Moment } from '../../utils/seance';
+import { APPROX_NOTE, MOMENTS, momentInstant, type Moment } from '../../utils/seance';
+import { rememberCinema } from '../../services/cinemaMemory';
+import CinemaNameInput from '../CinemaNameInput';
 import { createScreening } from '../../services/screenings';
 
 /**
@@ -80,6 +82,7 @@ export default function SeanceCatchup({ films, cinemas, currentUserId, onDone, o
       notes: APPROX_NOTE,
       status: 'completed',
     });
+    rememberCinema(cinema);
     setSaving(false);
     next();
   };
@@ -139,14 +142,7 @@ export default function SeanceCatchup({ films, cinemas, currentUserId, onDone, o
               {t('seance.otherCinema')}
             </button>
           </div>
-          {other && (
-            <input
-              value={cinema}
-              onChange={(event) => setCinema(event.target.value)}
-              placeholder={t('seance.cinemaPlaceholder')}
-              className="h-11 rounded-2xl border border-sand bg-cream px-3.5 text-[13px] font-semibold text-charcoal outline-none dark:border-white/10 dark:bg-[#121212] dark:text-white"
-            />
-          )}
+          {other && <CinemaNameInput value={cinema} onChange={setCinema} />}
         </section>
 
         <section className="flex flex-col gap-2.5">
@@ -160,7 +156,7 @@ export default function SeanceCatchup({ films, cinemas, currentUserId, onDone, o
         <section className="flex flex-col gap-2.5">
           <p className={label}>{t('catchup.whichMoment')}</p>
           <div className="flex flex-wrap gap-1.5">
-            {(['afternoon', 'evening', 'night'] as Moment[]).map((m) => (
+            {MOMENTS.map((m) => (
               <button key={m} type="button" onClick={() => setMoment(m)} className={chip(moment === m)}>
                 {t(`seance.moment.${m}`)}
               </button>

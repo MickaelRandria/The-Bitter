@@ -4,6 +4,7 @@ import type { Movie, UserProfile } from '../../types';
 import CinemasSheet from './CinemasSheet';
 import SeanceCatchup, { readSkipped } from './SeanceCatchup';
 import { catchupCandidates } from '../../utils/seance';
+import { knownCinemas } from '../../services/cinemaMemory';
 import { resizeTmdbImage } from '../../utils/tmdbImage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { haptics } from '../../utils/haptics';
@@ -159,7 +160,7 @@ export const CinemasSection: React.FC<{
     [movies, allScreened, screenings, catchupOpen]
   );
   const knownCinemas = useMemo(() => {
-    const names = [userProfile?.favoriteCinema?.name, ...(report?.cinemas.map((c) => c.name) ?? [])].filter((n): n is string => !!n);
+    const names = [userProfile?.favoriteCinema?.name, ...(report?.cinemas.map((c) => c.name) ?? []), ...knownCinemas()].filter((n): n is string => !!n);
     return [...new Set(names)];
   }, [report, userProfile]);
   const catchup = currentUserId && missing.length > 0 && (
