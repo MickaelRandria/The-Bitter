@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, Ticket, SlidersHorizontal } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, Share2, Ticket, SlidersHorizontal } from 'lucide-react';
 import ActionSheet from './ActionSheet';
 import {
   CinemaProgrammeFilm,
@@ -22,6 +22,8 @@ import {
 } from '../utils/calendarAgenda';
 import { useCalendarAgenda } from './useCalendarAgenda';
 import CalendarMonth from './CalendarMonth';
+import MonthShareSheet from './MonthShareSheet';
+import { monthScreenings } from '../utils/monthShare';
 import CalendarUpcoming from './CalendarUpcoming';
 import CalendarYear from './CalendarYear';
 import CalendarDaySheet from './CalendarDaySheet';
@@ -83,6 +85,8 @@ export default function CalendarView(props: CalendarViewProps) {
   const [day, setDay] = useState<string | null>(null);
   const [consultedDay, setConsultedDay] = useState(() => calendarDay(Date.now()));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** « Partager mon mois » : l'image des séances du mois affiché. */
+  const [sharingMonth, setSharingMonth] = useState(false);
   const openDay = (date: string) => { setConsultedDay(date); setDay(date); };
   useEffect(() => { props.onContextDay?.(consultedDay); }, [consultedDay, props.onContextDay]);
   const [genre, setGenre] = useState('');
@@ -527,6 +531,27 @@ export default function CalendarView(props: CalendarViewProps) {
       <div role="tabpanel" id={`calendar-panel-${tab}`} aria-labelledby={`calendar-tab-${tab}`}>
         {tab === 'month' && (
           <>
+            {monthScreenings(agenda.screenings, currentMonth, true, Date.now()).length > 0 && (
+              <div className="mb-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSharingMonth(true)}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-charcoal px-4 text-xs font-black text-white active:scale-95 dark:bg-white dark:text-charcoal"
+                >
+                  <Share2 size={14} strokeWidth={2.4} />
+                  {t('monthShare.open')}
+                </button>
+              </div>
+            )}
+            {sharingMonth && (
+              <MonthShareSheet
+                month={currentMonth}
+                screenings={agenda.screenings}
+                firstName={props.firstName}
+                onClose={() => setSharingMonth(false)}
+                onToast={onToast}
+              />
+            )}
             <CalendarMonth
               year={year}
               month={month}

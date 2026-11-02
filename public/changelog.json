@@ -3,6 +3,10 @@
   "label": "Version du 2 novembre",
   "items": [
     {
+      "title": "Partage ton mois de ciné",
+      "body": "Dans le calendrier, « Partager mon mois » fait une image de tes prochaines séances, en calendrier avec les affiches ou en programme, prête à envoyer à tes proches ou à mettre en story."
+    },
+    {
       "title": "Tes séances dans ton agenda",
       "body": "Dans le calendrier, « Synchroniser mon agenda » ajoute tes séances prévues au Calendrier de ton téléphone (ou à Google Agenda), et elles s’y mettent à jour toutes seules. Envoie le lien à tes proches : ils verront tes prochaines séances dans leur agenda."
     },
