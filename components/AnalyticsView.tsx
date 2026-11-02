@@ -46,6 +46,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ProfileTab, { PodiumSection, SignatureSection } from './analytics/ProfileTab';
 import StatsOnboarding from './analytics/StatsOnboarding';
+import FriendsTab from './analytics/FriendsTab';
 import { periodMovies, periodYears, readPeriod, savePeriod, type StatsPeriod } from '../utils/statsPeriod';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
@@ -69,9 +70,11 @@ interface AnalyticsViewProps {
   /** Le parcours des débutants : noter un film, ouvrir ses espaces. */
   onRateFilm?: () => void;
   onOpenSpaces?: () => void;
+  /** Le compte connecté : ses espaces nourrissent l'onglet Amis. */
+  currentUserId?: string;
 }
 
-type TabMode = 'overview' | 'notes' | 'psycho';
+type TabMode = 'overview' | 'notes' | 'psycho' | 'friends';
 
 const MIN_MOVIES_FOR_ANALYTICS = 5;
 const MIN_MOVIES_FOR_VERDICT_INSIGHTS = 8;
@@ -976,6 +979,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onOpenCinemaDetails,
   onRateFilm,
   onOpenSpaces,
+  currentUserId,
 }) => {
   const { t, language } = useLanguage();
   const isDark = useTheme().theme === 'dark';
@@ -1612,8 +1616,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               : t('analytics.trendWindow');
 
   const tabsNode = (
-    <div role="tablist" aria-label={t('analytics.tabsLabel')} className="flex gap-5">
-      {(['overview', 'notes', 'psycho'] as TabMode[]).map((tab) => (
+    <div role="tablist" aria-label={t('analytics.tabsLabel')} className="flex gap-4">
+      {(['overview', 'notes', 'psycho', 'friends'] as TabMode[]).map((tab) => (
         <button
           key={tab}
           role="tab"
@@ -1628,7 +1632,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           }}
           className={`relative py-1.5 text-[14px] font-black tracking-[-0.02em] transition-colors dark:[text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${activeTab === tab ? 'text-charcoal dark:text-white' : 'text-stone-500 dark:text-white/55'}`}
         >
-          {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : t('analytics.tabDNA')}
+          {tab === 'overview' ? t('analytics.tabOverview') : tab === 'notes' ? t('analytics.tabNotes') : tab === 'psycho' ? t('analytics.tabDNA') : t('analytics.tabFriends')}
           {activeTab === tab && <i className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-bitter-lime" />}
         </button>
       ))}
@@ -1665,7 +1669,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       {(activeTab !== 'overview' || !isDark) && (
         <div className={activeTab === 'overview' ? 'mb-4' : 'mb-7'}>
           {tabsNode}
-          {periodNode}
+          {/* Les affinités se lisent sur toutes les notes communes, sans période. */}
+          {activeTab !== 'friends' && periodNode}
         </div>
       )}
 
@@ -1704,6 +1709,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           playlist={<MonthPlaylistCard movies={movies} />}
         />
       )}
+
+      {/* ─── TAB : AMIS ─── */}
+      {activeTab === 'friends' && <FriendsTab currentUserId={currentUserId} onOpenSpaces={onOpenSpaces} />}
 
       {/* ─── TAB : ADN ─── */}
       {activeTab === 'psycho' && (
