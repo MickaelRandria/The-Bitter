@@ -32,6 +32,15 @@ interface Props {
   onViewDirector?: (name: string, id?: number) => void;
   /** Ouvert depuis « Tout le palmarès » : descendre au classement. */
   focusRanking?: boolean;
+  /**
+   * `likes` (par défaut) : ce que tu aimes, l'onglet Goûts. `rating` : ta façon
+   * de noter et l'attente face à la réalité, montrées dans ADN.
+   */
+  part?: 'likes' | 'rating';
+  /** Le podium, au-dessus du classement. */
+  podium?: React.ReactNode;
+  /** La playlist du mois, après la bande originale. */
+  playlist?: React.ReactNode;
 }
 
 const GAP = 1.6;
@@ -81,7 +90,8 @@ const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => 
   </div>
 );
 
-const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewDirector, focusRanking = false }) => {
+const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewDirector, focusRanking = false, part = 'likes', podium, playlist }) => {
+  const likes = part === 'likes';
   const { t } = useLanguage();
   const watched = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
   const byId = useMemo(() => new Map(watched.map((m) => [m.id, m])), [watched]);
@@ -143,7 +153,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
   return (
     <div className="flex flex-col gap-[34px] pb-2 animate-[fadeIn_0.3s_ease-out]">
       {/* 1 · Tes genres : un mur d'affiches, la surface d'un bloc = le nombre de films. */}
-      {blocks.length > 0 && (
+      {likes && blocks.length > 0 && (
         <section className={sec}>
           <Head title={t('gouts.genres')} aside={t('gouts.onFilms', { n: String(dist.total) })} />
           <p className={lead}>{t('gouts.genresHow')}</p>
@@ -215,7 +225,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       )}
 
       {/* 2 · Contre l'avis général. */}
-      {(surprise || disappointment) && (
+      {likes && (surprise || disappointment) && (
         <section className={sec}>
           <Head title={t('gouts.contrarian')} aside={t('gouts.vsPublic')} />
           <div className="grid grid-cols-2 gap-2.5">
@@ -261,7 +271,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       )}
 
       {/* 3 · Tes réalisateurs. */}
-      {directors.length > 0 && (
+      {likes && directors.length > 0 && (
         <section className={sec}>
           <Head title={t('gouts.directors')} aside={t('gouts.directorsAside')} />
           <div className="flex flex-col">
@@ -298,7 +308,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       )}
 
       {/* 4 · Tes époques. */}
-      {eras.length >= 2 && (
+      {likes && eras.length >= 2 && (
         <section className={sec}>
           <Head title={t('gouts.eras')} aside={t('gouts.erasAside')} />
           {eraLine && <p className={lead}>{eraLine}</p>}
@@ -318,8 +328,8 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
         </section>
       )}
 
-      {/* 5 · Ta façon de noter. */}
-      {dist.total >= 5 && (
+      {/* 5 · Ta façon de noter (dans ADN). */}
+      {!likes && dist.total >= 5 && (
         <section className={sec}>
           <Head title={t('gouts.howYouRate')} aside={t('gouts.zeroToTen')} />
           <div className="rounded-[22px] bg-white dark:bg-[#1C1B19] border border-sand dark:border-white/[0.08] px-[15px] pt-4 pb-3">
@@ -359,8 +369,8 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
         </section>
       )}
 
-      {/* 6 · Attente et réalité : seulement si l'attente est remplie. */}
-      {hype.length > 0 && (
+      {/* 6 · Attente et réalité, seulement si l'attente est remplie (dans ADN). */}
+      {!likes && hype.length > 0 && (
         <section className={sec}>
           <Head title={t('gouts.hype')} aside={t('gouts.hypeAside')} />
           <div className="flex flex-col">
@@ -384,9 +394,13 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
       )}
 
       {/* 7 · La bande originale : ta note Son, tes sommets, tes compositeurs. */}
-      <SoundtrackSection movies={watched} />
+      {likes && <SoundtrackSection movies={watched} />}
+      {likes && playlist}
+
+      {likes && podium}
 
       {/* 8 · Ton classement. */}
+      {likes && (
       <section ref={rankRef} className={`${sec} scroll-mt-6`}>
         <Head title={t('gouts.ranking')} aside={t('gouts.films', { n: String(ranked.length) })} />
         <div className="flex flex-col">
@@ -415,6 +429,7 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
           </button>
         )}
       </section>
+      )}
     </div>
   );
 };

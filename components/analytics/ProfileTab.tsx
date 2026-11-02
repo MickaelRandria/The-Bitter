@@ -14,9 +14,9 @@ import { formatCurrency, getSubscriptionStats } from '../../utils/cinemaSubscrip
 import TastePortrait, { PORTRAIT_MIN_MOVIES } from '../TastePortrait';
 
 /**
- * L'onglet Profil des statistiques, en salle obscure : le film le mieux noté en
- * plein cadre, puis le pass ciné, la signature, le podium, les constats et
- * l'année. Les chiffres viennent d'AnalyticsView ; ce composant les met en scène.
+ * L'onglet Profil des statistiques : le film le mieux noté en plein cadre, puis
+ * le portrait, le pass ciné, les constats et l'année. La signature (montrée dans
+ * ADN) et le podium (dans Goûts) sont exportés plus bas. Les chiffres viennent d'AnalyticsView ; ce composant les met en scène.
  */
 
 interface Archetype {
@@ -36,12 +36,13 @@ interface Props {
   /** Les 12 derniers mois, du plus ancien au mois en cours. */
   months: { count: number }[];
   tabs: React.ReactNode;
+  /** « En 2025, tu étais L'Omnivore » : sous la description de l'archétype. */
+  archetypeNote?: string;
   /** Les constats, rendus par AnalyticsView. */
   constats: React.ReactNode;
   isSharing: boolean;
   onShare: () => void;
   onViewMovie?: (movie: Movie, onReturn?: () => void) => void;
-  onOpenPalmares: () => void;
   onConfigureCinemaSubscription?: () => void;
   onOpenCinemaDetails?: () => void;
   onRecalibrate?: () => void;
@@ -216,12 +217,113 @@ const CinemaPass: React.FC<{
   );
 };
 
+const CARD = 'rounded-[22px] bg-white dark:bg-[#1C1B19] border border-sand dark:border-white/[0.08] px-[15px] py-3.5';
+
 const SectionHead: React.FC<{ title: string; aside?: React.ReactNode }> = ({ title, aside }) => (
   <div className="flex items-baseline justify-between gap-3 px-1">
     <h3 className="text-[17px] font-black tracking-[-0.035em] text-charcoal dark:text-white">{title}</h3>
     {aside}
   </div>
 );
+
+/** Ta signature : les quatre critères, et la moyenne des quatre en repère. Montrée dans ADN. */
+export const SignatureSection: React.FC<{ movies: Movie[] }> = ({ movies }) => {
+  const { t } = useLanguage();
+  const watched = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
+  const signature = useMemo(() => signatureOf(watched), [watched]);
+  if (!signature) return null;
+  const card = CARD;
+  return (
+    <section className="flex flex-col gap-[11px]">
+      <SectionHead title={t('pt.signature')} aside={<small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35">{t('pt.signatureCount', { n: String(signature.count) })}</small>} />
+      <div className={card}>
+        {signature.order.map((key) => {
+          const value = signature.values[key];
+          const low = key === signature.harshest.key && signature.harshest.gap <= -0.3;
+          return (
+            <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-center gap-2.5 py-1.5 text-[12px] font-extrabold text-charcoal dark:text-white">
+              <span>{t(CRITERION_LABEL[key])}</span>
+              <span className="relative h-2 rounded-full bg-sand dark:bg-white/[0.08]">
+                <i className={`absolute inset-y-0 left-0 rounded-full ${low ? 'bg-[#F08A24]' : 'bg-charcoal dark:bg-[#F4F1EA]'}`} style={{ width: `${value * 10}%` }} />
+                <u className="absolute -top-1 w-[2.5px] h-4 rounded-sm bg-stone-400 dark:bg-white/35" style={{ left: `${signature.overall * 10}%` }} />
+              </span>
+              <b className={`text-right font-black tabular-nums ${low ? 'text-[#C2630F] dark:text-[#F08A24]' : ''}`}>{fmt1(value)}</b>
+            </div>
+          );
+        })}
+        <div className="flex gap-3.5 mt-1.5 text-[10px] font-extrabold text-stone-400 dark:text-white/35">
+          <span className="inline-flex items-center gap-1.5"><i className="w-3 h-[5px] rounded-full bg-charcoal dark:bg-[#F4F1EA]" />{t('pt.legendCriterion')}</span>
+          <span className="inline-flex items-center gap-1.5"><i className="w-[2.5px] h-3 rounded-sm bg-stone-400 dark:bg-white/35" />{t('pt.legendOverall', { v: fmt1(signature.overall) })}</span>
+        </div>
+        {signature.harshest.gap <= -0.3 && (
+          <p className="mt-2.5 pt-3 border-t border-sand dark:border-white/[0.08] text-[13px] font-black tracking-[-0.02em] leading-snug text-charcoal dark:text-white">
+            {t('pt.harshest', { criterion: t(CRITERION_LABEL[signature.harshest.key]) })}
+            <small className="block mt-0.5 text-[11px] font-semibold tracking-normal text-stone-500 dark:text-white/55">
+              {t('pt.harshestGap', { gap: fmt1(Math.abs(signature.harshest.gap)) })}
+            </small>
+          </p>
+        )}
+      </div>
+    </section>
+  );
+};
+
+/** Le podium : le premier au centre. Montré dans Goûts, au-dessus du classement. */
+export const PodiumSection: React.FC<{ movies: Movie[]; onViewMovie?: (movie: Movie) => void; onOpenPalmares?: () => void }> = ({
+  movies,
+  onViewMovie,
+  onOpenPalmares,
+}) => {
+  const { t } = useLanguage();
+  const watched = useMemo(() => movies.filter((m) => m.status === 'watched'), [movies]);
+  const score = (m: Movie) => getDisplayWeightedRating(m);
+  const podium = useMemo(() => podiumOf(watched, score, (m) => m.dateWatched ?? m.dateAdded ?? 0), [watched]);
+  if (podium.length !== 3) return null;
+  return (
+    <section className="flex flex-col gap-[11px]">
+      <SectionHead
+        title={t('pt.podium')}
+        aside={
+          onOpenPalmares && <button type="button" onClick={() => { haptics.soft(); onOpenPalmares?.(); }} className="text-[10.5px] font-black text-forest dark:text-bitter-lime whitespace-nowrap">
+            {t('pt.allPalmares')}
+          </button>
+        }
+      />
+      <div className="grid grid-cols-[1fr_1.18fr_1fr] gap-2.5 items-end">
+        {[podium[1], podium[0], podium[2]].map((movie) => {
+          const rank = podium.indexOf(movie) + 1;
+          const first = rank === 1;
+          return (
+            <button
+              key={movie.id}
+              type="button"
+              onClick={() => { haptics.soft(); onViewMovie?.(movie); }}
+              className="text-left flex flex-col gap-[7px] active:scale-[0.97] transition-transform"
+            >
+              <span
+                className={`dark relative block aspect-[2/3] rounded-2xl overflow-hidden bg-sand ${
+                  first ? 'ring-2 ring-bitter-lime shadow-[0_20px_30px_-14px_rgba(217,255,0,0.25)]' : 'shadow-[0_16px_24px_-14px_rgba(0,0,0,0.7)]'
+                }`}
+              >
+                {movie.posterUrl && <img src={resizeTmdbImage(movie.posterUrl, 'w342')} alt="" loading="lazy" className="w-full h-full object-cover" />}
+                <span className={`absolute right-1.5 top-1.5 px-[7px] py-[3px] rounded-[9px] text-[11px] font-black tabular-nums ${first ? 'bg-bitter-lime text-charcoal' : 'bg-black/60 text-charcoal dark:text-white backdrop-blur'}`}>
+                  {fmt1(score(movie))}
+                </span>
+                <span className={`absolute left-[7px] bottom-1 font-black tracking-[-0.08em] leading-none [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] ${first ? 'text-[50px] text-forest dark:text-bitter-lime' : 'text-[40px] text-charcoal dark:text-white'}`}>
+                  {rank}
+                </span>
+              </span>
+              <span className="text-[11px] font-black leading-tight text-charcoal dark:text-white line-clamp-2">{movie.title}</span>
+              <span className="-mt-1 text-[10px] font-bold text-stone-400 dark:text-white/35 line-clamp-1">
+                {[movie.year, movie.director].filter(Boolean).join(' · ')}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
 
 const ProfileTab: React.FC<Props> = ({
   movies,
@@ -232,11 +334,11 @@ const ProfileTab: React.FC<Props> = ({
   delta,
   months,
   tabs,
+  archetypeNote,
   constats,
   isSharing,
   onShare,
   onViewMovie,
-  onOpenPalmares,
   onConfigureCinemaSubscription,
   onOpenCinemaDetails,
   onRecalibrate,
@@ -249,7 +351,6 @@ const ProfileTab: React.FC<Props> = ({
   const podium = useMemo(() => podiumOf(watched, score, (m) => m.dateWatched ?? m.dateAdded ?? 0), [watched]);
   const top = podium[0];
   const backdrop = useBackdrop(top);
-  const signature = useMemo(() => signatureOf(watched), [watched]);
   const year = yearOf(months.map((m) => m.count));
   const now = new Date();
   const monthName = (i: number, style: 'long' | 'narrow') =>
@@ -267,7 +368,7 @@ const ProfileTab: React.FC<Props> = ({
   const maxMonth = Math.max(1, ...months.map((m) => m.count));
   const kpi = 'px-3 pt-[11px] pb-2.5';
   const kpiLabel = 'block mt-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-stone-400 dark:text-white/35';
-  const card = 'rounded-[22px] bg-white dark:bg-[#1C1B19] border border-sand dark:border-white/[0.08] px-[15px] py-3.5';
+  const card = CARD;
 
   return (
     <div className="animate-[fadeIn_0.4s_ease-out]">
@@ -307,6 +408,7 @@ const ProfileTab: React.FC<Props> = ({
         <p className="mt-2 max-w-[32ch] text-[13px] font-semibold leading-[1.42] text-stone-600 dark:text-white/80 motion-safe:animate-[pt-rise_0.7s_0.16s_cubic-bezier(.16,1,.3,1)_both]">
           {archetype.description}
         </p>
+        {archetypeNote && <p className="mt-1.5 text-[12px] font-extrabold text-bitter-lime">{archetypeNote}</p>}
         <div className="mt-4 grid grid-cols-3 rounded-[18px] overflow-hidden bg-sand dark:bg-white/[0.06] border border-sand dark:border-white/[0.08] backdrop-blur-xl motion-safe:animate-[pt-rise_0.7s_0.24s_cubic-bezier(.16,1,.3,1)_both]">
           <div className={kpi}>
             <b className="block text-[22px] font-black tracking-[-0.05em] leading-none tabular-nums text-charcoal dark:text-white">{watched.length}</b>
@@ -355,87 +457,6 @@ const ProfileTab: React.FC<Props> = ({
               aside={userProfile?.cinemaSubscription?.active ? <small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35">{now.toLocaleDateString(locale, { month: 'long' })}</small> : undefined}
             />
             <CinemaPass movies={watched} userProfile={userProfile} onConfigure={onConfigureCinemaSubscription} onOpenDetails={onOpenCinemaDetails} />
-          </section>
-        )}
-
-        {/* 3 · Ta signature : les quatre critères, et la moyenne des quatre en repère. */}
-        {signature && (
-          <section className="flex flex-col gap-[11px]">
-            <SectionHead title={t('pt.signature')} aside={<small className="text-[10.5px] font-extrabold text-stone-400 dark:text-white/35">{t('pt.signatureCount', { n: String(signature.count) })}</small>} />
-            <div className={card}>
-              {signature.order.map((key) => {
-                const value = signature.values[key];
-                const low = key === signature.harshest.key && signature.harshest.gap <= -0.3;
-                return (
-                  <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-center gap-2.5 py-1.5 text-[12px] font-extrabold text-charcoal dark:text-white">
-                    <span>{t(CRITERION_LABEL[key])}</span>
-                    <span className="relative h-2 rounded-full bg-sand dark:bg-white/[0.08]">
-                      <i className={`absolute inset-y-0 left-0 rounded-full ${low ? 'bg-[#F08A24]' : 'bg-charcoal dark:bg-[#F4F1EA]'}`} style={{ width: `${value * 10}%` }} />
-                      <u className="absolute -top-1 w-[2.5px] h-4 rounded-sm bg-stone-400 dark:bg-white/35" style={{ left: `${signature.overall * 10}%` }} />
-                    </span>
-                    <b className={`text-right font-black tabular-nums ${low ? 'text-[#C2630F] dark:text-[#F08A24]' : ''}`}>{fmt1(value)}</b>
-                  </div>
-                );
-              })}
-              <div className="flex gap-3.5 mt-1.5 text-[10px] font-extrabold text-stone-400 dark:text-white/35">
-                <span className="inline-flex items-center gap-1.5"><i className="w-3 h-[5px] rounded-full bg-charcoal dark:bg-[#F4F1EA]" />{t('pt.legendCriterion')}</span>
-                <span className="inline-flex items-center gap-1.5"><i className="w-[2.5px] h-3 rounded-sm bg-stone-400 dark:bg-white/35" />{t('pt.legendOverall', { v: fmt1(signature.overall) })}</span>
-              </div>
-              {signature.harshest.gap <= -0.3 && (
-                <p className="mt-2.5 pt-3 border-t border-sand dark:border-white/[0.08] text-[13px] font-black tracking-[-0.02em] leading-snug text-charcoal dark:text-white">
-                  {t('pt.harshest', { criterion: t(CRITERION_LABEL[signature.harshest.key]) })}
-                  <small className="block mt-0.5 text-[11px] font-semibold tracking-normal text-stone-500 dark:text-white/55">
-                    {t('pt.harshestGap', { gap: fmt1(Math.abs(signature.harshest.gap)) })}
-                  </small>
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* 4 · Le podium : le premier au centre. */}
-        {podium.length === 3 && (
-          <section className="flex flex-col gap-[11px]">
-            <SectionHead
-              title={t('pt.podium')}
-              aside={
-                <button type="button" onClick={() => { haptics.soft(); onOpenPalmares(); }} className="text-[10.5px] font-black text-forest dark:text-bitter-lime whitespace-nowrap">
-                  {t('pt.allPalmares')}
-                </button>
-              }
-            />
-            <div className="grid grid-cols-[1fr_1.18fr_1fr] gap-2.5 items-end">
-              {[podium[1], podium[0], podium[2]].map((movie) => {
-                const rank = podium.indexOf(movie) + 1;
-                const first = rank === 1;
-                return (
-                  <button
-                    key={movie.id}
-                    type="button"
-                    onClick={() => { haptics.soft(); onViewMovie?.(movie); }}
-                    className="text-left flex flex-col gap-[7px] active:scale-[0.97] transition-transform"
-                  >
-                    <span
-                      className={`dark relative block aspect-[2/3] rounded-2xl overflow-hidden bg-sand ${
-                        first ? 'ring-2 ring-bitter-lime shadow-[0_20px_30px_-14px_rgba(217,255,0,0.25)]' : 'shadow-[0_16px_24px_-14px_rgba(0,0,0,0.7)]'
-                      }`}
-                    >
-                      {movie.posterUrl && <img src={resizeTmdbImage(movie.posterUrl, 'w342')} alt="" loading="lazy" className="w-full h-full object-cover" />}
-                      <span className={`absolute right-1.5 top-1.5 px-[7px] py-[3px] rounded-[9px] text-[11px] font-black tabular-nums ${first ? 'bg-bitter-lime text-charcoal' : 'bg-black/60 text-charcoal dark:text-white backdrop-blur'}`}>
-                        {fmt1(score(movie))}
-                      </span>
-                      <span className={`absolute left-[7px] bottom-1 font-black tracking-[-0.08em] leading-none [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] ${first ? 'text-[50px] text-forest dark:text-bitter-lime' : 'text-[40px] text-charcoal dark:text-white'}`}>
-                        {rank}
-                      </span>
-                    </span>
-                    <span className="text-[11px] font-black leading-tight text-charcoal dark:text-white line-clamp-2">{movie.title}</span>
-                    <span className="-mt-1 text-[10px] font-bold text-stone-400 dark:text-white/35 line-clamp-1">
-                      {[movie.year, movie.director].filter(Boolean).join(' · ')}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </section>
         )}
 

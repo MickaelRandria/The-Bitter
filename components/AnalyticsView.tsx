@@ -44,7 +44,8 @@ import { supabase } from '../services/supabase';
 import { toPng } from 'html-to-image';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
-import ProfileTab from './analytics/ProfileTab';
+import ProfileTab, { PodiumSection, SignatureSection } from './analytics/ProfileTab';
+import { periodMovies, periodYears, readPeriod, savePeriod, type StatsPeriod } from '../utils/statsPeriod';
 import GoutsTab from './analytics/GoutsTab';
 import StatsConstats from './StatsConstats';
 import MonthPlaylistCard from './MonthPlaylist';
@@ -961,7 +962,7 @@ const MacroCard: React.FC<{
 );
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({
-  movies,
+  movies: allMovies,
   userProfile,
   onRecalibrate,
   onOpenPortrait,
@@ -997,6 +998,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [selectedImprint, setSelectedImprint] = useState<ImprintTally | null>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
+
+  // La période : une année, ou depuis toujours. Tous les onglets la suivent.
+  const years = useMemo(() => periodYears(allMovies), [allMovies]);
+  const [period, setPeriod] = useState<StatsPeriod>(() => readPeriod());
+  const activePeriod: StatsPeriod = period !== 'all' && !years.includes(period) ? 'all' : period;
+  const movies = useMemo(() => periodMovies(allMovies, activePeriod), [allMovies, activePeriod]);
+  const choosePeriod = (next: StatsPeriod) => {
+    haptics.soft();
+    setPeriod(next);
+    savePeriod(next);
+  };
+  /** L'archétype de l'année d'avant, pour dire comment on a changé. */
+  const previousArchetype = useMemo(() => {
+    if (activePeriod === 'all' || !years.includes(activePeriod - 1)) return null;
+    return cinemaArchetype(periodMovies(allMovies, activePeriod - 1), userProfile).title;
+  }, [allMovies, activePeriod, years, userProfile]);
 
   const handleShareArchetype = async () => {
     if (!shareCardRef.current || !stats) return;
@@ -1035,7 +1052,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     }
   };
 
-  const watchedCount = useMemo(() => movies.filter((m) => m.status === 'watched').length, [movies]);
+  // Le verrou se lit sur tous les films : une année maigre ne referme pas les stats.
+  const watchedCount = useMemo(() => allMovies.filter((m) => m.status === 'watched').length, [allMovies]);
   const isLocked = watchedCount < MIN_MOVIES_FOR_ANALYTICS;
 
   const stats = useMemo(() => {
@@ -1103,7 +1121,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
     const distinctGenreCount = new Set(watched.map((m) => m.genre).filter(Boolean)).size;
 
-    const advancedArchetype = cinemaArchetype(userProfile?.movies ?? movies, userProfile);
+    const advancedArchetype = cinemaArchetype(activePeriod === 'all' ? userProfile?.movies ?? movies : movies, userProfile);
 
     const totalHours = totalWatchHours(watched);
 
@@ -1625,13 +1643,39 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     </div>
   );
 
+  const periodNode = years.length > 0 && (
+    <div role="radiogroup" aria-label={t('statsPeriod.label')} className="mt-3 flex gap-1.5 overflow-x-auto no-scrollbar">
+      {[...years.slice(0, 3), 'all' as const].map((p) => (
+        <button
+          key={p}
+          type="button"
+          role="radio"
+          aria-checked={activePeriod === p}
+          onClick={() => choosePeriod(p)}
+          className={`h-8 shrink-0 rounded-full px-3.5 text-[12px] font-black transition-colors ${
+            activePeriod === p
+              ? 'bg-charcoal text-white dark:bg-white dark:text-charcoal'
+              : 'border border-sand bg-white text-stone-500 dark:border-white/15 dark:bg-white/10 dark:text-white/70'
+          }`}
+        >
+          {p === 'all' ? t('statsPeriod.all') : p}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     /* En mode sombre, toute la page en salle obscure d'un bord à l'autre de
        l'écran ; en mode clair, la page suit l'app (le haut de Profil reste une
        image sombre). */
     <div className="-mx-6 -mt-6 -mb-32 px-6 pt-6 pb-32 min-h-[100dvh] bg-cream dark:bg-[#0c0c0c] text-charcoal dark:text-white animate-[fadeIn_0.3s_ease-out]">
       {/* Les onglets : posés sur l'image dans Profil en mode sombre, en tête de page ailleurs. */}
-      {(activeTab !== 'overview' || !isDark) && <div className={activeTab === 'overview' ? 'mb-4' : 'mb-7'}>{tabsNode}</div>}
+      {(activeTab !== 'overview' || !isDark) && (
+        <div className={activeTab === 'overview' ? 'mb-4' : 'mb-7'}>
+          {tabsNode}
+          {periodNode}
+        </div>
+      )}
 
       {/* ─── TAB : PROFIL ─── */}
       {activeTab === 'overview' && (
@@ -1641,23 +1685,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           archetype={advancedArchetype}
           totalHours={totalHours}
           delta={tmdbAvg > 0 ? delta : null}
-          months={last12Months}
-          tabs={tabsNode}
-          constats={
-            <>
-              <StatsConstats movies={movies} />
-              <div className="mt-6">
-                <MonthPlaylistCard movies={movies} />
-              </div>
-            </>
-          }
+          // « Ton année » montre les 12 derniers mois : pas pour une année passée.
+          months={activePeriod === 'all' || activePeriod === new Date().getFullYear() ? last12Months : []}
+          tabs={<>{tabsNode}{periodNode}</>}
+          archetypeNote={previousArchetype ? t('statsPeriod.previous', { year: String(activePeriod === 'all' ? '' : activePeriod - 1), title: previousArchetype }) : undefined}
+          constats={<StatsConstats movies={movies} />}
           isSharing={isSharing}
           onShare={handleShareArchetype}
           onViewMovie={onViewMovie}
-          onOpenPalmares={() => {
-            setGoutsFocus(true);
-            setActiveTab('notes');
-          }}
           onConfigureCinemaSubscription={onConfigureCinemaSubscription}
           onOpenCinemaDetails={onOpenCinemaDetails}
           onRecalibrate={onRecalibrate}
@@ -1673,6 +1708,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           onViewMovie={(movie) => onViewMovie?.(movie)}
           onViewDirector={onViewDirector}
           focusRanking={goutsFocus}
+          podium={<PodiumSection movies={movies} onViewMovie={(movie) => onViewMovie?.(movie)} />}
+          playlist={<MonthPlaylistCard movies={movies} />}
         />
       )}
 
@@ -1791,6 +1828,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           )}
 
+          <h2 className="px-1 pt-4 text-[22px] font-black tracking-[-0.045em] text-charcoal dark:text-white">{t('statsPeriod.howYouRate')}</h2>
+          <SignatureSection movies={movies} />
+          <GoutsTab movies={movies} publicAverage={tmdbAvg} onViewMovie={(movie) => onViewMovie?.(movie)} part="rating" />
           <section className="overflow-hidden rounded-[2.5rem] border border-sand dark:border-white/10 bg-white dark:bg-[#111111] p-6 text-charcoal dark:text-white">
             {hasVerdictInsights && primaryJudgmentAxis ? (
               judgmentProfile.isBalanced ? (
