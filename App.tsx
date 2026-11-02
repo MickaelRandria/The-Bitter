@@ -4182,6 +4182,15 @@ const App: React.FC = () => {
               onRateFilm={() => openAddModal('watched', 'movie', { fromNav: true })}
               onOpenSpaces={() => setShowSharedSpaces(true)}
               currentUserId={session?.user?.id}
+              onOpenSpace={(spaceId) => {
+                const space = mySpaces.find((s) => s.id === spaceId);
+                if (!space) {
+                  setShowSharedSpaces(true);
+                  return;
+                }
+                setActiveSharedSpace(space);
+                setViewMode('SharedSpace');
+              }}
             />
           ) : viewMode === 'Discover' ? (
             <DiscoverView

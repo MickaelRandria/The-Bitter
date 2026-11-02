@@ -9,6 +9,8 @@ import { fmt1 } from '../../utils/verdict';
 import SoundtrackSection from './SoundtrackSection';
 import { bestOf, parseActors, rankingCsv, topActors, topCountries, topLanguages, type CastFilm } from '../../utils/castOrigins';
 import { cachedOrigins, loadOrigins, type Origin } from '../../services/movieOrigins';
+import { cachedActorPhotos, loadActorPhotos } from '../../services/actorPhotos';
+import { tmdbImage } from '../../utils/tmdbImage';
 import {
   GoutFilm,
   contrarian,
@@ -136,6 +138,20 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
     [watched, origins]
   );
   const actors = useMemo(() => topActors(cast).slice(0, 10), [cast]);
+  // Leurs portraits : par l'identifiant TMDB gardé avec le film, sinon par le nom.
+  const [actorPhotos, setActorPhotos] = useState(() => cachedActorPhotos());
+  const actorKey = actors.map((a) => a.key).join('|');
+  useEffect(() => {
+    if (!likes || !actors.length) return;
+    const ids = new Map<string, number>();
+    for (const m of watched) for (const a of m.actorIds ?? []) if (a?.name && a.id) ids.set(a.name, a.id);
+    let alive = true;
+    loadActorPhotos(actors.map((a) => a.key), ids).then((cache) => alive && setActorPhotos({ ...cache }));
+    return () => {
+      alive = false;
+    };
+    // La liste des noms suffit : `actors` change d'objet à chaque calcul.
+  }, [actorKey, likes]);
   const countries = useMemo(() => topCountries(cast), [cast]);
   const languages = useMemo(() => topLanguages(cast), [cast]);
   const regionName = useMemo(() => {
@@ -340,8 +356,12 @@ const GoutsTab: React.FC<Props> = ({ movies, publicAverage, onViewMovie, onViewD
           <div className="-mx-6 flex gap-2.5 overflow-x-auto px-6 pb-1 no-scrollbar">
             {actors.map((a, i) => (
               <div key={a.key} className="flex w-[108px] shrink-0 flex-col gap-2 rounded-[20px] border border-sand bg-white p-3 dark:border-white/[0.08] dark:bg-[#1C1B19]">
-                <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full text-[18px] font-black text-white" style={{ background: ACTOR_TINTS[i % ACTOR_TINTS.length] }}>
-                  {a.key[0]}
+                <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full text-[18px] font-black text-white" style={{ background: ACTOR_TINTS[i % ACTOR_TINTS.length] }}>
+                  {actorPhotos[a.key] ? (
+                    <img src={tmdbImage(actorPhotos[a.key], 'w185') ?? ''} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    a.key[0]
+                  )}
                 </span>
                 <b className="line-clamp-2 text-[13px] font-black leading-tight text-charcoal dark:text-white">{a.key}</b>
                 <small className="text-[11px] font-bold text-stone-500 dark:text-white/50">

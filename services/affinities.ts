@@ -25,6 +25,7 @@ export async function loadAffinityEntries(userId: string): Promise<{ spaces: num
             key: movie.tmdb_id ? `tmdb:${movie.tmdb_id}` : `${movie.title.toLowerCase()}|${movie.year}`,
             title: movie.title,
             posterUrl: movie.poster_url,
+            spaceId: space.id,
             spaceName: space.name,
             personId: r.profile_id,
             name: profile?.first_name || '?',

@@ -17,6 +17,7 @@ export interface RatingEntry {
   key: string;
   title: string;
   posterUrl?: string;
+  spaceId: string;
   spaceName: string;
   personId: string;
   name: string;
@@ -35,12 +36,16 @@ export interface Affinity {
   gap: number;
   /** Sa moyenne moins la tienne sur vos films communs : positif, il est plus généreux. */
   generosity: number;
+  /** L'espace où vous avez le plus de films en commun. */
+  spaceId: string;
+  spaceName: string;
 }
 
 export interface SharedFilm {
   key: string;
   title: string;
   posterUrl?: string;
+  spaceId: string;
   spaceName: string;
   friend: { id: string; name: string; avatarUrl?: string | null };
   mine: number;
@@ -76,6 +81,7 @@ export function computeAffinities(me: string, entries: RatingEntry[]): AffinityR
         key: mine.entry.key,
         title: mine.entry.title,
         posterUrl: mine.entry.posterUrl ?? other.entry.posterUrl,
+        spaceId: other.entry.spaceId,
         spaceName: other.entry.spaceName,
         friend: { id, name: other.entry.name, avatarUrl: other.entry.avatarUrl },
         mine: mine.sum / mine.n,
@@ -91,7 +97,12 @@ export function computeAffinities(me: string, entries: RatingEntry[]): AffinityR
     all.push(...list);
     const gap = list.reduce((s, f) => s + Math.abs(f.mine - f.theirs), 0) / list.length;
     const generosity = list.reduce((s, f) => s + f.theirs - f.mine, 0) / list.length;
+    const bySpace = new Map<string, { name: string; n: number }>();
+    for (const f of list) bySpace.set(f.spaceId, { name: f.spaceName, n: (bySpace.get(f.spaceId)?.n ?? 0) + 1 });
+    const [spaceId, space] = [...bySpace.entries()].sort((a, b) => b[1].n - a[1].n)[0];
     friends.push({
+      spaceId,
+      spaceName: space.name,
       personId: id,
       name: list[0].friend.name,
       avatarUrl: list[0].friend.avatarUrl,

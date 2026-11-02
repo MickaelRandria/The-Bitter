@@ -74,6 +74,7 @@ interface AnalyticsViewProps {
   onOpenSpaces?: () => void;
   /** Le compte connecté : ses espaces nourrissent l'onglet Amis. */
   currentUserId?: string;
+  onOpenSpace?: (spaceId: string) => void;
 }
 
 type TabMode = 'overview' | 'notes' | 'psycho' | 'friends';
@@ -982,6 +983,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   onRateFilm,
   onOpenSpaces,
   currentUserId,
+  onOpenSpace,
 }) => {
   const { t, language } = useLanguage();
   const isDark = useTheme().theme === 'dark';
@@ -1726,7 +1728,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       )}
 
       {/* ─── TAB : AMIS ─── */}
-      {activeTab === 'friends' && <FriendsTab currentUserId={currentUserId} onOpenSpaces={onOpenSpaces} />}
+      {activeTab === 'friends' && <FriendsTab currentUserId={currentUserId} onOpenSpaces={onOpenSpaces} onOpenSpace={onOpenSpace} />}
 
       {/* ─── TAB : ADN ─── */}
       {activeTab === 'psycho' && (

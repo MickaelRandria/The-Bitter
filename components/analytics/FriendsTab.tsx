@@ -16,6 +16,8 @@ import { loadAffinityEntries } from '../../services/affinities';
 interface Props {
   currentUserId?: string;
   onOpenSpaces?: () => void;
+  /** Ouvre l'espace d'où viennent les notes. */
+  onOpenSpace?: (spaceId: string) => void;
 }
 
 const TINTS = ['#E76F51', '#457B9D', '#8E7DBE', '#2A9D8F', '#E9C46A', '#B45309'];
@@ -42,7 +44,7 @@ const Head: React.FC<{ title: string; aside?: string }> = ({ title, aside }) => 
 
 const card = 'rounded-[24px] border border-sand bg-white dark:border-white/[0.08] dark:bg-[#1C1B19]';
 
-export default function FriendsTab({ currentUserId, onOpenSpaces }: Props) {
+export default function FriendsTab({ currentUserId, onOpenSpaces, onOpenSpace }: Props) {
   const { t } = useLanguage();
   const [state, setState] = useState<{ loading: boolean; spaces: number; entries: RatingEntry[] }>({ loading: true, spaces: 0, entries: [] });
 
@@ -97,6 +99,11 @@ export default function FriendsTab({ currentUserId, onOpenSpaces }: Props) {
   }
 
   const twin = report.friends[0];
+  const go = (spaceId: string) => {
+    if (!onOpenSpace) return;
+    haptics.soft();
+    onOpenSpace(spaceId);
+  };
   return (
     <div className="flex flex-col gap-7 animate-[fadeIn_0.3s_ease-out]">
       <section className="flex flex-col gap-3">
@@ -120,6 +127,11 @@ export default function FriendsTab({ currentUserId, onOpenSpaces }: Props) {
             {Math.abs(twin.generosity) >= 0.3 &&
               t(twin.generosity > 0 ? 'friends.kinder' : 'friends.harsher', { name: twin.name, gap: fmt1(Math.abs(twin.generosity)) })}
           </p>
+          {onOpenSpace && (
+            <button type="button" onClick={() => go(twin.spaceId)} className="mt-4 h-10 rounded-full bg-white/10 px-4 text-[12px] font-black text-white active:scale-95">
+              {t('friends.goSpace', { space: twin.spaceName })}
+            </button>
+          )}
         </div>
       </section>
 
@@ -127,16 +139,25 @@ export default function FriendsTab({ currentUserId, onOpenSpaces }: Props) {
         <Head title={t('friends.affinities')} aside={t('friends.affinitiesAside')} />
         <ul className={`${card} px-4 py-1`}>
           {report.friends.map((f, i) => (
-            <li key={f.personId} className="flex items-center gap-3 border-t border-sand py-2.5 first:border-t-0 dark:border-white/10">
+            <li key={f.personId} className="border-t border-sand first:border-t-0 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => go(f.spaceId)}
+                aria-label={t('friends.openSpace', { space: f.spaceName })}
+                className="flex w-full items-center gap-3 py-2.5 text-left active:opacity-80"
+              >
               <Avatar name={f.name} url={f.avatarUrl} index={i} />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-[14px] font-black text-charcoal dark:text-white">{f.name}</b>
-                <small className="text-[11px] font-bold text-stone-500 dark:text-stone-400">{t('friends.commonShort', { n: String(f.common) })}</small>
+                <small className="block truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">
+                  {t('friends.commonShort', { n: String(f.common) })} · <span className="text-forest dark:text-bitter-lime">{f.spaceName}</span>
+                </small>
               </span>
               <span aria-hidden="true" className="h-2 w-20 overflow-hidden rounded-full bg-sand dark:bg-white/10">
                 <span className={`block h-full rounded-full ${f.score >= 80 ? 'bg-forest dark:bg-bitter-lime' : 'bg-charcoal dark:bg-white'}`} style={{ width: `${f.score}%` }} />
               </span>
               <b className="w-11 text-right text-[14px] font-black tabular-nums text-charcoal dark:text-white">{f.score} %</b>
+              </button>
             </li>
           ))}
         </ul>
@@ -163,6 +184,15 @@ export default function FriendsTab({ currentUserId, onOpenSpaces }: Props) {
               </p>
             </div>
           </div>
+          {onOpenSpace && (
+            <button
+              type="button"
+              onClick={() => go(report.divider!.spaceId)}
+              className="h-11 rounded-[14px] bg-charcoal text-[12px] font-black text-white active:scale-[0.98] dark:bg-white dark:text-charcoal"
+            >
+              {t('friends.debate', { space: report.divider.spaceName })}
+            </button>
+          )}
         </section>
       )}
 

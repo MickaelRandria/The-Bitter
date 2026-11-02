@@ -15,7 +15,7 @@ function load(relative) {
 
 const { computeAffinities } = load('../utils/affinities.ts');
 
-const e = (key, personId, value, spaceName = 'Ciné') => ({ key, title: key, spaceName, personId, name: personId, value });
+const e = (key, personId, value, spaceName = 'Ciné') => ({ key, title: key, spaceId: spaceName, spaceName, personId, name: personId, value });
 const entries = [
   // Jane : à 0,5 point de moi en moyenne.
   e('a', 'me', 8), e('a', 'jane', 8.5),
