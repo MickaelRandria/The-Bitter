@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 
 export interface AdnRadialChartDatum {
   label: string;
@@ -33,12 +34,15 @@ const leftArcPath = (radius: number, progress = 1) => {
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`;
 };
 
-const colorForRank = (index: number) => {
-  if (index === 0) return '#D9FF00';
-  if (index === 1) return '#FFFFFF';
-  if (index === 2) return '#A3A3A3';
-  return '#555555';
+/**
+ * Les couleurs du graphique : pensées pour un fond sombre, elles ont leur
+ * pendant clair (sur fond blanc, le lime et le blanc ne se lisaient pas).
+ */
+const PALETTES = {
+  dark: { track: '#222222', bars: ['#D9FF00', '#FFFFFF', '#A3A3A3', '#555555'], labels: ['#FFFFFF', '#FFFFFF', '#A3A3A3', '#A3A3A3'], metaTop: '#D9FF00', meta: '#888888' },
+  light: { track: '#EEEAE2', bars: ['#3E5238', '#1A1A1A', '#8A8A82', '#C9C4BA'], labels: ['#1A1A1A', '#1A1A1A', '#4A4A46', '#6B6B66'], metaTop: '#3E5238', meta: '#6B6B66' },
 };
+const rank = (index: number) => Math.min(index, 3);
 
 /**
  * A flat, left-facing radial bar chart for the cinema DNA section.
@@ -58,6 +62,7 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
       }));
   }, [data, maxItems]);
 
+  const palette = PALETTES[useTheme().theme === 'dark' ? 'dark' : 'light'];
   if (!items.length) return null;
 
   const radiusStep = items.length > 1 ? (OUTER_RADIUS - INNER_RADIUS) / (items.length - 1) : 0;
@@ -70,7 +75,7 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
       aria-label="Répartition de tes empreintes cinéma"
       className="mt-5 block h-auto w-full"
     >
-      <g fill="none" stroke="#222222" strokeWidth={strokeWidth} strokeLinecap="butt">
+      <g fill="none" stroke={palette.track} strokeWidth={strokeWidth} strokeLinecap="butt">
         {items.map((_, index) => (
           <path key={index} d={leftArcPath(OUTER_RADIUS - index * radiusStep)} />
         ))}
@@ -81,13 +86,13 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
           <path
             key={item.label}
             d={leftArcPath(OUTER_RADIUS - index * radiusStep, item.percentage / 100)}
-            stroke={colorForRank(index)}
+            stroke={palette.bars[rank(index)]}
           />
         ))}
       </g>
 
       {items.map((item, index) => {
-        const color = colorForRank(index);
+        const color = palette.bars[rank(index)];
         const radius = OUTER_RADIUS - index * radiusStep;
         const guideY = CENTER_Y - radius;
         const labelY = guideY + 3;
@@ -99,7 +104,7 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
             <text
               x="162"
               y={labelY}
-              fill={index === 0 ? '#FFFFFF' : color === '#555555' ? '#A3A3A3' : color}
+              fill={palette.labels[rank(index)]}
               fontFamily="Inter, Arial, sans-serif"
               fontSize="9"
               fontWeight="800"
@@ -111,7 +116,7 @@ const AdnRadialChart: React.FC<AdnRadialChartProps> = ({ data, maxItems = 6 }) =
               x="348"
               y={labelY}
               textAnchor="end"
-              fill={index === 0 ? '#D9FF00' : '#888888'}
+              fill={index === 0 ? palette.metaTop : palette.meta}
               fontFamily="Inter, Arial, sans-serif"
               fontSize="8"
               fontWeight="800"

@@ -1741,7 +1741,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-forest dark:text-bitter-lime">
                     {t('analytics.dnaTitle')}
                   </p>
-                  <p className="mt-2 text-[11px] font-medium text-stone-400">
+                  <p className="mt-2 text-[11px] font-medium text-stone-500 dark:text-stone-400">
                     {t('analytics.dnaSubtitle')}
                   </p>
                   <AdnRadialChart
@@ -1767,10 +1767,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 </summary>
 
                 <div className="border-t border-sand dark:border-white/10 px-7 pb-7 pt-6">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
                   {t('analytics.imprintFilmsTitle')}
                 </p>
-                <p className="mt-2 text-[11px] font-medium leading-snug text-stone-400">
+                <p className="mt-2 text-[11px] font-medium leading-snug text-stone-500 dark:text-stone-400">
                   {t('analytics.imprintFilmsHint')}
                 </p>
                 <div className="mt-5 space-y-3">
