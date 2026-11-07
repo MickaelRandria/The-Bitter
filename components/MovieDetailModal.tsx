@@ -38,6 +38,7 @@ import FilFollowButton from './FilFollowButton';
 import { FilItem } from '../utils/cinemaFil';
 import { platformOfProvider } from '../utils/platforms';
 import SoundtrackBlock from './soundtrack/SoundtrackBlock';
+import { BlueskyBuzz } from './PublicReviews';
 import { readSoundtrack, toggleFavorite } from '../utils/soundtrackTags';
 import { btnPrimary, btnSecondary, sectionLabel } from '../utils/ui';
 
@@ -95,6 +96,7 @@ interface MovieDetail {
   name?: string; // For TV
   /** UGC affiche parfois le titre d'origine : les deux servent au rapprochement. */
   original_title?: string;
+  original_name?: string; // For TV
   overview: string;
   poster_path: string;
   backdrop_path: string;
@@ -368,6 +370,18 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
 
   // Les deux orthographes possibles côté UGC, dédoublonnées.
   const showtimeTitles = [...new Set([title, movie?.original_title].filter(Boolean) as string[])];
+
+  // Bluesky : le titre français et celui d'origine. Pour un film sorti il y a
+  // moins de deux mois, on ne cherche que depuis une semaine avant la sortie,
+  // pour tomber sur ce qui se dit maintenant plutôt que sur l'attente.
+  const buzzTitles = [...new Set([title, movie?.original_title ?? movie?.original_name].filter(Boolean) as string[])];
+  const buzzSince = (() => {
+    const released = date ? Date.parse(`${date}T12:00:00Z`) : NaN;
+    if (!Number.isFinite(released)) return undefined;
+    const age = Date.now() - released;
+    if (age < 0 || age > 60 * 24 * 3600_000) return undefined;
+    return new Date(released - 7 * 24 * 3600_000).toISOString().slice(0, 10);
+  })();
 
   const cast = movie?.credits.cast.slice(0, 6) || [];
   const offers = groupWatchOffers(movie?.['watch/providers']?.results?.FR);
@@ -646,6 +660,15 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                       ? (trackId) => onUpdateTags(collectionMovieId, toggleFavorite(collectionTags, trackId))
                       : undefined
                   }
+                />
+              )}
+
+              {/* Ce que le public en dit sur Bluesky : rien sous deux posts retenus. */}
+              {movie && buzzTitles.length > 0 && (
+                <BlueskyBuzz
+                  key={`${mediaType}-${tmdbId}`}
+                  title={title ?? ''}
+                  film={{ titles: buzzTitles, director: director !== 'Inconnu' ? director.split(',')[0] : undefined, year, since: buzzSince }}
                 />
               )}
 

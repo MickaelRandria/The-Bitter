@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-02-seance",
-  "label": "Version du 2 novembre",
+  "version": "2026-11-07-avis",
+  "label": "Version du 7 novembre",
   "items": [
+    {
+      "title": "Ce qu’en dit le public",
+      "body": "Dans les Trailers, le bouton Avis ouvre les commentaires YouTube de la bande-annonce, triés pour garder les vrais avis. Sur la fiche d’un film, « Ça parle du film » réunit les posts Bluesky. Toutes les langues : un appui sur Traduire, ou la pastille En français pour ne garder que le français."
+    },
     {
       "title": "Ta séance, en un appui",
       "body": "En notant un film encore en salle, l’app devine ta séance (ton cinéma, l’horaire du programme) : un « Oui » suffit, ou corrige-la sur place. Sans réponse, elle te la redemande juste après. Et dans Tes salles, complète en une minute les films vus au cinéma sans séance."
@@ -181,16 +185,16 @@
   ],
   "highlights": [
     {
+      "icon": "trailers",
+      "title": "Ce qu’en dit le public"
+    },
+    {
       "icon": "cinema",
       "title": "Ta séance, à chaud"
     },
     {
       "icon": "cinema",
       "title": "Ton trajet sur une carte"
-    },
-    {
-      "icon": "notifications",
-      "title": "Ton bus en direct"
     }
   ]
 }
