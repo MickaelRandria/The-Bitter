@@ -76,8 +76,25 @@ export function parseOmdb(body: any): { imdb: Facts['imdb']; press: Facts['press
   };
 }
 
+/**
+ * Du texte brut : Mistral met parfois des mots en gras façon Markdown
+ * (« **sommet visuel** »), que l'app afficherait tels quels. `stray` retire
+ * aussi les astérisques isolées ; à garder faux pour une traduction, où
+ * « f*ck » doit rester lisible.
+ */
+export function plainText(text: string, stray = true): string {
+  let t = text
+    .replace(/\*\*([^*]+?)\*\*/g, '$1')
+    .replace(/__([^_]+?)__/g, '$1')
+    .replace(/(^|[\s(«"“])\*(?!\s)([^*\n]+?)\*(?=$|[\s).,;:!?»"”])/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*(#{1,6}\s+|[-*•]\s+|\d+[.)]\s+)/, '');
+  if (stray) t = t.replace(/\*+/g, '');
+  return t.replace(/\s+/g, ' ').trim();
+}
+
 const clip = (text: string, max: number) => {
-  const t = text.replace(/\s+/g, ' ').trim();
+  const t = plainText(text);
   return t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
 };
 
@@ -104,6 +121,7 @@ export function summaryPrompt(film: { title: string; year?: string }, sources: S
     `You summarise what the public says about a film, for a film-lovers app. Write in ${LANGUAGE[target]}, plain and lively, no jargon.`,
     'Use ONLY the reviews given. Never invent an opinion, a number or a fact. Never reveal plot twists, the ending, deaths or surprises: no spoilers at all.',
     'Weigh what most reviews say; mention a minority view only as such.',
+    'Plain text only inside every string: no Markdown, no asterisks, no bold, no bullet symbols, no emojis.',
     'Answer with JSON only, exactly this shape:',
     '{"verdict":"one short sentence, max 80 characters","overview":"two sentences, max 300 characters",',
     '"loved":["up to 3 short points"],"divides":["up to 2 short points"],"disappoints":["up to 2 short points"],',
@@ -163,7 +181,7 @@ export function parseSummary(raw: unknown, sources: Source[]): Summary | null {
   const quotes: Summary['quotes'] = [];
   for (const q of Array.isArray(data.quotes) ? data.quotes : []) {
     const source = byId.get(String(q?.id ?? ''));
-    const text = typeof q?.text === 'string' ? q.text.trim().replace(/^[«"“\s]+|[»"”\s]+$/g, '') : '';
+    const text = typeof q?.text === 'string' ? plainText(q.text).replace(/^[«"“\s]+|[»"”\s]+$/g, '') : '';
     if (!source || used.has(source.id) || text.split(/\s+/).length < 4 || text.length > 160) continue;
     if (!norm(source.text).includes(norm(text))) continue;
     used.add(source.id);

@@ -8,6 +8,7 @@
  * carte ne s'affiche pas.
  */
 import { supabase } from './supabase';
+import { plainText } from '../utils/plainText';
 
 export type VerdictCriterion = 'scenario' | 'image' | 'interpretation' | 'sound';
 export type VerdictTone = 'unanime' | 'apprecie' | 'divise' | 'critique';
@@ -98,10 +99,30 @@ export async function fetchVerdictFacts(film: VerdictFilm): Promise<VerdictFacts
   return facts;
 }
 
+/** Le résumé en texte brut, même s'il a été gardé avant le nettoyage côté serveur. */
+const clean = (summary: VerdictSummary | null): VerdictSummary | null => {
+  if (!summary) return null;
+  const list = (items: string[] | undefined) => (items ?? []).map((item) => plainText(item)).filter(Boolean);
+  const criteria: VerdictSummary['criteria'] = {};
+  for (const [k, c] of Object.entries(summary.criteria ?? {})) {
+    if (c) criteria[k as VerdictCriterion] = { ...c, text: plainText(c.text) };
+  }
+  return {
+    ...summary,
+    verdict: plainText(summary.verdict),
+    overview: plainText(summary.overview ?? ''),
+    loved: list(summary.loved),
+    divides: list(summary.divides),
+    disappoints: list(summary.disappoints),
+    criteria,
+    quotes: (summary.quotes ?? []).map((q) => ({ ...q, text: plainText(q.text) })),
+  };
+};
+
 /** Le résumé déjà lu sur cet appareil, sans appel : pour le fil. */
 export function cachedVerdict(tmdbId: number, lang: 'fr' | 'en'): VerdictResult | null {
   const hit = read<VerdictResult>(key('summary', tmdbId, lang), SUMMARY_TTL);
-  return hit ? { ...hit.data, at: hit.at } : null;
+  return hit ? { ...hit.data, summary: clean(hit.data.summary), at: hit.at } : null;
 }
 
 /** Le résumé complet, avec ses chiffres. */
@@ -109,7 +130,7 @@ export async function fetchVerdict(film: VerdictFilm, lang: 'fr' | 'en'): Promis
   const cached = cachedVerdict(film.tmdbId, lang);
   if (cached) return cached;
   const data = await call({ action: 'summary', target: lang, ...payload(film) });
-  const result: VerdictResult = { facts: data?.facts ?? null, summary: data?.summary ?? null, few: data?.few === true };
+  const result: VerdictResult = { facts: data?.facts ?? null, summary: clean(data?.summary ?? null), few: data?.few === true };
   if (result.summary || result.few) {
     write(key('summary', film.tmdbId, lang), result);
     if (result.facts) write(key('facts', film.tmdbId), result.facts);
