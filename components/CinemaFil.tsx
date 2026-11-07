@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Clapperboard, ExternalLink, Heart, Loader2, MessageCircle, Play, RefreshCw, Share2, SlidersHorizontal, Sparkles, Users, Volume2, VolumeX } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Clapperboard, ExternalLink, Globe, Heart, Loader2, MessageCircle, Play, RefreshCw, Share2, SlidersHorizontal, Sparkles, Users, Volume2, VolumeX } from 'lucide-react';
 import { Movie, MovieStatus } from '../types';
 import { FilItem, FilMedia, filWorkKey, filterFil } from '../utils/cinemaFil';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -13,6 +13,8 @@ import { useBlockedUsers } from '../services/moderation';
 import MovieDetailModal from './MovieDetailModal';
 import FilFollowButton from './FilFollowButton';
 import { FilComments, FilSheet } from './CinemaFilSheet';
+import { PublicReviewsSheet } from './PublicReviews';
+import { compactCount, fetchYoutubeReviews } from '../services/publicReviews';
 
 interface Props {
   profileId: string;
@@ -43,6 +45,8 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
   const [sheet, setSheet] = useState<'filters' | 'comments' | 'source' | 'share' | null>(null);
   const [sheetItem, setSheetItem] = useState<FilItem | null>(null);
   const [detail, setDetail] = useState<FilItem | null>(null);
+  /** La bande-annonce dont on lit les commentaires YouTube (« Ce qu’en dit le public »). */
+  const [publicFor, setPublicFor] = useState<FilItem | null>(null);
   const [toast, setToast] = useState<string>();
   const feed = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -172,7 +176,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
         {loading ? <div className="flex h-full flex-col items-center justify-center gap-4"><Loader2 size={28} className="animate-spin text-bitter-lime" /><p className="text-xs text-white/60">{t('cineFil.loading')}</p></div> : !visible.length ? <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center"><Clapperboard size={32} className="text-bitter-lime" /><p className="text-sm text-white/70">{t(error || 'cineFil.empty')}</p><button type="button" onClick={() => { setCategory('foryou'); setMedia('all'); setRefresh(n => n + 1); }} className="flex items-center gap-2 rounded-2xl bg-bitter-lime px-5 py-3 text-xs font-black text-charcoal"><RefreshCw size={15} />{t('cineFil.retry')}</button></div> : visible.map((item, index) => {
           const count = counts[item.id]; const isLiked = count?.liked ?? liked.has(item.id);
           const inCollection = item.work && (collection.has(filWorkKey(item.work.mediaType, item.work.tmdbId)) || added.has(filWorkKey(item.work.mediaType, item.work.tmdbId)));
-          const playing = index === active && videoId === item.id && !!item.videoKey && !sheet && !detail;
+          const playing = index === active && videoId === item.id && !!item.videoKey && !sheet && !detail && !publicFor;
           const headline = item.kind === 'friend' ? `« ${item.description.slice(0, 105)}${item.description.length > 105 ? '…' : ''} »` : item.kind === 'release' ? t('cineFil.releaseHeadline') : item.title;
           return <article key={item.id} className="relative isolate h-full snap-start snap-always overflow-hidden" aria-label={item.title} data-fil-kind={item.kind}>
             {item.image && <img src={item.image} alt="" loading={index < 2 ? 'eager' : 'lazy'} className="absolute inset-0 -z-20 h-full w-full object-cover" onError={e => { e.currentTarget.style.opacity = '0'; }} />}
@@ -194,6 +198,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
             <aside className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+52px)] right-3 z-[6] flex flex-col gap-5" aria-label={t('cineFil.actions')}>
               <button type="button" onClick={() => void react(item)} disabled={busy === item.id} aria-pressed={isLiked} aria-label={t(isLiked ? 'cineFil.unlike' : 'cineFil.like')} className="flex w-10 flex-col items-center gap-1.5"><span className={`flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-md ${isLiked ? 'border-bitter-lime bg-bitter-lime text-charcoal' : 'border-white/20 bg-white/10'}`}><Heart size={20} fill={isLiked ? 'currentColor' : 'none'} /></span><span className="text-[9px] font-bold">{count ? count.likes : t('cineFil.likeShort')}</span></button>
               <button type="button" onClick={() => openSheet('comments', item)} aria-label={t('cineFil.commentsTitle')} className="flex w-10 flex-col items-center gap-1.5"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md"><MessageCircle size={20} /></span><span className="text-[9px] font-bold">{count ? count.comments : t('cineFil.commentsShort')}</span></button>
+              {item.kind === 'trailer' && item.videoKey && <button type="button" onClick={() => { haptics.soft(); setVideoId(null); setPublicFor(item); }} aria-label={t('reviews.public')} className="flex w-10 flex-col items-center gap-1.5"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md"><Globe size={20} /></span><span className="text-[9px] font-bold">{t('trailers.reviews')}</span></button>}
               {item.work && <button type="button" onClick={() => void add(item)} disabled={!!inCollection || busy === item.id} aria-label={t(inCollection ? 'cineFil.inList' : 'cineFil.add')} className="flex w-10 flex-col items-center gap-1.5 disabled:opacity-100"><span className={`flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-md ${inCollection ? 'border-bitter-lime bg-bitter-lime text-charcoal' : 'border-white/20 bg-white/10'}`}>{busy === item.id ? <Loader2 size={20} className="animate-spin" /> : inCollection ? <Check size={20} /> : <Bookmark size={20} />}</span><span className="text-[9px] font-bold">{t(inCollection ? 'cineFil.inListShort' : 'cineFil.listShort')}</span></button>}
               <button type="button" onClick={() => void share(item)} aria-label={t('cineFil.share')} className="flex w-10 flex-col items-center gap-1.5"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md"><Share2 size={20} /></span><span className="text-[9px] font-bold">{t('cineFil.share')}</span></button>
             </aside>
@@ -208,6 +213,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
     {sheet === 'comments' && sheetItem && <FilComments key={sheetItem.id} item={sheetItem} profileId={profileId} onClose={() => setSheet(null)} onChanged={() => void updateCounts()} />}
     {sheet === 'source' && sheetItem && <FilSheet title={t('cineFil.sourceTitle')} onClose={() => setSheet(null)}><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-stone-400">{sheetItem.source} · {date(sheetItem.publishedAt)}</p><h3 className="mb-4 text-2xl font-black tracking-tighter">{sheetItem.title}</h3><p className="mb-5 text-sm leading-relaxed text-stone-500 dark:text-stone-400">{sheetItem.description}</p><p className="mb-4 text-[11px] text-stone-400">{t('cineFil.sourceHint')}</p><a href={sheetItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-bitter-lime px-5 py-4 text-xs font-black text-charcoal">{t('cineFil.openSource')}<ExternalLink size={15} /></a></FilSheet>}
     {sheet === 'share' && sheetItem && <FilSheet title={t('cineFil.share')} onClose={() => setSheet(null)}><p className="mb-4 text-sm font-bold">{sheetItem.title}</p><input readOnly aria-label={t('cineFil.shareLink')} value={sheetItem.sourceUrl || `https://www.themoviedb.org/${sheetItem.work?.mediaType}/${sheetItem.work?.tmdbId}`} onFocus={e => e.target.select()} className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-xs dark:border-white/10 dark:bg-[#1a1a1a]" /><p className="mt-3 text-xs text-stone-400">{t('cineFil.copyHint')}</p></FilSheet>}
+    {publicFor?.videoKey && <PublicReviewsSheet key={publicFor.id} dark title={publicFor.work?.title ?? publicFor.title} kicker={t('reviews.public')} load={(order) => fetchYoutubeReviews(publicFor.videoKey!, order)} countLabel={(list) => list?.total != null ? t('reviews.youtubeCount', { n: compactCount(list.total, language === 'en' ? 'en-GB' : 'fr-FR') }) : t('reviews.onYoutube')} moreUrl={`https://www.youtube.com/watch?v=${publicFor.videoKey}`} moreLabel={t('reviews.allOnYoutube')} onClose={() => setPublicFor(null)} />}
     {detail?.work && <MovieDetailModal tmdbId={detail.work.tmdbId} mediaType={detail.work.mediaType} isOpen onClose={() => setDetail(null)} onAction={(id, status) => { onAction(id, detail.work!.mediaType, status); }} profileId={profileId} myPlatformIds={platformIds} onToast={say} filItems={available.filter(item => item.work && filWorkKey(item.work.mediaType, item.work.tmdbId) === filWorkKey(detail.work!.mediaType, detail.work!.tmdbId))} onFilItem={showCard} />}
   </>;
 };

@@ -296,10 +296,15 @@ export const PublicReviewsSheet: React.FC<SheetProps> = ({ title, kicker, load, 
   const visible = useMemo(() => applyFilters(list?.items ?? [], filters, target), [list, filters, target]);
 
   useEffect(() => setShown(FIRST), [filters]);
+  // Échap ferme la feuille seule, pas le fil ou la fiche en dessous.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
   return createPortal(
