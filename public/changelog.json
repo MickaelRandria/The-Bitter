@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-07-avis",
+  "version": "2026-11-07-verdict",
   "label": "Version du 7 novembre",
   "items": [
+    {
+      "title": "Ce qu’en dit Internet",
+      "body": "Sur la fiche d’un film, le verdict du public en une phrase : les notes SensCritique et IMDb, la presse quand elle existe, et ce que valent l’histoire, l’image, le jeu et le son. Le résumé complet dit ce qu’on adore, ce qui divise, ce qui déçoit, avec des citations sourcées et sans spoiler. Pour un film déjà vu, il reste replié."
+    },
     {
       "title": "Ce qu’en dit le public",
       "body": "Dans les Trailers, le bouton Avis ouvre les commentaires YouTube de la bande-annonce, triés pour garder les vrais avis. Sur la fiche d’un film, « Ça parle du film » réunit les posts Bluesky. Toutes les langues : un appui sur Traduire, ou la pastille En français pour ne garder que le français."
@@ -185,16 +189,16 @@
   ],
   "highlights": [
     {
+      "icon": "cinema",
+      "title": "Ce qu’en dit Internet"
+    },
+    {
       "icon": "trailers",
       "title": "Ce qu’en dit le public"
     },
     {
       "icon": "cinema",
       "title": "Ta séance, à chaud"
-    },
-    {
-      "icon": "cinema",
-      "title": "Ton trajet sur une carte"
     }
   ]
 }

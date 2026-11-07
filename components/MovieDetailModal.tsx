@@ -39,6 +39,8 @@ import { FilItem } from '../utils/cinemaFil';
 import { platformOfProvider } from '../utils/platforms';
 import SoundtrackBlock from './soundtrack/SoundtrackBlock';
 import { BlueskyBuzz } from './PublicReviews';
+import { VerdictCard } from './FilmVerdict';
+import { FocusKey } from '../utils/criterionFocus';
 import { readSoundtrack, toggleFavorite } from '../utils/soundtrackTags';
 import { btnPrimary, btnSecondary, sectionLabel } from '../utils/ui';
 
@@ -80,6 +82,8 @@ interface MovieDetailModalProps {
   myPlatformIds?: string[];
   filItems?: FilItem[];
   onFilItem?: (item: FilItem) => void;
+  /** Le critère qui pèse le plus dans mes notes : « Pour toi » dans le résumé des avis. */
+  criterionFocus?: FocusKey | null;
 }
 
 interface TMDBReview {
@@ -148,6 +152,7 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   myPlatformIds,
   filItems,
   onFilItem,
+  criterionFocus,
 }) => {
   const dialog = useDialog(onClose);
   const { t } = useLanguage();
@@ -559,6 +564,17 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                     </button>
                   ))}</div>
                 </section>
+              )}
+
+              {/* Ce qu'en dit Internet : replié si le film est déjà noté, pour ne pas peser sur la note. */}
+              {movie && mediaType === 'movie' && buzzTitles.length > 0 && (
+                <VerdictCard
+                  key={`verdict-${tmdbId}`}
+                  title={title ?? ''}
+                  seen={collectionUserRating != null && collectionUserRating > 0}
+                  focus={criterionFocus}
+                  film={{ tmdbId, imdbId: readImdbId(movie), titles: buzzTitles, director: director !== 'Inconnu' ? director.split(',')[0] : undefined, year }}
+                />
               )}
 
               {/* Séances au cinéma favori — avant le streaming : c'est le geste

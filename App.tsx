@@ -201,6 +201,7 @@ import { imdbLookupFor } from './utils/publicRating';
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
 const CinemaFil = lazy(() => import('./components/CinemaFil'));
 import { soundScore } from './utils/soundScore';
+import { criterionFocus } from './utils/criterionFocus';
 import DailyFilButton from './components/DailyFilButton';
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
@@ -3019,6 +3020,9 @@ const App: React.FC = () => {
     return allMovies.filter((m) => (m.mediaType ?? 'movie') !== 'tv');
   }, [allMovies, mediaMode]);
 
+  // « Pour toi » dans le résumé des avis : le critère qui pèse le plus dans mes notes.
+  const myCriterionFocus = useMemo(() => criterionFocus(allMovies), [allMovies]);
+
   // Envies communes : relues quand la liste « à voir » change, pas à chaque rendu.
   const watchlistKey = useMemo(
     () =>
@@ -5287,6 +5291,7 @@ const App: React.FC = () => {
                   setTimeout(() => setIsModalOpen(true), 100);
                 }}
                 onViewDirector={(name, id) => setPreviewDirector({ name, id })}
+                criterionFocus={myCriterionFocus}
                 collectionMovieId={collectionMovie?.id}
                 collectionTmdbRating={collectionMovie?.tmdbRating}
                 collectionUserRating={
