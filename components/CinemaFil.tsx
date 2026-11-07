@@ -14,6 +14,8 @@ import MovieDetailModal from './MovieDetailModal';
 import FilFollowButton from './FilFollowButton';
 import { FilComments, FilSheet } from './CinemaFilSheet';
 import { PublicReviewsSheet } from './PublicReviews';
+import { VerdictChip } from './FilmVerdict';
+import { criterionFocus } from '../utils/criterionFocus';
 import { compactCount, fetchYoutubeReviews } from '../services/publicReviews';
 
 interface Props {
@@ -54,6 +56,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
   const lengthRef = useRef(0);
   const moviesRef = useRef(movies); moviesRef.current = movies;
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const focus = useMemo(() => criterionFocus(movies), [movies]);
   const available = useMemo(() => {
     const seen = watchedWorkKeys(movies);
     return items.filter(item => (!item.friendId || !blocked.has(item.friendId))
@@ -193,6 +196,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
               {item.kind === 'news' && <button type="button" onClick={() => openSheet('source', item)} className="mb-3 inline-flex items-center gap-1.5 text-[11px] font-extrabold">{t('cineFil.readSource')}<ArrowUpRight size={13} /></button>}
               {item.kind === 'friend' && <button type="button" onClick={() => openSheet('comments', item)} className="mb-3 inline-flex items-center gap-1.5 text-[11px] font-extrabold">{t('cineFil.readReview')}<ArrowUpRight size={13} /></button>}
               {item.videoKey && <a href={`https://www.youtube.com/watch?v=${item.videoKey}`} target="_blank" rel="noopener noreferrer" className="mb-3 inline-flex items-center gap-1.5 text-[10px] font-bold text-white/70">{t('cineFil.youtube')}<ExternalLink size={12} /></a>}
+              {item.kind === 'trailer' && item.work?.mediaType === 'movie' && <VerdictChip film={{ tmdbId: item.work.tmdbId, titles: [item.work.title], year: item.work.year ? String(item.work.year) : undefined }} title={item.work.title} focus={focus} onOpen={() => setVideoId(null)} />}
               {item.work && <><button type="button" onClick={() => { setVideoId(null); setDetail(item); }} className="mb-3 flex w-full items-center gap-2 rounded-2xl border border-white/20 bg-white/5 p-2 text-left backdrop-blur-md">{item.work.poster && <img src={item.work.poster} alt="" className="h-11 w-8 shrink-0 rounded-md object-cover" />}<span className="min-w-0 flex-1"><b className="block truncate text-[11px] font-black">{item.work.title}</b><small className="mt-1 block text-[9px] text-white/50">{t(item.work.mediaType === 'tv' ? 'cineFil.series' : 'cineFil.film')}{item.work.year ? ` · ${item.work.year}` : ''}</small></span><ChevronRight size={14} /></button><FilFollowButton compact profileId={profileId} work={item.work} onToast={say} /></>}
             </div>
             <aside className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+52px)] right-3 z-[6] flex flex-col gap-5" aria-label={t('cineFil.actions')}>
@@ -214,7 +218,7 @@ const CinemaFil: React.FC<Props> = ({ profileId, movies, onClose, onAdd, onActio
     {sheet === 'source' && sheetItem && <FilSheet title={t('cineFil.sourceTitle')} onClose={() => setSheet(null)}><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-stone-400">{sheetItem.source} · {date(sheetItem.publishedAt)}</p><h3 className="mb-4 text-2xl font-black tracking-tighter">{sheetItem.title}</h3><p className="mb-5 text-sm leading-relaxed text-stone-500 dark:text-stone-400">{sheetItem.description}</p><p className="mb-4 text-[11px] text-stone-400">{t('cineFil.sourceHint')}</p><a href={sheetItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-bitter-lime px-5 py-4 text-xs font-black text-charcoal">{t('cineFil.openSource')}<ExternalLink size={15} /></a></FilSheet>}
     {sheet === 'share' && sheetItem && <FilSheet title={t('cineFil.share')} onClose={() => setSheet(null)}><p className="mb-4 text-sm font-bold">{sheetItem.title}</p><input readOnly aria-label={t('cineFil.shareLink')} value={sheetItem.sourceUrl || `https://www.themoviedb.org/${sheetItem.work?.mediaType}/${sheetItem.work?.tmdbId}`} onFocus={e => e.target.select()} className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-xs dark:border-white/10 dark:bg-[#1a1a1a]" /><p className="mt-3 text-xs text-stone-400">{t('cineFil.copyHint')}</p></FilSheet>}
     {publicFor?.videoKey && <PublicReviewsSheet key={publicFor.id} dark title={publicFor.work?.title ?? publicFor.title} kicker={t('reviews.public')} load={(order) => fetchYoutubeReviews(publicFor.videoKey!, order)} countLabel={(list) => list?.total != null ? t('reviews.youtubeCount', { n: compactCount(list.total, language === 'en' ? 'en-GB' : 'fr-FR') }) : t('reviews.onYoutube')} moreUrl={`https://www.youtube.com/watch?v=${publicFor.videoKey}`} moreLabel={t('reviews.allOnYoutube')} onClose={() => setPublicFor(null)} />}
-    {detail?.work && <MovieDetailModal tmdbId={detail.work.tmdbId} mediaType={detail.work.mediaType} isOpen onClose={() => setDetail(null)} onAction={(id, status) => { onAction(id, detail.work!.mediaType, status); }} profileId={profileId} myPlatformIds={platformIds} onToast={say} filItems={available.filter(item => item.work && filWorkKey(item.work.mediaType, item.work.tmdbId) === filWorkKey(detail.work!.mediaType, detail.work!.tmdbId))} onFilItem={showCard} />}
+    {detail?.work && <MovieDetailModal criterionFocus={focus} tmdbId={detail.work.tmdbId} mediaType={detail.work.mediaType} isOpen onClose={() => setDetail(null)} onAction={(id, status) => { onAction(id, detail.work!.mediaType, status); }} profileId={profileId} myPlatformIds={platformIds} onToast={say} filItems={available.filter(item => item.work && filWorkKey(item.work.mediaType, item.work.tmdbId) === filWorkKey(detail.work!.mediaType, detail.work!.tmdbId))} onFilItem={showCard} />}
   </>;
 };
 export default CinemaFil;

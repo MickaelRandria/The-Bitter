@@ -1,15 +1,35 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { FilmQuery, Order, PublicReview, blueskyQueries, fromBlueskyPost, fromYoutubeThread, mentionsFilm, rankReviews } from './logic.ts';
+import {
+  Facts,
+  MAX_BSKY_SOURCES,
+  MAX_SC_SOURCES,
+  MIN_REVIEWS,
+  Source,
+  Summary,
+  fromSensCritique,
+  parseOmdb,
+  parseSummary,
+  positiveShare,
+  summaryPrompt,
+} from './summary.ts';
 
 /**
  * Les avis du public sur un film : commentaires YouTube de sa bande-annonce,
  * posts Bluesky qui en parlent, et leur traduction à la demande.
  *
- * Trois actions, en POST :
+ * Cinq actions, en POST :
  * - `youtube`  { videoKey, order }           → { items, total, disabled? }
  * - `bluesky`  { titles, director?, year?, since?, order } → { items }
  * - `translate` { items: [{ id, text }], target } → { items: [{ id, text, source }] }
+ * - `facts`    { tmdbId, imdbId?, titles, director?, year? } → { facts }
+ * - `summary`  { …comme facts, target } → { facts, summary, few? }
+ *
+ * `facts` : notes SensCritique (id par Wikidata, API publique non officielle),
+ * IMDb et presse (OMDb), part des critiques à 7/10 ou plus, volumes. `summary` :
+ * le résumé écrit par Mistral à partir des critiques SensCritique et des posts
+ * Bluesky (voir summary.ts), gardé un jour par film et par langue.
  *
  * On ne garde rien en base : les réponses restent quelques heures dans la
  * mémoire de la fonction, et l'app les garde de son côté. Un avis supprimé sur
@@ -64,11 +84,11 @@ const recall = <T>(key: string): T | undefined => {
 };
 
 const usage = new Map<string, { day: string; count: number }>();
-const spend = (userId: string, n: number) => {
+const spend = (userId: string, n: number, limit = DAILY_TRANSLATIONS) => {
   const day = new Date().toISOString().slice(0, 10);
   const entry = usage.get(userId);
   const count = entry?.day === day ? entry.count : 0;
-  if (count + n > DAILY_TRANSLATIONS) return false;
+  if (count + n > limit) return false;
   usage.set(userId, { day, count: count + n });
   return true;
 };
@@ -151,6 +171,206 @@ async function bluesky(film: FilmQuery, sort: Order, since?: string) {
   }
   return remember(cacheKey, LIST_TTL, { items: rankReviews(candidates, sort) });
 }
+
+/* ------------------------------------------- Ce qu'en dit Internet (résumé) */
+
+const DAY = 24 * HOUR;
+const UA = 'TheBitter/1.0 (https://thebitter.watch)';
+const SUMMARY_MODELS = ['ministral-14b-latest', 'ministral-8b-latest'];
+/** Résumés par personne et par jour : un garde-fou, chaque film est gardé en cache. */
+const DAILY_SUMMARIES = 60;
+
+/** L'identifiant SensCritique d'un film, par Wikidata (P4947 TMDB → P10100). */
+async function sensCritiqueId(tmdbId: number): Promise<number | null> {
+  const key = `scid:${tmdbId}`;
+  const cached = recall<number>(key);
+  if (cached !== undefined) return cached || null;
+  const query = `SELECT ?sc WHERE { ?f wdt:P4947 "${tmdbId}"; wdt:P10100 ?sc. } LIMIT 1`;
+  try {
+    const { ok, body } = await getJson(`https://query.wikidata.org/sparql?${new URLSearchParams({ query })}`, {
+      headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' },
+    });
+    const id = ok ? Number(body?.results?.bindings?.[0]?.sc?.value) : NaN;
+    if (!ok) return null;
+    return remember(key, Number.isFinite(id) ? 7 * DAY : DAY, Number.isFinite(id) ? id : 0) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** La fiche SensCritique : note, volumes, et jusqu'à 300 critiques (texte des 100 plus lues). */
+async function sensCritique(id: number) {
+  const query = `query { product(id: ${id}) { url rating stats { ratingCount reviewCount }
+    p0: reviews(limit: 100, offset: 0) { items { id title bodyShort rating } }
+    p1: reviews(limit: 100, offset: 100) { items { rating } }
+    p2: reviews(limit: 100, offset: 200) { items { rating } } } }`;
+  const { ok, body } = await getJson('https://apollo.senscritique.com/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+    body: JSON.stringify({ query }),
+  });
+  const product = ok ? body?.data?.product : null;
+  if (!product) return null;
+  const url = `https://www.senscritique.com${typeof product.url === 'string' ? product.url : `/film/_/${id}`}`;
+  const first: any[] = product.p0?.items ?? [];
+  const ratings = [...first, ...(product.p1?.items ?? []), ...(product.p2?.items ?? [])].map((r: any) => r?.rating);
+  const { share, sampled } = positiveShare(ratings);
+  return {
+    facts: {
+      rating: typeof product.rating === 'number' ? product.rating : null,
+      ratings: Number(product.stats?.ratingCount) || 0,
+      reviews: Number(product.stats?.reviewCount) || 0,
+      positiveShare: share,
+      sampled,
+      url,
+    },
+    sources: first.map((item) => fromSensCritique(item, url)).filter(Boolean) as Source[],
+  };
+}
+
+async function omdb(imdbId: string | undefined) {
+  const key = Deno.env.get('OMDB_API_KEY');
+  if (!imdbId || !key) return { imdb: null, press: null };
+  const cacheKey = `omdb:${imdbId}`;
+  const cached = recall<ReturnType<typeof parseOmdb>>(cacheKey);
+  if (cached) return cached;
+  try {
+    const { ok, body } = await getJson(`https://www.omdbapi.com/?${new URLSearchParams({ apikey: key, i: imdbId })}`);
+    return ok ? remember(cacheKey, DAY, parseOmdb(body)) : { imdb: null, press: null };
+  } catch {
+    return { imdb: null, press: null };
+  }
+}
+
+interface FilmInput extends FilmQuery {
+  tmdbId: number;
+  imdbId?: string;
+}
+
+/**
+ * Ce que l'app ne sait pas toujours (depuis le fil : ni IMDb, ni réalisateur,
+ * ni titre d'origine) : TMDB le complète, une fois par film.
+ */
+async function complete(film: FilmInput): Promise<FilmInput> {
+  if (film.imdbId && film.director && film.titles.length > 1) return film;
+  const key = Deno.env.get('TMDB_API_KEY');
+  if (!key) return film;
+  const cacheKey = `tmdb:${film.tmdbId}`;
+  let info = recall<{ imdbId?: string; director?: string; original?: string; year?: string }>(cacheKey);
+  if (!info) {
+    try {
+      const { ok, body } = await getJson(
+        `https://api.themoviedb.org/3/movie/${film.tmdbId}?${new URLSearchParams({ api_key: key, append_to_response: 'credits,external_ids' })}`
+      );
+      if (!ok) return film;
+      info = remember(cacheKey, 7 * DAY, {
+        imdbId: typeof body?.imdb_id === 'string' && /^tt\d{6,10}$/.test(body.imdb_id) ? body.imdb_id : undefined,
+        director: body?.credits?.crew?.find((c: any) => c?.job === 'Director')?.name,
+        original: typeof body?.original_title === 'string' ? body.original_title : undefined,
+        year: typeof body?.release_date === 'string' ? body.release_date.slice(0, 4) : undefined,
+      });
+    } catch {
+      return film;
+    }
+  }
+  return {
+    ...film,
+    imdbId: film.imdbId ?? info.imdbId,
+    director: film.director ?? info.director,
+    year: film.year ?? info.year,
+    titles: [...new Set([...film.titles, info.original].filter(Boolean) as string[])].slice(0, 2),
+  };
+}
+
+/** Les chiffres, et les avis qui serviront au résumé (gardés côté serveur). */
+async function gather(input: FilmInput): Promise<{ facts: Facts; sources: Source[] }> {
+  const cacheKey = `facts:${input.tmdbId}`;
+  const cached = recall<{ facts: Facts; sources: Source[] }>(cacheKey);
+  if (cached) return cached;
+  const film = await complete(input);
+  const [sc, notes, bsky] = await Promise.all([
+    sensCritiqueId(film.tmdbId)
+      .then((id) => (id ? sensCritique(id) : null))
+      .catch((error) => {
+        console.warn('[public-reviews] SensCritique :', String(error));
+        return null;
+      }),
+    omdb(film.imdbId),
+    bluesky(film, 'relevance').catch(() => ({ items: [] })) as Promise<{ items: PublicReview[] }>,
+  ]);
+  const bskySources: Source[] = (bsky.items ?? []).slice(0, MAX_BSKY_SOURCES).map((r) => ({
+    id: `B${r.id.slice(-12)}`,
+    origin: 'bluesky',
+    author: r.handle ?? r.author,
+    text: r.text.slice(0, 420),
+    url: r.url,
+  }));
+  const scSources = (sc?.sources ?? []).slice(0, MAX_SC_SOURCES);
+  const sources = [...scSources, ...bskySources];
+  const facts: Facts = {
+    sensCritique: sc?.facts ?? null,
+    imdb: notes.imdb,
+    press: notes.press,
+    bluesky: bsky.items?.length ?? 0,
+    readable: sources.length,
+  };
+  return remember(cacheKey, 12 * HOUR, { facts, sources });
+}
+
+async function summarize(film: FilmInput, target: 'fr' | 'en', apiKey: string): Promise<{ facts: Facts; summary: Summary | null; few?: boolean }> {
+  const cacheKey = `summary:${film.tmdbId}:${target}`;
+  const cached = recall<{ facts: Facts; summary: Summary | null; few?: boolean }>(cacheKey);
+  if (cached) return cached;
+  const { facts, sources } = await gather(film);
+  if (sources.length < MIN_REVIEWS) return remember(cacheKey, 6 * HOUR, { facts, summary: null, few: true });
+
+  const { system, user } = summaryPrompt({ title: film.titles[0], year: film.year }, sources, target);
+  for (const model of SUMMARY_MODELS) {
+    try {
+      const response = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: 0.2,
+          max_tokens: 1400,
+          response_format: { type: 'json_object' },
+        }),
+        signal: AbortSignal.timeout(40_000),
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        console.warn(`[public-reviews] résumé ${model} ${response.status}`);
+        if (response.status === 429 || response.status >= 500) continue;
+        break;
+      }
+      const payload = await response.json();
+      const summary = parseSummary(String(payload?.choices?.[0]?.message?.content ?? ''), sources);
+      if (summary) return remember(cacheKey, DAY, { facts, summary });
+      console.warn(`[public-reviews] résumé ${model} illisible`);
+    } catch (error) {
+      console.warn(`[public-reviews] résumé abandonné (${model}) :`, String(error));
+    }
+  }
+  return { facts, summary: null };
+}
+
+const filmInput = (body: Record<string, unknown>): FilmInput | null => {
+  const tmdbId = Number(body.tmdbId);
+  const titles = cleanTitles(body.titles);
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0 || titles.length === 0) return null;
+  return {
+    tmdbId,
+    imdbId: typeof body.imdbId === 'string' && /^tt\d{6,10}$/.test(body.imdbId) ? body.imdbId : undefined,
+    titles,
+    director: typeof body.director === 'string' ? body.director.slice(0, 80) : undefined,
+    year: typeof body.year === 'string' && /^\d{4}$/.test(body.year) ? body.year : undefined,
+  };
+};
 
 /* --------------------------------------------------------------- Traduction */
 
@@ -264,6 +484,24 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
       console.warn('[public-reviews] YouTube :', String(error));
       return json({ items: [], total: null, unavailable: true });
+    }
+  }
+
+  if (action === 'facts' || action === 'summary') {
+    const film = filmInput(body);
+    if (!film) return fail(400, 'film', 'Film inconnu.');
+    try {
+      if (action === 'facts') return json({ facts: (await gather(film)).facts });
+      const apiKey = Deno.env.get('MISTRAL_API_KEY');
+      if (!apiKey) return json({ facts: (await gather(film)).facts, summary: null });
+      const target = body.target === 'en' ? 'en' : 'fr';
+      if (!recall(`summary:${film.tmdbId}:${target}`) && !spend(`summary:${userId}`, 1, DAILY_SUMMARIES)) {
+        return json({ facts: (await gather(film)).facts, summary: null, limited: true });
+      }
+      return json(await summarize(film, target, apiKey));
+    } catch (error) {
+      console.warn('[public-reviews] résumé :', String(error));
+      return json({ facts: null, summary: null });
     }
   }
 
