@@ -3835,6 +3835,7 @@ export const en: Record<string, string> = {
   "reviews.original": "See original",
   "reviews.translateFailed": "Translation unavailable",
   "reviews.openOn": "Open on {source}",
+  "reviews.readMore": "Read more",
   "reviews.more": "Show {n} more",
   "reviews.none": "No reviews to show yet.",
   "reviews.noneFiltered": "No reviews match these filters.",

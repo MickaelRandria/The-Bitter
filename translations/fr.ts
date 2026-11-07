@@ -3841,6 +3841,7 @@ export const fr: Record<string, string> = {
   "reviews.original": "Voir l’original",
   "reviews.translateFailed": "Traduction indisponible",
   "reviews.openOn": "Ouvrir sur {source}",
+  "reviews.readMore": "Lire la suite",
   "reviews.more": "Afficher {n} de plus",
   "reviews.none": "Pas encore d’avis à montrer.",
   "reviews.noneFiltered": "Aucun avis avec ces filtres.",
