@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ExternalLink, Heart, Loader2, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -70,6 +70,11 @@ const ReviewCard: React.FC<{ review: PublicReview; compact?: boolean }> = ({ rev
   const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Carrousel : le texte est coupé à cinq lignes. « Lire la suite » n'apparaît
+  // que s'il l'est vraiment, et ouvre l'avis entier par-dessus la fiche.
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const translate = async () => {
     haptics.soft();
@@ -88,6 +93,11 @@ const ReviewCard: React.FC<{ review: PublicReview; compact?: boolean }> = ({ rev
   const shown = translation && !showOriginal ? translation.text : review.text;
   const when = ago(review.at, language);
   const source = review.source === 'youtube' ? 'YouTube' : 'Bluesky';
+
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (compact && el) setClamped(el.scrollHeight > el.clientHeight + 1);
+  }, [compact, shown]);
 
   return (
     <article
@@ -111,9 +121,22 @@ const ReviewCard: React.FC<{ review: PublicReview; compact?: boolean }> = ({ rev
         </span>
       </header>
 
-      <p className={`text-[12px] font-medium leading-relaxed text-stone-600 dark:text-stone-200 ${compact ? 'line-clamp-5' : ''}`} lang={translation && !showOriginal ? target : review.lang !== 'und' ? review.lang : undefined}>
+      <p ref={textRef} className={`whitespace-pre-line text-[12px] font-medium leading-relaxed text-stone-600 dark:text-stone-200 ${compact ? 'line-clamp-5' : ''}`} lang={translation && !showOriginal ? target : review.lang !== 'und' ? review.lang : undefined}>
         {shown}
       </p>
+      {compact && clamped && (
+        <button
+          type="button"
+          onClick={() => {
+            haptics.soft();
+            setOpen(true);
+          }}
+          className="-mt-1 self-start py-1 text-[10px] font-black uppercase tracking-[0.1em] text-forest dark:text-lime-400"
+        >
+          {t('reviews.readMore')} →
+        </button>
+      )}
+      {open && <ReviewDialog review={review} onClose={() => setOpen(false)} />}
 
       {foreign && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -159,6 +182,35 @@ const ReviewCard: React.FC<{ review: PublicReview; compact?: boolean }> = ({ rev
     </article>
   );
 }
+
+/** Un avis en entier, par-dessus la fiche : pour les textes coupés du carrousel. */
+const ReviewDialog: React.FC<{ review: PublicReview; onClose: () => void }> = ({ review, onClose }) => {
+  const { t } = useLanguage();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[130] flex items-end justify-center p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] sm:items-center" role="dialog" aria-modal="true" aria-label={review.author}>
+      <button type="button" aria-label={t('common.close')} onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+      <div className="relative flex max-h-[80dvh] w-full max-w-md flex-col gap-2 animate-[slideUp_0.25s_cubic-bezier(0.16,1,0.3,1)]">
+        <button type="button" onClick={onClose} aria-label={t('common.close')} className={`${btnClose} self-end`}>
+          <X size={18} strokeWidth={2.6} />
+        </button>
+        <div className="overflow-y-auto rounded-2xl bg-cream no-scrollbar dark:bg-[#111]">
+          <ReviewCard review={review} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 /* ------------------------------------------------------- Tri et filtres */
 
