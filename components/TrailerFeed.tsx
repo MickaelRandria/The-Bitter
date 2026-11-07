@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Eye, Info, Plus, Users, Volume2, VolumeX, Play, X, Smartphone } from 'lucide-react';
+import { Check, Eye, Info, MessageCircle, Plus, Users, Volume2, VolumeX, Play, X, Smartphone } from 'lucide-react';
+import { PublicReviewsSheet } from './PublicReviews';
+import { compactCount, fetchYoutubeReviews } from '../services/publicReviews';
 import { Movie } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -70,6 +72,8 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
   });
   const [hint, setHint] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<number>>(new Set());
+  /** La bande-annonce dont on lit les commentaires YouTube. */
+  const [reviewsOf, setReviewsOf] = useState<TrailerItem | null>(null);
   const [where, setWhere] = useState<Record<string, string[]>>({});
   /**
    * Téléphone tourné en paysage : la vidéo seule, sur tout l'écran. Limité aux
@@ -421,6 +425,10 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
                     },
                     isListed ? 'on' : 'main'
                   )}
+                {action(t('trailers.reviews'), <MessageCircle size={21} strokeWidth={2.4} />, () => {
+                  haptics.soft();
+                  setReviewsOf(item);
+                })}
                 {onWatchWith && action(t('trailers.with'), <Users size={21} strokeWidth={2.4} />, () => onWatchWith(item.tmdbId, item.mediaType))}
                 {onSeen && action(t('trailers.seen'), <Eye size={21} strokeWidth={2.4} />, () => onSeen(item.tmdbId, item.mediaType))}
                 {action(t('trailers.details'), <Info size={21} strokeWidth={2.4} />, () => onOpen(item.tmdbId, item.mediaType))}
@@ -470,6 +478,22 @@ const TrailerFeed: React.FC<Props> = ({ mediaType, movies = [], onAdd, onWatchWi
           {sound ? <Volume2 size={18} /> : <VolumeX size={18} />}
         </button>
       </div>
+
+      {reviewsOf && (
+        <PublicReviewsSheet
+          key={reviewsOf.videoKey}
+          dark
+          title={reviewsOf.title}
+          kicker={t('reviews.public')}
+          load={(order) => fetchYoutubeReviews(reviewsOf.videoKey, order)}
+          countLabel={(list) =>
+            list?.total != null ? t('reviews.youtubeCount', { n: compactCount(list.total, locale) }) : t('reviews.onYoutube')
+          }
+          moreUrl={`https://www.youtube.com/watch?v=${reviewsOf.videoKey}`}
+          moreLabel={t('reviews.allOnYoutube')}
+          onClose={() => setReviewsOf(null)}
+        />
+      )}
     </div>,
     document.body
   );
