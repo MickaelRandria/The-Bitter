@@ -8,6 +8,7 @@
  * est vide et la section ne s'affiche pas.
  */
 import { supabase } from './supabase';
+import { plainText } from '../utils/plainText';
 
 export type ReviewCriterion = 'story' | 'visuals' | 'acting' | 'sound';
 export type ReviewOrder = 'relevance' | 'recent';
@@ -127,7 +128,7 @@ const readTranslations = (): TranslationStore => {
 /** Une traduction déjà faite sur cet appareil, sans appel. */
 export const knownTranslation = (id: string, target: string): Translation | null => {
   const hit = readTranslations()[`${target}:${id}`];
-  return hit && Date.now() - hit.at < TRANSLATION_TTL ? { text: hit.text, source: hit.source } : null;
+  return hit && Date.now() - hit.at < TRANSLATION_TTL ? { text: plainText(hit.text, false), source: hit.source } : null;
 };
 
 /** Traduit un avis dans la langue de l'app. `null` si la traduction échoue. */
@@ -137,7 +138,7 @@ export async function translateReview(review: Pick<PublicReview, 'id' | 'text'>,
   const data = await call({ action: 'translate', target, items: [{ id: review.id, text: review.text }] });
   const hit = Array.isArray(data?.items) ? data.items.find((item: any) => item?.id === review.id) : null;
   if (!hit || typeof hit.text !== 'string') return null;
-  const translation = { text: hit.text, source: typeof hit.source === 'string' ? hit.source : 'und' };
+  const translation = { text: plainText(hit.text, false), source: typeof hit.source === 'string' ? hit.source : 'und' };
   try {
     const store = readTranslations();
     store[`${target}:${review.id}`] = { at: Date.now(), ...translation };

@@ -11,6 +11,7 @@ import {
   fromSensCritique,
   parseOmdb,
   parseSummary,
+  plainText,
   positiveShare,
   summaryPrompt,
 } from './summary.ts';
@@ -389,6 +390,7 @@ async function translate(items: { id: string; text: string }[], target: string, 
   const system =
     `You translate short public comments about films and series into ${LANGUAGE_NAME[target]}. ` +
     'Keep the meaning, tone, slang and emojis; never add, explain or censor anything; keep names and titles as they are. ' +
+    'Plain text only: add no Markdown, no asterisks, no bold. ' +
     'Answer with JSON only: {"items":[{"id":"<same id>","source":"<ISO 639-1 code of the original language>","text":"<translation>"}]}.';
   const user = JSON.stringify({ items: missing });
 
@@ -420,7 +422,7 @@ async function translate(items: { id: string; text: string }[], target: string, 
       const byId = new Map(missing.map((item) => [item.id, item]));
       for (const entry of Array.isArray(parsed?.items) ? parsed.items : []) {
         const original = byId.get(String(entry?.id));
-        const text = typeof entry?.text === 'string' ? entry.text.trim() : '';
+        const text = typeof entry?.text === 'string' ? plainText(entry.text, false) : '';
         if (!original || !text) continue;
         const source = typeof entry?.source === 'string' && /^[a-z]{2,3}$/i.test(entry.source) ? entry.source.toLowerCase() : 'und';
         remember(`tr:${target}:${original.text}`, TRANSLATION_TTL, { text, source });

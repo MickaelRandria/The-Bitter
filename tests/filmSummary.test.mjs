@@ -114,3 +114,21 @@ test('criterionFocus : le poids que je donne d’abord, sinon ce qui suit ma not
   assert.equal(criterionFocus(Array.from({ length: 3 }, () => film([1, 2, 1, 1], [7, 7, 7, 7], 7))), null, 'trop peu de films');
   assert.equal(criterionFocus([{ status: 'watchlist' }]), null);
 });
+
+const { plainText } = load('../supabase/functions/public-reviews/summary.ts');
+const appPlainText = load('../utils/plainText.ts').plainText;
+
+test('plainText retire le gras Markdown que Mistral glisse dans ses phrases', () => {
+  for (const clean of [plainText, appPlainText]) {
+    assert.equal(clean('Un **sommet visuel**, le *dernier acte* divise.'), 'Un sommet visuel, le dernier acte divise.');
+    assert.equal(clean('- **Les images** : jamais vues'), 'Les images : jamais vues');
+    assert.equal(clean('__Le son__ et `la musique`'), 'Le son et la musique');
+    assert.equal(clean('Une note 8/10, pas de gras'), 'Une note 8/10, pas de gras');
+    assert.equal(clean('Un ** oublié'), 'Un oublié');
+    assert.equal(clean('What the f*ck, **wow**', false), 'What the f*ck, wow', 'traduction : astérisque isolée gardée');
+  }
+  const s = parseSummary(JSON.stringify({ verdict: '**Un sommet** visuel.', loved: ['**Les images**'], criteria: { image: { tone: 'unanime', text: '*Saluée* partout.' } }, quotes: [] }), sources);
+  assert.equal(s.verdict, 'Un sommet visuel.');
+  assert.deepEqual(s.loved, ['Les images']);
+  assert.equal(s.criteria.image.text, 'Saluée partout.');
+});
