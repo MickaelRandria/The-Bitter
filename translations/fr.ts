@@ -1630,6 +1630,7 @@ export const fr: Record<string, string> = {
   'nav.primary.shareCard': 'Partager ma carte',
   'nav.primary.propose': 'Proposer un film',
   'nav.primary.holdHint': '{action}. Maintiens pour plus d’options',
+  'nav.expandHint': 'Afficher la barre de navigation',
   'nav.add.title': 'Ajouter',
   'nav.add.close': 'Fermer le menu',
   'nav.add.watched': 'Film vu',

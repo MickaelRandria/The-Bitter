@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-07-verdict",
-  "label": "Version du 7 novembre",
+  "version": "2026-11-08-nav",
+  "label": "Version du 8 novembre",
   "items": [
+    {
+      "title": "La barre, au doigt",
+      "body": "Barre du bas réduite pendant que tu défiles : un premier appui la redéploie, le suivant lance l’action du bouton central. Et sur iPhone (iOS 18), le téléphone vibre légèrement aux bons moments, comme sur Android."
+    },
     {
       "title": "Ce qu’en dit Internet",
       "body": "Sur la fiche d’un film, le verdict du public en une phrase : les notes SensCritique et IMDb, la presse quand elle existe, et ce que valent l’histoire, l’image, le jeu et le son. Le résumé complet dit ce qu’on adore, ce qui divise, ce qui déçoit, avec des citations sourcées et sans spoiler. Pour un film déjà vu, il reste replié."

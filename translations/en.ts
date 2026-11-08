@@ -1625,6 +1625,7 @@ export const en: Record<string, string> = {
   'nav.primary.shareCard': 'Share my card',
   'nav.primary.propose': 'Suggest a film',
   'nav.primary.holdHint': '{action}. Hold for more options',
+  'nav.expandHint': 'Show the navigation bar',
   'nav.add.title': 'Add',
   'nav.add.close': 'Close menu',
   'nav.add.watched': 'A film I saw',
