@@ -319,17 +319,29 @@ function ContextualNav(props: ContextualNavProps) {
     later(() => setPopping(false), 360);
   }, [later]);
 
+  /** Barre repliée : un premier toucher la redéploie, sans lancer l'action du +. */
+  const expand = useCallback(() => {
+    haptics.soft();
+    setScrollCollapsed(false);
+    scrollBase.current = null;
+    trackEvent('Nav', 'expand_tap');
+  }, []);
+
   const handleTap = useCallback(() => {
     // Le + rouvert pendant que le menu est affiché le referme simplement.
     if (live.current.menuOpen) {
       closeMenu(false);
       return;
     }
+    if (live.current.collapsed) {
+      expand();
+      return;
+    }
     haptics.medium();
     latest.current.onPrimary();
     const state = updateNavDiscovery(recordTap);
     if (shouldOfferHoldTip(state)) setTipPending(true);
-  }, [closeMenu]);
+  }, [closeMenu, expand]);
 
   // Les gestionnaires ci-dessous sont créés une fois : ils passent par ces refs.
   const laterRef = useRef(later);
@@ -726,6 +738,10 @@ function ContextualNav(props: ContextualNavProps) {
           data-testid="nav-pill"
           inert={selecting}
           aria-hidden={selecting || undefined}
+          onClick={(e) => {
+            // Le bord de la pilule repliée redéploie aussi la barre ; le + gère son propre clic.
+            if (live.current.collapsed && !plusRef.current?.contains(e.target as Node)) expand();
+          }}
           className={`nav-pill relative mx-auto w-full flex justify-between items-center bg-white/95 dark:bg-black/95 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl rounded-[2.5rem] px-3 py-2 ${selecting ? 'nav-off' : ''}`}
           style={{ maxWidth: collapsed ? PILL_COLLAPSED : PILL_MAX }}
         >
@@ -748,7 +764,7 @@ function ContextualNav(props: ContextualNavProps) {
             ref={plusRef}
             type="button"
             data-tour="nav-add"
-            aria-label={t('nav.primary.holdHint', { action: primaryLabel })}
+            aria-label={collapsed ? t('nav.expandHint') : t('nav.primary.holdHint', { action: primaryLabel })}
             aria-haspopup="dialog"
             aria-expanded={menuOpen || props.paletteOpen}
             aria-controls={menuOpen ? menuId : undefined}
