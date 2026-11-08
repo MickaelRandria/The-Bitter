@@ -48,6 +48,7 @@ import SeanceCard, { initialSeance, type SeanceChoice } from './SeanceCard';
 import { inTheaters } from '../utils/seance';
 import ViewingContextPicker from './ViewingContextPicker';
 import ReviewComposer from './ReviewComposer';
+import { formatScore } from '../utils/guidedReview';
 import { haptics } from '../utils/haptics';
 import { resizeTmdbImage, tmdbImage } from '../utils/tmdbImage';
 import { SharedSpace, addMovieToSpace, upsertMovieRating, markMovieAsWatched } from '../services/supabase';
@@ -132,6 +133,12 @@ interface AddMovieModalProps {
   onShortcut?: (kind: 'series' | 'movie' | 'ticket') => void;
   /** Ouvert par « Dicter un avis » : met l'avis en avant dès que le film est choisi. */
   focusReview?: boolean;
+  /**
+   * Film déjà noté, ouvert pour son avis seul (« Dicter » ou « Écrire » sous sa
+   * note) : seule la tuile « Ton avis » s'affiche, dépliée ; « Changer ma note »
+   * rend le formulaire entier. Ignoré hors modification.
+   */
+  reviewOnly?: 'dictate' | 'write';
   /** Ton cinéma : la séance d'un film encore en salle y est devinée. */
   favoriteCinema?: FavoriteCinema;
   /**
@@ -262,10 +269,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
   showShortcuts = false,
   onShortcut,
   focusReview = false,
+  reviewOnly,
   favoriteCinema,
   onSeance,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const dialog = useDialog(onClose, t('addMovie.newVerdict'));
   const [formData, setFormData] = useState<MovieFormData>(INITIAL_FORM_STATE);
   /**
@@ -344,6 +352,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    * `focusReview`, mais décidé dans la modale, donc oublié à la fermeture.
    */
   const [reviewFocus, setReviewFocus] = useState(false);
+  /** L'avis seul est affiché ; « Changer ma note » repasse au formulaire entier. */
+  const [reviewOnlyView, setReviewOnlyView] = useState(!!reviewOnly);
   /** Sans dictée possible, ni pastille « Dicter un avis » ni promesse d'un micro. */
   const dictationAvailable = useMemo(() => canDictate(), []);
   const opinionRef = useRef<HTMLDetailsElement>(null);
@@ -479,6 +489,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
     setSeriesStart('fresh');
     setLastSeen(null);
     setReviewFocus(false);
+    setReviewOnlyView(!!reviewOnly);
     reviewScrolledRef.current = false;
     setHoldLearned(readNavDiscovery().learned);
   }, [isOpen]);
@@ -488,14 +499,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
    * déplie et vient au centre, le micro désigné. L'enregistrement attend le
    * geste de l'utilisateur (iOS refuse d'ouvrir le micro sans lui).
    */
+  const reviewView = reviewOnlyView && isEditMode && mode === 'watched';
   const highlightReview =
-    (focusReview || reviewFocus) && mode === 'watched' && formData.tmdbId != null;
+    ((focusReview || reviewFocus) && mode === 'watched' && formData.tmdbId != null) || reviewView;
   useEffect(() => {
     if (!isOpen || !highlightReview || reviewScrolledRef.current) return;
     const details = opinionRef.current;
     if (!details) return;
     reviewScrolledRef.current = true;
     details.open = true;
+    // Avis seul : il est déjà en haut, sous l'affiche et la note.
+    if (reviewView) return;
     const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     // Une image plus tard : le contenu du <details> vient d'être déplié et le
     // formulaire de notation finit de s'afficher, la position n'est juste qu'après.
@@ -1160,7 +1174,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               </p>
             )}
             <h2 className="text-2xl font-black tracking-tighter truncate text-charcoal dark:text-white">
-              {isEditMode ? t('addMovie.edit') : formData.title || t('addMovie.newVerdict')}
+              {reviewView ? t('addMovie.opinion') : isEditMode ? t('addMovie.edit') : formData.title || t('addMovie.newVerdict')}
             </h2>
           </div>
           <button
@@ -1174,7 +1188,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
         <div className="overflow-y-auto p-6 sm:p-8 space-y-8 no-scrollbar flex-1 pb-32">
           <div
             data-tour="add-status"
-            className="flex bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full border border-stone-200/50 dark:border-white/5 transition-colors"
+            className={`${reviewView ? 'hidden' : 'flex'} bg-stone-100 dark:bg-[#161616] p-1.5 rounded-full border border-stone-200/50 dark:border-white/5 transition-colors`}
           >
             <button
               onClick={() => {
@@ -1207,7 +1221,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
             </button>
           </div>
 
-          {mode === 'watched' && (
+          {mode === 'watched' && !reviewView && (
             <div className="bg-stone-50 dark:bg-[#161616] border border-stone-100 dark:border-white/5 rounded-3xl p-4 flex items-center justify-between transition-colors">
               <div className="flex items-center gap-3 text-stone-400 dark:text-stone-600">
                 <div className="p-2 bg-white dark:bg-[#202020] rounded-xl shadow-sm">
@@ -1231,7 +1245,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           {isEditMode && (
             <div className="flex gap-4 bg-white dark:bg-[#202020] rounded-[2rem] p-4 border border-stone-100 dark:border-white/10 shadow-sm transition-colors">
               {formData.posterUrl && (
-                <div className="w-20 h-28 rounded-2xl overflow-hidden shrink-0 shadow-md">
+                <div className={`${reviewView ? 'w-14 h-20' : 'w-20 h-28'} rounded-2xl overflow-hidden shrink-0 shadow-md`}>
                   <img
                     src={resizeTmdbImage(formData.posterUrl, 'w342')}
                     alt=""
@@ -1241,13 +1255,30 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 </div>
               )}
               <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <h3 className="font-black text-lg text-charcoal dark:text-white tracking-tight truncate leading-tight">
+                <h3 className={`font-black text-lg text-charcoal dark:text-white tracking-tight leading-tight ${reviewView ? 'line-clamp-2' : 'truncate'}`}>
                   {formData.title}
                 </h3>
                 <p className="text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest mt-1">
                   {formData.director} • {formData.year}
                 </p>
               </div>
+              {reviewView && (
+                <div className="shrink-0 flex flex-col items-center justify-center gap-1">
+                  <span className="text-3xl font-black tracking-tighter text-charcoal dark:text-white tabular-nums">
+                    {formatScore(useBitterPlus ? adaptiveWeightedRating : bitterFinalRating, language)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptics.soft();
+                      setReviewOnlyView(false);
+                    }}
+                    className="text-[10px] font-black text-forest dark:text-bitter-lime underline underline-offset-2"
+                  >
+                    {t('addMovie.changeRating')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1439,7 +1470,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               Elle s'affiche désormais partout, et dans un espace elle est imposée
               en Bitter+ pour que tous les membres notent sur la même base. */}
           {mode === 'watched' && (
-            <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
+            /* Avis seul : le reste du formulaire reste monté (ses valeurs comptent
+               dans l'enregistrement) mais caché. */
+            <div className={`space-y-8 animate-[fadeIn_0.3s_ease-out] ${reviewView ? '[&>*:not(.review-keep)]:hidden' : ''}`}>
               {/* Bitter / Bitter+ mode switch — Bitter is the default, Bitter+ opens the advanced grid */}
                {!sharedSpace && (
                <>
@@ -1720,6 +1753,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               </RatingDisclosure>
               )}
 
+              <div className="review-keep">
               <RatingDisclosure
                 title={t('addMovie.opinion')}
                 open={highlightReview}
@@ -1727,7 +1761,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
               >
                 <div className="space-y-4">
                 <ReviewComposer
-                  highlightDictation={highlightReview}
+                  highlightDictation={highlightReview && !(reviewView && reviewOnly === 'write')}
                   title={formData.title}
                   year={formData.year}
                   criteria={reviewCriteria}
@@ -1770,6 +1804,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
                 </button>
                 </div>
               </RatingDisclosure>
+              </div>
             </div>
           )}
         </div>
@@ -1786,6 +1821,8 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({
           >
             {isSaving ? (
               <Loader2 size={16} className="animate-spin" />
+            ) : reviewView ? (
+              t('addMovie.saveReview')
             ) : mode !== 'watching' ? (
               t('addMovie.confirm')
             ) : seriesStart === 'resume' && lastSeen ? (
