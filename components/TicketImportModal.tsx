@@ -318,8 +318,8 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
       <section className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#f7f4ee] shadow-2xl dark:bg-[#111] sm:rounded-[2rem]">
         <header className="flex items-start justify-between gap-3 border-b border-stone-200/80 px-6 pb-5 pt-6 dark:border-white/10">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-bitter-lime">
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-bitter-lime/15"><Ticket size={14} /></span>
+            <div className="mb-2 flex items-center gap-2 text-forest dark:text-bitter-lime">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-bitter-lime text-charcoal dark:bg-bitter-lime/15 dark:text-bitter-lime"><Ticket size={14} /></span>
               <span className="text-[10px] font-black uppercase tracking-[0.18em]">The Bitter · cinéma</span>
             </div>
             <h2 className="text-2xl font-black tracking-tight text-charcoal dark:text-white">Importer mes billets</h2>
@@ -374,7 +374,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
 
           {busy && (
             <div className="flex flex-col items-center gap-4 py-10 text-center" role="status" aria-live="polite">
-              <Loader2 size={28} className="animate-spin text-bitter-lime" />
+              <Loader2 size={28} className="animate-spin text-forest dark:text-bitter-lime" />
               <div>
                 <p className="text-sm font-black text-charcoal dark:text-white">
                   {phase === 'reading'
@@ -426,7 +426,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
                     <li
                       key={draft.key}
                       className={`rounded-2xl border bg-white p-3 transition dark:bg-white/5 ${
-                        checked ? 'border-bitter-lime/60' : 'border-stone-200 dark:border-white/10'
+                        checked ? 'border-forest/60 dark:border-bitter-lime/60' : 'border-stone-200 dark:border-white/10'
                       } ${view.selectable ? '' : 'opacity-60'}`}
                     >
                       <div className="flex items-start gap-3">

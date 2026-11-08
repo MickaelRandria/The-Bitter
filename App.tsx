@@ -112,6 +112,7 @@ import MoodPicker from './components/MoodPicker';
 import { initAnalytics, stopAnalytics, trackEvent, trackPageView } from './utils/analytics';
 import ContextualNav, { NavTab } from './components/ContextualNav';
 import { canDictate } from './services/voiceReview';
+import DictateFilmPicker, { type FilmPick } from './components/DictateFilmPicker';
 import PageActionsSheet from './components/PageActionsSheet';
 import ActionSheet from './components/ActionSheet';
 import { pageActionsFor, contextLabelKey, PageAction, DiscoverActionRequest, SpaceActionRequest } from './utils/pageActions';
@@ -675,12 +676,17 @@ const App: React.FC = () => {
   const [addFromNav, setAddFromNav] = useState(false);
   /** Ouverte par « Dicter un avis » : l'avis passe au premier plan dès le film choisi. */
   const [addFocusReview, setAddFocusReview] = useState(false);
+  /** Film noté ouvert pour son avis seul (« Dicter » / « Écrire » sous sa note). */
+  const [addReviewOnly, setAddReviewOnly] = useState<'dictate' | 'write' | null>(null);
+  /** « Dicter un avis » : le choix du film, avant la fenêtre de notation. */
+  const [dictatePickerOpen, setDictatePickerOpen] = useState(false);
   // Toutes les fermetures (enregistrement compris) : la prochaine ouverture par
   // une fiche ou par Découvrir ne doit hériter ni de « Autre chose ? » ni de la dictée.
   useEffect(() => {
     if (!isModalOpen) {
       setAddFromNav(false);
       setAddFocusReview(false);
+      setAddReviewOnly(null);
     }
   }, [isModalOpen]);
   /** Change à chaque ouverture par la barre : la fenêtre repart de zéro même si elle était ouverte. */
@@ -3339,8 +3345,13 @@ const App: React.FC = () => {
           setOpenSeries(m);
           return;
         }
+        setAddReviewOnly(null);
         setEditingMovie(m);
         setIsModalOpen(true);
+      }}
+      onWriteReview={(m, how) => {
+        if (opened) setWallMovieId(null);
+        openReviewOnly(m, how);
       }}
       onMarkAsWatched={(movie) => isSeries(movie) ? setOpenSeries(movie) : handleMarkAsWatched(movie)}
       onViewDetails={(id, type) => {
@@ -3426,6 +3437,22 @@ const App: React.FC = () => {
     setMediaTypeToLoad(mediaType);
     setAddFromNav(opts.fromNav ?? false);
     setAddFocusReview(opts.focusReview ?? false);
+    setAddReviewOnly(null);
+    setAddModalSeq((n) => n + 1);
+    setIsModalOpen(true);
+  };
+
+  /** Un film déjà noté, ouvert sur « Ton avis » seul, déplié. */
+  const openReviewOnly = (movie: Movie, how: 'dictate' | 'write') => {
+    setSeasonDraft(null);
+    setTmdbIdToLoad(null);
+    setSharedMovieToRate(null);
+    setSharedRatingToEdit(null);
+    setCalendarWatchedDay(undefined);
+    setAddFromNav(false);
+    setAddFocusReview(false);
+    setEditingMovie(movie);
+    setAddReviewOnly(how);
     setAddModalSeq((n) => n + 1);
     setIsModalOpen(true);
   };
@@ -3521,9 +3548,32 @@ const App: React.FC = () => {
         openTicketImport();
         return;
       case 'dictate':
-        openAddModal('watched', mediaMode, { fromNav: true, focusReview: true });
+        closeAddModal();
+        setDictatePickerOpen(true);
         return;
     }
+  };
+
+  /** Le film choisi pour dicter : son avis seul s'il est noté, sinon la notation complète puis l'avis. */
+  const handleDictatePick = (pick: FilmPick) => {
+    setDictatePickerOpen(false);
+    if (pick.kind === 'screening') {
+      openScreeningRating(pick.screening);
+      setAddFocusReview(true);
+      return;
+    }
+    if (pick.kind === 'tmdb') {
+      openAddModal('watched', mediaMode, { focusReview: true });
+      setTmdbIdToLoad(pick.tmdbId);
+      return;
+    }
+    const movie = pick.movie;
+    if (isWatchedWork(movie) && hasRating(movie)) {
+      openReviewOnly(movie, 'dictate');
+      return;
+    }
+    openAddModal('watched', mediaMode, { focusReview: true });
+    setEditingMovie({ ...movie, status: 'watched', dateWatched: movie.dateWatched ?? Date.now() });
   };
 
   /** Un raccourci « Autre chose ? » de la fenêtre d'ajout : on la quitte pour l'autre parcours. */
@@ -4299,7 +4349,7 @@ const App: React.FC = () => {
               subscription={activeProfile?.cinemaSubscription}
               onAddToWatchlist={(tmdbId) => handleQuickWatchlist(tmdbId, 'movie')}
               onRewatch={setRewatchMovie}
-              onReview={(movie) => { setEditingMovie(movie); setCalendarWatchedDay(undefined); setIsModalOpen(true); }}
+              onReview={(movie) => openReviewOnly(movie, 'write')}
               onAddWatched={(day) => { setEditingMovie(null); setTmdbIdToLoad(null); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
               onRateWatched={(tmdbId, day) => { setEditingMovie(null); setTmdbIdToLoad(tmdbId); setMediaTypeToLoad('movie'); setInitialStatusForAdd('watched'); setCalendarWatchedDay(day); setIsModalOpen(true); }}
               onToast={setToastMessage}
@@ -5132,6 +5182,15 @@ const App: React.FC = () => {
             cinemaSubscription={activeProfile?.cinemaSubscription}
           />
         )}
+        {dictatePickerOpen && (
+          <DictateFilmPicker
+            movies={allMovies}
+            dueScreenings={mediaMode === 'movie' ? screeningFollowup.due : []}
+            mediaType={mediaMode}
+            onPick={handleDictatePick}
+            onClose={() => setDictatePickerOpen(false)}
+          />
+        )}
         {isModalOpen && (
           <AddMovieModal
             key={addModalSeq}
@@ -5140,6 +5199,7 @@ const App: React.FC = () => {
             showShortcuts={addFromNav}
             onShortcut={handleAddShortcut}
             focusReview={addFocusReview}
+            reviewOnly={editingMovie && addReviewOnly ? addReviewOnly : undefined}
             onSave={viewMode === 'SharedSpace' ? handleSaveFromSpace : handleSaveMovie}
             /* Le brouillon de saison ne fait que préremplir : c'est
                `editingMovie` qui décide si l'on modifie ou si l'on ajoute. */

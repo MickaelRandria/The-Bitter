@@ -303,6 +303,21 @@ const ReviewComposer: React.FC<Props> = ({
         </p>
       </div>
 
+      {/* Ouvert pour dicter : le micro est le premier geste, en grand. */}
+      {highlightDictation && dictationSupported && !hasText && dictation === 'idle' && (
+        <button
+          type="button"
+          onClick={startDictation}
+          disabled={continuing}
+          className="w-full h-28 rounded-[1.75rem] bg-bitter-lime text-charcoal flex flex-col items-center justify-center gap-2 shadow-[0_0_0_8px_rgba(217,255,0,0.28)] active:scale-[0.98] transition-transform disabled:opacity-60"
+        >
+          <span className="w-[52px] h-[52px] rounded-full bg-charcoal text-bitter-lime grid place-items-center">
+            <Mic size={24} strokeWidth={2.5} />
+          </span>
+          <span className="text-[11px] font-black uppercase tracking-[0.16em]">{t('review.tapAndSpeak')}</span>
+        </button>
+      )}
+
       {/* Les amorces disparaissent dès qu'il y a du texte : elles servaient à
           démarrer, les garder ensuite reviendrait à proposer de recommencer. */}
       {/* L'avis guidé, à côté de l'écriture libre et jamais à sa place : trois

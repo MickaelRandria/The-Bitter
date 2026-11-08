@@ -1,6 +1,7 @@
 import React, { useState, memo, useRef, useMemo, useEffect } from 'react';
 import { Movie, WeightLabel } from '../types';
-import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle } from 'lucide-react';
+import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle, Mic } from 'lucide-react';
+import { canDictate } from '../services/voiceReview';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
 import MovieRatingToggle from './MovieRatingToggle';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
@@ -20,6 +21,8 @@ interface MovieCardProps {
   index: number;
   onDelete: (id: string) => void;
   onEdit: (movie: Movie) => void;
+  /** « Dicter » ou « Écrire » sous un film noté sans avis : ouvre « Ton avis » seul. */
+  onWriteReview?: (movie: Movie, how: 'dictate' | 'write') => void;
   onMarkAsWatched: (movie: Movie) => void;
   onViewDetails?: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
   onViewDirector?: (name: string, id?: number) => void;
@@ -114,6 +117,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     index,
     onDelete,
     onEdit,
+    onWriteReview,
     onMarkAsWatched,
     onViewDetails,
     onViewDirector,
@@ -614,25 +618,42 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                       rappeler qu'une note sans un mot ne dit rien à personne —
                       et la porte s'ouvre sur l'écran qui sait aider à écrire. */}
                   {!isWatchlist && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        haptics.soft();
-                        onEdit(movie);
-                      }}
-                      className={`w-full mb-8 px-5 py-4 rounded-2xl border border-dashed text-left active:scale-[0.99] transition-transform ${hasPoster ? 'border-white/20 hover:border-white/30' : 'border-stone-300 dark:border-white/15 hover:border-stone-400'}`}
+                    <div
+                      className={`w-full mb-8 px-5 py-4 rounded-2xl border border-dashed ${hasPoster ? 'border-white/20' : 'border-stone-300 dark:border-white/15'}`}
                     >
                       <span
                         className={`block text-sm font-semibold ${hasPoster ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}`}
                       >
                         {t('movieCard.noReviewYet')}
                       </span>
-                      <span
-                        className={`block mt-0.5 text-[11px] font-black uppercase tracking-widest ${hasPoster ? 'text-white' : 'text-charcoal dark:text-bitter-lime'}`}
-                      >
-                        {t('movieCard.writeReview')}
-                      </span>
-                    </button>
+                      <div className="mt-3 flex gap-2">
+                        {canDictate() && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              haptics.soft();
+                              (onWriteReview ?? ((m: Movie) => onEdit(m)))(movie, 'dictate');
+                            }}
+                            className="flex-[1.3] h-11 rounded-full bg-bitter-lime text-charcoal flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] active:scale-95 transition-transform"
+                          >
+                            <Mic size={14} strokeWidth={2.5} />
+                            {t('movieCard.dictateReview')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            haptics.soft();
+                            (onWriteReview ?? ((m: Movie) => onEdit(m)))(movie, 'write');
+                          }}
+                          className={`flex-1 h-11 rounded-full flex items-center justify-center text-[10px] font-black uppercase tracking-[0.14em] active:scale-95 transition-transform ${hasPoster ? 'bg-white/10 text-white' : 'bg-charcoal text-white dark:bg-white/10'}`}
+                        >
+                          {t('movieCard.writeShort')}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}

@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-08-nav",
+  "version": "2026-11-08-dicter",
   "label": "Version du 8 novembre",
   "items": [
+    {
+      "title": "Dicter un avis, sans détour",
+      "body": "« Dicter un avis » commence par le bon film : ceux vus ces 7 derniers jours et ceux notés sans avis sont proposés d’emblée, et la recherche comprend un réalisateur, un acteur, une faute de frappe ou « dune 2 », au clavier ou à la voix. Pour un film déjà noté, tu arrives directement sur « Ton avis », micro prêt. Et sous la note d’un film sans avis : « Dicter » ou « Écrire »."
+    },
     {
       "title": "La barre, au doigt",
       "body": "Barre du bas réduite pendant que tu défiles : un premier appui la redéploie, le suivant lance l’action du bouton central. Et sur iPhone (iOS 18), le téléphone vibre légèrement aux bons moments, comme sur Android."
