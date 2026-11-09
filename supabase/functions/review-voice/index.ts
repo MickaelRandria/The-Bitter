@@ -32,11 +32,11 @@ import {
 } from './polish.ts';
 import { mintToken, verifyToken } from './token.ts';
 
-const TRANSCRIBE_URL = 'https://api.mistral.ai/v1/audio/transcriptions';
-const CHAT_URL = 'https://api.mistral.ai/v1/chat/completions';
-const TRANSCRIBE_MODEL = 'voxtral-mini-latest';
+const TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const TRANSCRIBE_MODEL = 'whisper-large-v3';
 /** Les mêmes que `ai` et `ticket-scan` : `mistral-small-latest` est hors forfait. */
-const CHAT_MODELS = ['ministral-14b-latest', 'ministral-8b-latest'];
+const CHAT_MODELS = ['qwen/qwen3.8-27b'];
 const DEFAULT_DAILY_LIMIT = 40;
 
 /** Deux minutes d'Opus à 32 kbit/s pèsent 500 Ko ; en AAC, un peu plus du double. */
@@ -206,9 +206,9 @@ Deno.serve(async (req: Request) => {
   const user = userData?.user;
   if (userError || !user) return fail(401, 'unauthenticated', 'Connecte-toi pour dicter ton avis.');
 
-  const apiKey = Deno.env.get('MISTRAL_API_KEY');
+  const apiKey = Deno.env.get('GROQ_API_KEY');
   if (!apiKey || !serviceKey) {
-    console.error('[review-voice] MISTRAL_API_KEY ou clé de service absente des secrets.');
+    console.error('[review-voice] GROQ_API_KEY ou clé de service absente des secrets.');
     return fail(503, 'misconfigured', "La dictée n'est pas encore configurée.");
   }
 
@@ -353,8 +353,8 @@ Deno.serve(async (req: Request) => {
       upstreamForm.append('file', audio!, `avis.${extension}`);
       upstreamForm.append('language', lang);
       upstreamForm.append('temperature', '0');
-      // Une seule valeur, mots séparés par des virgules : c'est la lecture de l'API.
-      if (withBias && words.length) upstreamForm.append('context_bias', words.join(','));
+      // Whisper lit le vocabulaire attendu dans `prompt`, en texte libre.
+      if (withBias && words.length) upstreamForm.append('prompt', words.join(', '));
       return fetch(TRANSCRIBE_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
@@ -372,13 +372,13 @@ Deno.serve(async (req: Request) => {
       if ((upstream.status === 400 || upstream.status === 422) && words.length > 0) {
         const detail = await upstream.text().catch(() => '');
         console.warn(
-          `[review-voice] Voxtral ${upstream.status} avec context_bias : ${detail.slice(0, 300)}`
+          `[review-voice] Whisper ${upstream.status} avec prompt : ${detail.slice(0, 300)}`
         );
         upstream = await transcribe(false, abort.signal);
       }
       if (!upstream.ok) {
         const detail = await upstream.text().catch(() => '');
-        console.error(`[review-voice] Voxtral ${upstream.status} : ${detail.slice(0, 400)}`);
+        console.error(`[review-voice] Whisper ${upstream.status} : ${detail.slice(0, 400)}`);
         if (upstream.status === 401 || upstream.status === 403) {
           return fail(503, 'misconfigured', 'La clé de transcription a été refusée.');
         }
@@ -393,7 +393,7 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
       const aborted = error instanceof DOMException && error.name === 'AbortError';
       console.error(
-        '[review-voice] Voxtral injoignable :',
+        '[review-voice] Whisper injoignable :',
         aborted ? 'délai dépassé' : String(error)
       );
       return aborted

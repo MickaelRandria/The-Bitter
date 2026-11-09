@@ -18,26 +18,21 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { parseTickets } from './parseTickets.ts';
 
-const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
- * Les modèles qui lisent l'image, dans l'ordre d'essai.
+ * Le modèle qui lit l'image.
  *
- * Mesuré le 24 septembre 2026 avec la clé du projet : `mistral-small-latest`
- * (devenu `mistral-small-2603`) et `mistral-medium-latest` répondent 429 à
- * TOUTE requête portant une image, même minuscule, alors qu'ils acceptent le
- * texte. Ministral 14B et 8B lisent l'image : environ 1 500 jetons pour une
- * capture entière. Le 8B ne sert que de relais quand le 14B est saturé.
- *
- * `MISTRAL_VISION_MODEL`, s'il est posé, passe devant. On n'emprunte pas
- * `MISTRAL_MODEL`, qui règle la fonction `ai` et désigne un modèle aveugle ici.
+ * Mesuré le 9 novembre 2026 : Groq refuse plus de 3 images par requête, et une
+ * image coûte environ 1 800 jetons sur 7 000 par minute. Aucun autre modèle du
+ * compte ne lit l'image. `GROQ_VISION_MODEL`, s'il est posé, passe devant.
  */
-const VISION_MODELS = ['ministral-14b-latest', 'ministral-8b-latest'];
+const VISION_MODELS = ['qwen/qwen3.8-27b'];
 const DEFAULT_DAILY_LIMIT = 40;
 /** Lire trois captures prend plus de temps qu'une question ; l'utilisateur attend quand même. */
 const UPSTREAM_TIMEOUT_MS = 50_000;
 
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 3;
 /** Une capture réduite à 1 600 px pèse 150 à 400 Ko en JPEG. Au-delà, le client n'a pas fait sa part. */
 const MAX_IMAGE_CHARS = 2_000_000;
 const MAX_BODY_BYTES = MAX_IMAGES * MAX_IMAGE_CHARS + 10_000;
@@ -133,9 +128,9 @@ Deno.serve(async (req: Request) => {
   const user = userData?.user;
   if (userError || !user) return fail(401, 'unauthenticated', 'Connecte-toi pour importer tes billets.');
 
-  const apiKey = Deno.env.get('MISTRAL_API_KEY');
+  const apiKey = Deno.env.get('GROQ_API_KEY');
   if (!apiKey) {
-    console.error('[ticket-scan] MISTRAL_API_KEY absente des secrets.');
+    console.error('[ticket-scan] GROQ_API_KEY absente des secrets.');
     return fail(503, 'misconfigured', "La lecture des billets n'est pas encore configurée.");
   }
 
@@ -178,11 +173,11 @@ Deno.serve(async (req: Request) => {
   const today = parisToday();
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), UPSTREAM_TIMEOUT_MS);
-  const override = Deno.env.get('MISTRAL_VISION_MODEL');
+  const override = Deno.env.get('GROQ_VISION_MODEL');
   const models = override ? [override, ...VISION_MODELS.filter((model) => model !== override)] : VISION_MODELS;
 
   const ask = (model: string) =>
-    fetch(MISTRAL_URL, {
+    fetch(GROQ_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -203,7 +198,7 @@ Deno.serve(async (req: Request) => {
                     ? `Relève les séances réservées visibles sur ces ${images.length} captures.`
                     : 'Relève les séances réservées visibles sur cette capture.',
               },
-              ...(images as string[]).map((image) => ({ type: 'image_url', image_url: image })),
+              ...(images as string[]).map((image) => ({ type: 'image_url', image_url: { url: image } })),
             ],
           },
         ],
@@ -227,7 +222,7 @@ Deno.serve(async (req: Request) => {
 
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '');
-      console.error(`[ticket-scan] Mistral ${upstream.status} : ${detail.slice(0, 400)}`);
+      console.error(`[ticket-scan] Groq ${upstream.status} : ${detail.slice(0, 400)}`);
       if (upstream.status === 401 || upstream.status === 403) {
         return fail(503, 'misconfigured', 'La clé de lecture a été refusée.');
       }

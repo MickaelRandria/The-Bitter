@@ -140,7 +140,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
     const files = images.slice(0, MAX_TICKET_IMAGES);
     setImageCount(files.length);
     setRateKey(null);
-    setNotice(images.length > files.length ? `Seules les ${MAX_TICKET_IMAGES} premières images ont été lues.` : '');
+    setNotice(images.length > files.length ? `${MAX_TICKET_IMAGES} billets maximum à la fois : seuls les ${MAX_TICKET_IMAGES} premiers ont été lus.` : '');
     setError('');
     setSaveError('');
     setPhase('reading');
@@ -366,8 +366,8 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
               )}
 
               <p className="text-[11px] font-medium leading-relaxed text-stone-400">
-                Pas besoin d’ouvrir « Voir mon billet » : le QR code ne sert pas. Jusqu’à {MAX_TICKET_IMAGES} images à la
-                fois ; elles ne sont pas conservées.
+                <strong className="font-extrabold">{MAX_TICKET_IMAGES} billets maximum à la fois.</strong> Pas besoin d’ouvrir
+                « Voir mon billet » : le QR code ne sert pas. Tes captures ne sont pas conservées.
               </p>
             </>
           )}

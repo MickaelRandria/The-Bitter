@@ -1,11 +1,11 @@
 /**
- * Relais vers Mistral.
+ * Relais vers Groq.
  *
  * Toute clé placée dans l'application finit en clair dans le fichier JavaScript
  * que le navigateur télécharge : Vite la remplace par sa valeur au moment du
  * build, et il n'existe aucun moyen de l'y cacher. Pour une clé facturée à
  * l'usage, cela revient à publier un moyen de paiement. Elle vit donc ici, dans
- * les secrets de la fonction, et l'application n'appelle plus Mistral mais nous.
+ * les secrets de la fonction, et l'application n'appelle plus le fournisseur mais nous.
  *
  * Ce détour paie trois fois : la clé reste secrète, l'appel exige une vraie
  * session (un inconnu ne peut pas se servir), et un plafond quotidien par
@@ -14,29 +14,21 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
  * Modèle par défaut.
  *
- * `-latest` est un alias mouvant : Mistral le fait pointer sur la révision
- * courante, sans prévenir et sans que rien ne bouge ici. Le 8 septembre 2026,
- * `mistral-small-latest` a basculé sur une révision réservée aux forfaits
- * payants : plafond ramené à zéro requête par minute, `429` sur chaque appel,
- * production morte sans qu'une ligne de code n'ait changé. Voir §6.13.
- *
- * Les Ministral restent accessibles sans forfait. Le 14B plutôt que le 8B parce
- * que cinq des huit actions exigent du JSON structuré, et que le 8B en rend une
- * forme inventée — des objets imbriqués là où l'on attend des chaînes — que
- * `parseStarters` et `parseDiscover` réduisent alors à du vide. Le 14B tient le
- * schéma ; il suit la consigne un cran moins finement, ce qui est le prix payé.
+ * Mesuré le 9 novembre 2026 sur l'offre gratuite de Groq : `qwen/qwen3.8-27b` tient le
+ * JSON et lit les images. `gpt-oss-120b` échoue sur le JSON et épuise max_tokens
+ * à réfléchir sur les réponses courtes : il n'a pas sa place ici, même en relais.
  */
-const DEFAULT_MODEL = 'ministral-14b-latest';
+const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 
 /** Au-delà, l'appel est refusé pour la journée (UTC). */
 const DEFAULT_DAILY_LIMIT = 40;
 
-/** Mistral n'est pas toujours rapide ; l'utilisateur, lui, n'attendra pas plus. */
+/** Le fournisseur n'est pas toujours rapide ; l'utilisateur, lui, n'attendra pas plus. */
 const UPSTREAM_TIMEOUT_MS = 45_000;
 
 /**
@@ -143,12 +135,12 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * devrait jamais coûter une fonctionnalité entière.
  */
 const resolveModel = (): string => {
-  const configured = (Deno.env.get('MISTRAL_MODEL') ?? '').trim();
+  const configured = (Deno.env.get('GROQ_MODEL') ?? '').trim();
   if (!configured) return DEFAULT_MODEL;
 
   if (/[\s=]/.test(configured)) {
     console.error(
-      `[ai] Le secret MISTRAL_MODEL vaut « ${configured} » : un identifiant de modèle ne ` +
+      `[ai] Le secret GROQ_MODEL vaut « ${configured} » : un identifiant de modèle ne ` +
         `contient ni espace ni « = ». Valeur ignorée, repli sur ${DEFAULT_MODEL}. Dans le ` +
         `tableau de bord, le champ Value ne prend que la valeur, sans le nom ni le « = ».`
     );
@@ -721,11 +713,11 @@ Deno.serve(async (req: Request) => {
   // L'état de la configuration n'est révélé qu'après l'authentification : un
   // inconnu n'a pas à apprendre si la clé est posée ou non, il n'obtient que
   // le même 401 dans tous les cas.
-  const apiKey = Deno.env.get('MISTRAL_API_KEY');
+  const apiKey = Deno.env.get('GROQ_API_KEY');
   if (!apiKey) {
     // Volontairement explicite dans les journaux : c'est l'erreur du premier
     // déploiement, et la deviner coûte bien plus cher que de l'annoncer.
-    console.error('[ai] MISTRAL_API_KEY absente des secrets de la fonction.');
+    console.error('[ai] GROQ_API_KEY absente des secrets de la fonction.');
     return fail(503, 'misconfigured', "L'assistant n'est pas encore configuré.");
   }
 
@@ -850,7 +842,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const send = () =>
-    fetch(MISTRAL_URL, {
+    fetch(GROQ_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -880,7 +872,7 @@ Deno.serve(async (req: Request) => {
 
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '');
-      console.error(`[ai] Mistral ${upstream.status} (${model}) : ${detail.slice(0, 400)}`);
+      console.error(`[ai] Groq ${upstream.status} (${model}) : ${detail.slice(0, 400)}`);
 
       // Rien n'a été facturé en face : la question n'a pas à coûter une place
       // dans le quota du jour.
@@ -905,8 +897,8 @@ Deno.serve(async (req: Request) => {
          */
         if (rateLimitCeiling(upstream) === 0) {
           console.error(
-            `[ai] Le modèle « ${model} » est hors forfait : Mistral annonce un plafond ` +
-              `de 0 requête/minute. Poser le secret MISTRAL_MODEL sur un modèle accessible.`
+            `[ai] Le modèle « ${model} » est hors forfait : Groq annonce un plafond ` +
+              `de 0 requête/minute. Poser le secret GROQ_MODEL sur un modèle accessible.`
           );
           return fail(503, 'misconfigured', "L'assistant n'est pas disponible sur ce forfait.");
         }
@@ -969,7 +961,7 @@ Deno.serve(async (req: Request) => {
     return json({ text, usage: payload?.usage ?? null });
   } catch (error) {
     const aborted = error instanceof DOMException && error.name === 'AbortError';
-    console.error('[ai] Appel Mistral échoué :', aborted ? 'délai dépassé' : String(error));
+    console.error('[ai] Appel Groq échoué :', aborted ? 'délai dépassé' : String(error));
     // Coupure ou délai dépassé : là non plus, rien n'a été rendu.
     await refundQuota();
     return aborted
