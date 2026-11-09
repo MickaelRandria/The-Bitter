@@ -1,26 +1,31 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { btnPrimary, btnSecondary, chip, field, sectionLabel } from '../utils/ui';
-import { CockpitSnapshot, draftCampaign, sendCampaign, testCampaign } from '../services/cockpit';
+import { CampaignFormat, CockpitSnapshot, draftCampaign, previewCampaign, sendCampaign, testCampaign } from '../services/cockpit';
 
-type Segment = 'never' | 'asleep' | 'trial';
+type Segment = 'active' | 'never' | 'asleep' | 'trial';
 const SEGMENTS: { id: Segment; label: string }[] = [
+  { id: 'active', label: 'Actifs' },
   { id: 'never', label: 'Jamais noté' },
   { id: 'asleep', label: 'Endormis' },
   { id: 'trial', label: 'Essai sans suite' },
 ];
-const LABELS: Record<string, string> = { never: 'Jamais noté', asleep: 'Endormis', trial: 'Essai sans suite' };
-const STARTER = {
-  subject: 'Quel est le dernier film que tu as vu ?',
-  body: 'Ton carnet attend ta prochaine note. Pour reprendre, note le dernier film qui t’a marqué : tes goûts et tes recommandations partent de là.',
-};
+const LABELS: Record<string, string> = { active: 'Actifs', never: 'Jamais noté', asleep: 'Endormis', trial: 'Essai sans suite' };
+const FORMATS: { id: CampaignFormat; label: string; subject: string; line: string; segment: Segment }[] = [
+  { id: 'wall', label: 'Le mur à noter', subject: 'Des films attendent ta note', line: 'Tu les as ajoutés à ta liste. Tu les as vus ?', segment: 'asleep' },
+  { id: 'notes', label: 'Tes notes du mois', subject: 'Ton mois de cinéma en une note', line: '', segment: 'active' },
+  { id: 'news', label: 'Quoi de neuf', subject: 'Du nouveau sur The Bitter', line: '', segment: 'never' },
+];
 const dayMonth = (value: string) => new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
 const row = 'flex justify-between gap-3 border-t border-white/10 py-3 text-[13px] font-bold text-stone-300';
 const textarea = 'w-full resize-y rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3.5 text-sm font-semibold leading-relaxed text-white outline-none focus:border-bitter-lime';
 
 const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ data, onSent }) => {
-  const [segment, setSegment] = useState<Segment>('never');
-  const [subject, setSubject] = useState(STARTER.subject);
-  const [body, setBody] = useState(STARTER.body);
+  const [format, setFormat] = useState<CampaignFormat>('wall');
+  const [segment, setSegment] = useState<Segment>(FORMATS[0].segment);
+  const [subject, setSubject] = useState(FORMATS[0].subject);
+  const [body, setBody] = useState(FORMATS[0].line);
+  const [preview, setPreview] = useState('');
+  const [previewError, setPreviewError] = useState('');
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -28,10 +33,33 @@ const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ da
   const members = useMemo(() => data.contacts.filter((contact) => contact.status === segment), [data.contacts, segment]);
   const accepted = members.filter((contact) => contact.consent === true);
   const reachable = members.filter((contact) => contact.canReceive);
-  const sample = reachable[0]?.name ?? members[0]?.name ?? 'Inès';
   const contacted = members.filter((contact) => contact.contacted14).length;
-  const paragraphs = body.trim().split(/\n\s*\n/).filter(Boolean);
-  const valid = !!subject.trim() && !!body.trim();
+  const valid = !!subject.trim();
+
+  // L'aperçu est le vrai e-mail, construit par le serveur.
+  useEffect(() => {
+    if (!valid) return;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      const result = await previewCampaign(format, segment, subject, body);
+      if (!alive) return;
+      setPreview(result.ok && result.data ? result.data.html : '');
+      setPreviewError(result.ok ? '' : result.message ?? 'Aperçu indisponible.');
+    }, 500);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [format, segment, subject, body, valid]);
+
+  const chooseFormat = (id: CampaignFormat) => {
+    const next = FORMATS.find((item) => item.id === id)!;
+    setFormat(id);
+    setSegment(next.segment);
+    setSubject(next.subject);
+    setBody(next.line);
+    setConfirming(false);
+  };
 
   const run = async (name: string, action: () => Promise<void>) => {
     setBusy(name);
@@ -50,16 +78,16 @@ const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ da
     });
   const test = () =>
     run('test', async () => {
-      const result = await testCampaign(subject, body);
+      const result = await testCampaign(format, subject, body);
       setNotice(result.ok ? 'Test envoyé sur ton adresse.' : result.message ?? 'Test impossible.');
     });
   const send = () =>
     run('send', async () => {
-      const result = await sendCampaign(segment, subject, body);
+      const result = await sendCampaign(format, segment, subject, body);
       setConfirming(false);
       if (result.ok && result.data) {
-        const { sent, failed } = result.data;
-        setNotice(`${sent} envoyé${sent > 1 ? 's' : ''}${failed ? `, ${failed} en échec` : ''}.`);
+        const { sent, failed, skipped } = result.data;
+        setNotice(`${sent} envoyé${sent > 1 ? 's' : ''}${failed ? `, ${failed} en échec` : ''}${skipped ? `, ${skipped} sans contenu pour ce format` : ''}.`);
         onSent();
       } else setNotice(result.message ?? 'Envoi impossible.');
     });
@@ -76,6 +104,14 @@ const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ da
       <div className="flex flex-wrap items-start gap-3">
         <section aria-label="Préparer le message" className="flex min-w-0 flex-[1_1_360px] flex-col gap-4 rounded-3xl bg-[#1A1A19] p-5">
           <div className="flex flex-col gap-2">
+            <div className={sectionLabel}>Format</div>
+            <div role="group" aria-label="Format de l’e-mail" className="flex flex-wrap gap-1.5">
+              {FORMATS.map((item) => (
+                <button key={item.id} type="button" aria-pressed={format === item.id} className={chip(format === item.id)} onClick={() => chooseFormat(item.id)}>{item.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
             <div className={sectionLabel}>Destinataires</div>
             <div role="group" aria-label="Groupe" className="flex flex-wrap gap-1.5">
               {SEGMENTS.map((item) => (
@@ -90,14 +126,14 @@ const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ da
             <input value={subject} maxLength={120} onChange={(event) => setSubject(event.target.value)} className={field} />
           </label>
           <label className="flex flex-col gap-2">
-            <span className={sectionLabel}>Message</span>
-            <textarea rows={6} maxLength={2000} value={body} onChange={(event) => setBody(event.target.value)} className={textarea} />
+            <span className={sectionLabel}>Phrase d’accroche (facultative)</span>
+            <textarea rows={3} maxLength={400} value={body} onChange={(event) => setBody(event.target.value)} className={textarea} />
           </label>
           <div className="flex flex-col gap-1.5">
             <div role="group" aria-label="Rédaction assistée" className="flex flex-wrap gap-1.5">
               <button type="button" disabled={!!busy} className={chip(true)} onClick={() => draft('write')}>{busy === 'write' ? 'Rédaction…' : 'Rédiger avec l’IA'}</button>
-              <button type="button" disabled={!!busy || !valid} className={chip(false)} onClick={() => draft('shorter')}>Plus court</button>
-              <button type="button" disabled={!!busy || !valid} className={chip(false)} onClick={() => draft('warmer')}>Plus chaleureux</button>
+              <button type="button" disabled={!!busy || !body.trim()} className={chip(false)} onClick={() => draft('shorter')}>Plus court</button>
+              <button type="button" disabled={!!busy || !body.trim()} className={chip(false)} onClick={() => draft('warmer')}>Plus chaleureux</button>
             </div>
             <div className="text-xs font-bold leading-snug text-stone-400">L’IA reçoit seulement la description du groupe, jamais de nom ni d’e-mail.</div>
           </div>
@@ -118,15 +154,12 @@ const Campaigns: React.FC<{ data: CockpitSnapshot; onSent: () => void }> = ({ da
           {notice && <div role="status" className="text-sm font-bold leading-snug text-white">{notice}</div>}
         </section>
 
-        <section aria-label="Aperçu de l’e-mail" className="flex min-w-0 flex-[1_1_360px] flex-col gap-3.5 rounded-[20px] bg-cream p-6 text-charcoal">
-          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-stone-500">The Bitter</div>
-          <div className="text-sm font-extrabold">{subject}</div>
-          <div className="flex flex-col gap-2 border-t border-stone-200 pt-3">
-            <p className="m-0 text-base leading-normal">Salut {sample},</p>
-            {paragraphs.map((part, index) => <p key={index} className="m-0 whitespace-pre-line text-[15px] leading-normal text-stone-600">{part}</p>)}
-          </div>
-          <div className="flex min-h-12 items-center justify-center rounded-full bg-forest text-[15px] font-black text-white">Ouvrir The Bitter</div>
-          <p className="m-0 text-center text-xs leading-normal text-stone-500">Tu reçois cet e-mail parce que tu as accepté les nouvelles de The Bitter.<br />Ne plus recevoir ces e-mails</p>
+        <section aria-label="Aperçu de l’e-mail" className="min-w-0 flex-[1_1_360px] overflow-hidden rounded-[20px] bg-[#1A1A19]">
+          {preview ? (
+            <iframe title="Aperçu de l’e-mail" srcDoc={preview} sandbox="" className="block h-[760px] w-full border-0" />
+          ) : (
+            <div className="flex h-[300px] items-center justify-center p-6 text-center text-sm font-bold text-stone-300">{previewError || 'Préparation de l’aperçu…'}</div>
+          )}
         </section>
       </div>
 
