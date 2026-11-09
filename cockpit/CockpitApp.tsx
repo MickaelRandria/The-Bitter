@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { btnIcon, chip, field, sectionLabel } from '../utils/ui';
 import { CockpitContact, CockpitSnapshot, loadCockpit } from '../services/cockpit';
+import Campaigns from './Campaigns';
 
 /**
  * Le cockpit, en lecture seule : vue d'ensemble, contacts, fiche.
@@ -82,6 +83,7 @@ const Overview: React.FC<{ data: CockpitSnapshot }> = ({ data }) => {
         <Tile label="Notes" value={kpis.notes30} note={`dont ${kpis.ownerNotes30} de toi`} />
         <Tile label="Notes en 7 j" value={kpis.notes7} note={plural(kpis.people7, 'personne')} />
         <Tile label="Nouveaux" value={kpis.newcomers} note={`dont ${kpis.newcomersSilent} sans aucune note`} />
+        <Tile label="Accords e-mail" value={kpis.consents} note="pour les campagnes" />
         <Tile label="Push actifs" value={kpis.pushActive} note="personnes abonnées" />
       </section>
 
@@ -312,16 +314,14 @@ const CockpitApp: React.FC = () => {
   const [failure, setFailure] = useState<{ code?: string; message?: string } | null>(null);
   const route = useRoute();
 
-  useEffect(() => {
-    let alive = true;
+  const refresh = () =>
     loadCockpit().then((result) => {
-      if (!alive) return;
       if (result.ok && result.data) setData(result.data);
       else setFailure({ code: result.code, message: result.message });
     });
-    return () => {
-      alive = false;
-    };
+
+  useEffect(() => {
+    void refresh();
   }, []);
 
   if (failure?.code === 'forbidden') return <Message title="Accès réservé" text="Ouvre le mode admin depuis les réglages de ton profil." />;
@@ -329,6 +329,7 @@ const CockpitApp: React.FC = () => {
   if (!data) return <div role="status" className="flex min-h-screen items-center justify-center bg-[#0c0c0c] font-sans text-sm font-bold text-stone-300">Chargement…</div>;
 
   const inContacts = route[0] === 'contacts';
+  const inCampaigns = route[0] === 'campagnes';
   return (
     <div className="flex min-h-screen flex-wrap items-stretch bg-[#0c0c0c] font-sans text-white">
       <aside className="flex flex-[1_1_232px] flex-col gap-[22px] border-r border-white/10 px-4 py-6">
@@ -337,15 +338,17 @@ const CockpitApp: React.FC = () => {
           <div className={sectionLabel}>Cockpit</div>
         </div>
         <nav aria-label="Navigation du cockpit" className="flex flex-wrap gap-1">
-          <NavLink href="#/" active={!inContacts}>Vue d’ensemble</NavLink>
+          <NavLink href="#/" active={!inContacts && !inCampaigns}>Vue d’ensemble</NavLink>
           <NavLink href="#/contacts" active={inContacts}>
             <span>Contacts</span>
             <span className="text-xs text-stone-400">{data.contacts.length}</span>
           </NavLink>
+          <NavLink href="#/campagnes" active={inCampaigns}>Campagnes</NavLink>
         </nav>
       </aside>
       <main className="flex min-w-0 max-w-[1240px] flex-[999_1_560px] flex-col gap-4 px-[clamp(16px,3vw,40px)] pb-10 pt-7">
-        {!inContacts && <Overview data={data} />}
+        {!inContacts && !inCampaigns && <Overview data={data} />}
+        {inCampaigns && <Campaigns data={data} onSent={() => void refresh()} />}
         {inContacts && !route[1] && <Contacts data={data} />}
         {inContacts && route[1] && <ContactSheet contact={data.contacts.find((contact) => contact.id === route[1])} />}
       </main>

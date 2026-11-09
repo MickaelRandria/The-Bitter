@@ -400,6 +400,29 @@ export async function getEmailPref(userId: string): Promise<boolean | null> {
   return data.email_notifications !== false;
 }
 
+/** L'accord pour les e-mails de nouvelles ; `null` tant que la question n'a pas été posée. */
+export async function getMarketingConsent(userId: string): Promise<boolean | null | undefined> {
+  if (!supabase || !userId) return undefined;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email, marketing_consent')
+    .eq('id', userId)
+    .maybeSingle();
+  // Sans adresse ou en cas d'erreur, on ne pose aucune question.
+  if (error || !data?.email) return undefined;
+  return data.marketing_consent ?? null;
+}
+
+export async function setMarketingConsent(userId: string, value: boolean): Promise<boolean> {
+  if (!supabase || !userId) return false;
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ marketing_consent: value, marketing_consent_at: new Date().toISOString() })
+    .eq('id', userId)
+    .select('id');
+  return !error && !!data?.length;
+}
+
 export async function setEmailPref(userId: string, enabled: boolean): Promise<boolean> {
   if (!supabase || !userId) return false;
   const { data, error } = await supabase

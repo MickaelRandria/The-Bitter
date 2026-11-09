@@ -63,6 +63,7 @@ import { initAnalytics, stopAnalytics } from '../utils/analytics';
 import ProfileHabits, { Habits } from './ProfileHabits';
 import AdminAccessSheet from './AdminAccessSheet';
 import { unlockCockpit } from '../services/cockpit';
+import { getMarketingConsent, setMarketingConsent } from '../services/social';
 import { getDisplayWeightedRating } from '../utils/rating';
 import { getPublicRating } from '../utils/publicRating';
 import { patienceKey, severityKey, severityVsPublic } from '../utils/criticProfile';
@@ -199,6 +200,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [newsConsent, setNewsConsent] = useState<boolean | null | undefined>(undefined);
+  useEffect(() => {
+    if (settingsOpen && session?.user?.id) void getMarketingConsent(session.user.id).then(setNewsConsent);
+  }, [settingsOpen, session?.user?.id]);
+  const chooseNews = async (value: boolean) => {
+    haptics.soft();
+    if (session?.user?.id && (await setMarketingConsent(session.user.id, value))) setNewsConsent(value);
+  };
   // Le serveur décide : son compte ouvre directement, les autres passent par le mot de passe.
   const openAdmin = async () => {
     haptics.soft();
@@ -1084,6 +1093,30 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {t('legal.terms')}
               </span>
             </a>
+            {newsConsent !== undefined && (
+              <div className="p-4">
+                <span className="mb-3 block text-xs font-black uppercase tracking-wide text-charcoal dark:text-white">
+                  {t('emailConsent.setting')}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {[false, true].map((value) => (
+                    <button
+                      key={String(value)}
+                      type="button"
+                      onClick={() => chooseNews(value)}
+                      aria-pressed={newsConsent === value}
+                      className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                        newsConsent === value
+                          ? 'bg-charcoal dark:bg-white text-white dark:text-charcoal'
+                          : 'border border-stone-200 dark:border-white/15 text-stone-500 dark:text-stone-400'
+                      }`}
+                    >
+                      {t(value ? 'emailConsent.on' : 'emailConsent.off')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {canUseSpaces && (
               <button
                 type="button"

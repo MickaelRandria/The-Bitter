@@ -9,6 +9,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient, SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { buildSnapshot, OWNER_EMAIL, RawMovie } from './logic.ts';
+import { buildCampaignEmail, draftMessages, isSegment, MAX_BODY, MAX_SUBJECT, parseDraft } from './campaign.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,12 @@ const TOKEN_TTL_MS = 12 * 3_600_000;
 const MAX_FAILURES = 5;
 const LOCK_MS = 15 * 60_000;
 const PAGE = 1_000;
+const APP_URL = 'https://thebitter.watch';
+const FROM = 'The Bitter <notifications@thebitter.watch>';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'qwen/qwen3.8-27b';
+/** Le plan gratuit de Resend s'arrête à 100 e-mails par jour. */
+const MAX_DAILY_SENDS = 90;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -104,26 +111,32 @@ async function snapshot(admin: SupabaseClient) {
   const { data: listed, error: usersError } = await admin.auth.admin.listUsers({ perPage: 1000 });
   if (usersError) throw new Error(usersError.message);
 
-  const [profiles, movies, usage, screenings, push] = await Promise.all([
-    allRows<{ id: string; first_name: string | null }>((a, b) => admin.from('profiles').select('id, first_name').order('id').range(a, b)),
+  const [profiles, movies, usage, screenings, push, campaigns, sends] = await Promise.all([
+    allRows<{ id: string; first_name: string | null; marketing_consent: boolean | null; email_notifications: boolean | null }>((a, b) =>
+      admin.from('profiles').select('id, first_name, marketing_consent, email_notifications').order('id').range(a, b)
+    ),
     allRows<{ profile_id: string; tmdb_id: number | null; title: string; rated_at: string | null; created_at: string | null }>((a, b) =>
       admin.from('user_movies').select('profile_id, tmdb_id, title, rated_at, created_at').is('deleted_at', null).order('id').range(a, b)
     ),
     admin.from('ai_usage').select('user_id, day, calls').gte('day', since.toISOString().slice(0, 10)),
     admin.from('cinema_screenings').select('profile_id, tmdb_id, starts_at, status').gte('starts_at', since.toISOString()),
     admin.from('push_subscriptions').select('profile_id').eq('active', true),
+    admin.from('cockpit_campaigns').select('id, segment, subject, created_at'),
+    admin.from('cockpit_campaign_sends').select('campaign_id, profile_id, sent_at'),
   ]);
-  for (const result of [usage, screenings, push]) if (result.error) throw new Error(result.error.message);
+  for (const result of [usage, screenings, push, campaigns, sends]) if (result.error) throw new Error(result.error.message);
 
-  const firstNames = new Map(profiles.map((profile) => [profile.id, profile.first_name]));
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   return buildSnapshot(
     {
       accounts: listed.users.map((user) => ({
         id: user.id,
         email: user.email ?? null,
-        firstName: firstNames.get(user.id) ?? null,
+        firstName: profileById.get(user.id)?.first_name ?? null,
         createdAt: user.created_at,
         confirmed: !!user.email_confirmed_at,
+        marketingConsent: profileById.get(user.id)?.marketing_consent ?? null,
+        emailNotifications: profileById.get(user.id)?.email_notifications !== false,
       })),
       movies: movies.map<RawMovie>((movie) => ({
         profileId: movie.profile_id,
@@ -137,10 +150,34 @@ async function snapshot(admin: SupabaseClient) {
         .filter((row) => row.status !== 'cancelled')
         .map((row) => ({ profileId: row.profile_id, tmdbId: row.tmdb_id, startsAt: row.starts_at })),
       pushActive: new Set((push.data ?? []).map((row) => row.profile_id)).size,
+      campaigns: (campaigns.data ?? []).map((row) => ({ id: row.id, segment: row.segment, subject: row.subject, createdAt: row.created_at })),
+      sends: (sends.data ?? []).map((row) => ({ campaignId: row.campaign_id, profileId: row.profile_id, sentAt: row.sent_at })),
     },
     now
   );
 }
+
+async function sendEmail(apiKey: string, to: string, email: { subject: string; html: string; text: string }, unsubscribeUrl: string) {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: FROM,
+      to: [to],
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+    }),
+  });
+  if (!response.ok) console.warn('[cockpit] envoi refusé', response.status, (await response.text()).slice(0, 200));
+  return response.ok;
+}
+
+const cleanMessage = (body: Record<string, unknown>) => ({
+  subject: typeof body.subject === 'string' ? body.subject.trim().slice(0, MAX_SUBJECT) : '',
+  text: typeof body.body === 'string' ? body.body.trim().slice(0, MAX_BODY) : '',
+});
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -192,5 +229,74 @@ Deno.serve(async (req: Request) => {
       return fail(502, 'upstream', 'Les données n’ont pas pu être lues.');
     }
   }
+  if (body.action === 'campaign_draft') {
+    const groqKey = Deno.env.get('GROQ_API_KEY');
+    if (!groqKey) return fail(503, 'misconfigured', 'La rédaction assistée n’est pas configurée.');
+    const { subject, text } = cleanMessage(body);
+    const response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: draftMessages(String(body.segment), String(body.mode), subject, text),
+        temperature: 0.6,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+      }),
+    }).catch(() => null);
+    if (!response?.ok) return fail(502, 'upstream', 'La rédaction n’a pas abouti. Réessaie dans un instant.');
+    const payload = await response.json().catch(() => null);
+    const draft = parseDraft(String(payload?.choices?.[0]?.message?.content ?? ''));
+    return draft ? json(draft) : fail(502, 'upstream', 'Brouillon illisible. Réessaie.');
+  }
+
+  if (body.action === 'campaign_test' || body.action === 'campaign_send') {
+    // Le mot de passe ouvre la lecture ; écrire à tes utilisateurs reste réservé à ton compte.
+    if (!isOwner) return fail(403, 'owner_only', 'Seul le compte du propriétaire peut envoyer.');
+    const resendKey = Deno.env.get('COCKPIT_RESEND_API_KEY');
+    if (!resendKey) return fail(503, 'misconfigured', 'Pose le secret COCKPIT_RESEND_API_KEY pour envoyer.');
+    const { subject, text } = cleanMessage(body);
+    if (!subject || !text) return fail(400, 'bad_request', 'Objet ou message vide.');
+
+    if (body.action === 'campaign_test') {
+      const email = buildCampaignEmail({ firstName: 'toi', subject: `[Test] ${subject}`, body: text, appUrl: APP_URL, unsubscribeUrl: APP_URL });
+      return (await sendEmail(resendKey, user.email!, email, APP_URL)) ? json({ ok: true }) : fail(502, 'upstream', 'Resend a refusé le test.');
+    }
+
+    if (!isSegment(body.segment)) return fail(400, 'bad_request', 'Groupe inconnu.');
+    try {
+      // La liste est recalculée ici : le navigateur ne choisit jamais les destinataires.
+      const data = await snapshot(admin);
+      const targets = data.contacts.filter((contact) => contact.status === body.segment && contact.canReceive).slice(0, MAX_DAILY_SENDS);
+      if (targets.length === 0) return fail(400, 'nobody', 'Personne de ce groupe ne peut recevoir ce message.');
+      const { data: tokens, error: tokenError } = await admin.from('profiles').select('id, email_token').in('id', targets.map((t) => t.id));
+      if (tokenError) throw new Error(tokenError.message);
+      const tokenById = new Map((tokens ?? []).map((row) => [row.id, row.email_token]));
+      const { data: campaign, error: insertError } = await admin
+        .from('cockpit_campaigns')
+        .insert({ segment: body.segment, subject, body: text })
+        .select('id')
+        .single();
+      if (insertError) throw new Error(insertError.message);
+
+      let sent = 0;
+      for (const target of targets) {
+        const unsubscribeUrl = `${APP_URL}/api/unsubscribe?t=${encodeURIComponent(String(tokenById.get(target.id)))}`;
+        const email = buildCampaignEmail({ firstName: target.name, subject, body: text, appUrl: APP_URL, unsubscribeUrl });
+        const ok = await sendEmail(resendKey, target.email!, email, unsubscribeUrl).catch(() => false);
+        if (!ok) continue;
+        sent += 1;
+        await admin.from('cockpit_campaign_sends').insert({ campaign_id: campaign.id, profile_id: target.id });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      const failed = targets.length - sent;
+      await admin.from('cockpit_campaigns').update({ recipients: sent, failed }).eq('id', campaign.id);
+      return json({ sent, failed });
+    } catch (error) {
+      console.error('[cockpit] campagne impossible :', String(error));
+      return fail(502, 'upstream', 'La campagne n’a pas pu partir.');
+    }
+  }
+
   return fail(400, 'action', 'Action inconnue.');
 });

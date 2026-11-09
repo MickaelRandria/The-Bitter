@@ -20,11 +20,11 @@ const { buildSnapshot, isTestAccount, statusOf, OWNER_EMAIL } = load('../supabas
 
 const now = new Date('2026-11-09T12:00:00Z');
 const daysAgo = (n) => new Date(now.getTime() - n * 86_400_000).toISOString();
-const account = (id, email, joined = 100, firstName = id) => ({ id, email, firstName, createdAt: daysAgo(joined), confirmed: true });
+const account = (id, email, joined = 100, firstName = id, extra = {}) => ({ id, email, firstName, createdAt: daysAgo(joined), confirmed: true, marketingConsent: null, emailNotifications: true, ...extra });
 const rated = (profileId, ago, tmdbId = 1) => ({ profileId, tmdbId, title: `Film ${tmdbId}`, ratedAt: daysAgo(ago), createdAt: daysAgo(ago) });
 const several = (profileId, count, ago) => Array.from({ length: count }, (_, i) => rated(profileId, ago, i + 1));
 const snapshot = (accounts, movies, extra = {}) =>
-  buildSnapshot({ accounts, movies, usage: [], screenings: [], pushActive: 0, ...extra }, now);
+  buildSnapshot({ accounts, movies, usage: [], screenings: [], pushActive: 0, campaigns: [], sends: [], ...extra }, now);
 
 test('les comptes de test sont reconnus', () => {
   for (const email of ['a+test1@gmail.com', 'x@yopmail.com', 'review@thebitter.watch', 'demo.camille@thebitter.watch']) {
