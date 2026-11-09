@@ -31,6 +31,8 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Le cockpit a sa propre entrée : l'app de tes utilisateurs n'en porte aucun octet.
+      input: { main: 'index.html', cockpit: 'cockpit.html' },
       output: {
         /**
          * Sépare les dépendances du code applicatif.

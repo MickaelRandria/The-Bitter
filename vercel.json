@@ -8,6 +8,10 @@
     {
       "source": "/agenda/:token",
       "destination": "/api/agenda?token=:token"
+    },
+    {
+      "source": "/cockpit",
+      "destination": "/cockpit.html"
     }
   ],
   "headers": [

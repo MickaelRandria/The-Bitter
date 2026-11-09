@@ -26,6 +26,7 @@ import {
   Smartphone,
   Compass,
   Settings,
+  Activity,
   LogIn,
   Sun,
   Moon,
@@ -60,6 +61,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { ConsentChoice, readConsent, saveConsent } from '../utils/consent';
 import { initAnalytics, stopAnalytics } from '../utils/analytics';
 import ProfileHabits, { Habits } from './ProfileHabits';
+import AdminAccessSheet from './AdminAccessSheet';
+import { unlockCockpit } from '../services/cockpit';
 import { getDisplayWeightedRating } from '../utils/rating';
 import { getPublicRating } from '../utils/publicRating';
 import { patienceKey, severityKey, severityVsPublic } from '../utils/criticProfile';
@@ -195,6 +198,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [testSent, setTestSent] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  // Le serveur décide : son compte ouvre directement, les autres passent par le mot de passe.
+  const openAdmin = async () => {
+    haptics.soft();
+    const result = await unlockCockpit();
+    if (result.ok) window.location.assign('/cockpit');
+    else setAdminOpen(true);
+  };
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   /** Session ouverte mais sans email : le compte ne survit pas à ce navigateur. */
   const isAnonymousAccount = isSignedIn && !accountEmail;
@@ -1073,6 +1084,25 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {t('legal.terms')}
               </span>
             </a>
+            {canUseSpaces && (
+              <button
+                type="button"
+                onClick={openAdmin}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-50 dark:hover:bg-[#161616] transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white group-hover:scale-110 transition-transform shrink-0">
+                  <Activity size={14} />
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-black uppercase tracking-wide text-charcoal dark:text-white block">
+                    {t('profileModal.admin')}
+                  </span>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+                    {t('profileModal.adminDesc')}
+                  </span>
+                </div>
+              </button>
+            )}
 <div className="p-4">
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-[#252525] flex items-center justify-center text-charcoal dark:text-white shrink-0">
@@ -1151,6 +1181,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       </div>
 
       {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
+      {adminOpen && <AdminAccessSheet onClose={() => setAdminOpen(false)} />}
 
       {showAvatarPicker && (
         <AvatarPickerModal

@@ -4,6 +4,8 @@ export default {
   content: [
     './index.html',
     './index.tsx',
+    './cockpit.html',
+    './cockpit/**/*.{ts,tsx}',
     './App.tsx',
     './components/**/*.{ts,tsx}',
     './contexts/**/*.{ts,tsx}',
