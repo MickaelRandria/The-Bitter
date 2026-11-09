@@ -61,11 +61,11 @@ export interface TicketFilm {
 
 /**
  * L'app UGC montre une séance par écran : il faut une image par réservation.
- * Dix couvrent largement une semaine chargée ; le serveur en lit quatre par
- * appel, on découpe donc ici.
+ * Trois au plus : Groq refuse davantage d'images par requête, et trois images
+ * remplissent déjà presque tout son débit gratuit d'une minute.
  */
-export const MAX_TICKET_IMAGES = 10;
-const SCAN_BATCH = 4;
+export const MAX_TICKET_IMAGES = 3;
+const SCAN_BATCH = 3;
 const MAX_SIDE = 1_600;
 const JPEG_QUALITY = 0.82;
 /** Le serveur en accepte huit par appel ; au-delà, on découpe. */

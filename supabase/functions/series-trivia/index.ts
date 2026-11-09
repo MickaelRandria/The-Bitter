@@ -19,8 +19,8 @@ import { buildDataQuiz, MIN_DATA_QUESTIONS, SeriesFacts } from './quiz.ts';
  * noms s'applique à chaque lecture, selon où en est la personne.
  */
 
-const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
-const DEFAULT_MODEL = 'ministral-14b-latest';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 const DEFAULT_DAILY_LIMIT = 40;
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const USER_AGENT = 'TheBitter/1.0 (https://thebitter.watch; contact via app)';
@@ -45,7 +45,7 @@ const json = (body: unknown, status = 200) =>
 const fail = (status: number, code: string, message: string) => json({ code, message }, status);
 
 const resolveModel = () => {
-  const configured = (Deno.env.get('MISTRAL_MODEL') ?? '').trim();
+  const configured = (Deno.env.get('GROQ_MODEL') ?? '').trim();
   return configured && !/[\s=]/.test(configured) ? configured : DEFAULT_MODEL;
 };
 
@@ -323,9 +323,9 @@ Deno.serve(async (req: Request) => {
   }
   if (!generate) return json({ status: 'missing', items: [], sources: {} });
 
-  const apiKey = Deno.env.get('MISTRAL_API_KEY');
+  const apiKey = Deno.env.get('GROQ_API_KEY');
   if (!apiKey || !tmdbKey) {
-    console.error('[series-trivia] MISTRAL_API_KEY ou TMDB_API_KEY absente des secrets.');
+    console.error('[series-trivia] GROQ_API_KEY ou TMDB_API_KEY absente des secrets.');
     return fail(503, 'misconfigured', 'Les anecdotes ne sont pas encore configurées.');
   }
 
@@ -404,7 +404,7 @@ Deno.serve(async (req: Request) => {
 
   let items: TriviaItem[];
   try {
-    const upstream = await fetch(MISTRAL_URL, {
+    const upstream = await fetch(GROQ_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({

@@ -59,9 +59,9 @@ appelle cette fonction plutôt que Mistral.
 
 | Nom | Défaut | Rôle |
 |---|---|---|
-| `MISTRAL_API_KEY` | — | obligatoire |
+| `GROQ_API_KEY` | — | obligatoire |
 | `AI_DAILY_LIMIT` | `40` | appels par personne et par jour |
-| `MISTRAL_MODEL` | `mistral-small-latest` | modèle utilisé |
+| `GROQ_MODEL` | `qwen/qwen3.8-27b` | modèle utilisé |
 
 Poser un secret redéploie la fonction (le numéro de version s'incrémente).
 

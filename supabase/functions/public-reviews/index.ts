@@ -41,7 +41,7 @@ import {
  * Bluesky est ouvert et sans clé.
  *
  * Secrets : YOUTUBE_API_KEY (sans elle, pas de commentaires YouTube),
- * MISTRAL_API_KEY (déjà utilisée par `ai` et `review-voice`).
+ * GROQ_API_KEY (déjà utilisée par `ai` et `review-voice`).
  */
 
 const CORS = {
@@ -60,9 +60,9 @@ const TRANSLATION_TTL = 48 * HOUR;
 const CACHE_MAX = 600;
 const TIMEOUT_MS = 8000;
 const YOUTUBE_KEY = /^[A-Za-z0-9_-]{11}$/;
-const CHAT_URL = 'https://api.mistral.ai/v1/chat/completions';
+const CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 /** Les mêmes que `ai` et `review-voice` : `mistral-small-latest` est hors forfait. */
-const CHAT_MODELS = ['ministral-8b-latest', 'ministral-14b-latest'];
+const CHAT_MODELS = ['qwen/qwen3.8-27b'];
 const MAX_TRANSLATE_ITEMS = 10;
 const MAX_TRANSLATE_CHARS = 1500;
 /** Traductions par personne et par jour, dans la mémoire de la fonction : un garde-fou, pas un compteur exact. */
@@ -177,7 +177,7 @@ async function bluesky(film: FilmQuery, sort: Order, since?: string) {
 
 const DAY = 24 * HOUR;
 const UA = 'TheBitter/1.0 (https://thebitter.watch)';
-const SUMMARY_MODELS = ['ministral-14b-latest', 'ministral-8b-latest'];
+const SUMMARY_MODELS = ['qwen/qwen3.8-27b'];
 /** Résumés par personne et par jour : un garde-fou, chaque film est gardé en cache. */
 const DAILY_SUMMARIES = 60;
 
@@ -494,7 +494,7 @@ Deno.serve(async (req: Request) => {
     if (!film) return fail(400, 'film', 'Film inconnu.');
     try {
       if (action === 'facts') return json({ facts: (await gather(film)).facts });
-      const apiKey = Deno.env.get('MISTRAL_API_KEY');
+      const apiKey = Deno.env.get('GROQ_API_KEY');
       if (!apiKey) return json({ facts: (await gather(film)).facts, summary: null });
       const target = body.target === 'en' ? 'en' : 'fr';
       if (!recall(`summary:${film.tmdbId}:${target}`) && !spend(`summary:${userId}`, 1, DAILY_SUMMARIES)) {
@@ -514,9 +514,9 @@ Deno.serve(async (req: Request) => {
       .filter((item) => item.id && item.text.trim())
       .slice(0, MAX_TRANSLATE_ITEMS);
     if (items.length === 0) return json({ items: [] });
-    const apiKey = Deno.env.get('MISTRAL_API_KEY');
+    const apiKey = Deno.env.get('GROQ_API_KEY');
     if (!apiKey) {
-      console.error('[public-reviews] MISTRAL_API_KEY absente des secrets.');
+      console.error('[public-reviews] GROQ_API_KEY absente des secrets.');
       return fail(503, 'unavailable', 'Traduction indisponible.');
     }
     if (!spend(userId, items.length)) return fail(429, 'limit', 'Assez traduit pour aujourd’hui.');
