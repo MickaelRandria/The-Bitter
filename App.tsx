@@ -200,6 +200,7 @@ import { imdbLookupFor } from './utils/publicRating';
 
 
 const AccountSyncModal = lazy(() => import('./components/AccountSyncModal'));
+const EmailConsentSheet = lazy(() => import('./components/EmailConsentSheet'));
 const CinemaFil = lazy(() => import('./components/CinemaFil'));
 import { soundScore } from './utils/soundScore';
 import { criterionFocus } from './utils/criterionFocus';
@@ -4374,6 +4375,11 @@ const App: React.FC = () => {
           ) : (
             <div className="max-w-md mx-auto w-full space-y-5 animate-[fadeIn_0.3s_ease-out]">
               {session?.user?.id && <HomePushBanner unread={bellUnread} onToast={setToastMessage} />}
+              {session?.user?.email && activeProfile?.isOnboarded && (
+                <Suspense fallback={null}>
+                  <EmailConsentSheet userId={session.user.id} onToast={setToastMessage} />
+                </Suspense>
+              )}
               {mediaMode === 'movie' && screeningFollowup.prompt && (
                 <ScreeningPromptCard
                   screening={screeningFollowup.prompt}

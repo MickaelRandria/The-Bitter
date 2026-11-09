@@ -46,3 +46,12 @@ export async function unlockCockpit(password?: string): Promise<CockpitResult<{ 
 }
 
 export const loadCockpit = () => call<CockpitSnapshot>({ action: 'snapshot', token: readToken() });
+
+export const draftCampaign = (segment: string, mode: string, subject: string, body: string) =>
+  call<{ subject: string; body: string }>({ action: 'campaign_draft', token: readToken(), segment, mode, subject, body });
+
+export const testCampaign = (subject: string, body: string) =>
+  call<{ ok: boolean }>({ action: 'campaign_test', token: readToken(), subject, body });
+
+export const sendCampaign = (segment: string, subject: string, body: string) =>
+  call<{ sent: number; failed: number }>({ action: 'campaign_send', token: readToken(), segment, subject, body });

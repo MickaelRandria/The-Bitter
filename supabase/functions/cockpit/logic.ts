@@ -10,6 +10,7 @@ export const OWNER_EMAIL = 'vrymikaf13@gmail.com';
 
 const DAY_MS = 86_400_000;
 const ENGAGED_NOTES = 5;
+const RECONTACT_DAYS = 14;
 
 export type ContactStatus = 'active' | 'asleep' | 'trial' | 'never';
 
@@ -19,6 +20,19 @@ export interface RawAccount {
   firstName: string | null;
   createdAt: string;
   confirmed: boolean;
+  marketingConsent: boolean | null;
+  emailNotifications: boolean;
+}
+export interface RawCampaign {
+  id: string;
+  segment: string;
+  subject: string;
+  createdAt: string;
+}
+export interface RawSend {
+  campaignId: string;
+  profileId: string;
+  sentAt: string;
 }
 export interface RawMovie {
   profileId: string;
@@ -43,6 +57,8 @@ export interface SnapshotInput {
   usage: RawUsage[];
   screenings: RawScreening[];
   pushActive: number;
+  campaigns: RawCampaign[];
+  sends: RawSend[];
 }
 
 export interface Contact {
@@ -59,6 +75,10 @@ export interface Contact {
   films: number;
   added30: number;
   ai30: number;
+  consent: boolean | null;
+  contacted14: boolean;
+  /** Seule porte vers un envoi : accord explicite, adresse confirmée, pas de relance récente. */
+  canReceive: boolean;
 }
 
 /** Comptes créés pour tester : ils fausseraient chaque chiffre. */
@@ -107,6 +127,9 @@ export function buildSnapshot(input: SnapshotInput, now: Date) {
       (latest, movie) => (!latest || movie.ratedAt! > latest ? movie.ratedAt : latest),
       null
     );
+    const contacted14 = input.sends.some(
+      (send) => send.profileId === account.id && after(send.sentAt, nowMs - RECONTACT_DAYS * DAY_MS)
+    );
     return {
       id: account.id,
       name: displayName(account),
@@ -123,6 +146,10 @@ export function buildSnapshot(input: SnapshotInput, now: Date) {
       ai30: input.usage
         .filter((row) => row.userId === account.id && Date.parse(row.day) > since30 - DAY_MS)
         .reduce((sum, row) => sum + row.calls, 0),
+      consent: account.marketingConsent,
+      contacted14,
+      canReceive:
+        account.marketingConsent === true && account.emailNotifications && account.confirmed && !!account.email && !contacted14,
     };
   });
 
@@ -174,6 +201,7 @@ export function buildSnapshot(input: SnapshotInput, now: Date) {
       newcomers: newcomers.length,
       newcomersSilent: newcomers.filter((contact) => contact.notes === 0).length,
       pushActive: input.pushActive,
+      consents: contacts.filter((contact) => contact.consent === true).length,
     },
     days,
     funnel: {
@@ -197,6 +225,26 @@ export function buildSnapshot(input: SnapshotInput, now: Date) {
       peak: Math.max(0, ...perDay.values()),
     },
     activity,
+    campaigns: input.campaigns
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((campaign) => {
+        const sends = input.sends.filter((send) => send.campaignId === campaign.id);
+        return {
+          ...campaign,
+          sent: sends.length,
+          // L'effet réel : une note dans les 7 jours suivant l'envoi.
+          rated7: sends.filter((send) => {
+            const start = Date.parse(send.sentAt);
+            return movies.some((movie) => {
+              if (movie.profileId !== send.profileId || !movie.ratedAt) return false;
+              const time = Date.parse(movie.ratedAt);
+              return time > start && time < start + 7 * DAY_MS;
+            });
+          }).length,
+          unsubscribed: sends.filter((send) => input.accounts.find((a) => a.id === send.profileId)?.emailNotifications === false).length,
+        };
+      }),
     contacts: contacts.sort((a, b) => (b.lastNote ?? '').localeCompare(a.lastNote ?? '') || b.joined.localeCompare(a.joined)),
   };
 }
