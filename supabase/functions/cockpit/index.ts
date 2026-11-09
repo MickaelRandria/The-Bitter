@@ -9,7 +9,8 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient, SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { buildSnapshot, OWNER_EMAIL, RawMovie } from './logic.ts';
-import { buildCampaignEmail, draftMessages, isSegment, MAX_BODY, MAX_SUBJECT, parseDraft } from './campaign.ts';
+import { buildEmail, draftMessages, isFormat, isSegment, MAX_BODY, MAX_SUBJECT, parseDraft } from './campaign.ts';
+import { loadContent, loadShared } from './content.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -250,23 +251,39 @@ Deno.serve(async (req: Request) => {
     return draft ? json(draft) : fail(502, 'upstream', 'Brouillon illisible. Réessaie.');
   }
 
-  if (body.action === 'campaign_test' || body.action === 'campaign_send') {
-    // Le mot de passe ouvre la lecture ; écrire à tes utilisateurs reste réservé à ton compte.
-    if (!isOwner) return fail(403, 'owner_only', 'Seul le compte du propriétaire peut envoyer.');
+  if (body.action === 'campaign_preview' || body.action === 'campaign_test' || body.action === 'campaign_send') {
+    if (body.action !== 'campaign_preview' && !isOwner) return fail(403, 'owner_only', 'Seul le compte du propriétaire peut envoyer.');
+    if (!isFormat(body.format)) return fail(400, 'bad_request', 'Format inconnu.');
+    const format = body.format;
+    const { subject, text: line } = cleanMessage(body);
+    if (!subject) return fail(400, 'bad_request', 'Objet vide.');
     const resendKey = Deno.env.get('COCKPIT_RESEND_API_KEY');
-    if (!resendKey) return fail(503, 'misconfigured', 'Pose le secret COCKPIT_RESEND_API_KEY pour envoyer.');
-    const { subject, text } = cleanMessage(body);
-    if (!subject || !text) return fail(400, 'bad_request', 'Objet ou message vide.');
+    if (body.action !== 'campaign_preview' && !resendKey) return fail(503, 'misconfigured', 'Pose le secret COCKPIT_RESEND_API_KEY pour envoyer.');
 
-    if (body.action === 'campaign_test') {
-      const email = buildCampaignEmail({ firstName: 'toi', subject: `[Test] ${subject}`, body: text, appUrl: APP_URL, unsubscribeUrl: APP_URL });
-      return (await sendEmail(resendKey, user.email!, email, APP_URL)) ? json({ ok: true }) : fail(502, 'upstream', 'Resend a refusé le test.');
-    }
-
-    if (!isSegment(body.segment)) return fail(400, 'bad_request', 'Groupe inconnu.');
     try {
       // La liste est recalculée ici : le navigateur ne choisit jamais les destinataires.
       const data = await snapshot(admin);
+      const shared = await loadShared(admin, new Set(data.contacts.map((contact) => contact.id)));
+      const compose = (firstName: string, content: Parameters<typeof buildEmail>[0]['content'], unsubscribeUrl: string) =>
+        buildEmail({ format, firstName, subject, line, appUrl: APP_URL, unsubscribeUrl, content });
+
+      if (body.action !== 'campaign_send') {
+        const members = data.contacts.filter((contact) => contact.status === body.segment);
+        const owner = data.contacts.find((contact) => contact.isOwner);
+        // Le test part avec tes propres films ; l'aperçu montre un membre du groupe.
+        const candidates = body.action === 'campaign_test' ? [owner] : [...members.filter((c) => c.canReceive), ...members, owner];
+        for (const person of candidates.slice(0, 6)) {
+          if (!person) continue;
+          const email = compose(person.name, await loadContent(admin, person.id, shared), APP_URL);
+          if (!email) continue;
+          if (body.action === 'campaign_preview') return json({ html: email.html });
+          const ok = await sendEmail(resendKey!, user.email!, { ...email, subject: `[Test] ${subject}` }, APP_URL);
+          return ok ? json({ ok: true }) : fail(502, 'upstream', 'Resend a refusé le test.');
+        }
+        return fail(400, 'nothing', 'Ce format n’a rien à montrer pour ce groupe.');
+      }
+
+      if (!isSegment(body.segment)) return fail(400, 'bad_request', 'Groupe inconnu.');
       const targets = data.contacts.filter((contact) => contact.status === body.segment && contact.canReceive).slice(0, MAX_DAILY_SENDS);
       if (targets.length === 0) return fail(400, 'nobody', 'Personne de ce groupe ne peut recevoir ce message.');
       const { data: tokens, error: tokenError } = await admin.from('profiles').select('id, email_token').in('id', targets.map((t) => t.id));
@@ -274,24 +291,29 @@ Deno.serve(async (req: Request) => {
       const tokenById = new Map((tokens ?? []).map((row) => [row.id, row.email_token]));
       const { data: campaign, error: insertError } = await admin
         .from('cockpit_campaigns')
-        .insert({ segment: body.segment, subject, body: text })
+        .insert({ segment: body.segment, subject, body: `[${format}] ${line}` })
         .select('id')
         .single();
       if (insertError) throw new Error(insertError.message);
 
       let sent = 0;
+      let skipped = 0;
       for (const target of targets) {
         const unsubscribeUrl = `${APP_URL}/api/unsubscribe?t=${encodeURIComponent(String(tokenById.get(target.id)))}`;
-        const email = buildCampaignEmail({ firstName: target.name, subject, body: text, appUrl: APP_URL, unsubscribeUrl });
-        const ok = await sendEmail(resendKey, target.email!, email, unsubscribeUrl).catch(() => false);
+        const email = compose(target.name, await loadContent(admin, target.id, shared), unsubscribeUrl);
+        if (!email) {
+          skipped += 1;
+          continue;
+        }
+        const ok = await sendEmail(resendKey!, target.email!, email, unsubscribeUrl).catch(() => false);
         if (!ok) continue;
         sent += 1;
         await admin.from('cockpit_campaign_sends').insert({ campaign_id: campaign.id, profile_id: target.id });
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
-      const failed = targets.length - sent;
+      const failed = targets.length - sent - skipped;
       await admin.from('cockpit_campaigns').update({ recipients: sent, failed }).eq('id', campaign.id);
-      return json({ sent, failed });
+      return json({ sent, failed, skipped });
     } catch (error) {
       console.error('[cockpit] campagne impossible :', String(error));
       return fail(502, 'upstream', 'La campagne n’a pas pu partir.');

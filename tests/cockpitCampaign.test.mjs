@@ -15,7 +15,7 @@ function load(relative) {
   return exports;
 }
 
-const { buildCampaignEmail, draftMessages, parseDraft, isSegment } = load('../supabase/functions/cockpit/campaign.ts');
+const { buildEmail, tmdbImage, scoreOf, frenchNote, shortNews, draftMessages, parseDraft, isSegment } = load('../supabase/functions/cockpit/campaign.ts');
 const { buildSnapshot } = load('../supabase/functions/cockpit/logic.ts');
 
 const now = new Date('2026-11-09T12:00:00Z');
@@ -55,13 +55,57 @@ test('le résultat compte les notes dans les 7 jours suivant l’envoi', () => {
   assert.equal(input([rated(11)]).rated7, 0);
 });
 
-test('l’e-mail échappe le contenu et porte la désinscription', () => {
-  const email = buildCampaignEmail({ firstName: '<b>Inès</b>', subject: 'Salut', body: 'Un <script>\n\nDeux', appUrl: 'https://a.b', unsubscribeUrl: 'https://a.b/u?t=1' });
+const poster = 'https://image.tmdb.org/t/p/w780/abc.jpg';
+const base = { firstName: '<b>Inès</b>', subject: 'Salut', line: 'Un <script>', appUrl: 'https://a.b', unsubscribeUrl: 'https://a.b/u?t=1' };
+const empty = { wall: [], best: null, spaceNotes: [], popular: [], news: [], backdrop: null };
+const build = (format, content) => buildEmail({ ...base, format, content: { ...empty, ...content } });
+
+test('le mur compte les films de la personne et échappe tout', () => {
+  const email = build('wall', { wall: [{ title: 'A', poster }, { title: 'B', poster }] });
+  assert.ok(email.html.includes('2 films attendent ta note'));
+  assert.ok(email.html.includes('/t/p/w342/abc.jpg'));
   assert.ok(!email.html.includes('<script>'));
   assert.ok(!email.html.includes('<b>Inès'));
   assert.ok(email.html.includes('https://a.b/u?t=1'));
   assert.ok(email.text.includes('Ne plus recevoir'));
-  assert.equal((email.html.match(/font-size:15px;line-height:1.5;margin:0 0 12px/g) ?? []).length, 2);
+});
+
+test('sans liste, le mur prend les films populaires', () => {
+  const email = build('wall', { popular: [{ title: 'P', poster }] });
+  assert.ok(email.html.includes('Par quoi tu commences'));
+  assert.equal(build('wall', {}), null);
+});
+
+test('le format notes exige une note récente', () => {
+  assert.equal(build('notes', {}), null);
+  const email = build('notes', { best: { title: 'F', poster, note: 9.2 }, spaceNotes: [{ title: 'G', poster, who: 'Nora', note: 8 }] });
+  assert.ok(email.html.includes('9,2'));
+  assert.ok(email.html.includes('8,0'));
+  assert.ok(email.html.includes('Nora'));
+});
+
+test('le format nouveautés exige du contenu', () => {
+  assert.equal(build('news', {}), null);
+  const email = build('news', { news: [{ title: 'N', text: 'T' }], backdrop: poster });
+  assert.ok(email.html.includes('Quoi de neuf'));
+  assert.ok(email.html.includes('/t/p/w780/abc.jpg'));
+});
+
+test('seules les images TMDB passent', () => {
+  assert.equal(tmdbImage('https://evil.example/x.jpg', 'w342'), null);
+  assert.equal(tmdbImage(poster, 'w154'), 'https://image.tmdb.org/t/p/w154/abc.jpg');
+});
+
+test('la note suit la règle de l’app', () => {
+  assert.equal(scoreOf({ adaptive_rating: { weightedRating: 7.4 }, story: 1, visuals: 1, acting: 1, sound: 1 }), 7.4);
+  assert.equal(scoreOf({ adaptive_rating: null, story: '8', visuals: '6', acting: '7', sound: '9' }), 7.5);
+  assert.equal(scoreOf({ adaptive_rating: null }), null);
+  assert.equal(frenchNote(9), '9,0');
+});
+
+test('une nouveauté se réduit à sa première phrase', () => {
+  assert.equal(shortNews('Court. Et la suite.'), 'Court.');
+  assert.ok(shortNews('x'.repeat(200)).length <= 90);
 });
 
 test('l’IA ne reçoit aucune donnée personnelle et son brouillon est contrôlé', () => {
@@ -70,5 +114,6 @@ test('l’IA ne reçoit aucune donnée personnelle et son brouillon est contrôl
   assert.equal(parseDraft('{"subject":"Objet"}'), null);
   assert.equal(parseDraft('pas du json'), null);
   assert.equal(isSegment('asleep'), true);
+  assert.equal(isSegment('active'), true);
   assert.equal(isSegment('tous'), false);
 });

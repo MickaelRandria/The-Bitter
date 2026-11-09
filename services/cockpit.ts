@@ -50,8 +50,13 @@ export const loadCockpit = () => call<CockpitSnapshot>({ action: 'snapshot', tok
 export const draftCampaign = (segment: string, mode: string, subject: string, body: string) =>
   call<{ subject: string; body: string }>({ action: 'campaign_draft', token: readToken(), segment, mode, subject, body });
 
-export const testCampaign = (subject: string, body: string) =>
-  call<{ ok: boolean }>({ action: 'campaign_test', token: readToken(), subject, body });
+export type CampaignFormat = 'wall' | 'notes' | 'news';
 
-export const sendCampaign = (segment: string, subject: string, body: string) =>
-  call<{ sent: number; failed: number }>({ action: 'campaign_send', token: readToken(), segment, subject, body });
+export const previewCampaign = (format: CampaignFormat, segment: string, subject: string, body: string) =>
+  call<{ html: string }>({ action: 'campaign_preview', token: readToken(), format, segment, subject, body });
+
+export const testCampaign = (format: CampaignFormat, subject: string, body: string) =>
+  call<{ ok: boolean }>({ action: 'campaign_test', token: readToken(), format, subject, body });
+
+export const sendCampaign = (format: CampaignFormat, segment: string, subject: string, body: string) =>
+  call<{ sent: number; failed: number; skipped: number }>({ action: 'campaign_send', token: readToken(), format, segment, subject, body });
