@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CalendarClock, Check, ExternalLink, Loader2, X } from 'lucide-react';
-import PlanComposer from './PlanComposer';
+import PlanComposer, { MAX_SLOTS } from './PlanComposer';
 import { SlotDraft, WatchPlan, acceptSlot, cancelPlan, chosenSlotOf, proposePlan } from '../services/plans';
 import { formatSlot } from '../supabase/functions/notify/messages.ts';
 import { FavoriteCinema } from '../types';
@@ -16,6 +16,12 @@ interface Props {
   /** Prénoms des membres de l'espace, par identifiant. */
   names: Record<string, string>;
   favoriteCinema?: FavoriteCinema;
+  /**
+   * Un horaire choisi dans la feuille des séances : il ouvre la proposition et
+   * s'y ajoute. `nonce` distingue deux choix successifs du même créneau.
+   */
+  prefill?: { slot: SlotDraft; nonce: number };
+  onPrefillHandled?: () => void;
   onChanged: () => void;
   onToast?: (message: string) => void;
 }
@@ -35,6 +41,8 @@ const PlanPanel: React.FC<Props> = ({
   currentUserId,
   names,
   favoriteCinema,
+  prefill,
+  onPrefillHandled,
   onChanged,
   onToast,
 }) => {
@@ -43,6 +51,32 @@ const PlanPanel: React.FC<Props> = ({
   const [slots, setSlots] = useState<SlotDraft[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!prefill) return;
+    onPrefillHandled?.();
+    // Une séance déjà proposée ou calée ne s'écrase pas d'un toucher.
+    const live = plan && (plan.status === 'open' || plan.status === 'agreed');
+    const chosenSlot = chosenSlotOf(plan);
+    const pastAgreed = plan?.status === 'agreed' && !!chosenSlot && new Date(chosenSlot.starts_at).getTime() < Date.now();
+    if (live && !pastAgreed && !composing) {
+      onToast?.(t('showtimes.planExists'));
+      return;
+    }
+    setComposing(true);
+    setSlots((current) => {
+      const at = new Date(prefill.slot.starts_at).getTime();
+      if (current.some((s) => new Date(s.starts_at).getTime() === at)) return current;
+      if (current.length >= MAX_SLOTS) {
+        onToast?.(t('showtimes.slotsFull', { max: String(MAX_SLOTS) }));
+        return current;
+      }
+      return [...current, prefill.slot].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    });
+    onToast?.(t('showtimes.prefilled'));
+    // Volontairement sur le seul nonce : un autre rendu ne doit pas rejouer l'ajout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   const run = async (key: string, action: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
     setBusy(key);

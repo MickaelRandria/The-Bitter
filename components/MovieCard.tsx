@@ -1,6 +1,6 @@
 import React, { useState, memo, useRef, useMemo, useEffect } from 'react';
 import { Movie, WeightLabel } from '../types';
-import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle, Mic } from 'lucide-react';
+import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle, Mic, Ticket } from 'lucide-react';
 import { canDictate } from '../services/voiceReview';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
 import MovieRatingToggle from './MovieRatingToggle';
@@ -37,6 +37,8 @@ interface MovieCardProps {
   /** Ouverte d'emblée : la carte qu'on ouvre depuis le mur des films vus. */
   defaultExpanded?: boolean;
   alsoWants?: { profile_id: string; first_name: string }[];
+  /** « Séances » sur un film à voir : ses horaires dans mes cinémas. */
+  onShowtimes?: (movie: Movie) => void;
 }
 
 const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
@@ -126,6 +128,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onShare,
     alsoWants,
     defaultExpanded = false,
+    onShowtimes,
   }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -465,6 +468,25 @@ const MovieCard: React.FC<MovieCardProps> = memo(
                 {movie.director}
               </span>
             </div>
+            {/* Les séances dans mes cinémas : un film, pas une série. */}
+            {isWatchlist && !isTv && movie.tmdbId && onShowtimes && (
+              <button
+                onClick={(e) => {
+                  // Pendant une sélection, le toucher coche la carte comme ailleurs.
+                  if (selecting) return;
+                  e.stopPropagation();
+                  haptics.soft();
+                  onShowtimes(movie);
+                }}
+                onTouchStart={(e) => { if (!selecting) e.stopPropagation(); }}
+                onTouchEnd={(e) => { if (!selecting) e.stopPropagation(); }}
+                aria-label={t('showtimes.open', { title: movie.title })}
+                className="mt-3 mr-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-bitter-lime px-3.5 text-xs font-black text-charcoal shadow-sm transition active:scale-95"
+              >
+                <Ticket size={14} strokeWidth={2.4} />
+                {t('showtimes.button')}
+              </button>
+            )}
             {/* Envie commune : le premier pas vers « on y va ensemble ». */}
             {isWatchlist && alsoWants && alsoWants.length > 0 && (
               <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-lime-400 text-charcoal px-3 py-1 text-[10px] font-black uppercase tracking-wider">
