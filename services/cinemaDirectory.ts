@@ -1,4 +1,5 @@
-import { CinemaProgramme, CinemaShowtime } from '../types';
+import { CinemaProgramme, CinemaShowtime, FavoriteCinema } from '../types';
+import { cinemasOfRow } from '../utils/favoriteCinemas';
 import { supabase } from './supabase';
 
 export interface CinemaCity {
@@ -134,4 +135,36 @@ export const fetchMovieShowtimes = async (
       .map((item) => ({ ...item, startsAt: new Date(item.startsAt).getTime() }))
       .filter((item) => Number.isFinite(item.startsAt)),
   };
+};
+
+/**
+ * Les cinémas favoris d'autres personnes, par identifiant de profil.
+ *
+ * La policy `read_own_or_co_member_profile` ne laisse lire que les profils
+ * des membres d'un espace commun : c'est elle qui borne ce que l'on voit.
+ * Lecture directe sur `profiles`, sans embed : une seconde relation vers
+ * `profiles` rendrait les embeds existants ambigus (PGRST201).
+ */
+export const fetchFavoriteCinemasOf = async (profileIds: string[]): Promise<Record<string, FavoriteCinema[]>> => {
+  const ids = [...new Set(profileIds.filter(Boolean))];
+  if (!supabase || ids.length === 0) return {};
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, favorite_cinemas, favorite_cinema')
+      .in('id', ids);
+    if (error || !data) {
+      console.warn('[Cinémas] Cinémas des membres illisibles', error);
+      return {};
+    }
+    return Object.fromEntries(
+      (data as { id: string; favorite_cinemas?: unknown; favorite_cinema?: unknown }[]).map((row) => [
+        row.id,
+        cinemasOfRow(row) ?? [],
+      ])
+    );
+  } catch (error) {
+    console.warn('[Cinémas] Cinémas des membres injoignables', error);
+    return {};
+  }
 };

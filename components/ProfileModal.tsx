@@ -106,6 +106,8 @@ interface ProfileModalProps {
   onManageCinemaSubscription?: () => void;
   /** Cinéma favori : c'est lui qui alimente les séances affichées sur les fiches films. */
   favoriteCinema?: FavoriteCinema;
+  /** Mes cinémas, dans l'ordre : l'entrée du profil les résume. */
+  favoriteCinemas?: FavoriteCinema[];
   onManageFavoriteCinema?: () => void;
   /**
    * Ouvre la confirmation de suppression définitive du compte. Absent, la ligne
@@ -161,6 +163,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   cinemaSubscription,
   onManageCinemaSubscription,
   favoriteCinema,
+  favoriteCinemas,
   onManageFavoriteCinema,
   onDeleteAccount,
   onUpdateHabits,
@@ -189,6 +192,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
    */
   const canUseSpaces = !!session?.user?.email;
   const { t, language, setLanguage } = useLanguage();
+  const cinemaList = favoriteCinemas ?? (favoriteCinema ? [favoriteCinema] : []);
   const dialog = useDialog(onClose, t('profileModal.title'));
   const { theme, toggleTheme } = useTheme();
   const initial = profile.firstName?.[0]?.toUpperCase() || '?';
@@ -687,12 +691,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     {t('favoriteCinema.profile.title')}
                   </span>
                   <span className="block text-[9px] font-bold mt-0.5 truncate text-stone-400 dark:text-stone-500">
-                    {favoriteCinema ? favoriteCinema.name : t('favoriteCinema.profile.sub')}
+                    {cinemaList.length > 1
+                      ? t('cinemas.profile.many', { first: cinemaList[0].name, n: String(cinemaList.length - 1) })
+                      : cinemaList[0]?.name ?? t('favoriteCinema.profile.sub')}
                   </span>
                 </div>
               </div>
               <span className="text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 text-forest dark:text-lime-500">
-                {favoriteCinema ? t('cinemaSub.profile.edit') : t('cinemaSub.profile.configure')}
+                {cinemaList.length ? t('cinemaSub.profile.edit') : t('cinemaSub.profile.configure')}
               </span>
             </button>
           )}

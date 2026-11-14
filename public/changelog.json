@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-08-dicter",
-  "label": "Version du 8 novembre",
+  "version": "2026-11-15-cinemas",
+  "label": "Version du 15 novembre",
   "items": [
+    {
+      "title": "Tes cinémas, tes séances",
+      "body": "Suis jusqu’à 5 cinémas (Profil › Mes cinémas), dans l’ordre que tu veux. Sur chaque film de ta liste « à voir », le bouton Séances montre leurs horaires de la semaine : la prochaine séance en tête, puis un jour par ligne (« Demain · 9 séances · 11:00 → 22:05 ») à déplier d’un toucher. Dans un espace, les cinémas des autres membres s’ajoutent aux tiens, et choisir un horaire le glisse dans « On y va »."
+    },
     {
       "title": "Dicter un avis, sans détour",
       "body": "« Dicter un avis » commence par le bon film : ceux vus ces 7 derniers jours et ceux notés sans avis sont proposés d’emblée, et la recherche comprend un réalisateur, un acteur, une faute de frappe ou « dune 2 », au clavier ou à la voix. Pour un film déjà noté, tu arrives directement sur « Ton avis », micro prêt. Et sous la note d’un film sans avis : « Dicter » ou « Écrire »."
@@ -198,15 +202,15 @@
   "highlights": [
     {
       "icon": "cinema",
+      "title": "Tes cinémas, tes séances"
+    },
+    {
+      "icon": "cinema",
       "title": "Ce qu’en dit Internet"
     },
     {
       "icon": "trailers",
       "title": "Ce qu’en dit le public"
-    },
-    {
-      "icon": "cinema",
-      "title": "Ta séance, à chaud"
     }
   ]
 }

@@ -51,7 +51,7 @@ import {
   syncCinemaSubscriptionToSupabase,
   isSubscriptionUnsynced,
   markSubscriptionSyncedFromServer,
-  syncFavoriteCinemaToSupabase,
+  syncFavoriteCinemasToSupabase,
   syncMovieToSupabase,
   syncMoviesToSupabase,
   syncProfileFieldsToSupabase,
@@ -71,6 +71,7 @@ import {
 } from './types';
 import { attachForgottenSubscriptionSessions, withFirstWatchContext } from './utils/cinemaSubscription';
 import { withRatingRevision } from './utils/ratingHistory';
+import { buildShowtimeSources, cinemasOf, cinemasOfRow, favoriteCinemaFields, withFavoriteCinemas } from './utils/favoriteCinemas';
 import { WorkKey, isSeason, isSeries, workKey } from './utils/workKey';
 import { findCollectionWork, isWatchedWork, removeCollectionWork, uniqueCollection } from './utils/collectionRules';
 import { useScreeningFollowup } from './services/useScreeningFollowup';
@@ -213,7 +214,8 @@ const CinemaHistoryImportModal = lazy(() => import('./components/CinemaHistoryIm
 const CinemaSubscriptionDetailsModal = lazy(
   () => import('./components/CinemaSubscriptionDetailsModal')
 );
-const FavoriteCinemaModal = lazy(() => import('./components/FavoriteCinemaModal'));
+const FavoriteCinemasModal = lazy(() => import('./components/FavoriteCinemasModal'));
+const ShowtimesSheet = lazy(() => import('./components/ShowtimesList'));
 import {
   TOUR_STEPS,
   RATING_TOUR_STEPS,
@@ -717,6 +719,8 @@ const App: React.FC = () => {
   const [showCinemaDetails, setShowCinemaDetails] = useState(false);
   // Cinéma favori : d'où viennent les séances proposées sur la fiche film.
   const [showFavoriteCinema, setShowFavoriteCinema] = useState(false);
+  /** Le film « à voir » dont on regarde les séances dans ses cinémas. */
+  const [showtimesMovie, setShowtimesMovie] = useState<Movie | null>(null);
   // Sauvegarde en ligne du profil rattaché.
   const [showAccountSync, setShowAccountSync] = useState(false);
   /**
@@ -1324,7 +1328,7 @@ const App: React.FC = () => {
           // appareil ignore, typiquement un abonnement réglé ailleurs.
           if (
             (existingProfile.cinema_subscription && !linkedLocal.cinemaSubscription) ||
-            (existingProfile.favorite_cinema && !linkedLocal.favoriteCinema) ||
+            (cinemasOfRow(existingProfile) && !cinemasOf(linkedLocal).length) ||
             (existingProfile.avatar_url && existingProfile.avatar_url !== linkedLocal.avatarUrl)
           ) {
             setProfiles((prev) =>
@@ -1333,7 +1337,7 @@ const App: React.FC = () => {
                   ? {
                       ...p,
                       cinemaSubscription: p.cinemaSubscription ?? existingProfile.cinema_subscription,
-                      favoriteCinema: p.favoriteCinema ?? existingProfile.favorite_cinema,
+                      ...(cinemasOf(p).length ? {} : favoriteCinemaFields(cinemasOfRow(existingProfile) ?? [])),
                       // L'avatar en ligne est celui que voient les espaces : il
                       // gagne, pour qu'un autre appareil ne montre pas l'ancien.
                       avatarUrl: existingProfile.avatar_url || p.avatarUrl,
@@ -1381,7 +1385,7 @@ const App: React.FC = () => {
                     // avant l'application de la migration SQL côté Supabase.
                     cinemaSubscription:
                       existingProfile.cinema_subscription ?? p.cinemaSubscription,
-                    favoriteCinema: existingProfile.favorite_cinema ?? p.favoriteCinema,
+                    ...favoriteCinemaFields(cinemasOfRow(existingProfile) ?? cinemasOf(p)),
                     avatarUrl: existingProfile.avatar_url || p.avatarUrl,
                     movies: p.movies,
                   }
@@ -1410,7 +1414,7 @@ const App: React.FC = () => {
                 viewingPreference: existingProfile.viewing_preference || undefined,
                 streamingPlatforms: existingProfile.streaming_platforms || undefined,
                 cinemaSubscription: existingProfile.cinema_subscription ?? undefined,
-                favoriteCinema: existingProfile.favorite_cinema ?? undefined,
+                ...favoriteCinemaFields(cinemasOfRow(existingProfile) ?? []),
                 avatarUrl: existingProfile.avatar_url || undefined,
               },
             ];
@@ -2451,21 +2455,14 @@ const App: React.FC = () => {
   };
 
   /**
-   * Cinéma favori : un seul, choisi dans l'annuaire UGC. C'est lui que la fiche
-   * film interroge pour proposer des horaires ; le retirer ne fait donc que
-   * masquer la section, il ne touche à aucune séance déjà planifiée.
+   * Cinémas favoris : jusqu'à cinq, dans l'ordre choisi, depuis l'annuaire UGC.
+   * La fiche film et les listes « à voir » y cherchent les horaires ; le premier
+   * reste « le » cinéma de l'app (rappel de séance, proposition de créneaux).
+   * Les retirer ne touche à aucune séance déjà planifiée.
    */
-  const handleSaveFavoriteCinema = (cinema: FavoriteCinema) => {
-    updateActiveProfile((p) => ({ ...p, favoriteCinema: cinema }));
-    if (session?.user?.id) void syncFavoriteCinemaToSupabase(session.user.id, cinema);
-  };
-
-  const handleRemoveFavoriteCinema = () => {
-    updateActiveProfile((p) => {
-      const { favoriteCinema: _removed, ...rest } = p;
-      return rest;
-    });
-    if (session?.user?.id) void syncFavoriteCinemaToSupabase(session.user.id);
+  const handleSaveFavoriteCinemas = (cinemas: FavoriteCinema[]) => {
+    updateActiveProfile((p) => withFavoriteCinemas(p, cinemas));
+    if (session?.user?.id) void syncFavoriteCinemasToSupabase(session.user.id, cinemas);
   };
 
   const handleSaveCinemaSubscription = (subscription: CinemaSubscription) => {
@@ -3376,6 +3373,7 @@ const App: React.FC = () => {
           : undefined
       }
       alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
+      onShowtimes={(m) => setShowtimesMovie(m)}
     />
   );
   const renderHomeSpaces = () => (
@@ -3747,7 +3745,7 @@ const App: React.FC = () => {
     if (session?.user?.id) {
       await Promise.all([
         syncCinemaSubscriptionToSupabase(session.user.id, restoredProfile.cinemaSubscription),
-        syncFavoriteCinemaToSupabase(session.user.id, restoredProfile.favoriteCinema),
+        syncFavoriteCinemasToSupabase(session.user.id, cinemasOf(restoredProfile)),
         syncMoviesToSupabase(session.user.id, restoredProfile.movies),
       ]);
     }
@@ -3870,7 +3868,7 @@ const App: React.FC = () => {
         age: data.age,
         viewingPreference: data.viewingPreference,
         streamingPlatforms: data.streamingPlatforms,
-        favoriteCinema: data.favoriteCinema,
+        ...favoriteCinemaFields(data.favoriteCinema ? [data.favoriteCinema] : []),
         cinemaChain: data.cinemaChain,
         movies: [],
         createdAt: Date.now(),
@@ -3884,7 +3882,7 @@ const App: React.FC = () => {
       setShowWelcome(false);
       setViewMode('Feed');
       void syncProfileFieldsToSupabase(userId, newP, row ?? {});
-      if (data.favoriteCinema) void syncFavoriteCinemaToSupabase(userId, data.favoriteCinema);
+      if (data.favoriteCinema) void syncFavoriteCinemasToSupabase(userId, [data.favoriteCinema]);
       setPendingProfileSetup(null);
       releaseEntry();
       setToastMessage(t('entry.createdToast'));
@@ -4247,6 +4245,8 @@ const App: React.FC = () => {
               myMovies={activeProfile?.movies ?? []}
               refreshTrigger={sharedSpaceRefreshTrigger}
               favoriteCinema={activeProfile?.favoriteCinema}
+              favoriteCinemas={cinemasOf(activeProfile)}
+              onManageCinemas={() => setShowFavoriteCinema(true)}
               focusMovieId={spaceFocusMovieId}
               onFocusHandled={() => setSpaceFocusMovieId(null)}
               onToast={setToastMessage}
@@ -5376,6 +5376,8 @@ const App: React.FC = () => {
                 collectionReview={collectionMovie?.comment || undefined}
                 profileId={session?.user?.id}
                 favoriteCinema={activeProfile?.favoriteCinema}
+                favoriteCinemas={cinemasOf(activeProfile)}
+                onManageCinemas={() => setShowFavoriteCinema(true)}
                 myPlatformIds={activeProfile?.streamingPlatforms}
                 onToast={setToastMessage}
               />
@@ -5533,6 +5535,7 @@ const App: React.FC = () => {
               setShowCinemaSetup(true);
             }}
             favoriteCinema={activeProfile.favoriteCinema}
+            favoriteCinemas={cinemasOf(activeProfile)}
             onManageFavoriteCinema={() => {
               setShowProfile(false);
               setShowFavoriteCinema(true);
@@ -5689,11 +5692,28 @@ const App: React.FC = () => {
           />
         )}
 
+        {showtimesMovie?.tmdbId && (
+          <ShowtimesSheet
+            title={showtimesMovie.title}
+            tmdbId={showtimesMovie.tmdbId}
+            titles={[showtimesMovie.title]}
+            posterUrl={showtimesMovie.posterUrl}
+            profileId={session?.user?.id}
+            sources={buildShowtimeSources(cinemasOf(activeProfile))}
+            releaseDate={showtimesMovie.releaseDate}
+            onManageCinemas={() => {
+              setShowtimesMovie(null);
+              setShowFavoriteCinema(true);
+            }}
+            onToast={setToastMessage}
+            onClose={() => setShowtimesMovie(null)}
+          />
+        )}
+
         {showFavoriteCinema && (
-          <FavoriteCinemaModal
-            existing={activeProfile?.favoriteCinema}
-            onSave={handleSaveFavoriteCinema}
-            onRemove={handleRemoveFavoriteCinema}
+          <FavoriteCinemasModal
+            cinemas={cinemasOf(activeProfile)}
+            onChange={handleSaveFavoriteCinemas}
             onClose={() => setShowFavoriteCinema(false)}
           />
         )}

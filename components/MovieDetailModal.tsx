@@ -77,6 +77,9 @@ interface MovieDetailModalProps {
   /** Séances UGC : sans profil connecté ni cinéma favori, la section ne s'affiche pas. */
   profileId?: string;
   favoriteCinema?: FavoriteCinema;
+  /** Mes cinémas, dans mon ordre ; à défaut, le seul cinéma favori. */
+  favoriteCinemas?: FavoriteCinema[];
+  onManageCinemas?: () => void;
   onToast?: (message: string) => void;
   /** Mes plateformes : leur offre passe en tête, en grand. */
   myPlatformIds?: string[];
@@ -148,6 +151,8 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
   collectionReview,
   profileId,
   favoriteCinema,
+  favoriteCinemas,
+  onManageCinemas,
   onToast,
   myPlatformIds,
   filItems,
@@ -585,7 +590,9 @@ const MovieDetailModal: React.FC<MovieDetailModalProps> = ({
                   titles={showtimeTitles}
                   posterUrl={movie.poster_path ? tmdbImage(movie.poster_path, 'w780') : undefined}
                   profileId={profileId}
-                  favoriteCinema={favoriteCinema}
+                  favoriteCinemas={favoriteCinemas ?? (favoriteCinema ? [favoriteCinema] : [])}
+                  releaseDate={movie.release_date}
+                  onManageCinemas={onManageCinemas}
                   onToast={onToast}
                 />
               )}

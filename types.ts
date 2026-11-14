@@ -57,7 +57,7 @@ export interface CinemaSubscription {
 }
 
 /**
- * Le cinéma où l'utilisateur va habituellement. Un seul, volontairement : c'est
+ * Un cinéma suivi par l'utilisateur (jusqu'à cinq, voir `UserProfile.favoriteCinemas`). C'est
  * lui qu'on interroge pour savoir si un film est programmé près de chez lui.
  * L'identifiant est celui d'UGC, il vient de l'annuaire (`cinema-directory`).
  */
@@ -431,6 +431,7 @@ export interface UserProfile {
   avatarUrl?: string;
   cinemaSubscription?: CinemaSubscription;
   favoriteCinema?: FavoriteCinema;
+  favoriteCinemas?: FavoriteCinema[];
   /** Chaîne déclarée à l'inscription. Seul UGC a un annuaire de salles pour l'instant. */
   cinemaChain?: 'ugc' | 'pathe' | 'other';
 }

@@ -25,6 +25,7 @@
     "react-ga4": "^2.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
     "@types/node": "^22.14.0",
     "@types/papaparse": "^5.5.2",
     "@typescript-eslint/eslint-plugin": "^8.57.2",

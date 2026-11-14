@@ -46,7 +46,10 @@ import { haptics } from '../utils/haptics';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import SpacePitchPanel, { MemberTaste } from './SpacePitchPanel';
 import PlanPanel from './PlanPanel';
-import { WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import { ShowtimesSheet } from './ShowtimesList';
+import { fetchFavoriteCinemasOf } from '../services/cinemaDirectory';
+import { buildShowtimeSources } from '../utils/favoriteCinemas';
+import { SlotDraft, WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
 import SpaceTodoStack from './SpaceTodoStack';
 import SwipeRow from './SwipeRow';
 import { SELECTED_RING, Selectable, SelectionCheck } from './SelectableWork';
@@ -99,6 +102,9 @@ interface SharedSpaceViewProps {
   refreshTrigger?: number;
   /** Cinéma favori, pour proposer les vraies séances d'un film. */
   favoriteCinema?: FavoriteCinema;
+  /** Mes cinémas, dans l'ordre : la feuille des séances y ajoute ceux des membres. */
+  favoriteCinemas?: FavoriteCinema[];
+  onManageCinemas?: () => void;
   /** Film à ouvrir d'emblée : celui d'une notification touchée. */
   focusMovieId?: string | null;
   onFocusHandled?: () => void;
@@ -158,6 +164,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   myMovies,
   refreshTrigger,
   favoriteCinema,
+  favoriteCinemas,
+  onManageCinemas,
   focusMovieId,
   onFocusHandled,
   onToast,
@@ -1040,6 +1048,37 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     }, 200);
   };
 
+  /** Le film dont on regarde les séances, dans mes salles et celles des membres. */
+  const [showtimesFor, setShowtimesFor] = useState<SharedMovie | null>(null);
+  /** Cinémas favoris des autres membres, lus à la première ouverture de la feuille. */
+  const [memberCinemas, setMemberCinemas] = useState<Record<string, FavoriteCinema[]> | null>(null);
+  /** Un horaire choisi dans la feuille : il attend dans « On y va » du film. */
+  const [planPrefill, setPlanPrefill] = useState<{ movieId: string; slot: SlotDraft; nonce: number } | null>(null);
+
+  const openShowtimes = (movie: SharedMovie) => {
+    haptics.soft();
+    setShowtimesFor(movie);
+    if (memberCinemas) return;
+    const others = members.filter((m) => m.profile_id !== currentUserId).map((m) => m.profile_id);
+    void fetchFavoriteCinemasOf(others).then(setMemberCinemas);
+  };
+
+  const showtimeSources = useMemo(
+    () =>
+      buildShowtimeSources(
+        favoriteCinemas ?? (favoriteCinema ? [favoriteCinema] : []),
+        members
+          .filter((m) => m.profile_id !== currentUserId)
+          .map((m) => ({
+            name: memberNames[m.profile_id] || t('shared.member'),
+            color: memberColors[m.profile_id],
+            cinemas: memberCinemas?.[m.profile_id] ?? [],
+          }))
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [favoriteCinemas, favoriteCinema, members, memberCinemas, currentUserId]
+  );
+
   const watchContext = (movie: SharedMovie) => {
     const movieVotes = votes.filter((v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id));
     const keenIds = movieVotes.filter((v) => v.interested).map((v) => v.profile_id);
@@ -1177,6 +1216,25 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         {t('spaces.keenQ')}
       </button>
     ) : null;
+    // Les séances du film dans nos cinémas : un film, pas une série.
+    const showtimesButton =
+      movie.media_type === 'tv' || !movie.tmdb_id ? null : headliner ? (
+        <button
+          onClick={() => openShowtimes(movie)}
+          aria-label={t('showtimes.openSpace', { title: movie.title })}
+          className="h-11 px-3.5 rounded-full border-[1.5px] border-white/80 text-white text-xs font-black whitespace-nowrap flex items-center gap-1.5 active:scale-95 transition-transform"
+        >
+          <Ticket size={14} strokeWidth={2.4} /> {t('showtimes.button')}
+        </button>
+      ) : (
+        <button
+          onClick={() => openShowtimes(movie)}
+          aria-label={t('showtimes.openSpace', { title: movie.title })}
+          className="w-11 h-11 rounded-full border-[1.5px] border-white/80 text-white flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <Ticket size={16} strokeWidth={2.4} />
+        </button>
+      );
     return (
       <Selectable key={movie.id} work={workOf(movie)}>
       {({ selected, selecting, handlers, style }) => (
@@ -1263,8 +1321,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                 </span>
                 {/* Mêmes gestionnaires que l'affiche : pendant une sélection, « Partant ? »
                     ou « On y va » cochent la carte au lieu de voter ou d'ouvrir la séance. */}
-                {cta && (
-                  <span {...handlers} style={style} className="pointer-events-auto shrink-0">
+                {(cta || showtimesButton) && (
+                  <span {...handlers} style={style} className="pointer-events-auto shrink-0 flex items-center gap-2">
+                    {showtimesButton}
                     {cta}
                   </span>
                 )}
@@ -1359,6 +1418,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             currentUserId={currentUserId}
             names={memberNames}
             favoriteCinema={movie.media_type === 'tv' ? undefined : favoriteCinema}
+            prefill={planPrefill?.movieId === movie.id ? planPrefill : undefined}
+            onPrefillHandled={() => setPlanPrefill(null)}
             onChanged={() => {
               reloadPlans();
               loadData(true);
@@ -2165,6 +2226,45 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             onBack();
           }}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showtimesFor?.tmdb_id && (
+        <ShowtimesSheet
+          title={showtimesFor.title}
+          tmdbId={showtimesFor.tmdb_id}
+          titles={[showtimesFor.title]}
+          posterUrl={showtimesFor.poster_url}
+          profileId={currentUserId}
+          sources={showtimeSources}
+          space
+          onManageCinemas={
+            onManageCinemas
+              ? () => {
+                  setShowtimesFor(null);
+                  onManageCinemas();
+                }
+              : undefined
+          }
+          onPick={(showtime, source) => {
+            const movie = showtimesFor;
+            setShowtimesFor(null);
+            setPlanPrefill({
+              movieId: movie.id,
+              nonce: Date.now(),
+              slot: {
+                starts_at: new Date(showtime.startsAt).toISOString(),
+                cinema_name: source.cinema.name,
+                cinema_id: source.cinema.id,
+                showtime_id: showtime.id,
+                version: showtime.version,
+                booking_url: showtime.bookingUrl,
+              },
+            });
+            openPlan(movie.id);
+          }}
+          onToast={onToast}
+          onClose={() => setShowtimesFor(null)}
         />
       )}
 

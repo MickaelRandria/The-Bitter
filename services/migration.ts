@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 import { CinemaSubscription, FavoriteCinema, UserProfile, Movie } from '../types';
 import { WORK_KEY_COLUMNS, movieToRow } from './movieSync';
 import { workKey } from '../utils/workKey';
+import { uniqueFavoriteCinemas } from '../utils/favoriteCinemas';
 
 const PROFILES_STORAGE_KEY = 'the_bitter_profiles_v2';
 
@@ -324,28 +325,32 @@ export const isSubscriptionUnsynced = (subscription?: CinemaSubscription): subsc
   !!subscription && !readSyncedSubscriptions().includes(subscription.id);
 
 /**
- * Persiste le cinéma favori dans le profil Supabase.
+ * Persiste les cinémas favoris dans le profil Supabase.
  *
- * Même choix que pour l'abonnement : une préférence unique n'a pas besoin de sa
- * propre table. Un échec est silencieux côté application — le réglage reste
- * appliqué localement et la prochaine modification retentera l'écriture.
+ * Les deux colonnes partent dans la même requête : `favorite_cinemas` (la liste,
+ * dans l'ordre) et `favorite_cinema` (son premier élément), que lisent encore
+ * les anciens builds et les anciens backups. Un échec est silencieux côté
+ * application — le réglage reste appliqué localement et la prochaine
+ * modification retentera l'écriture.
  */
-export async function syncFavoriteCinemaToSupabase(
+export async function syncFavoriteCinemasToSupabase(
   userId: string,
-  cinema?: FavoriteCinema
+  cinemas: FavoriteCinema[] = []
 ): Promise<void> {
   if (!supabase) return;
 
+  const list = uniqueFavoriteCinemas(cinemas);
   const { error } = await supabase
     .from('profiles')
     .update({
-      favorite_cinema: cinema ?? null,
+      favorite_cinemas: list.length ? list : null,
+      favorite_cinema: list[0] ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId);
 
   if (error && import.meta.env.DEV) {
-    console.error('[Favorite cinema] Unable to sync favourite cinema:', error);
+    console.error('[Favorite cinema] Unable to sync favourite cinemas:', error);
   }
 }
 
