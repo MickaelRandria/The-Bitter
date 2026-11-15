@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { btnIcon, btnIconPrimary, sectionLabel } from '../utils/ui';
+import { openBookingReturn } from '../services/bookingReturn';
 
 export const agendaPill =
   'inline-flex min-h-9 items-center justify-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wide transition active:scale-95 disabled:opacity-50';
@@ -130,6 +131,25 @@ export default function CalendarEventCard({
             .filter(Boolean)
             .join(' · ')}
         </p>
+        {/* Passé par UGC sans confirmer : la question reste posée ici. */}
+        {event.kind === 'screening' && event.pending && event.screeningId && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => openBookingReturn(event.screeningId!, 'yes')}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-bitter-lime px-3.5 text-[11.5px] font-black text-charcoal transition active:scale-95"
+            >
+              <Check size={14} strokeWidth={2.8} /> {t('booking.haveTickets')}
+            </button>
+            <button
+              type="button"
+              onClick={() => openBookingReturn(event.screeningId!, 'no')}
+              className="inline-flex h-9 items-center rounded-full border border-stone-300 px-3.5 text-[11.5px] font-black text-charcoal transition active:scale-95 dark:border-white/15 dark:text-white"
+            >
+              {t('booking.notBooked')}
+            </button>
+          </div>
+        )}
         {/* Le billet d'abord : c'est ce qu'on cherche devant la borne. */}
         {event.kind === 'screening' && event.hasTicket && actions.onTicket && event.startsAt && event.startsAt > Date.now() - 3 * 3_600_000 && (
           <button
