@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarPlus, Check, CircleCheck, ImagePlus, Loader2, Ticket, TriangleAlert, X } from 'lucide-react';
+import { CalendarPlus, Check, CircleCheck, ImagePlus, Loader2, QrCode, Ticket, TriangleAlert, X } from 'lucide-react';
 import { CinemaScreening, CinemaScreeningInput, FavoriteCinema } from '../types';
-import { confirmScreening, createScreening } from '../services/screenings';
+import { confirmScreening, createScreening, setScreeningTicketCode } from '../services/screenings';
+import { readTicketQr } from '../services/ticketQr';
 import {
   MAX_TICKET_IMAGES,
   ScannedTicket,
@@ -69,6 +70,8 @@ const describe = (draft: TicketDraft, existingScreenings: CinemaScreening[]) => 
   const existing = findExistingScreening(existingScreenings, startsAt, title, draft.film?.tmdbId);
   const isPast = !Number.isFinite(startsAt) || startsAt <= Date.now();
   const alreadyPlanned = existing?.status === 'scheduled';
+  // Déjà au calendrier, mais sans son QR code : le billet sert à l'y ajouter.
+  const attachQr = alreadyPlanned && !isPast && !!draft.scanned.ticketCode && !existing?.ticketCode;
   // Le même film déjà prévu à une autre date : un billet en double, ou une
   // séance déplacée sans supprimer l'ancienne.
   const sameFilmElsewhere = alreadyPlanned
@@ -81,7 +84,8 @@ const describe = (draft: TicketDraft, existingScreenings: CinemaScreening[]) => 
     sameFilmElsewhere,
     isPast,
     alreadyPlanned,
-    selectable: !isPast && !alreadyPlanned,
+    attachQr,
+    selectable: !isPast && (!alreadyPlanned || attachQr),
     cinemaName: draft.match?.cinema?.name || draft.scanned.cinema,
     cinemaCity: draft.match?.cinema?.city || '',
     posterUrl: draft.film?.posterUrl || draft.showing?.posterUrl,
@@ -147,8 +151,12 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
     haptics.soft();
 
     try {
-      const prepared = await Promise.all(files.map(prepareTicketImage));
-      const { tickets: scanned, failedImages } = await scanTicketImages(prepared);
+      // Le QR code se lit sur le téléphone, sur l'image d'origine ; seul son contenu sera gardé.
+      const [prepared, codes] = await Promise.all([
+        Promise.all(files.map(prepareTicketImage)),
+        Promise.all(files.map(readTicketQr)),
+      ]);
+      const { tickets: scanned, failedImages, unplacedCodes } = await scanTicketImages(prepared, codes);
       if (!alive.current) return;
       if (scanned.length === 0) {
         setPhase('pick');
@@ -158,6 +166,11 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
             : 'Aucune séance lue sur ces images. Vérifie qu’elles montrent bien une séance de « Mes résas », avec le titre, le jour et l’heure.'
         );
         return;
+      }
+      if (unplacedCodes > 0) {
+        setNotice(
+          'Un QR code a été lu sans qu’on sache à quelle séance il appartient : importe la capture « Voir mon billet » de chaque séance séparément.'
+        );
       }
       if (failedImages > 0) {
         setNotice(`${failedImages} image${failedImages > 1 ? 's n’ont' : ' n’a'} pas pu être lue${failedImages > 1 ? 's' : ''} : réessaie-les ensuite.`);
@@ -248,6 +261,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
 
     let created = 0;
     let confirmed = 0;
+    let qrAdded = 0;
     const failed: string[] = [];
     const done = new Set<string>();
 
@@ -256,6 +270,17 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
     for (const draft of chosen) {
       const view = describe(draft, existingScreenings);
 
+      // Déjà prévue : le billet n'apporte que son QR code.
+      if (view.attachQr && view.existing && draft.scanned.ticketCode) {
+        if (await setScreeningTicketCode(view.existing.id, draft.scanned.ticketCode)) {
+          qrAdded += 1;
+          done.add(draft.key);
+        } else {
+          failed.push(view.title);
+        }
+        continue;
+      }
+
       // Déjà là en attente (lien « Réserver sur UGC » suivi depuis The Bitter) :
       // le billet est la preuve de la réservation, on la confirme.
       if (view.existing?.status === 'pending') {
@@ -263,6 +288,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
         if (result.ok) {
           confirmed += 1;
           done.add(draft.key);
+          if (draft.scanned.ticketCode && (await setScreeningTicketCode(view.existing.id, draft.scanned.ticketCode))) qrAdded += 1;
         } else {
           failed.push(view.title);
         }
@@ -280,11 +306,13 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
         notes: ticketNotes(draft.scanned) || undefined,
         reminderOffsetsMinutes: reminders,
         status: 'scheduled',
+        ticketCode: draft.scanned.ticketCode,
       };
       const result = await createScreening(profileId, input);
       if (result.ok) {
         created += 1;
         done.add(draft.key);
+        if (draft.scanned.ticketCode) qrAdded += 1;
         if (alsoWatchlist && draft.film) onAddToWatchlist?.(draft.film.tmdbId);
       } else {
         failed.push(view.title);
@@ -293,7 +321,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
 
     if (!alive.current) return;
     setIsSaving(false);
-    if (created + confirmed > 0) onImported();
+    if (created + confirmed + qrAdded > 0) onImported();
 
     if (failed.length > 0) {
       setDrafts((current) => current.filter((draft) => !done.has(draft.key)));
@@ -307,7 +335,12 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
       confirmed > 0 ? `${confirmed} confirmée${confirmed > 1 ? 's' : ''}` : '',
     ].filter(Boolean);
     haptics.success();
-    finish(`${parts.join(', ')}. Les rappels The Bitter sont prêts.`);
+    const qrLine = qrAdded > 0 ? ` ${qrAdded > 1 ? `${qrAdded} QR codes prêts` : 'QR code prêt'} pour l’entrée.` : '';
+    finish(
+      parts.length
+        ? `${parts.join(', ')}. Les rappels The Bitter sont prêts.${qrLine}`
+        : `${qrAdded > 1 ? `${qrAdded} QR codes ajoutés` : 'QR code ajouté'} : ton billet t’attend dans « Ta place ».`
+    );
   };
 
   const busy = phase === 'reading' || phase === 'checking';
@@ -326,7 +359,7 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
             <p className="mt-1 text-xs font-medium text-stone-500 dark:text-stone-400">
               {phase === 'review'
                 ? 'Vérifie la liste, puis ajoute tout d’un coup.'
-                : 'Une image par séance, depuis « Mes résas » dans l’app UGC.'}
+                : 'Une image par séance, depuis l’app UGC. Avec le QR code, ton billet t’attend le jour J.'}
             </p>
           </div>
           <button
@@ -350,6 +383,31 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
         <div className="space-y-5 overflow-y-auto px-6 py-6">
           {phase === 'pick' && (
             <>
+              <div className="rounded-3xl bg-[#17152C] p-5 text-white">
+                <span className="inline-flex h-6 items-center rounded-full bg-bitter-lime px-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-charcoal">
+                  Nouveau
+                </span>
+                <p className="mt-3 text-xl font-black leading-tight tracking-[-0.04em]">Ton billet, dans The Bitter</p>
+                <p className="mt-2 text-[13px] font-medium leading-relaxed text-white/75">
+                  Ajoute la capture de <b className="font-extrabold text-white">« Voir mon billet »</b>, celle avec le QR code : le jour J,
+                  il s’affiche dans « Ta place », prêt à scanner à l’entrée, même sans réseau.
+                </p>
+                <ol className="mt-3 space-y-1.5 text-xs font-semibold text-white/85">
+                  <li className="flex items-center gap-2.5">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bitter-lime/15 text-[11px] font-black text-bitter-lime">1</span>
+                    La séance s’ajoute à ton calendrier
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bitter-lime/15 text-[11px] font-black text-bitter-lime">2</span>
+                    Elle apparaît dans tes espaces : « Ta place »
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bitter-lime/15 text-[11px] font-black text-bitter-lime">3</span>
+                    Le jour J, ton QR code est prêt
+                  </li>
+                </ol>
+              </div>
+
               <TicketCaptureDemo />
 
               <button
@@ -366,8 +424,9 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
               )}
 
               <p className="text-[11px] font-medium leading-relaxed text-stone-400">
-                <strong className="font-extrabold">{MAX_TICKET_IMAGES} billets maximum à la fois.</strong> Pas besoin d’ouvrir
-                « Voir mon billet » : le QR code ne sert pas. Tes captures ne sont pas conservées.
+                <strong className="font-extrabold">{MAX_TICKET_IMAGES} images maximum à la fois.</strong> La séance se lit sur
+                n’importe quelle capture ; le QR code, sur celle de « Voir mon billet ». Tes captures ne sont pas conservées : seul le
+                contenu du QR code est gardé, visible par toi seul, et effacé après la séance.
               </p>
             </>
           )}
@@ -403,6 +462,8 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
                   const checked = draft.selected && view.selectable;
                   const status = view.isPast
                     ? { tone: 'muted', text: 'Séance déjà passée' }
+                    : view.attachQr
+                      ? { tone: 'ok', text: 'Déjà dans ton calendrier : on y ajoute le QR code' }
                     : view.alreadyPlanned
                       ? { tone: 'muted', text: 'Déjà dans ton calendrier' }
                       : view.existing?.status === 'pending'
@@ -484,6 +545,11 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
                             ) : null}
                             {status.text}
                           </p>
+                          {draft.scanned.ticketCode && !view.isPast && (
+                            <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-forest dark:text-lime-500">
+                              <QrCode size={13} className="shrink-0" /> QR code lu : prêt pour le jour J
+                            </p>
+                          )}
 
                           {/* Ni retrouvée ni à choisir parmi d'autres horaires : la
                               personne corrige elle-même le jour et l'heure lus. */}
@@ -613,7 +679,9 @@ const TicketImportModal: React.FC<TicketImportModalProps> = ({
                     ? rateDraft
                       ? 'Noter ce film'
                       : 'Aucune séance à ajouter'
-                    : `Ajouter ${chosen.length} séance${chosen.length > 1 ? 's' : ''}`}
+                    : chosen.every((draft) => describe(draft, existingScreenings).attachQr)
+                      ? `Ajouter ${chosen.length > 1 ? 'les QR codes' : 'le QR code'}`
+                      : `Ajouter ${chosen.length} séance${chosen.length > 1 ? 's' : ''}`}
               </button>
             </>
           )}

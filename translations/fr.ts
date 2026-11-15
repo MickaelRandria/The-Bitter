@@ -4039,4 +4039,13 @@ export const fr: Record<string, string> = {
   "showtimes.searching": "Recherche des séances…",
   "showtimes.inCalendar": "dans ton calendrier",
   "showtimes.seeProgramme": "Voir le programme",
+  "ticket.label": "Billet pour {title}",
+  "ticket.kicker": "Ton billet",
+  "ticket.open": "Mon billet",
+  "ticket.qrAlt": "QR code du billet pour {title}",
+  "ticket.unreadable": "Le QR code de ce billet n’est plus disponible. Ouvre l’app UGC pour le présenter.",
+  "ticket.showAtGate": "Présente ce code à l’entrée",
+  "ticket.brightness": "Monte la luminosité",
+  "ticket.offline": "Marche sans réseau",
+  "ticket.fallback": "Le code ne passe pas ? Ouvrir l’app UGC",
 };

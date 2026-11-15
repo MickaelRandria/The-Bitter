@@ -4033,4 +4033,13 @@ export const en: Record<string, string> = {
   "showtimes.searching": "Looking for showtimes…",
   "showtimes.inCalendar": "in your calendar",
   "showtimes.seeProgramme": "See the programme",
+  "ticket.label": "Ticket for {title}",
+  "ticket.kicker": "Your ticket",
+  "ticket.open": "My ticket",
+  "ticket.qrAlt": "Ticket QR code for {title}",
+  "ticket.unreadable": "This ticket’s QR code is no longer available. Open the UGC app to show it.",
+  "ticket.showAtGate": "Show this code at the entrance",
+  "ticket.brightness": "Turn brightness up",
+  "ticket.offline": "Works offline",
+  "ticket.fallback": "Code not scanning? Open the UGC app",
 };

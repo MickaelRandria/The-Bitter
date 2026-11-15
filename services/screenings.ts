@@ -1,5 +1,6 @@
 import { CinemaScreening, CinemaScreeningInput, CinemaScreeningStatus } from '../types';
 import { supabase } from './supabase';
+import { cacheTicketCodes } from '../utils/ticketCode';
 
 interface ScreeningRow {
   id: string;
@@ -17,6 +18,7 @@ interface ScreeningRow {
   reminder_offsets_minutes: unknown;
   plan_id?: string | null;
   booking_url?: string | null;
+  ticket_code?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +65,7 @@ const fromRow = (row: ScreeningRow): CinemaScreening => ({
     ? row.reminder_offsets_minutes.map(Number).filter(Number.isFinite)
     : DEFAULT_REMINDERS,
   planId: row.plan_id ?? undefined,
+  ticketCode: row.ticket_code ?? undefined,
   bookingUrl: row.booking_url ?? undefined,
   createdAt: timestamp(row.created_at),
   updatedAt: timestamp(row.updated_at),
@@ -105,6 +108,7 @@ const toRow = (input: CinemaScreeningInput) => {
     notes: cleanText(input.notes, 1_000),
     reminder_offsets_minutes: offsets,
     ...(input.bookingUrl ? { booking_url: cleanText(input.bookingUrl, 2_000) } : {}),
+    ...(input.ticketCode ? { ticket_code: cleanText(input.ticketCode, 4_000) } : {}),
   };
 };
 
@@ -125,7 +129,9 @@ export const listUpcomingScreenings = async (profileId: string): Promise<CinemaS
       console.warn('[Séances] Chargement échoué', error);
       return [];
     }
-    return (data as ScreeningRow[]).map(fromRow);
+    const list = (data as ScreeningRow[]).map(fromRow);
+    cacheTicketCodes(list);
+    return list;
   } catch (error) {
     console.warn('[Séances] Calendrier injoignable', error);
     return [];
@@ -213,7 +219,9 @@ export const listScreeningsForMovie = async (
       console.warn('[Séances] Séances du film introuvables', error);
       return [];
     }
-    return (data as ScreeningRow[]).map(fromRow);
+    const list = (data as ScreeningRow[]).map(fromRow);
+    cacheTicketCodes(list);
+    return list;
   } catch (error) {
     console.warn('[Séances] Séances du film injoignables', error);
     return [];
@@ -381,5 +389,21 @@ export const listSpaceScreeningMatches = async (
     }));
   } catch {
     return [];
+  }
+};
+
+/** Le QR code d'un billet, ajouté à une séance déjà au calendrier. */
+export const setScreeningTicketCode = async (screeningId: string, ticketCode: string): Promise<boolean> => {
+  if (!supabase || !screeningId || !ticketCode) return false;
+  try {
+    const { error } = await supabase
+      .from('cinema_screenings')
+      .update({ ticket_code: ticketCode.slice(0, 4_000), updated_at: new Date().toISOString() })
+      .eq('id', screeningId);
+    if (error) console.warn('[Séances] QR code du billet non enregistré', error);
+    return !error;
+  } catch (error) {
+    console.warn('[Séances] QR code du billet injoignable', error);
+    return false;
   }
 };

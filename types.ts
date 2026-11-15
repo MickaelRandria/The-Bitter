@@ -144,6 +144,8 @@ export interface CinemaScreening {
   planId?: string;
   /** Lien de réservation UGC, quand la séance vient de la vraie grille. */
   bookingUrl?: string;
+  /** Contenu du QR code du billet (« b:<base64> »), lisible par la seule propriétaire. */
+  ticketCode?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -161,6 +163,8 @@ export interface CinemaScreeningInput {
   /** Absent = 'scheduled', le statut des séances saisies à la main. */
   status?: CinemaScreeningStatus;
   bookingUrl?: string;
+  /** Le QR code lu sur la capture du billet ; absent, on ne touche pas à celui qui existe. */
+  ticketCode?: string;
 }
 
 export type ViewingLocationType = 'cinema' | 'home' | 'other';

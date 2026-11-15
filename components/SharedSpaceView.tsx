@@ -68,6 +68,8 @@ import { linkScreeningToPlan, listSpaceScreeningMatches, listUpcomingScreenings 
 import { isSameScreening, myScreeningFor, slotFromScreening } from '../utils/myPlace';
 import MyPlaceTicket, { PlacePerson } from './MyPlaceTicket';
 import PlanInvitation from './PlanInvitation';
+import TicketQrSheet from './TicketQrSheet';
+import { cachedTicketCode } from '../utils/ticketCode';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
 import { avatarSrc } from '../utils/avatar';
 import MemberProfileModal from './MemberProfileModal';
@@ -1000,6 +1002,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const [screeningMatches, setScreeningMatches] = useState<{ tmdbId: number; profileId: string; startsAt: number }[]>([]);
   /** Le film dont l'invitation reçue est ouverte en plein écran. */
   const [invitationFor, setInvitationFor] = useState<string | null>(null);
+  /** Mon billet ouvert en grand, avec son QR code. */
+  const [ticketOpen, setTicketOpen] = useState<{ screening: CinemaScreening; title: string; posterUrl?: string } | null>(null);
   const [placeBusy, setPlaceBusy] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState<'join' | 'ticket' | null>(null);
   const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(readDismissedInvites);
@@ -1663,6 +1667,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             inviteLabel={ctx.inviteLabel}
             inviting={placeBusy === movie.id}
             onInvite={() => void inviteToMyPlace(movie, ctx.place!)}
+            onShowTicket={
+              ctx.place.ticketCode || cachedTicketCode(ctx.place.id)
+                ? () => setTicketOpen({ screening: ctx.place!, title: movie.title, posterUrl: movie.poster_url })
+                : undefined
+            }
             note={
               ctx.allComing
                 ? t('place.together')
@@ -2490,6 +2499,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             onBack();
           }}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {ticketOpen && (
+        <TicketQrSheet
+          screening={ticketOpen.screening}
+          title={ticketOpen.title}
+          posterUrl={ticketOpen.posterUrl}
+          onClose={() => setTicketOpen(null)}
         />
       )}
 
