@@ -32,6 +32,7 @@ import CinemaScreeningComposer from './CinemaScreeningComposer';
 import NavAddShortcuts, { NavShortcut } from './NavAddShortcuts';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import UpcomingReleasesFrise from './UpcomingReleasesFrise';
+import { placesByFilm } from '../services/myScreenings';
 import ScreeningChecksCard from './ScreeningChecksCard';
 import { CheckedScreening, DISMISSED_CHECKS_KEY, parseDismissed, screeningChecks } from '../utils/screeningChecks';
 
@@ -56,6 +57,8 @@ interface CalendarViewProps {
   /** Toucher l'affiche d'un film vu : « Ma note ». */
   onOpenFilm?: (movie: Movie) => void;
   onWatchWith?: (tmdbId: number) => void;
+  /** « Séances » depuis la frise des sorties. */
+  onShowtimes?: (film: { tmdbId: number; title: string; posterUrl?: string; releaseDate?: string }) => void;
   onToast?: (message: string) => void;
   /** Onglet d'ouverture : « À venir » depuis le bandeau ciné de Découvrir. */
   initialTab?: 'month' | 'upcoming' | 'year';
@@ -613,6 +616,8 @@ export default function CalendarView(props: CalendarViewProps) {
                 onSelectMovie={(tmdbId) => props.onPreviewMovie?.(tmdbId)}
                 onQuickWatchlist={(tmdbId) => void props.onAddToWatchlist?.(tmdbId)}
                 onWatchWith={props.onWatchWith}
+                places={placesByFilm(agenda.screenings)}
+                onShowtimes={props.onShowtimes}
               />
             }
             days={days}

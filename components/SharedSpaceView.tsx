@@ -64,7 +64,7 @@ import { formatRating, formatSlot } from '../supabase/functions/notify/messages.
 import { getDisplayWeightedRating, hasVerdict } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
 import { CinemaScreening, FavoriteCinema, Movie } from '../types';
-import { linkScreeningToPlan, listSpaceScreeningMatches, listUpcomingScreenings } from '../services/screenings';
+import { SCREENINGS_CHANGED, linkScreeningToPlan, listSpaceScreeningMatches, listUpcomingScreenings } from '../services/screenings';
 import { isSameScreening, myScreeningFor, slotFromScreening } from '../utils/myPlace';
 import MyPlaceTicket, { PlacePerson } from './MyPlaceTicket';
 import PlanInvitation from './PlanInvitation';
@@ -943,7 +943,11 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         .filter((x) => x.low >= 7)
         .sort((a, b) => b.low - a.low)[0];
       suggestionsRef.current = getSpaceSuggestions({
-        existing: new Set(movies.map((m) => m.tmdb_id).filter((id): id is number => typeof id === 'number')),
+        // Ni ce qui est déjà dans l'espace, ni un film dont j'ai déjà ma place.
+        existing: new Set([
+          ...movies.map((m) => m.tmdb_id).filter((id): id is number => typeof id === 'number'),
+          ...myScreenings.map((sc) => sc.tmdbId).filter((id): id is number => typeof id === 'number'),
+        ]),
         tastes,
         common: common ? { tmdbId: common.m.tmdb_id!, title: common.m.title } : null,
       });
@@ -1017,6 +1021,13 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     reloadPlaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId, initialSpace.id, refreshTrigger]);
+  // Un billet scanné ou une séance ajoutée ailleurs : « Ta place » suit sans recharger.
+  useEffect(() => {
+    const onChange = () => reloadPlaces();
+    window.addEventListener(SCREENINGS_CHANGED, onChange);
+    return () => window.removeEventListener(SCREENINGS_CHANGED, onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, initialSpace.id]);
 
   /** Une invitation pour moi : un créneau unique, proposé par un autre, auquel je n'ai pas répondu. */
   const invitationOf = (plan: WatchPlan | null) => {

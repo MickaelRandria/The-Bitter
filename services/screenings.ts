@@ -2,6 +2,16 @@ import { CinemaScreening, CinemaScreeningInput, CinemaScreeningStatus } from '..
 import { supabase } from './supabase';
 import { cacheTicketCodes } from '../utils/ticketCode';
 
+/** Émis après chaque écriture réussie : toutes les vues de « mes places » se rechargent. */
+export const SCREENINGS_CHANGED = 'bitter:screenings-changed';
+export const notifyScreeningsChanged = () => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SCREENINGS_CHANGED));
+};
+const changed = <T,>(value: T): T => {
+  if (value === true || (typeof value === 'object' && value && (value as { ok?: boolean }).ok)) notifyScreeningsChanged();
+  return value;
+};
+
 interface ScreeningRow {
   id: string;
   profile_id: string;
@@ -175,7 +185,7 @@ export const confirmScreeningRating = async (profileId: string, screeningId: str
       .eq('profile_id', profileId).eq('id', screeningId)
       .in('status', ['scheduled', 'completed']).lte('starts_at', new Date().toISOString())
       .select('id').abortSignal(AbortSignal.timeout(8_000)).maybeSingle();
-    return !error && !!data;
+    return changed(!error && !!data);
   } catch { return false; }
 };
 
@@ -186,7 +196,7 @@ export const cancelPastScreening = async (profileId: string, screeningId: string
       .update({ status: 'cancelled' }).eq('profile_id', profileId).eq('id', screeningId)
       .eq('status', 'scheduled').lte('starts_at', new Date().toISOString())
       .select('id').abortSignal(AbortSignal.timeout(8000)).maybeSingle();
-    return !error && !!data;
+    return changed(!error && !!data);
   } catch { return false; }
 };
 
@@ -245,7 +255,7 @@ export const createScreening = async (
       .abortSignal(controller.signal)
       .single();
     if (error || !data) return { ok: false, error: messageFor(error) };
-    return { ok: true, screening: fromRow(data as ScreeningRow) };
+    return changed({ ok: true, screening: fromRow(data as ScreeningRow) });
   } catch (error) {
     return { ok: false, error: messageForException(error) };
   } finally {
@@ -269,7 +279,7 @@ export const updateScreening = async (
       .abortSignal(controller.signal)
       .single();
     if (error || !data) return { ok: false, error: messageFor(error) };
-    return { ok: true, screening: fromRow(data as ScreeningRow) };
+    return changed({ ok: true, screening: fromRow(data as ScreeningRow) });
   } catch (error) {
     return { ok: false, error: messageForException(error) };
   } finally {
@@ -290,7 +300,7 @@ export const updateScreeningStatus = async (
     console.warn('[Séances] Mise à jour du statut échouée', error);
     return false;
   }
-  return true;
+  return changed(true);
 };
 
 /**
@@ -320,7 +330,7 @@ export const confirmScreening = async (screeningId: string): Promise<ScreeningWr
     console.warn('[Séances] Confirmation refusée', error);
     return { ok: false, error: 'Impossible de confirmer cette séance. Réessaie dans un instant.' };
   }
-  return { ok: true, screening: fromRow(data as ScreeningRow) };
+  return changed({ ok: true, screening: fromRow(data as ScreeningRow) });
 };
 
 /**
@@ -346,7 +356,7 @@ export const deleteScreening = async (screeningId: string): Promise<ScreeningDel
       console.warn('[Séances] Suppression refusée', error);
       return { ok: false, error: 'Impossible de retirer cette séance. Réessaie dans un instant.' };
     }
-    return { ok: true };
+    return changed({ ok: true });
   } catch (error) {
     return { ok: false, error: messageForException(error) };
   } finally {
@@ -367,7 +377,7 @@ export const linkScreeningToPlan = async (screeningId: string, planId: string): 
   try {
     const { error } = await supabase.from('cinema_screenings').update({ plan_id: planId }).eq('id', screeningId);
     if (error) console.warn('[Séances] Rattachement à l’invitation impossible', error);
-    return !error;
+    return changed(!error);
   } catch (error) {
     console.warn('[Séances] Rattachement à l’invitation injoignable', error);
     return false;
@@ -401,7 +411,7 @@ export const setScreeningTicketCode = async (screeningId: string, ticketCode: st
       .update({ ticket_code: ticketCode.slice(0, 4_000), updated_at: new Date().toISOString() })
       .eq('id', screeningId);
     if (error) console.warn('[Séances] QR code du billet non enregistré', error);
-    return !error;
+    return changed(!error);
   } catch (error) {
     console.warn('[Séances] QR code du billet injoignable', error);
     return false;

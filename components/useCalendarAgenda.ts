@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CinemaScreening, Movie } from '../types';
 import { screeningRatingDue } from '../utils/screeningFollowup';
 import { loadCalendarSessions } from '../services/calendarAgenda';
+import { SCREENINGS_CHANGED } from '../services/screenings';
+import { placesByFilm } from '../services/myScreenings';
 import { fetchLocalReleaseDate, getTheatreReleases, TheatreRelease } from '../services/tmdb';
 import {
   AgendaEvent,
@@ -25,6 +27,11 @@ export function useCalendarAgenda(
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((current) => current + 1), []);
+  // Un billet scanné, une invitation acceptée ailleurs : le calendrier suit.
+  useEffect(() => {
+    window.addEventListener(SCREENINGS_CHANGED, refresh);
+    return () => window.removeEventListener(SCREENINGS_CHANGED, refresh);
+  }, [refresh]);
   const wishesKey = movies
     .filter(
       (movie) =>
@@ -103,12 +110,18 @@ export function useCalendarAgenda(
   }, [wishesKey, revision]);
 
   const history = useMemo(() => calendarHistory(movies), [movies]);
+  /**
+   * Les films pour lesquels j'ai déjà une place. Leur séance est au calendrier :
+   * annoncer en plus leur sortie ferait doublon (« je sais, j'ai pris, j'ai mis »).
+   */
+  const booked = useMemo(() => new Set(placesByFilm(screenings).keys()), [screenings]);
   const wishes = useMemo(
     () =>
       movies
         .filter(
           (movie) =>
             movie.status === 'watchlist' &&
+            !(movie.tmdbId && booked.has(movie.tmdbId)) &&
             movie.mediaType !== 'tv' &&
             movie.tmdbId &&
             localDates[movie.tmdbId] &&
@@ -126,7 +139,7 @@ export function useCalendarAgenda(
           })
         )
         .sort((a, b) => a.day.localeCompare(b.day)),
-    [movies, localDates, today]
+    [movies, localDates, today, booked]
   );
   const days = useMemo(() => {
     const byMovie = new Map(movies.map((movie) => [movie.id, movie]));
@@ -163,7 +176,7 @@ export function useCalendarAgenda(
           pending: screening.status === 'pending',
         };
       });
-    const big = releases.map(
+    const big = releases.filter((film) => !booked.has(film.id)).map(
       (film): AgendaEvent => ({
         id: `release:${film.id}`,
         kind: 'release',
@@ -176,6 +189,6 @@ export function useCalendarAgenda(
       })
     );
     return mergeCalendarEvents([...watched, ...sessions, ...plans, ...wishes, ...big]);
-  }, [history, movies, screenings, plans, wishes, releases]);
-  return { history, wishes, days, screenings, releases, loading, error, refresh };
+  }, [history, movies, screenings, plans, wishes, releases, booked]);
+  return { history, wishes, days, screenings, releases, booked, loading, error, refresh };
 }

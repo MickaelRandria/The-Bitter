@@ -6,6 +6,8 @@ import { resizeTmdbImage } from '../utils/tmdbImage';
 import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { sectionLabel } from '../utils/ui';
+import type { CinemaScreening } from '../types';
+import MyPlacePill from './MyPlacePill';
 
 interface Props {
   /** Identifiants TMDB déjà présents dans la collection, tous statuts confondus. */
@@ -14,6 +16,10 @@ interface Props {
   onQuickWatchlist: (tmdbId: number) => void;
   /** « Voir avec… » : absent sans compte. */
   onWatchWith?: (tmdbId: number) => void;
+  /** Mes places déjà au calendrier, par film. */
+  places?: Map<number, CinemaScreening>;
+  /** « Séances » : les horaires dans mes cinémas, la même feuille que dans les espaces. */
+  onShowtimes?: (film: { tmdbId: number; title: string; posterUrl?: string; releaseDate?: string }) => void;
 }
 
 /**
@@ -26,7 +32,7 @@ interface Props {
  * date en grand à gauche. Toutes les affiches ont la même taille : c'est l'image
  * qui fait envie, pas un classement de popularité.
  */
-const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, onQuickWatchlist, onWatchWith }) => {
+const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, onQuickWatchlist, onWatchWith, places, onShowtimes }) => {
   const { t, language } = useLanguage();
   const [data, setData] = useState<TheatreReleases | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,8 +100,16 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
   const pill =
     'inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[9.5px] font-black uppercase tracking-widest active:scale-95 transition-transform disabled:opacity-60';
 
+  const today = new Date().toISOString().slice(0, 10);
   const renderFilm = (film: TheatreRelease) => {
     const inCollection = knownTmdbIds.has(film.id) || wished.has(film.id);
+    const place = places?.get(film.id);
+    const posterUrl = film.posterPath ? resizeTmdbImage(`${TMDB_IMAGE_URL}${film.posterPath}`, 'w500') : undefined;
+    const openShowtimes = onShowtimes
+      ? () => onShowtimes({ tmdbId: film.id, title: film.title, posterUrl, releaseDate: film.releaseDate })
+      : undefined;
+    // Déjà en salle (ou avant-première prise) : les horaires ont un sens.
+    const showable = !!openShowtimes && (!film.releaseDate || film.releaseDate <= today);
     return (
       <div key={film.id}>
         <button
@@ -120,6 +134,23 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
         </button>
         <p className="mt-2.5 text-[17px] font-black leading-tight tracking-tight text-charcoal dark:text-white">{film.title}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {place ? (
+            <MyPlacePill screening={place} onClick={openShowtimes} className="!h-8 !px-3 !text-[11px]" />
+          ) : (
+          <>
+          {showable && (
+            <button
+              onClick={() => {
+                haptics.soft();
+                openShowtimes!();
+              }}
+              aria-label={t('showtimes.open', { title: film.title })}
+              className={`${pill} bg-bitter-lime text-charcoal`}
+            >
+              <Ticket size={12} strokeWidth={2.6} />
+              {t('showtimes.button')}
+            </button>
+          )}
           <button
             onClick={() => {
               haptics.medium();
@@ -147,6 +178,8 @@ const UpcomingReleasesFrise: React.FC<Props> = ({ knownTmdbIds, onSelectMovie, o
               <Users size={12} />
               {t('social.watchWith')}
             </button>
+          )}
+          </>
           )}
         </div>
       </div>

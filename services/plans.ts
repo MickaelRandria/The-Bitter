@@ -6,6 +6,7 @@
  * serveur qui cale la séance, l'inscrit au calendrier de chacun et prévient.
  */
 import { supabase } from './supabase';
+import { notifyScreeningsChanged } from './screenings';
 import type { PlanSlot } from '../supabase/functions/notify/messages.ts';
 
 export type { PlanSlot };
@@ -105,12 +106,14 @@ export async function proposePlan(
 export async function acceptSlot(slotId: string): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
   const { error } = await supabase.rpc('accept_plan_slot', { p_slot_id: slotId });
+  if (!error) notifyScreeningsChanged(); // l'accord inscrit (ou retire) la séance du calendrier
   return error ? { ok: false, error: planError(error) } : { ok: true };
 }
 
 export async function cancelPlan(planId: string): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
   const { error } = await supabase.rpc('cancel_plan', { p_plan_id: planId });
+  if (!error) notifyScreeningsChanged(); // l'accord inscrit (ou retire) la séance du calendrier
   return error ? { ok: false, error: planError(error) } : { ok: true };
 }
 
