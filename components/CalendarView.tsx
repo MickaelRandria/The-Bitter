@@ -27,6 +27,7 @@ import { monthScreenings } from '../utils/monthShare';
 import CalendarUpcoming from './CalendarUpcoming';
 import CalendarYear from './CalendarYear';
 import CalendarDaySheet from './CalendarDaySheet';
+import TicketQrSheet from './TicketQrSheet';
 import { agendaAction, agendaGhost, CalendarActions, eventColors } from './CalendarEventCard';
 import CinemaScreeningComposer from './CinemaScreeningComposer';
 import NavAddShortcuts, { NavShortcut } from './NavAddShortcuts';
@@ -123,6 +124,9 @@ export default function CalendarView(props: CalendarViewProps) {
   const agenda = useCalendarAgenda(movies, profileId, language, today);
   const [routeId, setRouteId] = useState<string | null>(null);
   const routeScreening = routeId ? agenda.screenings.find((s) => s.id === routeId) : undefined;
+  /** Le billet ouvert en grand depuis une séance à venir. */
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  const ticketScreening = ticketId ? agenda.screenings.find((s) => s.id === ticketId) : undefined;
   useEffect(() => {
     const wanted = props.routeScreeningId;
     if (!wanted) return;
@@ -322,6 +326,7 @@ export default function CalendarView(props: CalendarViewProps) {
     onPlan: plan,
     onRemind: remind,
     onRoute: (event) => event.screeningId && setRouteId(event.screeningId),
+    onTicket: (event) => event.screeningId && setTicketId(event.screeningId),
     onRemove: (event) => {
       if (event.kind === 'screening') {
         const screening = agenda.screenings.find((s) => s.id === event.screeningId);
@@ -742,6 +747,14 @@ export default function CalendarView(props: CalendarViewProps) {
             onToast={onToast}
           />
         </Suspense>
+      )}
+      {ticketScreening && (
+        <TicketQrSheet
+          screening={ticketScreening}
+          title={ticketScreening.title}
+          posterUrl={ticketScreening.posterUrl}
+          onClose={() => setTicketId(null)}
+        />
       )}
       {routeScreening && (
         <Suspense fallback={null}>

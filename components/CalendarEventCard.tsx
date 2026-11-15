@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, BellRing, CalendarPlus, Check, Eye, Film, ListPlus, Navigation, RotateCcw, Trash2, X } from 'lucide-react';
+import { Bell, BellRing, CalendarPlus, Check, Eye, Film, ListPlus, Navigation, QrCode, RotateCcw, Trash2, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AgendaEvent, daysUntil, isRemovableSession } from '../utils/calendarAgenda';
 import { resizeTmdbImage } from '../utils/tmdbImage';
@@ -66,6 +66,8 @@ export interface CalendarActions {
   onRemove: (event: AgendaEvent) => void;
   /** « Quand partir ? » d'une séance à venir. */
   onRoute: (event: AgendaEvent) => void;
+  /** « Mon billet » : le QR code en grand, pour la borne. */
+  onTicket?: (event: AgendaEvent) => void;
   reminderActive: boolean;
 }
 
@@ -128,6 +130,16 @@ export default function CalendarEventCard({
             .filter(Boolean)
             .join(' · ')}
         </p>
+        {/* Le billet d'abord : c'est ce qu'on cherche devant la borne. */}
+        {event.kind === 'screening' && event.hasTicket && actions.onTicket && event.startsAt && event.startsAt > Date.now() - 3 * 3_600_000 && (
+          <button
+            type="button"
+            onClick={() => actions.onTicket!(event)}
+            className="mt-2.5 inline-flex h-10 items-center gap-2 rounded-full bg-charcoal px-4 text-[12px] font-black text-white transition active:scale-95 dark:bg-white dark:text-charcoal"
+          >
+            <QrCode size={16} className="text-bitter-lime dark:text-forest" /> {t('ticket.open')}
+          </button>
+        )}
         <div className="mt-2.5 flex items-center gap-2">
           {event.kind === 'plan' && !event.ownPlan && !event.joined && (
             <>

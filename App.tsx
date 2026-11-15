@@ -217,6 +217,7 @@ const CinemaSubscriptionDetailsModal = lazy(
 );
 const FavoriteCinemasModal = lazy(() => import('./components/FavoriteCinemasModal'));
 const ShowtimesSheet = lazy(() => import('./components/ShowtimesList'));
+const TicketQrSheet = lazy(() => import('./components/TicketQrSheet'));
 import {
   TOUR_STEPS,
   RATING_TOUR_STEPS,
@@ -2887,6 +2888,8 @@ const App: React.FC = () => {
   const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
   /** Mes places à venir, film par film : la même source pour toute l'app. */
   const myPlaces = useMyPlaces(session?.user?.id);
+  /** Mon billet ouvert en grand depuis une carte « À voir ». */
+  const [ticketOpen, setTicketOpen] = useState<{ screening: CinemaScreening; title: string; posterUrl?: string } | null>(null);
   const [linkScreening, setLinkScreening] = useState<CinemaScreening | null>(null);
   const [ratingScreening, setRatingScreening] = useState<CinemaScreening | null>(null);
   /** La séance laissée sans réponse dans la notation : reposée une fois, après. */
@@ -3379,6 +3382,7 @@ const App: React.FC = () => {
       alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
       onShowtimes={(m) => setShowtimesMovie(m)}
       place={movie.tmdbId && (movie.mediaType ?? 'movie') === 'movie' ? myPlaces.get(movie.tmdbId) : undefined}
+      onShowTicket={(screening, m) => setTicketOpen({ screening, title: m.title, posterUrl: m.posterUrl })}
     />
   );
   const renderHomeSpaces = () => (
@@ -5700,6 +5704,14 @@ const App: React.FC = () => {
           />
         )}
 
+        {ticketOpen && (
+          <TicketQrSheet
+            screening={ticketOpen.screening}
+            title={ticketOpen.title}
+            posterUrl={ticketOpen.posterUrl}
+            onClose={() => setTicketOpen(null)}
+          />
+        )}
         {showtimesMovie?.tmdbId && (
           <ShowtimesSheet
             title={showtimesMovie.title}

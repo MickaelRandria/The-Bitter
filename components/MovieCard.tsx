@@ -42,6 +42,8 @@ interface MovieCardProps {
   onShowtimes?: (movie: Movie) => void;
   /** Ma place pour ce film, déjà au calendrier : elle remplace « Séances ». */
   place?: CinemaScreening | null;
+  /** Le billet de cette place, QR code compris. */
+  onShowTicket?: (screening: CinemaScreening, movie: Movie) => void;
 }
 
 const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
@@ -133,6 +135,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     defaultExpanded = false,
     onShowtimes,
     place,
+    onShowTicket,
   }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -477,7 +480,16 @@ const MovieCard: React.FC<MovieCardProps> = memo(
               <MyPlacePill
                 screening={place}
                 className="mt-3 mr-2"
-                onClick={selecting || !onShowtimes ? undefined : () => onShowtimes(movie)}
+                ticket={!!place.ticketCode && !!onShowTicket}
+                onClick={
+                  selecting
+                    ? undefined
+                    : place.ticketCode && onShowTicket
+                      ? () => onShowTicket(place, movie)
+                      : onShowtimes
+                        ? () => onShowtimes(movie)
+                        : undefined
+                }
               />
             )}
             {isWatchlist && !isTv && !place && movie.tmdbId && onShowtimes && (

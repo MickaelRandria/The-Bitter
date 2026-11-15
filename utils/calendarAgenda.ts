@@ -44,6 +44,8 @@ export interface AgendaEvent {
   ownPlan?: boolean;
   joined?: boolean;
   pending?: boolean;
+  /** Le billet a son QR code : « Mon billet » s'affiche sur la séance. */
+  hasTicket?: boolean;
   declined?: boolean;
 }
 
