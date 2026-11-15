@@ -936,6 +936,38 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     return true;
   };
 
+  /** Le film dont on regarde les séances, dans mes salles et celles des membres. */
+  const [showtimesFor, setShowtimesFor] = useState<SharedMovie | null>(null);
+  /** Cinémas favoris des autres membres, lus à la première ouverture de la feuille. */
+  const [memberCinemas, setMemberCinemas] = useState<Record<string, FavoriteCinema[]> | null>(null);
+  /** Un horaire choisi dans la feuille : il attend dans « On y va » du film. */
+  const [planPrefill, setPlanPrefill] = useState<{ movieId: string; slot: SlotDraft; nonce: number } | null>(null);
+
+  // Avant tout `return` anticipé : ces hooks doivent tourner à chaque rendu.
+  const openShowtimes = (movie: SharedMovie) => {
+    haptics.soft();
+    setShowtimesFor(movie);
+    if (memberCinemas) return;
+    const others = members.filter((m) => m.profile_id !== currentUserId).map((m) => m.profile_id);
+    void fetchFavoriteCinemasOf(others).then(setMemberCinemas);
+  };
+
+  const showtimeSources = useMemo(
+    () =>
+      buildShowtimeSources(
+        favoriteCinemas ?? (favoriteCinema ? [favoriteCinema] : []),
+        members
+          .filter((m) => m.profile_id !== currentUserId)
+          .map((m) => ({
+            name: memberNames[m.profile_id] || t('shared.member'),
+            color: memberColors[m.profile_id],
+            cinemas: memberCinemas?.[m.profile_id] ?? [],
+          }))
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [favoriteCinemas, favoriteCinema, members, memberCinemas, currentUserId]
+  );
+
   if (loading && movies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -1047,37 +1079,6 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       document.getElementById(`space-plan-${movieId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 200);
   };
-
-  /** Le film dont on regarde les séances, dans mes salles et celles des membres. */
-  const [showtimesFor, setShowtimesFor] = useState<SharedMovie | null>(null);
-  /** Cinémas favoris des autres membres, lus à la première ouverture de la feuille. */
-  const [memberCinemas, setMemberCinemas] = useState<Record<string, FavoriteCinema[]> | null>(null);
-  /** Un horaire choisi dans la feuille : il attend dans « On y va » du film. */
-  const [planPrefill, setPlanPrefill] = useState<{ movieId: string; slot: SlotDraft; nonce: number } | null>(null);
-
-  const openShowtimes = (movie: SharedMovie) => {
-    haptics.soft();
-    setShowtimesFor(movie);
-    if (memberCinemas) return;
-    const others = members.filter((m) => m.profile_id !== currentUserId).map((m) => m.profile_id);
-    void fetchFavoriteCinemasOf(others).then(setMemberCinemas);
-  };
-
-  const showtimeSources = useMemo(
-    () =>
-      buildShowtimeSources(
-        favoriteCinemas ?? (favoriteCinema ? [favoriteCinema] : []),
-        members
-          .filter((m) => m.profile_id !== currentUserId)
-          .map((m) => ({
-            name: memberNames[m.profile_id] || t('shared.member'),
-            color: memberColors[m.profile_id],
-            cinemas: memberCinemas?.[m.profile_id] ?? [],
-          }))
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [favoriteCinemas, favoriteCinema, members, memberCinemas, currentUserId]
-  );
 
   const watchContext = (movie: SharedMovie) => {
     const movieVotes = votes.filter((v) => v.movie_id === movie.id && activeMemberIds.has(v.profile_id));
