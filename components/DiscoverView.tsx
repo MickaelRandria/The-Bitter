@@ -31,7 +31,8 @@ import {
   Bookmark,
   SlidersHorizontal,
 } from 'lucide-react';
-import { UserProfile, Movie } from '../types';
+import { UserProfile, Movie, CinemaScreening } from '../types';
+import MyPlacePill from './MyPlacePill';
 import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
 import MoodSearch from './MoodSearch';
@@ -90,6 +91,10 @@ interface DiscoverViewProps {
   onEditHabits?: () => void;
   /** Ouvre l'onglet À venir du calendrier (sorties de la semaine et à venir). */
   onOpenCalendar?: () => void;
+  /** Mes places déjà au calendrier, par film. */
+  places?: Map<number, CinemaScreening>;
+  /** « Séances » sur un film en salle. */
+  onShowtimes?: (film: { tmdbId: number; title: string; posterUrl?: string; releaseDate?: string }) => void;
 }
 
 interface TMDBItem {
@@ -158,6 +163,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   onEditHabits,
   onOpenCalendar,
   actionRequest,
+  places,
+  onShowtimes,
 }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
@@ -261,7 +268,15 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   }, [movies, mediaType]);
 
   // La recherche permet de retrouver un film vu ; les suggestions proposent du nouveau.
-  const visibleItems = isSearchActive ? items : items.filter(item => !watchedIds.has(item.id));
+  // Un film dont j'ai déjà la place n'est plus une suggestion ; « Au cinéma » le
+  // garde, marqué « Ta place », parce que c'est la liste de ce qui passe.
+  const visibleItems = isSearchActive
+    ? items
+    : items.filter(
+        (item) =>
+          !watchedIds.has(item.id) &&
+          (streamingFilter === 'cinema' || mediaType !== 'movie' || !places?.has(item.id))
+      );
 
   const saveRecentSearch = (query: string) => {
     if (query.length < 2) return;
@@ -916,6 +931,36 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
                     <h4 className="text-sm font-black text-charcoal dark:text-white leading-tight line-clamp-2 mb-1 group-hover:text-forest dark:group-hover:text-lime-500 transition-colors">
                       {item.title || item.name}
                     </h4>
+                    {mediaType === 'movie' && places?.get(item.id) ? (
+                      <MyPlacePill
+                        screening={places.get(item.id)!}
+                        className="mb-1.5 !h-8 max-w-full !px-3 !text-[11px]"
+                        onClick={
+                          selecting || !onShowtimes
+                            ? undefined
+                            : () => onShowtimes({ tmdbId: item.id, title: item.title ?? '', posterUrl: tmdbImage(item.poster_path, 'w500') || undefined, releaseDate: item.release_date })
+                        }
+                      />
+                    ) : (
+                      mediaType === 'movie' &&
+                      streamingFilter === 'cinema' &&
+                      onShowtimes && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selecting) return;
+                            haptics.soft();
+                            onShowtimes({ tmdbId: item.id, title: item.title ?? '', posterUrl: tmdbImage(item.poster_path, 'w500') || undefined, releaseDate: item.release_date });
+                          }}
+                          aria-label={t('showtimes.open', { title: item.title ?? '' })}
+                          className="mb-1.5 inline-flex h-8 items-center gap-1.5 rounded-full bg-bitter-lime px-3 text-[11px] font-black text-charcoal shadow-sm transition active:scale-95"
+                        >
+                          <Ticket size={13} strokeWidth={2.4} />
+                          {t('showtimes.button')}
+                        </button>
+                      )
+                    )}
                     <p className="text-xs text-stone-500 dark:text-stone-600 font-semibold">
                       {(item.release_date || item.first_air_date)?.split('-')[0]}
                       {item.vote_count && item.vote_count > 0 ? (

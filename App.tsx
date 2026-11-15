@@ -177,6 +177,7 @@ import AgendaSyncSheet from './components/AgendaSyncSheet';
 import SeancePrompt from './components/SeancePrompt';
 import type { SeanceChoice } from './components/SeanceCard';
 import { createScreening } from './services/screenings';
+import { useMyPlaces } from './services/myScreenings';
 import { APPROX_NOTE } from './utils/seance';
 import { rememberCinema } from './services/cinemaMemory';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
@@ -720,7 +721,8 @@ const App: React.FC = () => {
   // Cinéma favori : d'où viennent les séances proposées sur la fiche film.
   const [showFavoriteCinema, setShowFavoriteCinema] = useState(false);
   /** Le film « à voir » dont on regarde les séances dans ses cinémas. */
-  const [showtimesMovie, setShowtimesMovie] = useState<Movie | null>(null);
+  /** Le film dont on regarde les séances : une carte « À voir », la frise des sorties, Découvrir. */
+  const [showtimesMovie, setShowtimesMovie] = useState<{ tmdbId?: number; title: string; posterUrl?: string; releaseDate?: string } | null>(null);
   // Sauvegarde en ligne du profil rattaché.
   const [showAccountSync, setShowAccountSync] = useState(false);
   /**
@@ -2883,6 +2885,8 @@ const App: React.FC = () => {
   }, [activeProfile]);
 
   const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
+  /** Mes places à venir, film par film : la même source pour toute l'app. */
+  const myPlaces = useMyPlaces(session?.user?.id);
   const [linkScreening, setLinkScreening] = useState<CinemaScreening | null>(null);
   const [ratingScreening, setRatingScreening] = useState<CinemaScreening | null>(null);
   /** La séance laissée sans réponse dans la notation : reposée une fois, après. */
@@ -3374,6 +3378,7 @@ const App: React.FC = () => {
       }
       alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
       onShowtimes={(m) => setShowtimesMovie(m)}
+      place={movie.tmdbId && (movie.mediaType ?? 'movie') === 'movie' ? myPlaces.get(movie.tmdbId) : undefined}
     />
   );
   const renderHomeSpaces = () => (
@@ -4314,6 +4319,8 @@ const App: React.FC = () => {
                 setProfileFocusHabits(true);
                 setShowProfile(true);
               }}
+              places={myPlaces}
+              onShowtimes={(film) => setShowtimesMovie(film)}
               onOpenCalendar={() => {
                 setCalendarTab('upcoming');
                 setViewMode('Calendar');
@@ -4360,6 +4367,7 @@ const App: React.FC = () => {
               }}
               onOpenFilm={(movie) => openFilm(movie.tmdbId, movie.mediaType ?? 'movie', movie)}
               onWatchWith={session?.user?.id ? handleWatchWithTmdb : undefined}
+              onShowtimes={(film) => setShowtimesMovie(film)}
             />
           ) : viewMode === 'Deck' ? (
             <MovieDeck
@@ -5463,7 +5471,7 @@ const App: React.FC = () => {
               handleSaveMovie(movieData);
               setShowRecommendationsModal(false);
             }}
-            existingTmdbIds={new Set(uniqueMovies.map((m) => m.tmdbId).filter(Boolean) as number[])}
+            existingTmdbIds={new Set([...(uniqueMovies.map((m) => m.tmdbId).filter(Boolean) as number[]), ...myPlaces.keys()])}
             movies={uniqueMovies}
           />
         )}

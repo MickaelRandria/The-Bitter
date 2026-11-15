@@ -1,5 +1,5 @@
 import React, { useState, memo, useRef, useMemo, useEffect } from 'react';
-import { Movie, WeightLabel } from '../types';
+import { CinemaScreening, Movie, WeightLabel } from '../types';
 import { Star, ChevronDown, Trash2, Pencil, Play, Smartphone, Info, RotateCw, Users, MessageCircle, Mic, Ticket } from 'lucide-react';
 import { canDictate } from '../services/voiceReview';
 import { getMovieDisplayRating, getDisplayRatings, MovieDisplayMode } from '../utils/movieDisplay';
@@ -15,6 +15,7 @@ import { workKey } from '../utils/workKey';
 import type { SelectedWork } from '../utils/navActions';
 import { longPressStyle, useSelectableWork } from '../utils/useLongPress';
 import { SELECTED_RING, SelectionCheck } from './SelectableWork';
+import MyPlacePill from './MyPlacePill';
 
 interface MovieCardProps {
   movie: Movie;
@@ -39,6 +40,8 @@ interface MovieCardProps {
   alsoWants?: { profile_id: string; first_name: string }[];
   /** « Séances » sur un film à voir : ses horaires dans mes cinémas. */
   onShowtimes?: (movie: Movie) => void;
+  /** Ma place pour ce film, déjà au calendrier : elle remplace « Séances ». */
+  place?: CinemaScreening | null;
 }
 
 const PIP_A11Y_LABEL: Record<WeightLabel, string> = {
@@ -129,6 +132,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     alsoWants,
     defaultExpanded = false,
     onShowtimes,
+    place,
   }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -469,7 +473,14 @@ const MovieCard: React.FC<MovieCardProps> = memo(
               </span>
             </div>
             {/* Les séances dans mes cinémas : un film, pas une série. */}
-            {isWatchlist && !isTv && movie.tmdbId && onShowtimes && (
+            {isWatchlist && !isTv && place && (
+              <MyPlacePill
+                screening={place}
+                className="mt-3 mr-2"
+                onClick={selecting || !onShowtimes ? undefined : () => onShowtimes(movie)}
+              />
+            )}
+            {isWatchlist && !isTv && !place && movie.tmdbId && onShowtimes && (
               <button
                 onClick={(e) => {
                   // Pendant une sélection, le toucher coche la carte comme ailleurs.

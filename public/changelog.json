@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-15-billet-qr",
+  "version": "2026-11-15-ta-place-partout",
   "label": "Version du 15 novembre",
   "items": [
+    {
+      "title": "Ta place, partout",
+      "body": "Une séance au calendrier se reconnaît maintenant dans toute l’app : « Ta place · sam. 22 · 20:15 » sur ta liste « à voir », sur la fiche du film, dans « Bientôt en salle » et dans Découvrir. Le calendrier n’annonce plus la sortie d’un film pour lequel tu as déjà ta place, et les suggestions (recos, « Et maintenant ? » des espaces, Découvrir) ne te le proposent plus. Et les films déjà en salle ont leur bouton Séances dans « Bientôt en salle » et sur le filtre Au cinéma de Découvrir, avec le même programme que dans les espaces."
+    },
     {
       "title": "Ton billet, QR code compris",
       "body": "En important tes billets, ajoute la capture « Voir mon billet » de l’app UGC : son QR code est lu sur ton téléphone, la capture n’est pas gardée. Le jour J, « Mon billet » (dans Ta place ou dans le calendrier) l’affiche en grand pour la borne, même sans réseau, et l’écran reste allumé. Un billet déjà dans ton calendrier ? Réimporte-le : on y ajoute son QR code. Le code n’est visible que par toi et s’efface le lendemain de la séance."

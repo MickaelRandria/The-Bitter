@@ -5,6 +5,8 @@ import { buildShowtimeSources, shortCinemaName } from '../utils/favoriteCinemas'
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
 import { ShowtimesSheet } from './ShowtimesList';
+import { useMyPlaces } from '../services/myScreenings';
+import { placeWhen } from './MyPlacePill';
 
 interface MovieShowtimesProps {
   tmdbId: number;
@@ -28,6 +30,8 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], o
   const [open, setOpen] = useState(false);
   const sources = useMemo(() => buildShowtimeSources(favoriteCinemas), [favoriteCinemas]);
   const names = sources.map((s) => shortCinemaName(s.cinema.name)).join(' · ');
+  // Déjà ma place pour ce film : la carte le dit d'abord, le programme reste à un toucher.
+  const place = useMyPlaces(rest.profileId).get(rest.tmdbId);
 
   return (
     <div className="mb-8">
@@ -37,7 +41,7 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], o
       <button
         onClick={() => {
           haptics.soft();
-          if (!sources.length && onManageCinemas) onManageCinemas();
+          if (!sources.length && !place && onManageCinemas) onManageCinemas();
           else setOpen(true);
         }}
         className="flex w-full items-center gap-3.5 rounded-[22px] bg-charcoal px-4 py-3.5 text-left text-white transition active:scale-[0.99] dark:bg-white/[0.07]"
@@ -47,10 +51,14 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], o
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-black tracking-[-0.01em]">
-            {sources.length ? t('showtimes.seeProgramme') : t('showtimes.empty.cta')}
+            {place
+              ? `${t('place.yours')} · ${placeWhen(place, t('place.locale'))}`
+              : sources.length
+                ? t('showtimes.seeProgramme')
+                : t('showtimes.empty.cta')}
           </span>
           <span className="mt-0.5 block truncate text-xs font-semibold text-white/60">
-            {sources.length ? names : t('showtimes.empty.body')}
+            {place ? [place.cinemaName, t('showtimes.seeProgramme')].filter(Boolean).join(' · ') : sources.length ? names : t('showtimes.empty.body')}
           </span>
         </span>
         <ArrowUpRight size={18} className="shrink-0 text-white/50" />
