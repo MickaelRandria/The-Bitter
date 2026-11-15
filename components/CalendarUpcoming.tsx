@@ -13,6 +13,7 @@ export default function CalendarUpcoming({
   actions,
   filter = 'all',
   upcomingReleases,
+  cinemaWeek,
 }: {
   days: Map<string, AgendaEvent[]>;
   wishes: AgendaEvent[];
@@ -22,6 +23,8 @@ export default function CalendarUpcoming({
   filter?: CalendarFilter;
   /** « Bientôt en salle » : la frise des sorties à venir. */
   upcomingReleases?: React.ReactNode;
+  /** « Sortis mercredi » et « Toujours à l'affiche ». */
+  cinemaWeek?: React.ReactNode;
 }) {
   const showSessions = filter !== 'releases';
   const showReleases = filter !== 'sessions';
@@ -83,9 +86,10 @@ export default function CalendarUpcoming({
           {t('agenda.noWishReleases')}
         </p>
       )}
+      {cinemaWeek && <div className="mt-10">{cinemaWeek}</div>}
       {upcomingReleases && (
         <>
-          <h2 className={`${agendaLabel} mt-8`}>{t('releases.upcoming')}</h2>
+          <h2 className={`${agendaLabel} mt-10`}>{t('releases.upcoming')}</h2>
           <p className="-mt-1 mb-4 text-[11px] font-medium text-stone-500">{t('releases.feedSubtitle')}</p>
           {upcomingReleases}
         </>

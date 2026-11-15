@@ -33,6 +33,7 @@ import CinemaScreeningComposer from './CinemaScreeningComposer';
 import NavAddShortcuts, { NavShortcut } from './NavAddShortcuts';
 import ScreeningProgrammePicker from './ScreeningProgrammePicker';
 import UpcomingReleasesFrise from './UpcomingReleasesFrise';
+import CinemaWeekSections from './CinemaWeekSections';
 import { placesByFilm } from '../services/myScreenings';
 import ScreeningChecksCard from './ScreeningChecksCard';
 import { CheckedScreening, DISMISSED_CHECKS_KEY, parseDismissed, screeningChecks } from '../utils/screeningChecks';
@@ -59,6 +60,9 @@ interface CalendarViewProps {
   onOpenFilm?: (movie: Movie) => void;
   onWatchWith?: (tmdbId: number) => void;
   /** « Séances » depuis la frise des sorties. */
+  /** Mes cinémas : « Dans mes cinémas » et « Pas dans tes cinémas ». */
+  favoriteCinemas?: FavoriteCinema[];
+  onManageCinemas?: () => void;
   onShowtimes?: (film: { tmdbId: number; title: string; posterUrl?: string; releaseDate?: string }) => void;
   onToast?: (message: string) => void;
   /** Onglet d'ouverture : « À venir » depuis le bandeau ciné de Découvrir. */
@@ -615,6 +619,18 @@ export default function CalendarView(props: CalendarViewProps) {
         {tab === 'upcoming' && (
           <CalendarUpcoming
             filter={upcomingFilter}
+            cinemaWeek={
+              <CinemaWeekSections
+                favoriteCinemas={props.favoriteCinemas}
+                knownTmdbIds={new Set(movies.filter((m) => m.tmdbId && m.mediaType !== 'tv').map((m) => m.tmdbId!))}
+                places={placesByFilm(agenda.screenings)}
+                onSelectMovie={(tmdbId) => props.onPreviewMovie?.(tmdbId)}
+                onQuickWatchlist={(tmdbId) => void props.onAddToWatchlist?.(tmdbId)}
+                onWatchWith={props.onWatchWith}
+                onShowtimes={props.onShowtimes}
+                onManageCinemas={props.onManageCinemas}
+              />
+            }
             upcomingReleases={
               <UpcomingReleasesFrise
                 knownTmdbIds={new Set(movies.filter((m) => m.tmdbId && m.mediaType !== 'tv').map((m) => m.tmdbId!))}

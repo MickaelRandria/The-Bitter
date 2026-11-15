@@ -6,7 +6,7 @@ import { haptics } from '../utils/haptics';
 import { useLanguage } from '../contexts/LanguageContext';
 import { myPlatforms } from '../utils/platforms';
 import { ShelfItem, getOnMyPlatforms, getStarterPicks } from '../services/shelves';
-import { getTheatreReleases } from '../services/tmdb';
+import { getCinemaWeek } from '../services/tmdb';
 import { isWatchedWork } from '../utils/collectionRules';
 import { tmdbWorkKey } from '../utils/navActions';
 import { Selectable, SELECTED_RING, SelectionCheck } from './SelectableWork';
@@ -68,8 +68,10 @@ const PersonalShelves: React.FC<Props> = ({ mediaType, profile, onPreview, onEdi
     if (wanted.includes('cinema'))
       load(
         'cinema',
-        getTheatreReleases('FR').then((r) =>
-          r.thisWeek.map((m) => ({ id: m.id, title: m.title, posterPath: m.posterPath, year: Number(m.releaseDate?.slice(0, 4)) || undefined }))
+        // Les sorties du mercredi d'abord, puis ce qui est toujours à l'affiche
+        // (hors sorties limitées) : la même semaine que le calendrier.
+        getCinemaWeek().then((w) =>
+          [...w.week, ...w.still.filter((m) => !m.limited)].map((m) => ({ id: m.id, title: m.title, posterPath: m.posterPath, year: Number(m.frDate.slice(0, 4)) || undefined }))
         )
       );
     return () => {

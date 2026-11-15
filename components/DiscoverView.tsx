@@ -31,7 +31,8 @@ import {
   Bookmark,
   SlidersHorizontal,
 } from 'lucide-react';
-import { UserProfile, Movie, CinemaScreening } from '../types';
+import { UserProfile, Movie, CinemaScreening, FavoriteCinema } from '../types';
+import CinemaWeekSections from './CinemaWeekSections';
 import MyPlacePill from './MyPlacePill';
 import { haptics } from '../utils/haptics';
 import { deepMovieSearch, AISearchResult } from '../services/ai';
@@ -95,6 +96,8 @@ interface DiscoverViewProps {
   places?: Map<number, CinemaScreening>;
   /** « Séances » sur un film en salle. */
   onShowtimes?: (film: { tmdbId: number; title: string; posterUrl?: string; releaseDate?: string }) => void;
+  favoriteCinemas?: FavoriteCinema[];
+  onManageCinemas?: () => void;
 }
 
 interface TMDBItem {
@@ -165,6 +168,8 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   actionRequest,
   places,
   onShowtimes,
+  favoriteCinemas,
+  onManageCinemas,
 }) => {
   const { t, language } = useLanguage();
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
@@ -234,6 +239,9 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
   }, [movies]);
 
   const isSearchActive = searchMode === 'title' && searchQuery.length > 0;
+  // « Au cinéma » sans recherche ni autre réglage : les sections de la semaine.
+  const cinemaWeekMode =
+    streamingFilter === 'cinema' && mediaType === 'movie' && !isSearchActive && timePeriod === 'all_time' && sortBy === 'popularity';
   const activeFilterCount = [
     timePeriod !== 'all_time',
     streamingFilter !== 'all',
@@ -774,7 +782,20 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         <PersonalShelves mediaType={mediaType} profile={userProfile} onPreview={onPreview} onEditHabits={onEditHabits} onOpenCalendar={onOpenCalendar} />
       )}
 
-      {/* RESULTS GRID */}
+      {/* Au cinéma : la semaine des salles, comme dans le calendrier. */}
+      {cinemaWeekMode ? (
+        <CinemaWeekSections
+          favoriteCinemas={favoriteCinemas}
+          knownTmdbIds={new Set([...watchedIds, ...watchlistIds])}
+          places={places}
+          onSelectMovie={(tmdbId) => onPreview(tmdbId, 'movie')}
+          onQuickWatchlist={(tmdbId) => void onQuickWatchlist?.(tmdbId, 'movie')}
+          onWatchWith={onWatchWith ? (tmdbId) => onWatchWith(tmdbId, 'movie') : undefined}
+          onShowtimes={onShowtimes}
+          onManageCinemas={onManageCinemas}
+        />
+      ) : (
+      /* RESULTS GRID */
       <div className="space-y-6">
         {!isSearchActive && !aiResult && !moodSummary && (
           <h2 className="px-1 text-[17px] font-black tracking-[-0.04em] text-charcoal dark:text-white">{gridTitle}</h2>
@@ -984,6 +1005,7 @@ const DiscoverView: React.FC<DiscoverViewProps> = ({
         {/* Les badges de plateforme et le filtre « Plateforme » viennent de JustWatch. */}
         {!loading && items.length > 0 && <JustWatchCredit className="text-center" />}
       </div>
+      )}
       </>
       )}
     </div>

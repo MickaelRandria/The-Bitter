@@ -8,6 +8,7 @@ import {
   normalizeTime,
   ProgrammeShowing,
   resolveCinema,
+  titleSimilarity,
 } from './ticketMatch.ts';
 
 const CORS = {
@@ -34,6 +35,10 @@ const MAX_SHOWTIME_DAYS = 7;
 const SHOWTIMES_CACHE_ENTRIES = 120;
 /** Une capture de « Mes billets » en montre rarement plus ; chaque billet coûte au plus une journée UGC. */
 const MAX_MATCH_TICKETS = 8;
+/** Une ville entière de salles UGC, au plus. */
+const MAX_PLAYING_CINEMAS = 15;
+/** La semaine et les cinq précédentes, au plus. */
+const MAX_PLAYING_FILMS = 80;
 const PARIS_TIME_ZONE = 'Europe/Paris';
 
 type UgcCinema = { id: string; name: string };
@@ -334,10 +339,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return fail(405, 'method-not-allowed', 'Requête POST attendue.');
 
-  // Assez pour huit billets à retrouver ; toutes les autres actions tiennent
-  // largement en dessous.
+  // Assez pour huit billets à retrouver, ou pour les titres d'une semaine de
+  // sorties (`playing`) ; toutes les autres actions tiennent largement en dessous.
   const contentLength = Number(req.headers.get('content-length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > 8_000) {
+  if (Number.isFinite(contentLength) && contentLength > 16_000) {
     return fail(413, 'payload-too-large', 'Requête trop volumineuse.');
   }
 
@@ -514,6 +519,56 @@ Deno.serve(async (req) => {
       }));
 
     return json({ items, days, partial: failures > 0 });
+  }
+
+  /**
+   * Quels films passent cette semaine dans mes cinémas.
+   *
+   * Le client envoie une liste de films (titre français et titre original) et
+   * ses cinémas ; on lit la grille des sept prochains jours de chacun — déjà en
+   * cache pour la plupart, puisque la fiche film lit les mêmes journées — et on
+   * rend, film par film, les cinémas qui le programment. Rien d'autre ne sort :
+   * ni horaires, ni films hors de la liste demandée.
+   */
+  if (body.action === 'playing') {
+    const cinemaIds = [...new Set((Array.isArray(body.cinemaIds) ? body.cinemaIds : []).map((id) => cleanText(id, 12)))]
+      .filter((id) => /^\d{1,8}$/.test(id))
+      .slice(0, MAX_PLAYING_CINEMAS);
+    const films = (Array.isArray(body.films) ? body.films.slice(0, MAX_PLAYING_FILMS) : [])
+      .filter((value): value is Record<string, unknown> => !!value && typeof value === 'object')
+      .map((film) => ({
+        key: cleanText(film.key, 20),
+        titles: (Array.isArray(film.titles) ? film.titles.slice(0, 3) : [])
+          .map((title) => cleanText(title, 200))
+          .filter((title) => normalize(title).length >= 2),
+      }))
+      .filter((film) => film.key && film.titles.length > 0);
+    if (cinemaIds.length === 0 || films.length === 0) return json({ items: [], partial: false });
+
+    let partial = false;
+    const titlesByCinema = new Map<string, string[]>();
+    // Trois cinémas à la fois, chacun lisant trois journées à la fois : au plus
+    // neuf appels simultanés vers UGC, et une ville entière en quelques secondes.
+    for (let index = 0; index < cinemaIds.length; index += 3) {
+      await Promise.all(
+        cinemaIds.slice(index, index + 3).map(async (cinemaId) => {
+          const { dates, collected, failures } = await readDays(cinemaId, MAX_SHOWTIME_DAYS);
+          if (failures > 0) partial = true;
+          if (failures === dates.length) return;
+          titlesByCinema.set(cinemaId, [...new Set(collected.flatMap((day) => day.showings.map((showing) => showing.title)))]);
+        })
+      );
+    }
+
+    // Même seuil que l'inclusion de `titleSimilarity` : « Scrooge - Avant-première »
+    // est bien Scrooge, une lettre de différence ne fait pas un autre film.
+    const items = films.map((film) => ({
+      key: film.key,
+      cinemaIds: [...titlesByCinema.entries()]
+        .filter(([, titles]) => titles.some((title) => film.titles.some((wanted) => titleSimilarity(wanted, title) >= 0.9)))
+        .map(([cinemaId]) => cinemaId),
+    }));
+    return json({ items, partial, read: [...titlesByCinema.keys()] });
   }
 
   /**
