@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Loader2, MapPin, Plus, Trash2, X } from 'lucide-react';
 import { FavoriteCinema } from '../types';
 import { CinemaCity, CinemaOption, searchCinemaCities, searchCinemasNearCity } from '../services/cinemaDirectory';
-import { CINEMA_COLORS, MAX_FAVORITE_CINEMAS, uniqueFavoriteCinemas } from '../utils/favoriteCinemas';
+import { CINEMA_COLORS, CINEMA_INK, MAX_FAVORITE_CINEMAS, uniqueFavoriteCinemas } from '../utils/favoriteCinemas';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
 import { haptics } from '../utils/haptics';
@@ -130,15 +130,14 @@ const FavoriteCinemasModal: React.FC<Props> = ({ cinemas: initial, onChange, onC
             <ol className="space-y-2">
               {cinemas.map((cinema, index) => {
                 const color = CINEMA_COLORS[index % CINEMA_COLORS.length];
-                const darkInk = index === 0 || index === 3;
                 return (
                   <li
                     key={cinema.id}
                     className="flex items-center gap-2 rounded-[18px] border border-stone-200 bg-white py-1.5 pl-3 pr-1 dark:border-white/10 dark:bg-white/5"
                   >
                     <span
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black ring-1 ring-black/5 dark:ring-white/25 ${darkInk ? 'text-charcoal' : 'text-white'}`}
-                      style={{ background: color }}
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black ring-1 ring-black/5 dark:ring-white/25`}
+                      style={{ background: color, color: CINEMA_INK[index % CINEMA_INK.length] }}
                       aria-hidden="true"
                     >
                       {index + 1}

@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { ArrowUpRight, Ticket } from 'lucide-react';
 import { FavoriteCinema } from '../types';
-import { buildShowtimeSources } from '../utils/favoriteCinemas';
+import { buildShowtimeSources, shortCinemaName } from '../utils/favoriteCinemas';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ShowtimesList } from './ShowtimesList';
+import { haptics } from '../utils/haptics';
+import { ShowtimesSheet } from './ShowtimesList';
 
 interface MovieShowtimesProps {
   tmdbId: number;
@@ -18,25 +20,57 @@ interface MovieShowtimesProps {
 }
 
 /**
- * Les séances du film dans mes cinémas, sur sa fiche : la même liste repliée
- * jour par jour que la feuille ouverte depuis une liste « à voir ».
+ * Sur la fiche film : l'entrée vers le programme du film dans mes cinémas.
+ * Le programme lui-même s'ouvre en feuille, aux couleurs de l'affiche.
  */
-const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], ...rest }) => {
+const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], onManageCinemas, ...rest }) => {
   const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
   const sources = useMemo(() => buildShowtimeSources(favoriteCinemas), [favoriteCinemas]);
+  const names = sources.map((s) => shortCinemaName(s.cinema.name)).join(' · ');
+
   return (
     <div className="mb-8">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400">
-          {sources.length ? t('showtimes.section') : t('showtimes.sectionEmpty')}
-        </h3>
-        {sources.length > 0 && (
-          <span className="truncate text-[10px] font-bold text-stone-500 dark:text-stone-400">
-            {sources.length === 1 ? sources[0].cinema.name : t('showtimes.inMine', { n: String(sources.length) })}
+      <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-stone-500 dark:text-stone-400">
+        {sources.length ? t('showtimes.section') : t('showtimes.sectionEmpty')}
+      </h3>
+      <button
+        onClick={() => {
+          haptics.soft();
+          if (!sources.length && onManageCinemas) onManageCinemas();
+          else setOpen(true);
+        }}
+        className="flex w-full items-center gap-3.5 rounded-[22px] bg-charcoal px-4 py-3.5 text-left text-white transition active:scale-[0.99] dark:bg-white/[0.07]"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-bitter-lime text-charcoal">
+          <Ticket size={18} strokeWidth={2.4} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black tracking-[-0.01em]">
+            {sources.length ? t('showtimes.seeProgramme') : t('showtimes.empty.cta')}
           </span>
-        )}
-      </div>
-      <ShowtimesList sources={sources} {...rest} />
+          <span className="mt-0.5 block truncate text-xs font-semibold text-white/60">
+            {sources.length ? names : t('showtimes.empty.body')}
+          </span>
+        </span>
+        <ArrowUpRight size={18} className="shrink-0 text-white/50" />
+      </button>
+      {open && (
+        <ShowtimesSheet
+          title={rest.titles[0] ?? ''}
+          sources={sources}
+          onManageCinemas={
+            onManageCinemas
+              ? () => {
+                  setOpen(false);
+                  onManageCinemas();
+                }
+              : undefined
+          }
+          onClose={() => setOpen(false)}
+          {...rest}
+        />
+      )}
     </div>
   );
 };

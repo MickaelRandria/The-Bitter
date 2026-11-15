@@ -10,7 +10,10 @@ export const MAX_FAVORITE_CINEMAS = 5;
 export const MAX_SHOWTIME_SOURCES = 10;
 
 /** Couleur de chaque cinéma selon son rang dans ma liste, la même partout. */
-export const CINEMA_COLORS = ['#B5D600', '#3E5238', '#1A1A1A', '#D97706', '#78716C'];
+// Lisibles sur la crème du profil comme sur le fond sombre de la feuille des séances.
+export const CINEMA_COLORS = ['#C5E600', '#8BAA7C', '#F59E0B', '#93C5FD', '#D6D3D1'];
+/** Couleurs claires : le numéro posé dessus s'écrit en noir. */
+export const CINEMA_INK = ['#1A1A1A', '#1A1A1A', '#1A1A1A', '#1A1A1A', '#1A1A1A'];
 
 /** An explicitly empty list means the user removed all their cinemas. */
 export function cinemasOf(profile?: Pick<UserProfile, 'favoriteCinemas' | 'favoriteCinema'> | null): FavoriteCinema[] {

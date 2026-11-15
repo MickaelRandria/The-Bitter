@@ -91,10 +91,15 @@ export const currentPlanFor = (plans: WatchPlan[], sharedMovieId: string): Watch
 export const chosenSlotOf = (plan: WatchPlan | null) =>
   plan?.slots.find((s) => s.id === plan.chosen_slot_id) ?? null;
 
-export async function proposePlan(sharedMovieId: string, slots: SlotDraft[]): Promise<{ ok: boolean; error?: string }> {
+export async function proposePlan(
+  sharedMovieId: string,
+  slots: SlotDraft[]
+): Promise<{ ok: boolean; error?: string; planId?: string }> {
   if (!supabase) return { ok: false, error: 'Sauvegarde en ligne indisponible' };
-  const { error } = await supabase.rpc('propose_plan', { p_shared_movie_id: sharedMovieId, p_slots: slots });
-  return error ? { ok: false, error: planError(error) } : { ok: true };
+  const { data, error } = await supabase.rpc('propose_plan', { p_shared_movie_id: sharedMovieId, p_slots: slots });
+  if (error) return { ok: false, error: planError(error) };
+  const planId = (data as { plan_id?: string } | null)?.plan_id;
+  return { ok: true, planId: typeof planId === 'string' ? planId : undefined };
 }
 
 export async function acceptSlot(slotId: string): Promise<{ ok: boolean; error?: string }> {
