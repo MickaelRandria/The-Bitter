@@ -1,17 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ExternalLink, Loader2, MapPin, RotateCw, Ticket, X } from 'lucide-react';
+import { ArrowUpRight, Loader2, RotateCw, X } from 'lucide-react';
 import { CinemaScreening, CinemaShowtime } from '../types';
 import { fetchMovieShowtimes } from '../services/cinemaDirectory';
 import { createScreening, listScreeningsForMovie } from '../services/screenings';
-import {
-  ShowtimeSource,
-  SourcedShowtime,
-  groupShowtimesByDay,
-  nextShowtime,
-  shortCinemaName,
-} from '../utils/favoriteCinemas';
+import { ShowtimeSource, SourcedShowtime, groupShowtimesByDay, shortCinemaName } from '../utils/favoriteCinemas';
+import { isSameScreening } from '../utils/myPlace';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDialog } from '../utils/useDialog';
+import { usePosterColors } from '../utils/posterTint';
 import { haptics } from '../utils/haptics';
 
 const DAYS_AHEAD = 7;
@@ -41,25 +37,24 @@ export interface ShowtimesListProps {
   onToast?: (message: string) => void;
 }
 
-const pastille = (color: string, size = 8) => (
-  <span
-    aria-hidden="true"
-    className="inline-block shrink-0 rounded-full ring-1 ring-black/5 dark:ring-white/25"
-    style={{ width: size, height: size, background: color }}
-  />
-);
+/** Les moments de la journée, pour ranger le programme comme une affiche de cinéma. */
+const PARTS = [
+  { key: 'morning', until: 12 },
+  { key: 'afternoon', until: 18 },
+  { key: 'evening', until: 29 },
+] as const;
 
 /**
- * Les séances d'un film dans plusieurs salles, repliées jour par jour.
+ * Les séances d'un film dans plusieurs salles, en programme : une bande de
+ * jours à grands chiffres, puis les horaires du jour choisi, rangés en matin,
+ * après-midi et soirée. Le fond prend la couleur de l'affiche.
  *
  * Chaque salle est interrogée à part et s'affiche dès qu'elle répond : une salle
- * lente ou en panne ne bloque jamais les autres, et se relance seule.
+ * lente ou en panne ne bloque jamais les autres.
  *
- * Hors espace, toucher un horaire fait deux choses, dans cet ordre : l'onglet de
- * réservation UGC s'ouvre **avant** toute écriture (un `window.open` lancé après
- * un `await` n'est plus rattaché au geste et se fait bloquer), puis la séance
- * s'enregistre « en attente » — The Bitter ne sait pas si la réservation a
- * abouti, et ne programme aucun rappel avant qu'elle soit confirmée.
+ * Hors espace, toucher un horaire ouvre d'abord la réservation UGC (avant tout
+ * `await`, sinon le navigateur bloque l'onglet), puis enregistre la séance « en
+ * attente » dans le calendrier. Ma séance déjà prévue est marquée « Ta place ».
  */
 export const ShowtimesList: React.FC<ShowtimesListProps> = ({
   tmdbId,
@@ -73,17 +68,17 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
   onManageCinemas,
   onToast,
 }) => {
-  const { t, language } = useLanguage();
-  const locale = language === 'en' ? 'en-GB' : 'fr-FR';
-  const dayFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: 'long' }), [locale]);
+  const { t } = useLanguage();
+  const locale = t('place.locale');
+  const weekday = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: 'short' }), [locale]);
+  const longDay = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }), [locale]);
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }), [locale]);
   const timeFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }), [locale]);
   const time = (ts: number) => timeFormatter.format(new Date(ts));
 
   const [states, setStates] = useState<Record<string, SourceState>>({});
   const [existing, setExisting] = useState<CinemaScreening[]>([]);
-  const [filter, setFilter] = useState<string>('all');
-  const [openDay, setOpenDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [pendingId, setPendingId] = useState('');
   /** Les créneaux déjà envoyés : une ref, deux touchers rapprochés lisent le même rendu. */
   const submitted = useRef(new Set<string>());
@@ -101,9 +96,7 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
       .then((result) => {
         setStates((current) => ({
           ...current,
-          [cinemaId]: result.error
-            ? { status: 'error', message: result.error }
-            : { status: 'ready', showtimes: result.data },
+          [cinemaId]: result.error ? { status: 'error', message: result.error } : { status: 'ready', showtimes: result.data },
         }));
       })
       .catch(() => setStates((current) => ({ ...current, [cinemaId]: { status: 'error', message: '' } })));
@@ -113,6 +106,7 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
   useEffect(() => {
     requested.current = new Set();
     setStates({});
+    setSelectedDay(null);
   }, [titleKey]);
 
   useEffect(() => {
@@ -124,8 +118,9 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceKey, titleKey]);
 
+  // Mes séances de ce film : « Ta place » sur l'horaire, et pas de doublon au toucher.
   useEffect(() => {
-    if (space || !profileId) return;
+    if (!profileId) return;
     let alive = true;
     void listScreeningsForMovie(profileId, tmdbId).then((list) => {
       if (!alive) return;
@@ -135,35 +130,36 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     return () => {
       alive = false;
     };
-  }, [space, profileId, tmdbId]);
-
-  // Une salle retirée du filtre entre deux ouvertures : on revient à « Tous ».
-  useEffect(() => {
-    if (filter !== 'all' && !sources.some((s) => s.cinema.id === filter)) setFilter('all');
-  }, [filter, sourceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profileId, tmdbId]);
 
   const sourceOf = (id: string) => sources.find((s) => s.cinema.id === id);
   const order = sources.map((s) => s.cinema.id);
 
-  const allEntries = useMemo<SourcedShowtime[]>(
+  const entries = useMemo<SourcedShowtime[]>(
     () =>
       sources.flatMap((source) => {
         const state = states[source.cinema.id];
-        return state?.status === 'ready'
-          ? state.showtimes.map((showtime) => ({ showtime, cinemaId: source.cinema.id }))
-          : [];
+        return state?.status === 'ready' ? state.showtimes.map((showtime) => ({ showtime, cinemaId: source.cinema.id })) : [];
       }),
     [states, sourceKey] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const countOf = (id: string) => allEntries.filter((e) => e.cinemaId === id).length;
-  const entries = filter === 'all' ? allEntries : allEntries.filter((e) => e.cinemaId === filter);
   const days = useMemo(() => groupShowtimesByDay(entries, order, Date.now(), DAYS_AHEAD), [entries]); // eslint-disable-line react-hooks/exhaustive-deps
-  const next = nextShowtime(entries);
   const stillLoading = sources.some((s) => !states[s.cinema.id] || states[s.cinema.id].status === 'loading');
   const failed = sources.filter((s) => states[s.cinema.id]?.status === 'error');
 
-  const screeningFor = (showtime: CinemaShowtime, source: ShowtimeSource) =>
-    existing.find((s) => s.startsAt === showtime.startsAt && (s.cinemaName ?? '') === source.cinema.name);
+  // Le premier jour qui a des séances, dès qu'il est connu ; ou le jour de ma place.
+  useEffect(() => {
+    if (selectedDay !== null) return;
+    const mine = days.find((day) => day.groups.some((g) => g.showtimes.some((s) => placeFor(s, g.cinemaId))));
+    const first = mine ?? days.find((day) => day.count > 0);
+    if (first) setSelectedDay(first.day);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, existing]);
+
+  const placeFor = (showtime: CinemaShowtime, cinemaId: string) => {
+    const source = sourceOf(cinemaId);
+    return existing.find((s) => isSameScreening(s, { startsAt: showtime.startsAt, cinemaName: source?.cinema.name }));
+  };
 
   const choose = (showtime: CinemaShowtime, source: ShowtimeSource) => {
     haptics.soft();
@@ -175,7 +171,7 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     window.open(showtime.bookingUrl, '_blank', 'noopener,noreferrer');
     if (!profileId) return;
     const key = String(showtime.startsAt);
-    if (screeningFor(showtime, source) || submitted.current.has(key)) return;
+    if (placeFor(showtime, source.cinema.id) || submitted.current.has(key)) return;
 
     submitted.current.add(key);
     setPendingId(showtime.id);
@@ -188,6 +184,7 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
         cinemaName: source.cinema.name,
         cinemaAddress: source.cinema.city,
         format: showtime.version,
+        bookingUrl: showtime.bookingUrl,
         status: 'pending',
       });
       setPendingId('');
@@ -201,13 +198,6 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     })();
   };
 
-  const dayName = (day: { day: number; offset: number }) => {
-    if (day.offset === 0) return t('showtimes.today');
-    if (day.offset === 1) return t('showtimes.tomorrow');
-    const name = dayFormatter.format(new Date(day.day));
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  };
-  const countLabel = (n: number) => t(n > 1 ? 'showtimes.count.many' : 'showtimes.count.one', { n: String(n) });
   const whoLabel = (source: ShowtimeSource) =>
     source.mine
       ? source.followers.length
@@ -218,15 +208,13 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
   // ── Aucune salle ────────────────────────────────────────────────────────
   if (!sources.length) {
     return (
-      <div className="rounded-3xl bg-white p-5 dark:bg-white/5">
-        <p className="text-lg font-black tracking-tight text-charcoal dark:text-white">{t('showtimes.empty.title')}</p>
-        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-stone-500 dark:text-stone-400">
-          {t('showtimes.empty.body')}
-        </p>
+      <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+        <p className="text-lg font-black tracking-tight">{t('showtimes.empty.title')}</p>
+        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-white/70">{t('showtimes.empty.body')}</p>
         {onManageCinemas && (
           <button
             onClick={onManageCinemas}
-            className="mt-4 h-12 w-full rounded-full bg-charcoal text-[13px] font-black text-white transition active:scale-[0.98] dark:bg-bitter-lime dark:text-charcoal"
+            className="mt-4 h-12 w-full rounded-full bg-bitter-lime text-[13px] font-black text-charcoal transition active:scale-[0.98]"
           >
             {t('showtimes.empty.cta')}
           </button>
@@ -235,113 +223,74 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     );
   }
 
-  const nowhere = !stillLoading && allEntries.length === 0;
+  const nowhere = !stillLoading && entries.length === 0;
   const release = releaseDate ? new Date(`${releaseDate}T12:00:00`) : null;
   const upcomingRelease = release && release.getTime() > Date.now() ? release : null;
-  const mineSources = sources.filter((s) => s.mine);
-  const theirSources = sources.filter((s) => !s.mine);
+  const day = days.find((d) => d.day === selectedDay) ?? null;
 
-  const chipClass = (on: boolean) =>
-    `flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-xs font-extrabold transition active:scale-95 ${
-      on
-        ? 'bg-charcoal text-white dark:bg-white dark:text-charcoal'
-        : 'border border-stone-200 bg-white text-charcoal dark:border-white/10 dark:bg-white/5 dark:text-white'
-    }`;
-  const chip = (source: ShowtimeSource) => (
-    <button
-      key={source.cinema.id}
-      onClick={() => {
-        haptics.soft();
-        setFilter(source.cinema.id);
-        setOpenDay(null);
-      }}
-      aria-pressed={filter === source.cinema.id}
-      className={chipClass(filter === source.cinema.id)}
-    >
-      {pastille(source.color)}
-      {shortCinemaName(source.cinema.name)}
-      {!source.mine && source.followers[0] && <span className="opacity-60">· {source.followers[0]}</span>}
-      <span className="opacity-60">{states[source.cinema.id]?.status === 'ready' ? countOf(source.cinema.id) : '…'}</span>
-    </button>
-  );
-  const groupLabel = (label: string) => (
-    <span className="flex h-10 shrink-0 items-center pl-1 text-[10px] font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-      {label}
-    </span>
-  );
+  // Le jour choisi, à plat puis rangé par moment de la journée.
+  const rows = (day?.groups ?? [])
+    .flatMap((group) => group.showtimes.map((showtime) => ({ showtime, source: sourceOf(group.cinemaId)! })))
+    .sort((a, b) => a.showtime.startsAt - b.showtime.startsAt);
+  const sections = PARTS.map((part, index) => ({
+    key: part.key,
+    rows: rows.filter(({ showtime }) => {
+      const hour = new Date(showtime.startsAt).getHours() || 24;
+      const from = index === 0 ? 0 : PARTS[index - 1].until;
+      return hour >= from && hour < part.until;
+    }),
+  })).filter((section) => section.rows.length);
 
   return (
-    <div className="space-y-3.5">
-      {/* Prochaine séance */}
-      {next && (() => {
-        const source = sourceOf(next.cinemaId)!;
-        const done = !space && screeningFor(next.showtime, source);
-        const offset = groupShowtimesByDay([next], order, Date.now(), DAYS_AHEAD).find((d) => d.count) ?? {
-          day: next.showtime.startsAt,
-          offset: 99,
-        };
-        return (
-          <div className="flex items-center gap-3 rounded-[22px] bg-charcoal py-3.5 pl-4 pr-3.5 text-white dark:bg-[#202020]">
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bitter-lime">{t('showtimes.next')}</p>
-              <p className="mt-1 text-xl font-black tracking-tight">
-                {dayName(offset)} · {time(next.showtime.startsAt)}{' '}
-                {next.showtime.version && (
-                  <span className="text-[11px] font-extrabold tracking-wide text-stone-400">{next.showtime.version}</span>
-                )}
-              </p>
-              <p className="mt-0.5 truncate text-xs font-semibold text-stone-300">
-                {source.cinema.name}
-                {!source.mine && source.followers.length ? ` · ${whoLabel(source)}` : ''}
-              </p>
-            </div>
+    <div className="space-y-4">
+      {/* La semaine, en grands chiffres */}
+      <div className="-mx-2 flex gap-1 overflow-x-auto px-2 [scrollbar-width:none]" role="tablist" aria-label={t('showtimes.kicker')}>
+        {days.map((d) => {
+          const on = d.day === selectedDay;
+          const empty = d.count === 0;
+          return (
             <button
-              onClick={() => choose(next.showtime, source)}
-              className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-bitter-lime px-4 text-xs font-black text-charcoal transition active:scale-95"
+              key={d.day}
+              role="tab"
+              aria-selected={on}
+              aria-label={`${longDay.format(new Date(d.day))} · ${empty ? t('showtimes.none') : t(d.count > 1 ? 'showtimes.count.many' : 'showtimes.count.one', { n: String(d.count) })}`}
+              disabled={empty}
+              onClick={() => {
+                haptics.soft();
+                setSelectedDay(d.day);
+              }}
+              className={`flex h-[72px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] transition active:scale-95 ${
+                on ? 'bg-cream text-charcoal' : empty ? 'text-white/25' : 'text-white hover:bg-white/[0.06]'
+              }`}
             >
-              {done ? <Check size={14} /> : null}
-              {space ? t('showtimes.choose') : t('showtimes.book')}
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] opacity-70">
+                {d.offset === 0 ? t('showtimes.todayShort') : weekday.format(new Date(d.day)).replace('.', '')}
+              </span>
+              <span className="text-[26px] font-black leading-none tracking-[-0.05em]">{new Date(d.day).getDate()}</span>
+              <span className="mt-0.5 flex h-1 gap-[3px]" aria-hidden="true">
+                {stillLoading && empty ? (
+                  <span className="h-1 w-1 animate-pulse rounded-full bg-white/30" />
+                ) : (
+                  d.groups.map((g) => (
+                    <span key={g.cinemaId} className="h-1 w-1 rounded-full" style={{ background: sourceOf(g.cinemaId)?.color }} />
+                  ))
+                )}
+              </span>
             </button>
-          </div>
-        );
-      })()}
+          );
+        })}
+      </div>
 
-      {/* Puces de filtre */}
-      {sources.length > 1 && (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
-          <button
-            onClick={() => {
-              haptics.soft();
-              setFilter('all');
-              setOpenDay(null);
-            }}
-            aria-pressed={filter === 'all'}
-            className={chipClass(filter === 'all')}
-          >
-            {pastille('#D9FF00')}
-            {t('showtimes.all')}
-            <span className="opacity-60">{allEntries.length}</span>
-          </button>
-          {space && theirSources.length > 0 && groupLabel(t('showtimes.mine'))}
-          {mineSources.map(chip)}
-          {theirSources.length > 0 && groupLabel(t('showtimes.theirs'))}
-          {theirSources.map(chip)}
-        </div>
-      )}
+      <div className="h-px bg-white/[0.12]" />
 
       {/* Salles qui n'ont pas répondu */}
       {failed.map((source) => (
-        <div
-          key={source.cinema.id}
-          className="flex items-center gap-2.5 rounded-2xl border border-stone-200 bg-white px-3.5 py-2 dark:border-white/10 dark:bg-white/5"
-        >
-          {pastille(source.color)}
-          <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-charcoal dark:text-white">
-            {shortCinemaName(source.cinema.name)}
-          </span>
+        <div key={source.cinema.id} className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.05] px-3.5 py-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: source.color }} />
+          <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{shortCinemaName(source.cinema.name)}</span>
           <button
             onClick={() => load(source.cinema.id)}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-stone-200 px-3 text-[11px] font-black text-amber-800 dark:border-white/10 dark:text-amber-300"
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/15 px-3 text-[11px] font-black text-amber-300"
           >
             <RotateCw size={12} /> {t('showtimes.failed')}
           </button>
@@ -350,156 +299,88 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
 
       {nowhere ? (
         failed.length < sources.length && (
-          <div className="rounded-3xl bg-white p-5 dark:bg-white/5">
-            <p className="text-lg font-black leading-tight tracking-tight text-charcoal dark:text-white">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+            <p className="text-lg font-black leading-tight tracking-tight">
               {space ? t('showtimes.nowhereSpace') : t('showtimes.nowhere', { n: String(sources.length) })}
             </p>
             {upcomingRelease && (
-              <p className="mt-1.5 text-[13px] font-medium text-stone-500 dark:text-stone-400">
+              <p className="mt-1.5 text-[13px] font-medium text-white/70">
                 {t('showtimes.release', { date: dateFormatter.format(upcomingRelease) })}
               </p>
             )}
             {onManageCinemas && (
               <button
                 onClick={onManageCinemas}
-                className="mt-3 h-11 rounded-full border border-stone-200 bg-white px-4 text-xs font-extrabold text-charcoal dark:border-white/10 dark:bg-white/5 dark:text-white"
+                className="mt-3 h-11 rounded-full border border-white/20 px-4 text-xs font-extrabold"
               >
                 {t('showtimes.manage')}
               </button>
             )}
           </div>
         )
+      ) : !day ? (
+        <p className="flex items-center gap-2 py-6 text-xs font-bold text-white/60">
+          <Loader2 size={14} className="animate-spin" /> {t('showtimes.searching')}
+        </p>
       ) : (
-        <div className="space-y-2">
-          {days.map((day) => {
-            const empty = day.count === 0;
-            const open = !empty && openDay === day.day;
-            const waiting = empty && stillLoading;
-            return (
-              <div
-                key={day.day}
-                className={`overflow-hidden rounded-[20px] ${
-                  open
-                    ? 'border border-stone-200 bg-sand dark:border-white/10 dark:bg-white/[0.07]'
-                    : empty
-                      ? 'border border-dashed border-stone-200 dark:border-white/10'
-                      : 'border border-stone-200 bg-white dark:border-white/10 dark:bg-white/5'
-                }`}
-              >
-                <button
-                  onClick={() => {
-                    haptics.soft();
-                    setOpenDay(open ? null : day.day);
-                  }}
-                  disabled={empty}
-                  aria-expanded={empty ? undefined : open}
-                  className="flex min-h-[60px] w-full items-center gap-3 px-3.5 py-2.5 text-left"
-                >
-                  <span className="min-w-0 flex-1">
+        <div>
+          {sections.map((section) => (
+            <div key={section.key}>
+              <p className="mb-0.5 mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 first:mt-0">
+                {t(`showtimes.part.${section.key}`)}
+              </p>
+              {section.rows.map(({ showtime, source }) => {
+                const mine = placeFor(showtime, source.cinema.id);
+                const saving = pendingId === showtime.id;
+                const who = whoLabel(source);
+                return (
+                  <button
+                    key={`${source.cinema.id}-${showtime.id}`}
+                    onClick={() => choose(showtime, source)}
+                    aria-label={
+                      space
+                        ? t('showtimes.pickAria', { time: time(showtime.startsAt), cinema: source.cinema.name })
+                        : t('showtimes.bookAria', { time: time(showtime.startsAt), cinema: source.cinema.name })
+                    }
+                    className="flex min-h-[64px] w-full items-center gap-3.5 border-b border-white/[0.08] py-2.5 text-left transition active:bg-white/[0.04]"
+                  >
                     <span
-                      className={`block text-[15px] font-black tracking-tight ${empty ? 'text-stone-400 dark:text-stone-500' : 'text-charcoal dark:text-white'}`}
+                      className="w-[76px] shrink-0 text-[26px] font-black tabular-nums tracking-[-0.05em]"
+                      style={{ color: mine ? '#D9FF00' : undefined }}
                     >
-                      {dayName(day)}
+                      {time(showtime.startsAt)}
                     </span>
-                    <span className="mt-0.5 block text-[11px] font-semibold text-stone-500 dark:text-stone-400">
-                      {dateFormatter.format(new Date(day.day))}
-                    </span>
-                  </span>
-                  <span className="text-right">
-                    <span
-                      className={`block text-[13px] font-black ${empty ? 'text-stone-400 dark:text-stone-500' : 'text-charcoal dark:text-white'}`}
-                    >
-                      {waiting ? <Loader2 size={13} className="inline animate-spin" /> : empty ? t('showtimes.none') : countLabel(day.count)}
-                    </span>
-                    {!empty && (
-                      <span className="mt-0.5 block text-[11px] font-bold text-stone-500 dark:text-stone-400">
-                        {day.count === 1 ? time(day.first!) : `${time(day.first!)} → ${time(day.last!)}`}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-2 text-[13px] font-bold">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: source.color }} />
+                        <span className="truncate">{source.cinema.name}</span>
                       </span>
-                    )}
-                  </span>
-                  {!empty && filter === 'all' && sources.length > 1 && (
-                    <span className="flex flex-col gap-[3px]">
-                      {day.groups.map((g) => (
-                        <React.Fragment key={g.cinemaId}>{pastille(sourceOf(g.cinemaId)?.color ?? '#A8A29E', 6)}</React.Fragment>
-                      ))}
+                      <span className="truncate text-[11px] font-semibold text-white/55">
+                        {[showtime.version, who, mine ? t('showtimes.inCalendar') : ''].filter(Boolean).join(' · ')}
+                      </span>
                     </span>
-                  )}
-                  <ChevronDown
-                    size={16}
-                    strokeWidth={2.6}
-                    className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''} ${empty ? 'text-stone-200 dark:text-white/10' : 'text-charcoal dark:text-white'}`}
-                  />
-                </button>
-                {open && (
-                  <div className="space-y-3 px-3.5 pb-3.5">
-                    {day.groups.map((group) => {
-                      const source = sourceOf(group.cinemaId)!;
-                      const who = whoLabel(source);
-                      return (
-                        <div key={group.cinemaId}>
-                          <p className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-600 dark:text-stone-300">
-                            {pastille(source.color)}
-                            {source.cinema.name}
-                            {who && (
-                              <span className="normal-case tracking-normal font-bold text-stone-500 dark:text-stone-400">
-                                · {who}
-                              </span>
-                            )}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {group.showtimes.map((showtime) => {
-                              const done = !space && screeningFor(showtime, source);
-                              const saving = pendingId === showtime.id;
-                              return (
-                                <button
-                                  key={showtime.id}
-                                  onClick={() => choose(showtime, source)}
-                                  aria-label={
-                                    space
-                                      ? t('showtimes.pickAria', { time: time(showtime.startsAt), cinema: source.cinema.name })
-                                      : t('showtimes.bookAria', { time: time(showtime.startsAt), cinema: source.cinema.name })
-                                  }
-                                  className={`flex h-11 items-center gap-1.5 rounded-[14px] border px-3 transition active:scale-95 ${
-                                    done
-                                      ? 'border-bitter-lime bg-bitter-lime/15 text-charcoal dark:text-white'
-                                      : 'border-stone-200 bg-white text-charcoal hover:border-forest dark:border-white/10 dark:bg-[#1c1c1c] dark:text-white'
-                                  }`}
-                                >
-                                  <span className="text-sm font-black">{time(showtime.startsAt)}</span>
-                                  {showtime.version && (
-                                    <span className="text-[9px] font-extrabold tracking-wide text-stone-500 dark:text-stone-400">
-                                      {showtime.version}
-                                    </span>
-                                  )}
-                                  {saving ? (
-                                    <Loader2 size={11} className="animate-spin text-stone-400" />
-                                  ) : done ? (
-                                    <Check size={11} className="text-forest dark:text-bitter-lime" />
-                                  ) : !space ? (
-                                    <ExternalLink size={11} className="text-stone-300 dark:text-stone-500" />
-                                  ) : null}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                    {saving ? (
+                      <Loader2 size={16} className="shrink-0 animate-spin text-white/50" />
+                    ) : mine ? (
+                      <span className="flex h-7 shrink-0 items-center rounded-full bg-bitter-lime px-3 text-[11px] font-black text-charcoal">
+                        {t('place.yours')}
+                      </span>
+                    ) : space ? (
+                      <span className="shrink-0 text-[11px] font-black text-white/60">{t('showtimes.choose')}</span>
+                    ) : (
+                      <ArrowUpRight size={16} strokeWidth={2.2} className="shrink-0 text-white/45" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
 
-      <p className="flex items-start gap-2 px-0.5 text-[11px] font-semibold leading-relaxed text-stone-500 dark:text-stone-400">
-        <Ticket size={12} className="mt-0.5 shrink-0" />
+      <p className="pb-1 text-[11px] font-semibold leading-relaxed text-white/50">
         {space ? t('showtimes.footerSpace') : t('showtimes.footer')}
       </p>
-      {!space && existing.some((s) => s.status === 'pending') && (
-        <p className="px-0.5 text-[11px] font-bold text-forest dark:text-bitter-lime">{t('showtimes.pending')}</p>
-      )}
     </div>
   );
 };
@@ -509,42 +390,54 @@ export interface ShowtimesSheetProps extends ShowtimesListProps {
   onClose: () => void;
 }
 
-/** La même liste, en feuille du bas : ouverte depuis une liste « à voir ». */
+/**
+ * La feuille des séances, aux couleurs de l'affiche : l'affiche en haut, qui se
+ * fond dans sa propre teinte, puis le programme.
+ */
 export const ShowtimesSheet: React.FC<ShowtimesSheetProps> = ({ title, onClose, ...list }) => {
   const { t } = useLanguage();
   const dialog = useDialog(onClose, t('showtimes.sheetLabel', { title }));
+  const colors = usePosterColors(list.posterUrl);
+  const ground = colors?.deep ?? '#17152C';
+  const cinemaCount = list.sources.length;
+
   return (
     <div {...dialog.props} className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-4">
-      <button className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={onClose} aria-label={t('showtimes.close')} tabIndex={-1} />
-      <section className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] bg-cream dark:bg-[#111] sm:rounded-[2rem]">
-        <div className="mx-auto mt-3 h-[5px] w-10 shrink-0 rounded-full bg-stone-200 dark:bg-white/15" aria-hidden="true" />
-        <header className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-3">
-          {list.posterUrl ? (
-            <img src={list.posterUrl} alt="" className="h-[68px] w-12 shrink-0 rounded-[10px] object-cover" />
-          ) : (
-            <span className="grid h-[68px] w-12 shrink-0 place-items-center rounded-[10px] bg-sand text-stone-400 dark:bg-white/5">
-              <MapPin size={16} />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
-              {t('showtimes.kicker')}
-            </p>
-            <h2 className="mt-1 truncate text-[22px] font-black leading-tight tracking-tight text-charcoal dark:text-white">{title}</h2>
-            <p className="mt-0.5 truncate text-xs font-semibold text-stone-600 dark:text-stone-400">
-              {list.space ? t('showtimes.inSpace') : t('showtimes.inMine', { n: String(list.sources.length) })}
-            </p>
+      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-label={t('showtimes.close')} tabIndex={-1} />
+      <section
+        className="relative z-10 flex h-[94vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] text-white sm:h-[min(880px,92vh)] sm:rounded-[2rem]"
+        style={{ background: ground }}
+      >
+        <div className="overflow-y-auto overscroll-contain">
+          <div className="relative h-[300px] shrink-0">
+            {list.posterUrl && (
+              <img src={list.posterUrl} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: 'center 30%' }} />
+            )}
+            <div
+              className="absolute inset-0"
+              style={{ background: `linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 28%, transparent 45%, ${ground} 100%)` }}
+            />
+            <button
+              onClick={onClose}
+              aria-label={t('showtimes.close')}
+              className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/30 backdrop-blur-md"
+            >
+              <X size={18} strokeWidth={2.2} />
+            </button>
+            <div className="absolute inset-x-5 bottom-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: colors?.accent ?? '#F4C7A8' }}>
+                {list.space
+                  ? t('showtimes.inSpace')
+                  : cinemaCount === 1
+                    ? list.sources[0].cinema.name
+                    : t('showtimes.inMine', { n: String(cinemaCount) })}
+              </p>
+              <h2 className="mt-2 line-clamp-2 text-[32px] font-black leading-[0.95] tracking-[-0.06em]">{title}</h2>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label={t('showtimes.close')}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sand text-charcoal dark:bg-white/10 dark:text-white"
-          >
-            <X size={18} strokeWidth={2.4} />
-          </button>
-        </header>
-        <div className="overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <ShowtimesList {...list} />
+          <div className="px-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-5">
+            <ShowtimesList {...list} />
+          </div>
         </div>
       </section>
     </div>

@@ -345,3 +345,41 @@ export const deleteScreening = async (screeningId: string): Promise<ScreeningDel
     window.clearTimeout(timeout);
   }
 };
+
+/**
+ * Rattache une séance de mon calendrier à une invitation de l'espace.
+ *
+ * Quand l'invitation est acceptée, le serveur inscrit la séance au calendrier
+ * de chacun (`private.add_plan_screening`, unique par invitation et personne).
+ * Rattachée d'abord, ma séance existante tient lieu de la mienne : pas de
+ * doublon dans le calendrier.
+ */
+export const linkScreeningToPlan = async (screeningId: string, planId: string): Promise<boolean> => {
+  if (!supabase || !screeningId || !planId) return false;
+  try {
+    const { error } = await supabase.from('cinema_screenings').update({ plan_id: planId }).eq('id', screeningId);
+    if (error) console.warn('[Séances] Rattachement à l’invitation impossible', error);
+    return !error;
+  } catch (error) {
+    console.warn('[Séances] Rattachement à l’invitation injoignable', error);
+    return false;
+  }
+};
+
+/** Les séances des autres membres qui sont aussi les miennes (même film, ±15 min, même cinéma). */
+export const listSpaceScreeningMatches = async (
+  spaceId: string
+): Promise<{ tmdbId: number; profileId: string; startsAt: number }[]> => {
+  if (!supabase || !spaceId) return [];
+  try {
+    const { data, error } = await supabase.rpc('space_screening_matches', { p_space_id: spaceId });
+    if (error || !Array.isArray(data)) return [];
+    return (data as { tmdb_id: number; profile_id: string; starts_at: string }[]).map((row) => ({
+      tmdbId: row.tmdb_id,
+      profileId: row.profile_id,
+      startsAt: new Date(row.starts_at).getTime(),
+    }));
+  } catch {
+    return [];
+  }
+};

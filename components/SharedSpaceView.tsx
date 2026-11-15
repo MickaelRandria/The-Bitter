@@ -49,7 +49,7 @@ import PlanPanel from './PlanPanel';
 import { ShowtimesSheet } from './ShowtimesList';
 import { fetchFavoriteCinemasOf } from '../services/cinemaDirectory';
 import { buildShowtimeSources } from '../utils/favoriteCinemas';
-import { SlotDraft, WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, subscribeToPlans } from '../services/plans';
+import { SlotDraft, WatchPlan, acceptSlot, chosenSlotOf, currentPlanFor, getSpacePlans, proposePlan, subscribeToPlans } from '../services/plans';
 import SpaceTodoStack from './SpaceTodoStack';
 import SwipeRow from './SwipeRow';
 import { SELECTED_RING, Selectable, SelectionCheck } from './SelectableWork';
@@ -63,7 +63,11 @@ import { publishVerdictToSpaces } from '../services/spaceSync';
 import { formatRating, formatSlot } from '../supabase/functions/notify/messages.ts';
 import { getDisplayWeightedRating, hasVerdict } from '../utils/rating';
 import { useLanguage } from '../contexts/LanguageContext';
-import { FavoriteCinema, Movie } from '../types';
+import { CinemaScreening, FavoriteCinema, Movie } from '../types';
+import { linkScreeningToPlan, listSpaceScreeningMatches, listUpcomingScreenings } from '../services/screenings';
+import { isSameScreening, myScreeningFor, slotFromScreening } from '../utils/myPlace';
+import MyPlaceTicket, { PlacePerson } from './MyPlaceTicket';
+import PlanInvitation from './PlanInvitation';
 import { useResumeRefresh } from '../utils/useResumeRefresh';
 import { avatarSrc } from '../utils/avatar';
 import MemberProfileModal from './MemberProfileModal';
@@ -118,6 +122,24 @@ interface SharedSpaceViewProps {
 const MEMBER_TINTS = ['#B45309', '#3E5238', '#3D405B', '#7F5539', '#2F3E46', '#6B705C'];
 
 /** Avatar d'un membre : sa photo, sinon son initiale sur sa teinte. */
+/** Invitations écartées (« Pas cette fois ») : elles ne reviennent pas sur cet appareil. */
+const DISMISSED_INVITES_KEY = 'bitter:dismissed-invites';
+const readDismissedInvites = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DISMISSED_INVITES_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+};
+const writeDismissedInvites = (ids: Set<string>) => {
+  try {
+    localStorage.setItem(DISMISSED_INVITES_KEY, JSON.stringify([...ids].slice(-100)));
+  } catch {
+    /* stockage indisponible : l'invitation reviendra, sans plus */
+  }
+};
+
 const MemberDot: React.FC<{ member: SpaceMember; color?: string; isMe: boolean; className?: string }> = ({
   member,
   color,
@@ -191,6 +213,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   );
   const [loading, setLoading] = useState(true);
   const [expandedMovie, setExpandedMovie] = useState<string | null>(null);
+  /** Film d'une notification touchée, en attente de ses séances proposées. */
+  const pendingInviteFocus = useRef<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     message: string;
@@ -779,6 +803,8 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       return;
     }
     setExpandedMovie(target.id);
+    // Une invitation derrière la notification : elle s'ouvrira dès que les séances proposées seront là.
+    pendingInviteFocus.current = target.id;
     window.setTimeout(() => {
       document.getElementById(`space-movie-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 250);
@@ -968,6 +994,42 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
     [favoriteCinemas, favoriteCinema, members, memberCinemas, currentUserId]
   );
 
+  /** Mes séances du calendrier, pour « Ta place » sur les films de l'espace. */
+  const [myScreenings, setMyScreenings] = useState<CinemaScreening[]>([]);
+  /** Séances des autres membres qui sont aussi les miennes : « Vous y allez ensemble ». */
+  const [screeningMatches, setScreeningMatches] = useState<{ tmdbId: number; profileId: string; startsAt: number }[]>([]);
+  /** Le film dont l'invitation reçue est ouverte en plein écran. */
+  const [invitationFor, setInvitationFor] = useState<string | null>(null);
+  const [placeBusy, setPlaceBusy] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState<'join' | 'ticket' | null>(null);
+  const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(readDismissedInvites);
+
+  const reloadPlaces = () => {
+    if (!currentUserId) return;
+    void listUpcomingScreenings(currentUserId).then(setMyScreenings);
+    void listSpaceScreeningMatches(initialSpace.id).then(setScreeningMatches);
+  };
+  useEffect(() => {
+    reloadPlaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, initialSpace.id, refreshTrigger]);
+
+  /** Une invitation pour moi : un créneau unique, proposé par un autre, auquel je n'ai pas répondu. */
+  const invitationOf = (plan: WatchPlan | null) => {
+    if (!plan || plan.status !== 'open' || plan.proposer_id === currentUserId) return null;
+    if (plan.participant_ids.includes(currentUserId) || dismissedInvites.has(plan.id)) return null;
+    const upcoming = plan.slots.filter((slot) => new Date(slot.starts_at).getTime() > Date.now());
+    return upcoming.length === 1 ? upcoming[0] : null;
+  };
+
+  useEffect(() => {
+    const id = pendingInviteFocus.current;
+    if (!id || plans.length === 0) return;
+    pendingInviteFocus.current = null;
+    if (invitationOf(currentPlanFor(plans, id))) setInvitationFor(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plans, focusMovieId]);
+
   if (loading && movies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -1117,7 +1179,127 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         {t('spaces.keenQ')}
       </button>
     ) : null;
-    return { keenIds, myVote, everyone, plan, planSlot, status, action, myRating, mine: personalScoreOf(movie) };
+    // « Ta place » : une séance de mon calendrier sur ce film.
+    const place = myScreeningFor(myScreenings, movie.tmdb_id);
+    const others = members.filter((m) => m.profile_id !== currentUserId);
+    const slotTime = (slot: { starts_at: string; cinema_name?: string | null }) => ({
+      startsAt: new Date(slot.starts_at).getTime(),
+      cinemaName: slot.cinema_name,
+    });
+    const placePlan =
+      place && plan && (place.planId === plan.id || plan.slots.some((slot) => isSameScreening(slotTime(slot), place)))
+        ? plan
+        : null;
+    const comingIds = new Set<string>([
+      ...(place
+        ? screeningMatches.filter((m) => m.tmdbId === movie.tmdb_id && isSameScreening(m, place)).map((m) => m.profileId)
+        : []),
+      ...(placePlan?.status === 'agreed' ? placePlan.participant_ids : []),
+    ]);
+    comingIds.delete(currentUserId);
+    const invitedIds =
+      placePlan?.status === 'open' && placePlan.proposer_id === currentUserId
+        ? others.filter((o) => !comingIds.has(o.profile_id)).map((o) => o.profile_id)
+        : [];
+    const notYet = others.filter((o) => !comingIds.has(o.profile_id) && !invitedIds.includes(o.profile_id));
+    const allComing = others.length > 0 && notYet.length === 0 && invitedIds.length === 0;
+    const nameOf = (id: string) => memberNames[id] || t('shared.member');
+    const otherAgreed = !!planSlot && !placePlan && new Date(planSlot.starts_at).getTime() > Date.now();
+    const inviteLabel =
+      place && notYet.length > 0 && !otherAgreed
+        ? notYet.length === 1
+          ? t('place.invite', { name: nameOf(notYet[0].profile_id) })
+          : t('place.inviteAll')
+        : undefined;
+    const placeStatus = !place
+      ? null
+      : allComing
+        ? t('place.together')
+        : invitedIds.length
+          ? t('place.invited', { names: invitedIds.map(nameOf).join(', ') })
+          : notYet.length
+            ? t('place.youGo', { names: notYet.map((o) => nameOf(o.profile_id)).join(', ') })
+            : t('place.youGoAlone');
+    const invitation = invitationOf(plan);
+    return {
+      keenIds,
+      myVote,
+      everyone,
+      plan,
+      planSlot,
+      status: placeStatus ?? status,
+      action,
+      myRating,
+      mine: personalScoreOf(movie),
+      place,
+      placePlan,
+      comingIds,
+      invitedIds,
+      allComing,
+      inviteLabel,
+      invitation,
+    };
+  };
+
+  /** « Inviter Marie » : ma séance devient la proposition de l'espace, rattachée à mon calendrier. */
+  const inviteToMyPlace = async (movie: SharedMovie, place: CinemaScreening) => {
+    if (placeBusy) return;
+    setPlaceBusy(movie.id);
+    haptics.medium();
+    const result = await proposePlan(movie.id, [slotFromScreening(place)]);
+    // Rattachée avant toute réponse : quand l'invitation sera acceptée, le
+    // serveur reconnaîtra ma séance au lieu de m'en inscrire une seconde.
+    if (result.ok && result.planId) await linkScreeningToPlan(place.id, result.planId);
+    setPlaceBusy(null);
+    if (!result.ok) {
+      haptics.error();
+      onToast?.(result.error ?? t('social.failed'));
+      return;
+    }
+    haptics.success();
+    onToast?.(t('place.sent'));
+    reloadPlans();
+    reloadPlaces();
+  };
+
+  /** Réponse à une invitation reçue. */
+  const answerInvitation = async (
+    movie: SharedMovie,
+    plan: WatchPlan,
+    slot: WatchPlan['slots'][number],
+    hasTicket: boolean
+  ) => {
+    if (inviteBusy) return;
+    // Avant tout `await` : sinon le navigateur bloque l'onglet de réservation.
+    if (!hasTicket && slot.booking_url) window.open(slot.booking_url, '_blank', 'noopener,noreferrer');
+    setInviteBusy(hasTicket ? 'ticket' : 'join');
+    const mine = myScreeningFor(myScreenings, movie.tmdb_id);
+    if (mine && isSameScreening(mine, { startsAt: new Date(slot.starts_at).getTime(), cinemaName: slot.cinema_name })) {
+      await linkScreeningToPlan(mine.id, plan.id);
+    }
+    const result = await acceptSlot(slot.id);
+    setInviteBusy(null);
+    if (!result.ok) {
+      haptics.error();
+      onToast?.(result.error ?? t('social.failed'));
+      return;
+    }
+    haptics.success();
+    setInvitationFor(null);
+    onToast?.(hasTicket ? t('invite.joinedWithTicket') : t('invite.joined'));
+    reloadPlans();
+    reloadPlaces();
+    void loadData(true);
+  };
+
+  const declineInvitation = (plan: WatchPlan) => {
+    const next = new Set<string>(dismissedInvites);
+    next.add(plan.id);
+    writeDismissedInvites(next);
+    setDismissedInvites(next);
+    setInvitationFor(null);
+    haptics.soft();
+    onToast?.(t('invite.declined'));
   };
 
   const seenContext = (movie: SharedMovie) => {
@@ -1200,9 +1382,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       movie.added_by === currentUserId
         ? t('spaces.proposedByYou')
         : t('todo.proposedBy', { name: memberNames[movie.added_by ?? ''] || t('shared.member') });
+    const placeWhen = ctx.place
+      ? new Intl.DateTimeFormat(t('place.locale'), { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(
+          new Date(ctx.place.startsAt)
+        )
+      : '';
     // « tous partants » est déjà dit sous le titre : le surtitre n'a pas à le répéter.
-    const kicker = headliner ? t('spaces.topWish') : proposer;
-    const cta = ctx.planSlot ? null : ctx.everyone && !ctx.plan ? (
+    // Ma place, elle, se lit en premier : sur un bandeau, elle prend le surtitre.
+    const kicker = ctx.place && !headliner ? t('place.badge', { when: placeWhen }) : headliner ? t('spaces.topWish') : proposer;
+    const baseCta = ctx.planSlot ? null : ctx.everyone && !ctx.plan ? (
       <button
         onClick={() => openPlan(movie.id)}
         className="h-11 px-4 rounded-full bg-bitter-lime text-charcoal text-xs font-black whitespace-nowrap active:scale-95 transition-transform"
@@ -1217,6 +1405,31 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
         {t('spaces.keenQ')}
       </button>
     ) : null;
+    // Une invitation reçue passe avant tout ; ma place appelle « Inviter » ; sinon le vote.
+    const cta = ctx.invitation ? (
+      <button
+        onClick={() => {
+          haptics.soft();
+          setInvitationFor(movie.id);
+        }}
+        className="h-11 px-4 rounded-full bg-bitter-lime text-charcoal text-xs font-black whitespace-nowrap active:scale-95 transition-transform"
+      >
+        {t('invite.cardCta', { name: memberNames[ctx.plan?.proposer_id ?? ''] || t('shared.member') })}
+      </button>
+    ) : ctx.place ? (
+      ctx.inviteLabel ? (
+        <button
+          onClick={() => void inviteToMyPlace(movie, ctx.place!)}
+          disabled={placeBusy === movie.id}
+          className="h-11 px-4 rounded-full bg-cream text-charcoal text-xs font-black whitespace-nowrap active:scale-95 transition-transform disabled:opacity-60 flex items-center gap-1.5"
+        >
+          {placeBusy === movie.id && <Loader2 size={13} className="animate-spin" />}
+          {ctx.inviteLabel}
+        </button>
+      ) : null
+    ) : (
+      baseCta
+    );
     // Les séances du film dans nos cinémas : un film, pas une série.
     const showtimesButton =
       movie.media_type === 'tv' || !movie.tmdb_id ? null : headliner ? (
@@ -1273,6 +1486,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
                   : 'linear-gradient(90deg, rgba(12,12,12,0.9) 0%, rgba(12,12,12,0.55) 58%, rgba(12,12,12,0.15) 100%)',
               }}
             />
+            {ctx.place && headliner && (
+              <span className="pointer-events-none absolute left-4 top-4 flex h-[34px] items-center gap-2 rounded-full border border-white/30 bg-white/15 pl-1.5 pr-3.5 text-xs font-extrabold tracking-[-0.01em] text-white backdrop-blur-xl">
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-bitter-lime">
+                  <Ticket size={12} strokeWidth={2.6} className="text-charcoal" />
+                </span>
+                {t('place.badge', { when: placeWhen })}
+              </span>
+            )}
             {ctx.myVote?.interested && !headliner && (
               <span className="absolute left-0 top-[18px] bottom-[18px] w-1 rounded-r bg-bitter-lime" />
             )}
@@ -1291,7 +1512,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             >
               <div>
                 <p
-                  className={`text-[10px] font-black uppercase tracking-[0.18em] truncate ${headliner || ctx.everyone ? 'text-bitter-lime' : 'text-stone-200'}`}
+                  className={`text-[10px] font-black uppercase tracking-[0.18em] truncate ${headliner || ctx.everyone || ctx.place ? 'text-bitter-lime' : 'text-stone-200'}`}
                 >
                   {kicker}
                 </p>
@@ -1303,10 +1524,14 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </div>
               <div className={`flex items-center justify-between gap-3 ${headliner ? 'mt-3.5' : ''}`}>
                 <span className="flex items-center gap-2 min-w-0">
-                  {ctx.keenIds.length > 0 && (
+                  {(ctx.place ? true : ctx.keenIds.length > 0) && (
                     <span className="flex shrink-0">
                       {members
-                        .filter((m) => ctx.keenIds.includes(m.profile_id))
+                        .filter((m) =>
+                          ctx.place
+                            ? m.profile_id === currentUserId || ctx.comingIds.has(m.profile_id)
+                            : ctx.keenIds.includes(m.profile_id)
+                        )
                         .map((member, i) => (
                           <MemberDot
                             key={member.id}
@@ -1411,7 +1636,44 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
 
   const renderWatchDetail = (movie: SharedMovie, ctx: ReturnType<typeof watchContext>) => (
       <div className="border-t border-sand dark:border-white/5 p-5 bg-stone-50/60 dark:bg-[#141414] animate-[fadeIn_0.3s_ease-out] space-y-4">
+        {ctx.place && (
+          <MyPlaceTicket
+            title={movie.title}
+            posterUrl={movie.poster_url}
+            screening={ctx.place}
+            people={[
+              ...members.filter((m) => m.profile_id === currentUserId),
+              ...members.filter((m) => m.profile_id !== currentUserId),
+            ].map(
+              (m): PlacePerson => ({
+                id: m.profile_id,
+                name: memberNames[m.profile_id] || t('shared.member'),
+                color: memberColors[m.profile_id],
+                avatarUrl: avatarSrc(m.profile?.avatar_url) || undefined,
+                state:
+                  m.profile_id === currentUserId
+                    ? 'me'
+                    : ctx.comingIds.has(m.profile_id)
+                      ? 'coming'
+                      : ctx.invitedIds.includes(m.profile_id)
+                        ? 'invited'
+                        : 'none',
+              })
+            )}
+            inviteLabel={ctx.inviteLabel}
+            inviting={placeBusy === movie.id}
+            onInvite={() => void inviteToMyPlace(movie, ctx.place!)}
+            note={
+              ctx.allComing
+                ? t('place.together')
+                : ctx.invitedIds.length
+                  ? t('place.invitedNote', { names: ctx.invitedIds.map((id) => memberNames[id] || t('shared.member')).join(', ') })
+                  : undefined
+            }
+          />
+        )}
         <div id={`space-plan-${movie.id}`}>
+          {!(ctx.place && (!ctx.plan || ctx.placePlan)) && (
           <PlanPanel
             plan={ctx.plan}
             sharedMovieId={movie.id}
@@ -1427,6 +1689,7 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
             }}
             onToast={onToast}
           />
+          )}
         </div>
         {/* Avant de demander un avis, dire à qui le film
             s'adresse. Un titre posé sans un mot ne dit pas
@@ -2229,6 +2492,27 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {invitationFor &&
+        (() => {
+          const movie = movies.find((m) => m.id === invitationFor);
+          const plan = movie ? currentPlanFor(plans, movie.id) : null;
+          const slot = invitationOf(plan);
+          if (!movie || !plan || !slot) return null;
+          return (
+            <PlanInvitation
+              title={movie.title}
+              posterUrl={movie.poster_url}
+              proposerName={memberNames[plan.proposer_id] || t('shared.member')}
+              proposerColor={memberColors[plan.proposer_id]}
+              slot={slot}
+              busy={inviteBusy}
+              onJoin={(hasTicket) => void answerInvitation(movie, plan, slot, hasTicket)}
+              onDecline={() => declineInvitation(plan)}
+              onClose={() => setInvitationFor(null)}
+            />
+          );
+        })()}
 
       {showtimesFor?.tmdb_id && (
         <ShowtimesSheet

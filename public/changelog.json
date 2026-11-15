@@ -1,7 +1,15 @@
 {
-  "version": "2026-11-15-cinemas",
+  "version": "2026-11-15-ta-place",
   "label": "Version du 15 novembre",
   "items": [
+    {
+      "title": "Ta place, dans l’espace",
+      "body": "Une séance déjà dans ton calendrier (billet scanné, saisie à la main ou réservée depuis l’app) apparaît sur le film dans tes espaces : « Ta place · mer. 19:30 », ton billet, et qui vient. Un appui sur « Inviter » la propose aux autres, qui reçoivent une invitation plein écran : « Je viens », « J’ai déjà mon billet » ou « Pas cette fois ». Et si vous avez réservé la même séance chacun de votre côté, l’app le voit : « Vous y allez ensemble »."
+    },
+    {
+      "title": "Les séances, aux couleurs du film",
+      "body": "Le programme d’un film prend la teinte de son affiche : une semaine en grands chiffres, puis les horaires rangés en matin, après-midi et soirée, ta séance en citron."
+    },
     {
       "title": "Tes cinémas, tes séances",
       "body": "Suis jusqu’à 5 cinémas (Profil › Mes cinémas), dans l’ordre que tu veux. Sur chaque film de ta liste « à voir », le bouton Séances montre leurs horaires de la semaine : la prochaine séance en tête, puis un jour par ligne (« Demain · 9 séances · 11:00 → 22:05 ») à déplier d’un toucher. Dans un espace, les cinémas des autres membres s’ajoutent aux tiens, et choisir un horaire le glisse dans « On y va »."
@@ -202,15 +210,15 @@
   "highlights": [
     {
       "icon": "cinema",
-      "title": "Tes cinémas, tes séances"
+      "title": "Ta place, dans l’espace"
     },
     {
       "icon": "cinema",
-      "title": "Ce qu’en dit Internet"
+      "title": "Les séances, aux couleurs du film"
     },
     {
-      "icon": "trailers",
-      "title": "Ce qu’en dit le public"
+      "icon": "cinema",
+      "title": "Tes cinémas, tes séances"
     }
   ]
 }
