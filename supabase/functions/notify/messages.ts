@@ -32,7 +32,8 @@ export type SocialKind =
   | 'review_reaction'
   | 'verdict_debate'
   | 'running_late'
-  | 'space_ping';
+  | 'space_ping'
+  | 'booking_check';
 
 /** Un créneau tel que le serveur le range dans `notifications.payload`. */
 export interface PlanSlot {
@@ -73,6 +74,8 @@ export interface PlanPayload {
   score?: number;
   total?: number;
   month?: string;
+  /** Séance « à confirmer » dont on demande si les places ont été prises. */
+  screening_id?: string;
 }
 
 export interface SocialMessageInput {
@@ -334,6 +337,15 @@ export const socialMessage = (input: SocialMessageInput): SocialMessage => {
         };
       }
       return { title: `Le récap du mois${where} est dispo`, body: `${actor} l’a regardé. À ton tour de voir la story.` };
+    }
+    // La veille d'une séance restée « à confirmer » après un passage sur UGC.
+    case 'booking_check': {
+      const when = input.payload?.starts_at ? formatWhen(input.payload.starts_at) : '';
+      const where = (input.payload?.cinema_name ?? '').trim();
+      return {
+        title: `Tu as bien tes places pour ${title} ?`,
+        body: `${[when, where].filter(Boolean).join(' · ') || 'Ta séance'}. Confirme en un geste, ou libère la séance.`,
+      };
     }
     default:
       return { title: 'The Bitter', body: title };

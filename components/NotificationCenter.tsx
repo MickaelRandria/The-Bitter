@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { openBookingReturn } from '../services/bookingReturn';
 import { Bell, Loader2, X } from 'lucide-react';
 import { CinemaScreening, Movie } from '../types';
 import {
@@ -233,6 +234,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const openNotification = (n: SocialNotification, rate = false) => {
     markSocialRead(n);
+    // « Tu as bien tes places ? » : la question elle-même, pas un espace.
+    const screeningId = (n.payload as { screening_id?: string } | null)?.screening_id;
+    if (n.kind === 'booking_check' && screeningId) {
+      setOpen(false);
+      openBookingReturn(screeningId);
+      return;
+    }
     if (n.space_id && onOpenSpace) {
       setOpen(false);
       onOpenSpace(n.space_id, n.shared_movie_id, rate);

@@ -137,7 +137,13 @@ Deno.serve(async (req) => {
     // Une notification par film et par sorte : la suivante remplace la précédente
     // au lieu de s'empiler sur l'écran verrouillé.
     tag: `social-${notification.kind}-${notification.shared_movie_id ?? notification.share_link_id ?? notification.plan_id ?? notification.id}`,
-    data: { url: `/?notif=${notification.id}` },
+    // « Tu as bien tes places ? » ouvre directement la question, pas la cloche.
+    data: {
+      url:
+        notification.kind === 'booking_check' && /^[0-9a-f-]{36}$/.test(String(notification.payload?.screening_id ?? ''))
+          ? `/?booking=${notification.payload.screening_id}`
+          : `/?notif=${notification.id}`,
+    },
   });
 
   const results = await Promise.all(

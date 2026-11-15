@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-15-sorties-semaine",
+  "version": "2026-11-15-retour-ugc",
   "label": "Version du 15 novembre",
   "items": [
+    {
+      "title": "Tu reviens d’UGC : alors, tes places ?",
+      "body": "Toucher un horaire ouvre la réservation UGC, mais rien n’est plus tenu pour acquis : à ton retour, l’app te demande si tu as tes places. Oui ? Importe ton billet (QR code compris, le lien « Mes réservations » est là) ou confirme d’un geste. Non ? La séance est retirée, et tu peux en choisir une autre. Plus tard ? Elle reste « à confirmer », en pointillés, et on te repose la question la veille à 18 h. Une fois confirmée, « Inviter quelqu’un » propose tes espaces, puis les personnes."
+    },
     {
       "title": "Les vraies sorties de la semaine",
       "body": "« Au cinéma » suit enfin la semaine des salles, du mercredi au mardi. En tête, les films sortis ce mercredi ; juste en dessous, « Toujours à l’affiche » : ce qui est sorti les 5 semaines d’avant, avec son ancienneté (« 3e sem. ») et les ressorties marquées. Les sorties limitées passent en dernier, et une pastille dit si un film n’est pas dans tes cinémas. Dans Découvrir comme dans le calendrier."

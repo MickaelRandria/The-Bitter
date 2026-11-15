@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { rememberBookingTrip } from '../services/bookingReturn';
 import { ArrowUpRight, Loader2, RotateCw, X } from 'lucide-react';
 import { CinemaScreening, CinemaShowtime } from '../types';
 import { fetchMovieShowtimes } from '../services/cinemaDirectory';
@@ -171,7 +172,10 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
     window.open(showtime.bookingUrl, '_blank', 'noopener,noreferrer');
     if (!profileId) return;
     const key = String(showtime.startsAt);
-    if (placeFor(showtime, source.cinema.id) || submitted.current.has(key)) return;
+    const already = placeFor(showtime, source.cinema.id);
+    // Déjà notée et toujours à confirmer : au retour, la même question se pose.
+    if (already?.status === 'pending') rememberBookingTrip(already.id);
+    if (already || submitted.current.has(key)) return;
 
     submitted.current.add(key);
     setPendingId(showtime.id);
@@ -194,7 +198,8 @@ export const ShowtimesList: React.FC<ShowtimesListProps> = ({
         return;
       }
       setExisting((current) => [...current, result.screening]);
-      onToast?.(t('showtimes.added'));
+      // Au retour dans l'app : « Alors, tu as tes places ? »
+      rememberBookingTrip(result.screening.id);
     })();
   };
 

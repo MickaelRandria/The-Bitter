@@ -1195,7 +1195,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       </button>
     ) : null;
     // « Ta place » : une séance de mon calendrier sur ce film.
-    const place = myScreeningFor(myScreenings, movie.tmdb_id);
+    // Une séance « à confirmer » (passage sur UGC sans réponse) n'est pas encore une place :
+    // on ne la montre pas aux autres et on ne la leur propose pas.
+    const place = myScreeningFor(myScreenings.filter((sc) => sc.status !== 'pending'), movie.tmdb_id);
     const others = members.filter((m) => m.profile_id !== currentUserId);
     const slotTime = (slot: { starts_at: string; cinema_name?: string | null }) => ({
       startsAt: new Date(slot.starts_at).getTime(),

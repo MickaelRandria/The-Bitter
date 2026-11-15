@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { rememberBookingTrip } from '../services/bookingReturn';
 import {
   Check,
   ChevronDown,
@@ -252,10 +253,11 @@ const ScreeningProgrammePicker: React.FC<ScreeningProgrammePickerProps> = ({
       return;
     }
     if (alsoWatchlist && match?.id) onAddToWatchlist?.(match.id);
+    if (status === 'pending') rememberBookingTrip(result.screening.id);
     onCreated();
     onToast?.(
       status === 'pending'
-        ? 'Séance ajoutée en attente. Confirme-la dans ton calendrier une fois réservée.'
+        ? 'Séance notée « à confirmer » : on te demande à ton retour si tu as tes places.'
         : 'Séance planifiée. Les rappels The Bitter sont prêts.'
     );
     onClose();

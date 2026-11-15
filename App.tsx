@@ -176,8 +176,9 @@ import FilmWall, { FilmViewSwitch } from './components/FilmWall';
 import AgendaSyncSheet from './components/AgendaSyncSheet';
 import SeancePrompt from './components/SeancePrompt';
 import type { SeanceChoice } from './components/SeanceCard';
-import { createScreening } from './services/screenings';
-import { useMyPlaces } from './services/myScreenings';
+import { createScreening, listUpcomingScreenings } from './services/screenings';
+import { BOOKING_RETURN_EVENT, BookingReturnStep, takeBookingTrip } from './services/bookingReturn';
+import { useMyPlaces, useUpcomingScreenings } from './services/myScreenings';
 import { APPROX_NOTE } from './utils/seance';
 import { rememberCinema } from './services/cinemaMemory';
 import HomeVoteCard, { VoteRequest } from './components/HomeVoteCard';
@@ -218,6 +219,8 @@ const CinemaSubscriptionDetailsModal = lazy(
 const FavoriteCinemasModal = lazy(() => import('./components/FavoriteCinemasModal'));
 const ShowtimesSheet = lazy(() => import('./components/ShowtimesList'));
 const TicketQrSheet = lazy(() => import('./components/TicketQrSheet'));
+const BookingReturnSheet = lazy(() => import('./components/BookingReturnSheet'));
+const TicketImportModal = lazy(() => import('./components/TicketImportModal'));
 import {
   TOUR_STEPS,
   RATING_TOUR_STEPS,
@@ -2888,6 +2891,57 @@ const App: React.FC = () => {
   const screeningFollowup = useScreeningFollowup(session?.user?.id, allMovies);
   /** Mes places à venir, film par film : la même source pour toute l'app. */
   const myPlaces = useMyPlaces(session?.user?.id);
+  const upcomingScreenings = useUpcomingScreenings(session?.user?.id);
+
+  /**
+   * « Alors, tu as tes places ? » : au retour d'UGC, depuis la carte « à
+   * confirmer » du calendrier, la pastille en pointillés ou la notification de la veille.
+   */
+  const [bookingReturn, setBookingReturn] = useState<{ screening: CinemaScreening; step: BookingReturnStep | 'done' } | null>(null);
+  /** L'import de billet ouvert depuis cette question : à sa fermeture, on regarde si la séance est confirmée. */
+  const [bookingImport, setBookingImport] = useState<CinemaScreening | null>(null);
+  const openBookingFor = useCallback(
+    async (screeningId: string, step: BookingReturnStep, onlyPending = false) => {
+      const userId = sessionRef.current?.user?.id;
+      if (!userId) return;
+      const list = await listUpcomingScreenings(userId);
+      const screening = list.find((s) => s.id === screeningId);
+      if (!screening || screening.status === 'cancelled' || screening.status === 'completed') return;
+      if (onlyPending && screening.status !== 'pending') return;
+      setBookingReturn({ screening, step: screening.status === 'scheduled' ? 'done' : step });
+    },
+    []
+  );
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const detail = (event as CustomEvent<{ screeningId: string; step: BookingReturnStep }>).detail;
+      if (detail?.screeningId) void openBookingFor(detail.screeningId, detail.step ?? 'ask');
+    };
+    // Le retour au premier plan après le passage sur UGC.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const id = takeBookingTrip();
+      if (id) void openBookingFor(id, 'ask', true);
+    };
+    window.addEventListener(BOOKING_RETURN_EVENT, onAsk);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      window.removeEventListener(BOOKING_RETURN_EVENT, onAsk);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [openBookingFor]);
+  // Lien de la notification de la veille : `/?booking=<séance>`.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('booking');
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+    url.searchParams.delete('booking');
+    window.history.replaceState(window.history.state, '', url.toString());
+    void openBookingFor(id, 'ask');
+  }, [session?.user?.id, openBookingFor]);
   /** Mon billet ouvert en grand depuis une carte « À voir ». */
   const [ticketOpen, setTicketOpen] = useState<{ screening: CinemaScreening; title: string; posterUrl?: string } | null>(null);
   const [linkScreening, setLinkScreening] = useState<CinemaScreening | null>(null);
@@ -5708,6 +5762,39 @@ const App: React.FC = () => {
           />
         )}
 
+        {bookingReturn && session?.user?.id && (
+          <BookingReturnSheet
+            key={bookingReturn.screening.id}
+            screening={bookingReturn.screening}
+            initialStep={bookingReturn.step === 'done' ? 'ask' : bookingReturn.step}
+            profileId={session.user.id}
+            spaces={mySpaces}
+            onImportTicket={() => setBookingImport(bookingReturn.screening)}
+            onPickAnother={(film) => setShowtimesMovie(film)}
+            onOpenCalendar={() => setViewMode('Calendar')}
+            onClose={() => setBookingReturn(null)}
+            onToast={setToastMessage}
+          />
+        )}
+        {bookingImport && session?.user?.id && (
+          <TicketImportModal
+            profileId={session.user.id}
+            favoriteCinema={activeProfile?.favoriteCinema}
+            existingScreenings={upcomingScreenings}
+            onClose={() => {
+              const target = bookingImport;
+              setBookingImport(null);
+              // Billet importé : la séance est confirmée, on enchaîne sur « C'est noté ».
+              void listUpcomingScreenings(session.user.id).then((list) => {
+                const now = list.find((s) => s.id === target.id);
+                if (now?.status === 'scheduled') setBookingReturn({ screening: now, step: 'done' });
+              });
+            }}
+            onImported={() => undefined}
+            onAddToWatchlist={(id) => void handleQuickWatchlist(id, 'movie')}
+            onToast={setToastMessage}
+          />
+        )}
         {ticketOpen && (
           <TicketQrSheet
             screening={ticketOpen.screening}
