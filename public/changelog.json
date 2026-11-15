@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-15-ta-place",
+  "version": "2026-11-15-billet-qr",
   "label": "Version du 15 novembre",
   "items": [
+    {
+      "title": "Ton billet, QR code compris",
+      "body": "En important tes billets, ajoute la capture « Voir mon billet » de l’app UGC : son QR code est lu sur ton téléphone, la capture n’est pas gardée. Le jour J, « Mon billet » (dans Ta place ou dans le calendrier) l’affiche en grand pour la borne, même sans réseau, et l’écran reste allumé. Un billet déjà dans ton calendrier ? Réimporte-le : on y ajoute son QR code. Le code n’est visible que par toi et s’efface le lendemain de la séance."
+    },
     {
       "title": "Ta place, dans l’espace",
       "body": "Une séance déjà dans ton calendrier (billet scanné, saisie à la main ou réservée depuis l’app) apparaît sur le film dans tes espaces : « Ta place · mer. 19:30 », ton billet, et qui vient. Un appui sur « Inviter » la propose aux autres, qui reçoivent une invitation plein écran : « Je viens », « J’ai déjà mon billet » ou « Pas cette fois ». Et si vous avez réservé la même séance chacun de votre côté, l’app le voit : « Vous y allez ensemble »."
@@ -210,15 +214,15 @@
   "highlights": [
     {
       "icon": "cinema",
+      "title": "Ton billet, QR code compris"
+    },
+    {
+      "icon": "cinema",
       "title": "Ta place, dans l’espace"
     },
     {
       "icon": "cinema",
       "title": "Les séances, aux couleurs du film"
-    },
-    {
-      "icon": "cinema",
-      "title": "Tes cinémas, tes séances"
     }
   ]
 }

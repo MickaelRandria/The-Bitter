@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, QrCode } from 'lucide-react';
 import { CinemaScreening } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePosterColors } from '../utils/posterTint';
@@ -25,6 +25,8 @@ interface Props {
   onInvite?: () => void;
   /** Une ligne sous les avatars : « Invitation envoyée à Marie », « Vous y allez ensemble ». */
   note?: string;
+  /** Le billet a son QR code : l'ouvrir en grand. */
+  onShowTicket?: () => void;
 }
 
 const initials = (name: string) =>
@@ -42,7 +44,7 @@ const initials = (name: string) =>
  * Personne d'autre ne voit ce billet : l'espace ne sait que ce que j'en partage
  * en invitant.
  */
-const MyPlaceTicket: React.FC<Props> = ({ title, posterUrl, screening, people, inviteLabel, inviting, onInvite, note }) => {
+const MyPlaceTicket: React.FC<Props> = ({ title, posterUrl, screening, people, inviteLabel, inviting, onInvite, note, onShowTicket }) => {
   const { t, language } = useLanguage();
   const colors = usePosterColors(posterUrl);
   const locale = language === 'en' ? 'en-GB' : 'fr-FR';
@@ -109,6 +111,16 @@ const MyPlaceTicket: React.FC<Props> = ({ title, posterUrl, screening, people, i
               <dd className="mt-1 text-lg font-black tracking-[-0.04em]">{screening.format || '—'}</dd>
             </div>
           </dl>
+          {onShowTicket && (
+            <div className="px-3 pb-3">
+              <button
+                onClick={onShowTicket}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-charcoal text-[13px] font-black text-white transition active:scale-[0.98]"
+              >
+                <QrCode size={16} /> {t('ticket.open')}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Qui vient */}

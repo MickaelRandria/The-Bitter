@@ -28,6 +28,8 @@ export interface ScannedTicket {
   version: string;
   room: string;
   seats: number;
+  /** Le QR code lu sur la même capture (côté téléphone, jamais par le serveur). */
+  ticketCode?: string;
 }
 
 export type TicketMatchStatus = 'matched' | 'time-mismatch' | 'not-found' | 'cinema-unknown' | 'unavailable';
@@ -65,7 +67,11 @@ export interface TicketFilm {
  * remplissent déjà presque tout son débit gratuit d'une minute.
  */
 export const MAX_TICKET_IMAGES = 3;
-const SCAN_BATCH = 3;
+/**
+ * Une image par appel : c'est ce qui permet de savoir quelle séance porte quel
+ * QR code. Les appels partent ensemble, l'attente reste celle d'un seul.
+ */
+const SCAN_BATCH = 1;
 const MAX_SIDE = 1_600;
 const JPEG_QUALITY = 0.82;
 /** Le serveur en accepte huit par appel ; au-delà, on découpe. */
@@ -163,31 +169,53 @@ const scanBatch = async (images: string[]): Promise<ScannedTicket[]> => {
  * `failedImages` dit combien d'images n'ont pas pu être lues, pour le signaler.
  */
 export const scanTicketImages = async (
-  images: string[]
-): Promise<{ tickets: ScannedTicket[]; failedImages: number }> => {
+  images: string[],
+  /** Le QR code lu sur chaque image, au même rang ; null si elle n'en montre pas. */
+  codes: (string | null)[] = []
+): Promise<{ tickets: ScannedTicket[]; failedImages: number; unplacedCodes: number }> => {
   const batches: string[][] = [];
   for (let index = 0; index < images.length; index += SCAN_BATCH) batches.push(images.slice(index, index + SCAN_BATCH));
   const results = await Promise.allSettled(batches.map(scanBatch));
   const firstError = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
   if (firstError && results.every((result) => result.status === 'rejected')) throw firstError.reason;
 
-  const seen = new Set<string>();
+  const byKey = new Map<string, ScannedTicket>();
   const tickets: ScannedTicket[] = [];
+  /** QR codes lus sur une image où aucune séance (ou plusieurs) n'a été lue. */
+  const orphans: string[] = [];
   let failedImages = 0;
   results.forEach((result, index) => {
+    const code = SCAN_BATCH === 1 ? codes[index] ?? null : null;
     if (result.status === 'rejected') {
       failedImages += batches[index].length;
+      if (code) orphans.push(code);
       return;
     }
-    for (const ticket of result.value) {
-      // La même séance partagée puis capturée : une seule ligne.
+    const read = result.value;
+    // Un QR se rattache à la séance de SA capture, et seulement s'il n'y a pas d'ambiguïté.
+    if (code && read.length !== 1) orphans.push(code);
+    for (const ticket of read) {
+      const withCode = code && read.length === 1 ? { ...ticket, ticketCode: code } : ticket;
+      // La même séance partagée puis capturée (« Partager » et « Voir mon billet ») : une seule ligne.
       const key = `${normalise(ticket.title)}|${ticket.date}|${ticket.time}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      tickets.push(ticket);
+      const known = byKey.get(key);
+      if (known) {
+        if (!known.ticketCode && withCode.ticketCode) known.ticketCode = withCode.ticketCode;
+        continue;
+      }
+      const copy = { ...withCode };
+      byKey.set(key, copy);
+      tickets.push(copy);
     }
   });
-  return { tickets, failedImages };
+
+  // Une capture du QR seul (sans titre lisible) et une seule séance sans QR : c'est la sienne.
+  const waiting = tickets.filter((ticket) => !ticket.ticketCode);
+  if (orphans.length === 1 && waiting.length === 1) {
+    waiting[0].ticketCode = orphans[0];
+    orphans.length = 0;
+  }
+  return { tickets, failedImages, unplacedCodes: orphans.length };
 };
 
 interface RawShowing extends Omit<TicketShowing, 'startsAt'> {

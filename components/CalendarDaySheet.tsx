@@ -15,6 +15,7 @@ import { AgendaEvent, calendarDay, CalendarWatch } from '../utils/calendarAgenda
 import { resizeTmdbImage } from '../utils/tmdbImage';
 import { useDialog } from '../utils/useDialog';
 import ShareStoryButtonSimple from './ShareStoryButtonSimple';
+import TicketQrSheet from './TicketQrSheet';
 import CalendarEventCard, {
   agendaAction,
   agendaGhost,
@@ -49,6 +50,8 @@ export default function CalendarDaySheet(props: Props) {
   const dialog = useDialog(onClose, t('agenda.dayTitle'));
   const [programme, setProgramme] = useState<CinemaProgrammeFilm[]>([]);
   const [loading, setLoading] = useState(false);
+  /** Le billet ouvert en grand, QR code compris. */
+  const [ticket, setTicket] = useState<CinemaScreening | null>(null);
   const [error, setError] = useState(false);
   const past = day < actions.today;
   const today = day === actions.today;
@@ -100,6 +103,7 @@ export default function CalendarDaySheet(props: Props) {
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
   return createPortal(
+    <>
     <div
       className="fixed inset-0 z-[180] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={onClose}
@@ -251,6 +255,11 @@ export default function CalendarDaySheet(props: Props) {
                     <CalendarEventCard event={event} actions={actions} />
                     {screening && (
                       <div className="mt-1 flex flex-wrap justify-end gap-1.5">
+                        {screening.ticketCode && (
+                          <button className={agendaAction} onClick={() => setTicket(screening)}>
+                            {t('ticket.open')}
+                          </button>
+                        )}
                         {screening.bookingUrl && (
                           <a
                             href={screening.bookingUrl}
@@ -380,7 +389,11 @@ export default function CalendarDaySheet(props: Props) {
           </section>
         )}
       </div>
-    </div>,
+    </div>
+    {ticket && (
+      <TicketQrSheet screening={ticket} title={ticket.title} posterUrl={ticket.posterUrl} onClose={() => setTicket(null)} />
+    )}
+    </>,
     document.body
   );
 }
