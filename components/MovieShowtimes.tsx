@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowUpRight, Ticket } from 'lucide-react';
+import { ArrowUpRight, QrCode, Ticket } from 'lucide-react';
+import TicketQrSheet from './TicketQrSheet';
 import { FavoriteCinema } from '../types';
 import { buildShowtimeSources, shortCinemaName } from '../utils/favoriteCinemas';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -28,6 +29,7 @@ interface MovieShowtimesProps {
 const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], onManageCinemas, ...rest }) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
+  const [ticket, setTicket] = useState(false);
   const sources = useMemo(() => buildShowtimeSources(favoriteCinemas), [favoriteCinemas]);
   const names = sources.map((s) => shortCinemaName(s.cinema.name)).join(' · ');
   // Déjà ma place pour ce film : la carte le dit d'abord, le programme reste à un toucher.
@@ -63,6 +65,20 @@ const MovieShowtimes: React.FC<MovieShowtimesProps> = ({ favoriteCinemas = [], o
         </span>
         <ArrowUpRight size={18} className="shrink-0 text-white/50" />
       </button>
+      {place?.ticketCode && (
+        <button
+          onClick={() => {
+            haptics.soft();
+            setTicket(true);
+          }}
+          className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-bitter-lime text-[13px] font-black text-charcoal transition active:scale-[0.99]"
+        >
+          <QrCode size={16} /> {t('ticket.open')}
+        </button>
+      )}
+      {ticket && place && (
+        <TicketQrSheet screening={place} title={rest.titles[0] ?? ''} posterUrl={rest.posterUrl} onClose={() => setTicket(false)} />
+      )}
       {open && (
         <ShowtimesSheet
           title={rest.titles[0] ?? ''}
