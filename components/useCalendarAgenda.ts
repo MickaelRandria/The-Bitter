@@ -4,6 +4,7 @@ import { screeningRatingDue } from '../utils/screeningFollowup';
 import { loadCalendarSessions } from '../services/calendarAgenda';
 import { SCREENINGS_CHANGED } from '../services/screenings';
 import { placesByFilm } from '../services/myScreenings';
+import { cachedTicketCode } from '../utils/ticketCode';
 import { fetchLocalReleaseDate, getTheatreReleases, TheatreRelease } from '../services/tmdb';
 import {
   AgendaEvent,
@@ -174,6 +175,7 @@ export function useCalendarAgenda(
           spaceName: plan?.spaceName,
           participants: plan?.participants,
           pending: screening.status === 'pending',
+          hasTicket: !!(screening.ticketCode || cachedTicketCode(screening.id)),
         };
       });
     const big = releases.filter((film) => !booked.has(film.id)).map(

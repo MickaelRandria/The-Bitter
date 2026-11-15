@@ -1,5 +1,5 @@
 import React from 'react';
-import { Ticket } from 'lucide-react';
+import { QrCode, Ticket } from 'lucide-react';
 import type { CinemaScreening } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { haptics } from '../utils/haptics';
@@ -20,14 +20,20 @@ export function placeWhen(screening: Pick<CinemaScreening, 'startsAt'>, locale: 
 const MyPlacePill: React.FC<{
   screening: CinemaScreening;
   onClick?: () => void;
+  /** Le toucher ouvre le billet (QR code) : l'icône le dit. */
+  ticket?: boolean;
   className?: string;
-}> = ({ screening, onClick, className = '' }) => {
+}> = ({ screening, onClick, ticket, className = '' }) => {
   const { t } = useLanguage();
   const label = `${t('place.yours')} · ${placeWhen(screening, t('place.locale'))}`;
   const look = `inline-flex h-9 items-center gap-1.5 rounded-full bg-charcoal px-3.5 text-xs font-black text-white shadow-sm dark:bg-white dark:text-charcoal ${className}`;
   const content = (
     <>
-      <Ticket size={14} strokeWidth={2.4} className="text-bitter-lime dark:text-forest" />
+      {ticket ? (
+        <QrCode size={14} strokeWidth={2.4} className="text-bitter-lime dark:text-forest" />
+      ) : (
+        <Ticket size={14} strokeWidth={2.4} className="text-bitter-lime dark:text-forest" />
+      )}
       <span className="truncate">{label}</span>
     </>
   );
