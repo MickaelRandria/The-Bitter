@@ -19,8 +19,10 @@ test('reads legacy profiles, but preserves an explicitly empty list', () => {
   assert.deepEqual(cinemasOf(), []);
 });
 
-test('deduplicates by id in order and keeps at most five', () => {
-  assert.deepEqual(uniqueFavoriteCinemas([1, 2, 1, 3, 4, 5, 6].map(cinema)).map(c => c.id), ['1', '2', '3', '4', '5']);
+test('deduplicates by id in order and keeps at most fifteen (a whole UGC city)', () => {
+  assert.deepEqual(uniqueFavoriteCinemas([1, 2, 1, 3, 4, 5, 6].map(cinema)).map(c => c.id), ['1', '2', '3', '4', '5', '6']);
+  const ids = Array.from({ length: 18 }, (_, i) => i + 1);
+  assert.equal(uniqueFavoriteCinemas(ids.map(cinema)).length, 15);
 });
 
 test('writes both fields together, the first cinema staying the legacy one', () => {
@@ -50,7 +52,10 @@ test('mine first, theirs after with who follows them, shared ones stay mine', ()
     ['3', false, ['Sarah', 'Léo']],
   ]);
   assert.equal(sources[2].followerColor, '#f00');
-  const many = buildShowtimeSources([1, 2, 3, 4, 5].map(cinema), [{ name: 'A', cinemas: [6, 7, 8, 9, 10].map(cinema) }, { name: 'B', cinemas: [11, 12].map(cinema) }]);
+  const many = buildShowtimeSources(
+    Array.from({ length: 15 }, (_, i) => cinema(i + 1)),
+    [{ name: 'A', cinemas: Array.from({ length: 10 }, (_, i) => cinema(i + 20)) }]
+  );
   assert.equal(many.length, MAX_SHOWTIME_SOURCES);
 });
 

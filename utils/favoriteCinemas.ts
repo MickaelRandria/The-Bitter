@@ -1,13 +1,13 @@
 import type { CinemaShowtime, FavoriteCinema, UserProfile } from '../types';
 
-export const MAX_FAVORITE_CINEMAS = 5;
+export const MAX_FAVORITE_CINEMAS = 15;
 
 /**
- * Plafond des salles interrogées pour une même feuille de séances. Dans un
- * espace, cinq membres à cinq salles chacun feraient vingt-cinq appels à UGC
- * pour un seul toucher : au-delà de dix, les salles des autres sont coupées.
+ * Plafond des salles interrogées pour une même feuille de séances. Mes salles
+ * passent toujours (une ville entière tient : 15 au plus) ; dans un espace, les
+ * salles des autres membres s'ajoutent jusqu'à vingt, puis sont coupées.
  */
-export const MAX_SHOWTIME_SOURCES = 10;
+export const MAX_SHOWTIME_SOURCES = 20;
 
 /** Couleur de chaque cinéma selon son rang dans ma liste, la même partout. */
 // Lisibles sur la crème du profil comme sur le fond sombre de la feuille des séances.

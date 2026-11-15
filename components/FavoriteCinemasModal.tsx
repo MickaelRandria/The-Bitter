@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Loader2, MapPin, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Building2, Check, Loader2, MapPin, Plus, Trash2, X } from 'lucide-react';
 import { FavoriteCinema } from '../types';
 import { CinemaCity, CinemaOption, searchCinemaCities, searchCinemasNearCity } from '../services/cinemaDirectory';
 import { CINEMA_COLORS, CINEMA_INK, MAX_FAVORITE_CINEMAS, uniqueFavoriteCinemas } from '../utils/favoriteCinemas';
@@ -18,7 +18,8 @@ const fieldClass =
   'h-12 w-full appearance-none rounded-2xl border border-stone-200 bg-white px-4 text-sm font-semibold text-charcoal outline-none transition focus:border-bitter-lime focus:ring-4 focus:ring-bitter-lime/20 dark:border-white/10 dark:bg-[#191919] dark:text-white';
 
 /**
- * Mes cinémas : jusqu'à cinq salles UGC, dans l'ordre où leurs séances
+ * Mes cinémas : une ville entière d'un toucher, ou salle par salle (quinze au
+ * plus : la plus grande agglomération UGC en compte quinze), dans l'ordre où leurs séances
  * s'affichent. La première reste « le » cinéma de l'app (rappel de séance,
  * proposition de créneaux dans un espace).
  *
@@ -86,6 +87,29 @@ const FavoriteCinemasModal: React.FC<Props> = ({ cinemas: initial, onChange, onC
     if (cinemas.length + 1 >= MAX_FAVORITE_CINEMAS) setAdding(false);
   };
 
+  /** « Tous les UGC de Bordeaux » : toutes les salles de la ville, dans l'ordre de l'annuaire. */
+  const addCity = () => {
+    if (!selectedCity) return;
+    const missing = options.filter((option) => !cinemas.some((c) => c.id === option.id));
+    const room = MAX_FAVORITE_CINEMAS - cinemas.length;
+    if (missing.length === 0 || room <= 0) return;
+    haptics.success();
+    commit([...cinemas, ...missing.slice(0, room).map((option) => ({ id: option.id, name: option.name, city: selectedCity.label }))]);
+    if (missing.length > room) setError(t('cinemas.cityPartial', { n: String(room) }));
+    setAdding(false);
+    setSelectedCity(null);
+    setCityQuery('');
+    setOptions([]);
+  };
+
+  const removeCity = (city: string) => {
+    haptics.soft();
+    commit(cinemas.filter((c) => c.city !== city));
+  };
+
+  /** Les villes que je suis en entier ou en partie, avec leur nombre de salles. */
+  const cities = [...new Set<string>(cinemas.map((c) => c.city))].map((city) => ({ city, n: cinemas.filter((c) => c.city === city).length }));
+
   const move = (index: number, by: -1 | 1) => {
     const target = index + by;
     if (target < 0 || target >= cinemas.length) return;
@@ -126,6 +150,26 @@ const FavoriteCinemasModal: React.FC<Props> = ({ cinemas: initial, onChange, onC
         </header>
 
         <div className="space-y-4 overflow-y-auto overscroll-contain px-5 pb-[max(1.75rem,env(safe-area-inset-bottom))]">
+          {cities.some((c) => c.n > 1) && (
+            <div className="flex flex-wrap gap-1.5">
+              {cities.map(({ city, n }) => (
+                <span
+                  key={city}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-charcoal pl-3 pr-1 text-[12px] font-extrabold text-white dark:bg-white dark:text-charcoal"
+                >
+                  <MapPin size={13} className="text-bitter-lime dark:text-forest" />
+                  {t('cinemas.cityChip', { city, n: String(n) })}
+                  <button
+                    onClick={() => removeCity(city)}
+                    aria-label={t('cinemas.removeCity', { city })}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-white/10 dark:bg-black/10"
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           {cinemas.length > 0 && (
             <ol className="space-y-2">
               {cinemas.map((cinema, index) => {
@@ -224,6 +268,42 @@ const FavoriteCinemasModal: React.FC<Props> = ({ cinemas: initial, onChange, onC
                 <p className="flex items-center gap-2 text-xs font-bold text-stone-500">
                   <Loader2 size={14} className="animate-spin" /> {t('cinemas.searching')}
                 </p>
+              )}
+              {options.length > 1 && selectedCity && (() => {
+                const missing = options.filter((option) => !cinemas.some((c) => c.id === option.id)).length;
+                return (
+                  <div className="rounded-[18px] bg-charcoal p-4 text-white dark:bg-white/10">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-bitter-lime text-charcoal">
+                        <Building2 size={18} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-black tracking-tight">{t('cinemas.wholeCity', { city: selectedCity.label })}</p>
+                        <p className="mt-0.5 text-[11.5px] font-semibold leading-snug text-white/65">
+                          {options.map((o) => o.name.replace(/^UGC\s+(Ciné\s+Cité\s+)?/i, '')).join(' · ')}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={addCity}
+                      disabled={missing === 0}
+                      className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-bitter-lime text-[13px] font-black text-charcoal transition active:scale-[0.99] disabled:bg-white/15 disabled:text-white/80"
+                    >
+                      {missing === 0 ? (
+                        <>
+                          <Check size={15} /> {t('cinemas.wholeCityFollowed')}
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={15} strokeWidth={2.6} /> {t('cinemas.addAll', { n: String(options.length) })}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
+              {options.length > 1 && (
+                <p className="pt-1 text-[10px] font-black uppercase tracking-[0.16em] text-stone-600 dark:text-stone-300">{t('cinemas.orOne')}</p>
               )}
               {options.length > 0 && (
                 <div className="space-y-1.5">

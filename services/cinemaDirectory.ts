@@ -168,3 +168,50 @@ export const fetchFavoriteCinemasOf = async (profileIds: string[]): Promise<Reco
     return {};
   }
 };
+
+/**
+ * Pour chaque film demandé, les cinémas (parmi les miens) qui le programment
+ * dans les sept prochains jours. `null` quand l'information manque : on ne
+ * prétend alors rien, ni « chez toi », ni « pas chez toi ».
+ */
+export const fetchPlayingInCinemas = async (
+  cinemaIds: string[],
+  films: { key: string; titles: string[] }[]
+): Promise<Map<string, string[]> | null> => {
+  const ids = [...new Set(cinemaIds.filter(Boolean))].sort();
+  const wanted = films.filter((film) => film.key && film.titles.some(Boolean)).slice(0, 80);
+  if (!supabase || ids.length === 0 || wanted.length === 0) return null;
+
+  const cacheKey = `bitter_playing_v1_${ids.join(',')}_${wanted.map((f) => f.key).sort().join(',')}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+    if (cached && Date.now() - cached.at < 3 * 3_600_000) return new Map(cached.entries);
+  } catch { /* Un cache refusé ne bloque rien. */ }
+
+  let timer: number | undefined;
+  try {
+    const result = await Promise.race([
+      supabase.functions.invoke('cinema-directory', {
+        body: {
+          action: 'playing',
+          cinemaIds: ids,
+          films: wanted.map((film) => ({ key: film.key, titles: [...new Set(film.titles.filter(Boolean))].slice(0, 3) })),
+        },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error('playing-timeout')), 30_000);
+      }),
+    ]);
+    const payload = result.data as { items?: { key: string; cinemaIds: string[] }[]; read?: string[] } | null;
+    // Aucun cinéma lu : rien à affirmer.
+    if (result.error || !payload || !Array.isArray(payload.items) || !payload.read?.length) return null;
+    const entries = payload.items.map((item) => [item.key, item.cinemaIds] as [string, string[]]);
+    try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), entries })); } catch { /* Résultat utilisable quand même. */ }
+    return new Map(entries);
+  } catch (error) {
+    console.warn('[Cinémas] Programmes de la semaine indisponibles', error);
+    return null;
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer);
+  }
+};

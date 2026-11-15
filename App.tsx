@@ -4325,6 +4325,8 @@ const App: React.FC = () => {
               }}
               places={myPlaces}
               onShowtimes={(film) => setShowtimesMovie(film)}
+              favoriteCinemas={cinemasOf(activeProfile)}
+              onManageCinemas={() => setShowFavoriteCinema(true)}
               onOpenCalendar={() => {
                 setCalendarTab('upcoming');
                 setViewMode('Calendar');
@@ -4357,6 +4359,8 @@ const App: React.FC = () => {
               movies={uniqueMovies}
               profileId={session?.user?.id}
               favoriteCinema={activeProfile?.favoriteCinema}
+              favoriteCinemas={cinemasOf(activeProfile)}
+              onManageCinemas={() => setShowFavoriteCinema(true)}
               firstName={activeProfile?.firstName}
               subscription={activeProfile?.cinemaSubscription}
               onAddToWatchlist={(tmdbId) => handleQuickWatchlist(tmdbId, 'movie')}

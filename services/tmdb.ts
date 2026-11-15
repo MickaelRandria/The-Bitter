@@ -1,6 +1,7 @@
 import { TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_URL, GENRES, TMDB_GENRE_MAP } from '../constants';
 import { MovieFormData } from '../types';
 import { getCachedData, setCachedData } from '../utils/cache';
+import { buildCinemaWeek, CinemaWeek, cinemaWeekStart, FrReleaseDates, parisToday, shiftIso, STILL_SHOWING_WEEKS } from '../utils/cinemaWeek';
 
 interface TMDBRecommendation {
   id: number;
@@ -451,6 +452,8 @@ export interface TheatreRelease {
   popularity?: number;
   /** Image large du film, pour un décor plein écran. */
   backdropPath?: string | null;
+  /** Titre d'origine : UGC programme parfois sous celui-ci. */
+  originalTitle?: string;
 }
 
 export interface TheatreReleases {
@@ -488,6 +491,7 @@ const toRelease = (row: any): TheatreRelease => ({
   genreIds: row.genre_ids || [],
   popularity: Number(row.popularity) || 0,
   backdropPath: row.backdrop_path ?? null,
+  originalTitle: row.original_title || undefined,
 });
 
 const fetchWindow = async (
@@ -668,4 +672,77 @@ export const fetchTextlessPoster = async (tmdbId: number): Promise<string | null
   } catch {
     return null;
   }
+};
+
+/**
+ * Toutes les dates de sortie françaises d'un film : sorties en salle (type 3)
+ * et premières limitées (type 2). Une ressortie a deux dates en salle, une
+ * sortie restreinte n'a parfois que la seconde.
+ */
+export const fetchFrReleaseDates = async (movieId: number, region = 'FR'): Promise<FrReleaseDates | null> => {
+  const key = `bitter_release_dates_v1_${region}_${movieId}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || 'null');
+    if (cached && Date.now() - cached.at < RELEASES_TTL_MS) return cached.dates;
+  } catch { /* Un cache refusé ne bloque pas la recherche. */ }
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/movie/${movieId}/release_dates?api_key=${TMDB_API_KEY}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const country = (data.results || []).find((r: any) => r.iso_3166_1 === region);
+    const list: any[] = country?.release_dates || [];
+    const ofType = (type: number) =>
+      [...new Set(list.filter((d) => d.type === type && /^\d{4}-\d{2}-\d{2}/.test(d.release_date)).map((d) => String(d.release_date).slice(0, 10)))].sort();
+    const dates: FrReleaseDates = { theatrical: ofType(3), limited: ofType(2) };
+    try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), dates })); } catch { /* La date fraîche reste utilisable. */ }
+    return dates;
+  } catch {
+    return null;
+  }
+};
+
+const CINEMA_WEEK_CACHE_KEY = 'bitter_cinema_week_v1';
+
+/**
+ * « Sortis mercredi » et « Toujours à l'affiche » : la semaine de cinéma en
+ * cours et les cinq précédentes, d'après les vraies dates de sortie en salle
+ * françaises (voir utils/cinemaWeek).
+ */
+export const getCinemaWeek = async (
+  { force = false, language = 'fr-FR', region = 'FR' }: { force?: boolean; language?: string; region?: string } = {}
+): Promise<CinemaWeek<TheatreRelease>> => {
+  const today = parisToday();
+  const cacheKey = `${CINEMA_WEEK_CACHE_KEY}_${region}_${language}`;
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached && cached.today === today && Date.now() - cached.at < RELEASES_TTL_MS) return cached.data;
+    } catch { /* Un cache illisible se remplace. */ }
+  }
+  const weekStart = cinemaWeekStart(today);
+  const from = shiftIso(weekStart, -7 * STILL_SHOWING_WEEKS);
+  const to = shiftIso(weekStart, 6);
+  const page = async (gte: string, lte: string, n: number) => {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=${language}` +
+        `&region=${region}&with_release_type=2|3&release_date.gte=${gte}&release_date.lte=${lte}` +
+        `&sort_by=popularity.desc&with_runtime.gte=60&page=${n}`
+    );
+    if (!res.ok) throw new Error(`TMDB ${res.status}`);
+    return ((await res.json()).results || []).map(toRelease) as TheatreRelease[];
+  };
+  // La semaine en cours a sa propre requête : sur six semaines, les petites
+  // sorties du mercredi passeraient sous les 40 films les plus consultés.
+  const films = (
+    await Promise.all([page(weekStart, to, 1), page(from, shiftIso(weekStart, -1), 1), page(from, shiftIso(weekStart, -1), 2)])
+  )
+    .flat()
+    .filter((film) => film.posterPath);
+  const dates = new Map<number, FrReleaseDates | null>();
+  for (let i = 0; i < films.length; i += 8) {
+    await Promise.all(films.slice(i, i + 8).map(async (film) => dates.set(film.id, await fetchFrReleaseDates(film.id, region))));
+  }
+  const data = buildCinemaWeek(films, (id) => dates.get(id), today);
+  try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), today, data })); } catch { /* Le résultat reste utilisable. */ }
+  return data;
 };
