@@ -209,6 +209,7 @@ const CinemaFil = lazy(() => import('./components/CinemaFil'));
 import { soundScore } from './utils/soundScore';
 import { criterionFocus } from './utils/criterionFocus';
 import DailyFilButton from './components/DailyFilButton';
+import { CommonRating, getCommonRatings } from './services/commonFilms';
 const AccountMergeModal = lazy(() => import('./components/AccountMergeModal'));
 const CinemaSubscriptionSetupModal = lazy(
   () => import('./components/CinemaSubscriptionSetupModal')
@@ -804,6 +805,8 @@ const App: React.FC = () => {
   } | null>(null);
   /** Pour chaque film de ma liste, les proches qui l'attendent aussi. */
   const [commonWishes, setCommonWishes] = useState<Map<string, CommonWish[]>>(new Map());
+  /** Films vus que des membres de mes espaces ont notés aussi, avec leur note. */
+  const [commonRatings, setCommonRatings] = useState<Map<string, CommonRating[]>>(new Map());
   /** La question posée juste après un ajout ou une note, sous forme de barre. */
   const [socialNudge, setSocialNudge] = useState<{ kind: ShareKind; movie: Movie } | null>(null);
   const dismissSocialNudge = useCallback(() => setSocialNudge(null), []);
@@ -3155,6 +3158,26 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [session?.user?.id, bootstrapping, watchlistKey]);
 
+  // Notes des proches sur mes films vus : relues quand je note un film, ou quand
+  // la liste de mes espaces change (un espace rejoint, des films ajoutés).
+  const watchedKey = useMemo(
+    () =>
+      uniqueMovies
+        .filter((m) => m.status === 'watched' && m.tmdbId && m.seasonNumber == null)
+        .map((m) => wishKey(m.mediaType, m.tmdbId))
+        .sort()
+        .join('|'),
+    [uniqueMovies]
+  );
+  useEffect(() => {
+    if (!session?.user?.id || bootstrapping) {
+      setCommonRatings(new Map());
+      return;
+    }
+    const timer = setTimeout(() => getCommonRatings().then(setCommonRatings), 3000);
+    return () => clearTimeout(timer);
+  }, [session?.user?.id, bootstrapping, watchedKey, spacesReload]);
+
   /**
    * Les films, quelle que soit la partie ouverte.
    *
@@ -3481,6 +3504,7 @@ const App: React.FC = () => {
           : undefined
       }
       alsoWants={commonWishes.get(wishKey(movie.mediaType, movie.tmdbId))}
+      alsoRated={commonRatings.get(wishKey(movie.mediaType, movie.tmdbId))}
       onShowtimes={(m) => setShowtimesMovie(m)}
       place={movie.tmdbId && (movie.mediaType ?? 'movie') === 'movie' ? myPlaces.get(movie.tmdbId) : undefined}
       onShowTicket={(screening, m) => setTicketOpen({ screening, title: m.title, posterUrl: m.posterUrl })}
