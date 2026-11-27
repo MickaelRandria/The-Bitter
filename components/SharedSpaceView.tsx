@@ -77,6 +77,8 @@ import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
 import PublicRatingBadge from './PublicRatingBadge';
 import { shareSpaceInvite } from '../services/spaceInvite';
+import { CommonFilmsPreview, addCommonFilms, commonFilmsAsked, commonFilmsPreview, markCommonFilmsAsked } from '../services/commonFilms';
+import CommonFilmsSheet from './CommonFilmsSheet';
 import ReportSheet from './ReportSheet';
 import { ReportTarget, useBlockedUsers } from '../services/moderation';
 import { ImdbLookup, useImdbRatings } from '../services/imdb';
@@ -385,6 +387,48 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
       setSlow(false);
       setLoading(false);
     }
+  };
+
+  /**
+   * Films en commun : à l'arrivée (dès qu'on est deux), les films que tu as
+   * notés et qu'un autre membre a notés aussi. On demande une fois, puis de
+   * nouveau seulement quand quelqu'un rejoint l'espace. Oui : ajout groupé côté
+   * serveur, sans notification, puis « Nos stats » pour voir où vous en êtes.
+   */
+  const [commonOffer, setCommonOffer] = useState<CommonFilmsPreview | null>(null);
+  const [addingCommon, setAddingCommon] = useState(false);
+  const activeCount = members.filter((m) => m.is_active !== false).length;
+  useEffect(() => {
+    if (loading || loadError || activeCount < 2 || !currentUserId) return;
+    if (commonFilmsAsked(space.id, currentUserId, activeCount)) return;
+    let alive = true;
+    void commonFilmsPreview(space.id).then((preview) => {
+      if (alive && preview && preview.count > 0) setCommonOffer(preview);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [space.id, currentUserId, activeCount, loading, loadError]);
+  const answerCommonFilms = async (yes: boolean) => {
+    markCommonFilmsAsked(space.id, currentUserId, activeCount);
+    if (!yes) {
+      setCommonOffer(null);
+      return;
+    }
+    haptics.medium();
+    setAddingCommon(true);
+    const result = await addCommonFilms(space.id);
+    setAddingCommon(false);
+    setCommonOffer(null);
+    if ('error' in result) {
+      haptics.error();
+      setActionError(result.error);
+      return;
+    }
+    haptics.success();
+    onToast?.(result.added === 1 ? t('commonFilms.addedOne') : t('commonFilms.added', { count: String(result.added) }));
+    await loadData(true);
+    if (result.added > 0) setShowStats(true);
   };
 
   const handleExpandMovie = (movieId: string) => {
@@ -2488,6 +2532,15 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
           {watchlistMovies.length === 0 && <><p className="text-sm text-stone-500">{t('pageActions.noSpaceFilm')}</p><button type="button" onClick={() => { setChoosingPlan(false); onAddMovie(); }} className="mt-3 min-h-11 w-full rounded-xl bg-forest px-4 text-sm font-black text-white">{t('pageActions.propose')}</button></>}
         </div>
       </ActionSheet>}
+      {commonOffer && (
+        <CommonFilmsSheet
+          preview={commonOffer}
+          spaceName={space.name}
+          busy={addingCommon}
+          onAnswer={(yes) => void answerCommonFilms(yes)}
+        />
+      )}
+
       {showStats && (
         <SpaceStatsView
           spaceName={space.name}

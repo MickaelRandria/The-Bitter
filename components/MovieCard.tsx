@@ -16,6 +16,7 @@ import type { SelectedWork } from '../utils/navActions';
 import { longPressStyle, useSelectableWork } from '../utils/useLongPress';
 import { SELECTED_RING, SelectionCheck } from './SelectableWork';
 import MyPlacePill from './MyPlacePill';
+import { avatarSrc } from '../utils/avatar';
 
 interface MovieCardProps {
   movie: Movie;
@@ -38,6 +39,8 @@ interface MovieCardProps {
   /** Ouverte d'emblée : la carte qu'on ouvre depuis le mur des films vus. */
   defaultExpanded?: boolean;
   alsoWants?: { profile_id: string; first_name: string }[];
+  /** Membres de mes espaces qui ont aussi noté ce film vu, avec leur note. */
+  alsoRated?: { profile_id: string; first_name: string; avatar_url: string | null; rating: number }[];
   /** « Séances » sur un film à voir : ses horaires dans mes cinémas. */
   onShowtimes?: (movie: Movie) => void;
   /** Ma place pour ce film, déjà au calendrier : elle remplace « Séances ». */
@@ -132,6 +135,7 @@ const MovieCard: React.FC<MovieCardProps> = memo(
     onToggleDisplayMode,
     onShare,
     alsoWants,
+    alsoRated,
     defaultExpanded = false,
     onShowtimes,
     place,
@@ -531,6 +535,35 @@ const MovieCard: React.FC<MovieCardProps> = memo(
               >
                 <span className="w-1 h-1 rounded-full bg-bitter-lime" />
                 Bitter
+              </div>
+            )}
+            {/* Vu aussi par des membres de mes espaces : leur note à côté de la mienne. */}
+            {!isWatchlist && alsoRated && alsoRated.length > 0 && (
+              <div
+                className={`mt-2 ml-1.5 inline-flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full text-[10px] font-black ${hasPoster ? 'bg-white/10 text-white' : 'bg-stone-100 dark:bg-white/5 text-charcoal dark:text-white'}`}
+                aria-label={alsoRated.map((r) => `${r.first_name} ${r.rating.toFixed(1)}`).join(', ')}
+              >
+                {alsoRated.slice(0, 2).map((r) => {
+                  const src = avatarSrc(r.avatar_url);
+                  return (
+                    <span key={r.profile_id} className="inline-flex items-center gap-1">
+                      {src ? (
+                        <img src={src} alt="" className="w-4 h-4 rounded-full object-cover" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full bg-bitter-lime text-charcoal text-[8px] flex items-center justify-center">
+                          {r.first_name.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <span className={hasPoster ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}>{r.first_name}</span>
+                      {r.rating.toFixed(1)}
+                    </span>
+                  );
+                })}
+                {alsoRated.length > 2 && (
+                  <span className={hasPoster ? 'text-white/60' : 'text-stone-400'}>
+                    {t('commonFilms.others', { count: String(alsoRated.length - 2) })}
+                  </span>
+                )}
               </div>
             )}
           </div>

@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-27-inviter",
+  "version": "2026-11-27-films-en-commun",
   "label": "Version du 27 novembre",
   "items": [
+    {
+      "title": "Vos films en commun",
+      "body": "En entrant dans un espace, l’app te dit combien de films tu as notés en commun avec les autres membres, et te propose de les y ajouter d’un geste. Vos notes viennent avec, et personne ne reçoit de notification pour chacun. « Nos stats » s’ouvre ensuite pour voir où vous en êtes. Et dans ta collection, une petite pastille montre la note des membres de tes espaces qui ont vu le film aussi."
+    },
     {
       "title": "Inviter dans un espace, en un toucher",
       "body": "Un bouton « Inviter » est maintenant à côté des membres, en haut de chaque espace. Juste après avoir créé un espace, une carte « Fais entrer ta bande » t’attend. Le message envoyé contient un lien : touché, il fait entrer la personne directement dans l’espace, même si elle n’a pas encore de compte. Dans la liste de tes espaces, « Inviter » envoie aussi ce lien, plus seulement le code."
@@ -238,15 +242,15 @@
   "highlights": [
     {
       "icon": "spaces",
+      "title": "Vos films en commun"
+    },
+    {
+      "icon": "spaces",
       "title": "Inviter dans un espace, en un toucher"
     },
     {
       "icon": "spaces",
       "title": "Les liens d’espace, droit au but"
-    },
-    {
-      "icon": "cinema",
-      "title": "Ton billet, QR code compris"
     }
   ]
 }
