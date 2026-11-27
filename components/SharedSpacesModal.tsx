@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Users, Copy, Check, Loader2, Share2, Globe, Lock } from 'lucide-react';
+import { X, Plus, Users, Check, Loader2, Share2, Globe, Lock, UserPlus } from 'lucide-react';
 import {
   SharedSpace,
   createSharedSpace,
@@ -10,6 +10,7 @@ import { haptics } from '../utils/haptics';
 import { useDialog } from '../utils/useDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import SharingNotice from './SharingNotice';
+import { shareSpaceInvite } from '../services/spaceInvite';
 
 interface SharedSpacesModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
   const [createdSpace, setCreatedSpace] = useState<SharedSpace | null>(null);
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [shownCode, setShownCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState(false);
@@ -140,10 +142,17 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
     setLoading(false);
   };
 
-  const copyInviteCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
+  /** Envoie le lien d'invitation (`?join=`), pas le code seul : le lien fait entrer directement. */
+  const inviteTo = async (space: SharedSpace) => {
     haptics.soft();
+    const result = await shareSpaceInvite(t('spaces.inviteText', { name: space.name, code: space.invite_code }), space.invite_code);
+    // Ni partage ni copie possibles : la puce montre le code, à dicter ou recopier.
+    if (result === 'failed') {
+      setShownCode(space.invite_code);
+      return;
+    }
+    if (result !== 'copied') return;
+    setCopiedCode(space.invite_code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
@@ -230,7 +239,7 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          copyInviteCode(space.invite_code);
+                          void inviteTo(space);
                         }}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors ${copiedCode === space.invite_code ? 'bg-green-100 text-green-700' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
                       >
@@ -240,7 +249,13 @@ const SharedSpacesModal: React.FC<SharedSpacesModalProps> = ({
                           </>
                         ) : (
                           <>
-                            {t('spaces.codeShort', { code: space.invite_code })} <Copy size={12} />
+                            {shownCode === space.invite_code ? (
+                              t('spaces.codeShort', { code: space.invite_code })
+                            ) : (
+                              <>
+                                <UserPlus size={12} strokeWidth={2.6} /> {t('spaces.invite')}
+                              </>
+                            )}
                           </>
                         )}
                       </button>

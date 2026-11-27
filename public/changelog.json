@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-27-liens-espace",
+  "version": "2026-11-27-inviter",
   "label": "Version du 27 novembre",
   "items": [
+    {
+      "title": "Inviter dans un espace, en un toucher",
+      "body": "Un bouton « Inviter » est maintenant à côté des membres, en haut de chaque espace. Juste après avoir créé un espace, une carte « Fais entrer ta bande » t’attend. Le message envoyé contient un lien : touché, il fait entrer la personne directement dans l’espace, même si elle n’a pas encore de compte. Dans la liste de tes espaces, « Inviter » envoie aussi ce lien, plus seulement le code."
+    },
     {
       "title": "Les liens d’espace mènent au bon endroit",
       "body": "Un lien d’espace reçu par message ouvre l’app directement sur l’espace, même s’il faut d’abord se connecter : il attend la fin de la connexion. La relance « on attend ta note » ouvre l’espace sur le bon film. Et si tu n’es pas encore membre, l’app te dit de demander une invitation au lieu de te laisser sur l’accueil."
@@ -234,15 +238,15 @@
   "highlights": [
     {
       "icon": "spaces",
+      "title": "Inviter dans un espace, en un toucher"
+    },
+    {
+      "icon": "spaces",
       "title": "Les liens d’espace, droit au but"
     },
     {
       "icon": "cinema",
       "title": "Ton billet, QR code compris"
-    },
-    {
-      "icon": "cinema",
-      "title": "Ta place, dans l’espace"
     }
   ]
 }
