@@ -346,6 +346,18 @@ export async function loadSpaceAndMovie(
 }
 
 /**
+ * L'espace d'un lien `?space=`. 'private' quand la base ne le montre pas : on
+ * n'en est pas membre (ou il a été supprimé). null quand la lecture a échoué,
+ * pour réessayer plus tard.
+ */
+export async function loadLinkedSpace(spaceId: string): Promise<SharedSpace | 'private' | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from('shared_spaces').select('*').eq('id', spaceId).maybeSingle();
+  if (error) return null;
+  return data ? (data as SharedSpace) : 'private';
+}
+
+/**
  * Répondre à une proposition : « ça me dit » ou « pas cette fois ».
  *
  * Écriture directe plutôt que `setMovieVote`, qui annule un vote identique déjà

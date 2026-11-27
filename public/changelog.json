@@ -1,7 +1,11 @@
 {
-  "version": "2026-11-15-retour-ugc",
-  "label": "Version du 15 novembre",
+  "version": "2026-11-27-liens-espace",
+  "label": "Version du 27 novembre",
   "items": [
+    {
+      "title": "Les liens d’espace mènent au bon endroit",
+      "body": "Un lien d’espace reçu par message ouvre l’app directement sur l’espace, même s’il faut d’abord se connecter : il attend la fin de la connexion. La relance « on attend ta note » ouvre l’espace sur le bon film. Et si tu n’es pas encore membre, l’app te dit de demander une invitation au lieu de te laisser sur l’accueil."
+    },
     {
       "title": "Tu reviens d’UGC : alors, tes places ?",
       "body": "Toucher un horaire ouvre la réservation UGC, mais rien n’est plus tenu pour acquis : à ton retour, l’app te demande si tu as tes places. Oui ? Importe ton billet (QR code compris, le lien « Mes réservations » est là) ou confirme d’un geste. Non ? La séance est retirée, et tu peux en choisir une autre. Plus tard ? Elle reste « à confirmer », en pointillés, et on te repose la question la veille à 18 h. Une fois confirmée, « Inviter quelqu’un » propose tes espaces, puis les personnes."
@@ -229,16 +233,16 @@
   ],
   "highlights": [
     {
+      "icon": "spaces",
+      "title": "Les liens d’espace, droit au but"
+    },
+    {
       "icon": "cinema",
       "title": "Ton billet, QR code compris"
     },
     {
       "icon": "cinema",
       "title": "Ta place, dans l’espace"
-    },
-    {
-      "icon": "cinema",
-      "title": "Les séances, aux couleurs du film"
     }
   ]
 }

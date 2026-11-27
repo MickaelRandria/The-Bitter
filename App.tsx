@@ -156,6 +156,7 @@ import {
   getInvitePreview,
   claimInvite,
   loadSpaceAndMovie,
+  loadLinkedSpace,
   CommonWish,
   getCommonWishes,
   wishKey,
@@ -305,6 +306,42 @@ const canMorph = () =>
 const SharedSpacesModal = lazy(() => import('./components/SharedSpacesModal'));
 /** Code d'espace reçu par un lien « Inviter », en attente d'un compte. */
 const PENDING_JOIN_KEY = 'bitter_pending_join';
+/**
+ * Espace reçu par un lien `?space=` (et film éventuel), gardé le temps de se
+ * connecter : l'app peut se recharger pendant qu'on va chercher le code dans
+ * ses e-mails, et l'adresse a déjà été nettoyée. Un jour au plus.
+ */
+const PENDING_SPACE_KEY = 'bitter_pending_space';
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+type PendingSpaceLink = { id: string; movie: string | null };
+const clearPendingSpace = () => {
+  try {
+    localStorage.removeItem(PENDING_SPACE_KEY);
+  } catch {
+    // Stockage indisponible : rien à effacer.
+  }
+};
+const savePendingSpace = (link: PendingSpaceLink) => {
+  try {
+    localStorage.setItem(PENDING_SPACE_KEY, JSON.stringify({ ...link, at: Date.now() }));
+  } catch {
+    // Stockage indisponible : le lien ne vaut que pour cette ouverture.
+  }
+};
+const readPendingSpace = (): PendingSpaceLink | null => {
+  try {
+    const raw = localStorage.getItem(PENDING_SPACE_KEY);
+    if (!raw) return null;
+    const { id, movie, at } = JSON.parse(raw) ?? {};
+    if (typeof id === 'string' && UUID_RE.test(id) && typeof at === 'number' && Date.now() - at < 86_400_000) {
+      return { id, movie: typeof movie === 'string' && UUID_RE.test(movie) ? movie : null };
+    }
+  } catch {
+    // Valeur illisible : on l'efface ci-dessous.
+  }
+  clearPendingSpace();
+  return null;
+};
 const SharedSpaceView = lazy(() => import('./components/SharedSpaceView'));
 const NewFeaturesModal = lazy(() => import('./components/NewFeaturesModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
@@ -791,7 +828,7 @@ const App: React.FC = () => {
   /** « Tes notifications » : la vérification unique, à montrer quand l'accueil est libre. */
   const [pushCheckDue, setPushCheckDue] = useState(() => !pushCheckSeen());
   // Lien partagé d'un espace (`?space=`, récap du mois ou blind test).
-  const [pendingSpaceLink, setPendingSpaceLink] = useState<string | null>(null);
+  const [pendingSpaceLink, setPendingSpaceLink] = useState<PendingSpaceLink | null>(() => readPendingSpace());
   const [openInAppStory, setOpenInAppStory] = useState<string | null>(null);
   const pushAskedRef = useRef(false);
   /** Compte tout juste créé : la visite guidée attend que la question des notifications soit réglée. */
@@ -1913,15 +1950,18 @@ const App: React.FC = () => {
     // Récap ou blind test partagé hors de l'app : l'espace s'ouvre une fois connecté.
     // Sur iPhone dans Safari, on dit aussi que l'app installée ne s'ouvre pas d'un lien.
     const spaceLink = url.searchParams.get('space');
-    if (spaceLink && /^[0-9a-f-]{36}$/i.test(spaceLink)) {
-      setPendingSpaceLink(spaceLink);
+    if (spaceLink && UUID_RE.test(spaceLink)) {
+      const movieLink = url.searchParams.get('movie');
+      const link = { id: spaceLink, movie: movieLink && UUID_RE.test(movieLink) ? movieLink : null };
+      savePendingSpace(link);
+      setPendingSpaceLink(link);
       if (detectPlatform() === 'ios' && !isStandalone()) setOpenInAppStory(url.searchParams.get('story') || '');
     }
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify', 'space', 'story'].filter((key) => params.has(key));
+    const incoming = ['invite', 'notif', 'screening', 'join', 'vote', 'spotify', 'space', 'movie', 'story'].filter((key) => params.has(key));
     const hadInvite = params.has('invite');
     if (incoming.length) {
       // L'adresse est arrivée : la destination gardée par le service worker ne sert plus.
@@ -1985,19 +2025,26 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingNotifOpen, session?.user?.id, activeProfileId, bootstrapping]);
 
-  // Lien d'espace partagé, une fois l'app prête. Sans accès à l'espace (lien
-  // reçu par quelqu'un qui n'en est pas membre), on reste simplement sur l'accueil.
+  // Lien d'espace partagé, une fois l'app prête et le compte connecté. Reçu par
+  // quelqu'un qui n'en est pas membre : on lui dit de demander une invitation.
+  // Lecture ratée (réseau) : le lien reste gardé pour la prochaine ouverture.
   useEffect(() => {
     if (!pendingSpaceLink || !session?.user?.id || !activeProfileId || bootstrapping) return;
-    const spaceId = pendingSpaceLink;
+    const link = pendingSpaceLink;
     setPendingSpaceLink(null);
-    void loadSpaceAndMovie(spaceId, null).then((loaded) => {
+    void loadLinkedSpace(link.id).then((loaded) => {
       if (!loaded) return;
-      setActiveSharedSpace(loaded.space);
+      clearPendingSpace();
+      if (loaded === 'private') {
+        setToastMessage(t('spaces.linkPrivate'));
+        return;
+      }
+      setActiveSharedSpace(loaded);
       setViewMode('SharedSpace');
-      setSpaceFocusMovieId(null);
+      setSpaceFocusMovieId(link.movie);
       setSharedSpaceRefreshTrigger((n) => n + 1);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSpaceLink, session?.user?.id, activeProfileId, bootstrapping]);
 
   /**

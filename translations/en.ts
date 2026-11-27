@@ -2520,6 +2520,7 @@ export const en: Record<string, string> = {
   'spaces.companionNote': 'average gap over {count} films',
   'spaces.joinedToast': 'Welcome to “{name}”.',
   'spaces.joinFailed': 'This invite link no longer works. Ask for a new one.',
+  'spaces.linkPrivate': 'This space is private. Ask the person who sent you the link to invite you.',
   'social.inviteBannerWatch': '{name} wants to watch it with you',
   'social.inviteBannerVerdict': '{name} wants your take',
   'social.inviteBannerHint': 'Create your profile to find it.',

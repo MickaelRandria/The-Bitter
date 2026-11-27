@@ -224,7 +224,11 @@ const VerdictSheet: React.FC<VerdictSheetProps> = (props) => {
     }
     haptics.success();
     if (channel === 'message') {
-      const text = `${t('verdict.remindMessage', { title: movie.title, space: props.spaceName })} https://thebitter.watch/`;
+      // Le lien ouvre l'espace sur ce verdict (`?space=&movie=`), pas l'accueil.
+      const link = new URL('https://thebitter.watch/');
+      link.searchParams.set('space', movie.space_id);
+      link.searchParams.set('movie', movie.id);
+      const text = `${t('verdict.remindMessage', { title: movie.title, space: props.spaceName })} ${link.href}`;
       try {
         if (typeof navigator.share === 'function') await navigator.share({ text });
         else {
