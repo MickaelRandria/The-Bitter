@@ -2526,6 +2526,7 @@ export const fr: Record<string, string> = {
   'spaces.companionNote': 'd’écart moyen sur {count} films',
   'spaces.joinedToast': 'Bienvenue dans « {name} ».',
   'spaces.joinFailed': 'Ce lien d’invitation ne marche plus. Demande un nouveau lien.',
+  'spaces.linkPrivate': 'Cet espace est privé. Demande à la personne qui t’a envoyé le lien de t’inviter.',
   'social.inviteBannerWatch': '{name} veut le voir avec toi',
   'social.inviteBannerVerdict': '{name} veut ton avis',
   'social.inviteBannerHint': 'Crée ton profil pour le retrouver.',
