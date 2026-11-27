@@ -76,6 +76,7 @@ import MemberProfileModal from './MemberProfileModal';
 import SpaceSettingsModal from './SpaceSettingsModal';
 import SharingNotice from './SharingNotice';
 import PublicRatingBadge from './PublicRatingBadge';
+import { shareSpaceInvite } from '../services/spaceInvite';
 import ReportSheet from './ReportSheet';
 import { ReportTarget, useBlockedUsers } from '../services/moderation';
 import { ImdbLookup, useImdbRatings } from '../services/imdb';
@@ -258,23 +259,9 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
   const handledAction = useRef(0);
   const handleInvite = async () => {
     haptics.medium();
-    const { origin, protocol, hostname } = window.location;
-    const base = protocol === 'https:' && hostname !== 'localhost' ? origin : 'https://thebitter.watch';
-    const text = `${t('spaces.inviteText', { name: space.name, code: space.invite_code })} ${base}/?join=${encodeURIComponent(space.invite_code)}`;
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ text });
-        return;
-      } catch (e) {
-        if ((e as { name?: string })?.name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      onToast?.(t('spaces.inviteCopied'));
-    } catch {
-      setActionError(t('shared.copyFailed', { code: space.invite_code }));
-    }
+    const result = await shareSpaceInvite(t('spaces.inviteText', { name: space.name, code: space.invite_code }), space.invite_code);
+    if (result === 'copied') onToast?.(t('spaces.inviteCopied'));
+    else if (result === 'failed') setActionError(t('shared.copyFailed', { code: space.invite_code }));
   };
   useEffect(() => {
     onInviteReady?.(() => { void handleInvite(); });
@@ -1999,10 +1986,35 @@ const SharedSpaceView: React.FC<SharedSpaceViewProps> = ({
               </span>
               <span className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">{membersLabel}</span>
             </button>
-
+            {/* Seul dans l'espace : la carte ci-dessous porte l'invitation. */}
+            {members.length > 1 && (
+              <button
+                onClick={() => void handleInvite()}
+                className="shrink-0 h-11 px-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 text-charcoal dark:text-white text-xs font-black flex items-center gap-2 active:scale-95 transition-transform"
+              >
+                <UserPlus size={15} strokeWidth={2.6} />
+                {t('spaces.invite')}
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Espace tout juste créé, ou que tout le monde a quitté : l'invitation
+          d'abord, c'est ce qui le fait vivre. Le lien fait entrer directement. */}
+      {!loading && !loadError && members.length < 2 && (
+        <section className="mb-8 rounded-[1.5rem] bg-white dark:bg-[#1a1a1a] border border-sand dark:border-white/10 p-5">
+          <h2 className="text-lg font-black tracking-tight text-charcoal dark:text-white">{t('spaces.inviteCardTitle')}</h2>
+          <p className="mt-1 text-[13px] font-medium leading-snug text-stone-500 dark:text-stone-400">{t('spaces.inviteCardBody')}</p>
+          <button
+            onClick={() => void handleInvite()}
+            className="mt-4 w-full h-12 rounded-2xl bg-bitter-lime text-charcoal text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            <UserPlus size={16} strokeWidth={2.6} />
+            {t('spaces.inviteSend')}
+          </button>
+        </section>
+      )}
 
       <div className="space-y-8">
         {!loadError && (
